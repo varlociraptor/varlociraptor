@@ -29,7 +29,9 @@ pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
 pub(crate) mod comparison;
+pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
+pub(crate) mod variant_buffer;
 
 pub(crate) use collect_variants::collect_variants;
 
@@ -40,6 +42,7 @@ lazy_static! {
     pub(crate) static ref PROB_033: LogProb = LogProb::from(Prob(1.0 / 3.0));
     pub(crate) static ref PROB_025: LogProb = LogProb::from(Prob(0.25));
     pub(crate) static ref PROB_095: LogProb = LogProb::from(Prob(0.95));
+    pub(crate) static ref PROB_09: LogProb = LogProb::from(Prob(0.9));
 }
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {

@@ -155,18 +155,55 @@ testcase!(test69, exact);
 testcase!(test70, exact);
 testcase!(test71, exact);
 testcase!(test72, exact);
+testcase!(test74, exact);
+testcase!(test75, exact);
+testcase!(test77, exact);
+testcase!(test78, exact);
 
 // Skip test_giab_01 for now as the call seems to be correct.
 // TODO try to find out what is wrong in the GIAB callset at that location.
-//testcase!(test_giab_01, exact);
+testcase!(test_giab_01, exact);
 testcase!(test_giab_02, exact);
 testcase!(test_giab_03, exact);
-// Skip test_giab_04 because there is strand bias (but variant is known to be correct).
-// The bias seems like a WES artifact. But we cannot avoid such a case for now.
-// Otherwise we would risk false positives elsewhere.
-//testcase!(test_giab_04, exact);
+testcase!(test_giab_04, exact);
 
 testcase!(test_giab_05, exact);
+
+testcase!(test_giab_06, exact);
+testcase!(test_giab_07, exact);
+testcase!(test_giab_08, exact);
+testcase!(test_giab_09, exact);
+testcase!(test_giab_10, exact);
+testcase!(test_giab_11, exact);
+testcase!(test_giab_12, exact);
+testcase!(test_giab_13, exact);
+// Skip test_giab_14. It is just bad luck that the reads here look like a homopolymer artifact although the variant is real.
+// See testcase.yaml for details.
+//testcase!(test_giab_14, exact);
+testcase!(test_giab_15, exact);
+testcase!(test_giab_16, exact);
+testcase!(test_giab_17, exact);
+testcase!(test_giab_18, exact);
+testcase!(test_giab_19, exact);
+testcase!(test_giab_20, exact);
+testcase!(test_giab_21, exact);
+testcase!(test_giab_22, exact);
+testcase!(test_giab_23, exact);
+// Skip test_giab_24. It is simply an unlucky combination of homology artifacts that looks strong.
+// At least our probability is weaker than Freebayes's already.
+// testcase!(test_giab_24, exact);
+testcase!(test_giab_25, exact);
+testcase!(test_giab_26, exact);
+testcase!(test_giab_27, exact);
+// Skip test_giab_28. It is simply an unlucky combination of homology artifacts that looks strongly like an artifact.
+//testcase!(test_giab_28, exact);
+testcase!(test_giab_29, exact);
+testcase!(test_giab_30, exact);
+testcase!(test_giab_31, exact);
+testcase!(test_giab_32, exact);
+testcase!(test_giab_33, exact);
+testcase!(test_giab_34, exact);
+testcase!(test_giab_35, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
@@ -346,14 +383,14 @@ fn test_fdr_control_local3() {
 // TODO enable this test again once https://github.com/samtools/bcftools/issues/874 is truly fixed upstream
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
-fn test_fdr_control5() {
-    control_fdr(
-        "test_fdr_control_out_of_bounds",
-        &["PRESENT"],
-        0.05,
-        false,
-        Some(&varlociraptor::variants::model::VariantType::Deletion(
-            Some(1..30),
-        )),
-    );
-}
+// fn test_fdr_control5() {
+//     control_fdr(
+//         "test_fdr_control_out_of_bounds",
+//         &["PRESENT"],
+//         0.05,
+//         false,
+//         Some(&varlociraptor::variants::model::VariantType::Deletion(
+//             Some(1..30),
+//         )),
+//     );
+// }

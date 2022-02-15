@@ -1,0 +1,2 @@
+events:
+    denovo: "is_denovo(variant) & !any(impact(other_variant) == impact(variant) & is_germline(other_variant)) & expression(gene(variant)) > 0"

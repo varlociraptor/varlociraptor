@@ -1,0 +1,26 @@
+# This scenario is templated with Jinja2 and rendered for each group (see sample sheet).
+# A variable `samples` is available, holding the dataframe of
+# the sample sheet, filtered to those samples contained in the group to be rendered.
+# For example, this can be used to pass arbitrary column values (like the purity below),
+# to the sample definitions.
+# Note that sample names here must correspond to the alias column in the sample sheet.
+
+
+samples:
+  normal:
+    resolution: 0.1
+    universe: "0.0 | 0.5 | 1.0 | ]0.0,0.5["
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+#    contamination:
+#      by: normal
+#      fraction: 0.0
+
+events:
+  somatic_tumor_low: "normal:0.0 & tumor:]0.0,0.1["
+  somatic_tumor_medium: "normal:0.0 & tumor:[0.1,0.3["
+  somatic_tumor_high: "normal:0.0 & tumor:[0.3,1.0]"
+  somatic_normal: "normal:]0.0,0.5["
+  germline_hom: "normal:1.0"
+  germline_het: "normal:0.5"

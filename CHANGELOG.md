@@ -2,6 +2,113 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.11.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.0...v4.11.1) (2022-01-11)
+
+
+### Bug Fixes
+
+* remove debug messages ([350c747](https://www.github.com/varlociraptor/varlociraptor/commit/350c7473c3bbaf2b9680b09cace84426870558fc))
+
+## [4.11.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.10.1...v4.11.0) (2022-01-10)
+
+
+### Features
+
+* enable "false" in event expressions, in order to explicitly specify that an event is always false. ([#254](https://www.github.com/varlociraptor/varlociraptor/issues/254)) ([69b4eec](https://www.github.com/varlociraptor/varlociraptor/commit/69b4eece1bc8f42b11cb4a840f4ed1801541e4d4))
+
+### [4.10.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.10.0...v4.10.1) (2021-12-21)
+
+
+### Bug Fixes
+
+* update to latest dependency versions ([#250](https://www.github.com/varlociraptor/varlociraptor/issues/250)) ([410a331](https://www.github.com/varlociraptor/varlociraptor/commit/410a331cb4e96ad7a5d97fd774eb70220df04966))
+
+## [4.10.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.9.0...v4.10.0) (2021-12-20)
+
+
+### Features
+
+* support subclonal inheritance ([#248](https://www.github.com/varlociraptor/varlociraptor/issues/248)) ([1d55f23](https://www.github.com/varlociraptor/varlociraptor/commit/1d55f2314de7f0465bc0eae08edb6b7d62a1c113))
+
+## [4.9.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.8.1...v4.9.0) (2021-12-15)
+
+
+### Features
+
+* refinement of homopolymer error model (for increased specificity) ([#246](https://www.github.com/varlociraptor/varlociraptor/issues/246)) ([380245d](https://www.github.com/varlociraptor/varlociraptor/commit/380245d5dea2aef29bba2915fd53e07b5df2f0b9))
+
+
+### Bug Fixes
+
+* adjust mapqs by prevalence of non-unique reads at locus. ([#242](https://www.github.com/varlociraptor/varlociraptor/issues/242)) ([a63f8bd](https://www.github.com/varlociraptor/varlociraptor/commit/a63f8bd7f7a19b9a3f3bc6f425669667f6043af9))
+* various model improvements and corresponding test cases ([#245](https://www.github.com/varlociraptor/varlociraptor/issues/245)) ([d3a5997](https://www.github.com/varlociraptor/varlociraptor/commit/d3a5997bad1f348580139bf287c589172b0d051c))
+
+### [4.8.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.8.0...v4.8.1) (2021-12-08)
+
+
+### Bug Fixes
+
+* fixed bug causing NaN likelihoods when dealing with samples that do not contain any homopolyer indels. ([795b02d](https://www.github.com/varlociraptor/varlociraptor/commit/795b02d6c0093eceda7ad297da24a8c9fe4b83dc))
+
+## [4.8.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.7.0...v4.8.0) (2021-12-07)
+
+
+### Features
+
+* accurate consideration of multiallelic variants ([#239](https://www.github.com/varlociraptor/varlociraptor/issues/239)) ([d8e646e](https://www.github.com/varlociraptor/varlociraptor/commit/d8e646e567317bf02bf665c173ec6d58d3f06a0e))
+* ability to display each processed record in the logging output of `varlociraptor call` via --log-mode each-record.
+* sort events by prob for more consistent info field order ([#237](https://www.github.com/varlociraptor/varlociraptor/issues/237))
+* accept extended strand information from `rbt call-consensus-reads`([#238](https://www.github.com/varlociraptor/varlociraptor/issues/238))
+
+## [4.7.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.6.0...v4.7.0) (2021-11-17)
+
+
+### Features
+
+* do not anymore require genome size definition in scenarios ([#231](https://www.github.com/varlociraptor/varlociraptor/issues/231)) ([a707d02](https://www.github.com/varlociraptor/varlociraptor/commit/a707d02fb90e5f75182579f6c2bfc5ac06820e56))
+* output sampled VAF densities (in the AFD format tag) ([#234](https://www.github.com/varlociraptor/varlociraptor/issues/234)) ([35ced8f](https://www.github.com/varlociraptor/varlociraptor/commit/35ced8f3066bc00367aafc8d2e76b8a0630d061d))
+
+
+### Bug Fixes
+
+* always keep replacements as they are, even if they are just simple insertions or deletions ([4a8e6ed](https://www.github.com/varlociraptor/varlociraptor/commit/4a8e6edda70e2e132853fcdbea100cc4d621428c))
+* fixed determination of homopolymer indels from replacements ([#233](https://www.github.com/varlociraptor/varlociraptor/issues/233)) ([4318e5f](https://www.github.com/varlociraptor/varlociraptor/commit/4318e5fc2ce3231264772a708a365aa854aea010))
+* fixed update of possible events when switching between variant types. ([f9037f7](https://www.github.com/varlociraptor/varlociraptor/commit/f9037f764ad9c8af9bc5fb2c9812ee50bcff30e6))
+* simplified but more accurate homopolymer error model ([#230](https://www.github.com/varlociraptor/varlociraptor/issues/230)) ([7f8cbd8](https://www.github.com/varlociraptor/varlociraptor/commit/7f8cbd885b5d397799d23fcc7362be7afbda4342))
+* understandable error message if BCF record contains invalid positions ([#228](https://www.github.com/varlociraptor/varlociraptor/issues/228)) ([6533a70](https://www.github.com/varlociraptor/varlociraptor/commit/6533a70b881282adc8a7e857f91b506e6dc548e1))
+
+## [4.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.5.0...v4.6.0) (2021-11-02)
+
+
+### Features
+
+* better homopolymer error detection ([#226](https://www.github.com/varlociraptor/varlociraptor/issues/226)) ([b95d03d](https://www.github.com/varlociraptor/varlociraptor/commit/b95d03d99519cb00c0a59aa61ab834a56e5f3777))
+* eliminate false positives and false negatives: MAPQ adjustment (adjust MAPQ by mean pileup MAPQ; this gets rid of stochastically inflated MAPQs), do not estimate strand bias if all reads come from the same strand, infer wildtype forward strand rate from non-alt reads if possible ([#222](https://www.github.com/varlociraptor/varlociraptor/issues/222)) ([d54ccb0](https://www.github.com/varlociraptor/varlociraptor/commit/d54ccb07b02788d026ee1defe540a84587d63998))
+
+
+### Bug Fixes
+
+* properly handle reads with both allele probs -inf ([6b04fd6](https://www.github.com/varlociraptor/varlociraptor/commit/6b04fd6a118524eb27ba469309c620771e4a7760))
+
+## [4.5.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.3...v4.5.0) (2021-10-07)
+
+
+### Features
+
+* added inference of classical genotypes from Varlociraptor's AF field (see varlociraptor genotype --help) ([b12c0f5](https://www.github.com/varlociraptor/varlociraptor/commit/b12c0f5eec405dd48089b98c202fb16ad25d8d7c))
+
+
+### Bug Fixes
+
+* Add check for order of records in bcf (before, coordinate sorting was implicitly assumed but not checked, leading to overflow errors upon violation) ([#218](https://www.github.com/varlociraptor/varlociraptor/issues/218)) ([c3d20a9](https://www.github.com/varlociraptor/varlociraptor/commit/c3d20a95b0616901978cdec81c1d80b8e87786b6))
+
+### [4.4.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.2...v4.4.3) (2021-09-30)
+
+
+### Bug Fixes
+
+* fix out of bounds error when evaluating replacement records ([#216](https://www.github.com/varlociraptor/varlociraptor/issues/216)) ([7d5fde1](https://www.github.com/varlociraptor/varlociraptor/commit/7d5fde1e47b8ff7e1a514d16a830890112976449))
+
 ### [4.4.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.1...v4.4.2) (2021-09-14)
 
 

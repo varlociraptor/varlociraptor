@@ -357,8 +357,9 @@ pub(crate) struct Species {
     variant_type_fractions: VariantTypeFraction,
     #[serde(default)]
     ploidy: Option<SexPloidyDefinition>,
-    #[serde(default)]
-    #[serde(rename = "genome-size")]
+    #[serde(default, rename = "genome-size")]
+    #[allow(dead_code)]
+    // genome size is deprecated but we keep allowing it to not break old scenarios
     genome_size: Option<f64>,
 }
 
@@ -642,31 +643,7 @@ pub(crate) enum Inheritance {
     #[serde(rename = "clonal")]
     Clonal { from: String, somatic: bool },
     #[serde(rename = "subclonal")]
-    Subclonal {
-        from: String,
-        origin: SubcloneOrigin,
-    },
-}
-
-#[derive(
-    Display,
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    IntoStaticStr,
-    EnumVariantNames,
-    PartialEq,
-    Eq,
-    Hash,
-)]
-#[strum(serialize_all = "kebab_case")]
-pub(crate) enum SubcloneOrigin {
-    #[serde(rename = "single-cell")]
-    SingleCell,
-    #[serde(rename = "multi-cell")]
-    MultiCell,
+    Subclonal { from: String },
 }
 
 #[derive(

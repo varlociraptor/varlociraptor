@@ -1,10 +1,12 @@
 # GIAB variant (1:3386594) which is homozygous. In this sample, it can look like strand bias (which is wrong) because of the targeted approach.
-# TODO what can we do about this? I'd rather say better we have a bit of missing sensitivity at the boundaries of target regions instead of 
-# FPs in the middle.
+# We currently fail at detecting the VAF correctly, because the sample contains one read which strongly disagrees with the variant. This
+# read could be a mismapper from an homologous region, but its MAPQ is 60 (hence, the homology is likely not properly represented in the reference.
 
 expected:
-  allelefreqs:
-    - NA12878 == 1.0
+  allele_freqs:
+    - NA12878 == 1.0 
+  posteriors:
+    - PROB_PRESENT <= 1.0
 
 # necessary bam files
 samples:

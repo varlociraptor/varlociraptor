@@ -2,7 +2,7 @@ universe = _{ SOI ~ ( vafdef ~ ( "|" ~ vafdef )* ) ~ EOI }
 vafdef = _{ vaf | vafrange }
 vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
 
-formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression | cmp | lfc) ~ EOI }
+formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression | cmp | lfc | false_literal) ~ EOI }
 conjunction = { subformula ~ ( "&" ~ subformula )+ }
 disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }
@@ -13,6 +13,7 @@ sample_vaf = { identifier ~ ":" ~ vaf }
 expression = { "$" ~ identifier }
 identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 variant = { iupac ~ ">" ~ iupac }
+false_literal = { "false" }
 
 cmp_ops = { ("<=" | "<" | ">=" | ">"  | "!=" | "==" ) }
 cmp = { identifier ~ cmp_ops ~ identifier }

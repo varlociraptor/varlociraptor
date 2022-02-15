@@ -9,7 +9,8 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base_miscall;
-use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -55,6 +56,7 @@ impl Variant for None {
         &self,
         read: &SingleEndEvidence,
         _: &AlignmentProperties,
+        _: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if let Some(qpos) = read
             .cigar_cached()

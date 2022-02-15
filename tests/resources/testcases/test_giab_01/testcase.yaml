@@ -1,9 +1,7 @@
 # According to GIAB, 1:948245 seems to be a false positive (hence this testcase should yield AF=0.0), but it looks correct to us.
+# Likely a cell line mutation.
 
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - NA12878 == 0.0
 
 # necessary bam files
 samples:

@@ -10,22 +10,24 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::EmissionParameters;
+
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
+use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observation::Strand;
-use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
+use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
+use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
-use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct Mnv<R: Realigner> {
     locus: SingleLocus,
@@ -53,30 +55,26 @@ impl<R: Realigner> Mnv<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for Mnv<R> {
-    type EmissionParams = MnvEmissionParams<'a>;
-
+impl<R: Realigner> Realignable for Mnv<R> {
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<MnvEmissionParams<'a>>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![MnvEmissionParams {
+        Ok(vec![Box::new(MnvEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + self.alt_bases.len() + ref_window, ref_seq_len),
             alt_start: start,
             alt_end: self.locus.range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
-            read_emission: read_emission_params,
-        }])
+        })])
     }
 }
 
@@ -104,15 +102,19 @@ impl<R: Realigner> Variant for Mnv<R> {
         &self,
         read: &SingleEndEvidence,
         _: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if utils::contains_indel_op(&**read) {
+        if utils::contains_indel_op(&**read) || !alt_variants.is_empty() {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the MNV might be an artifact
-            // of the aligner.
+            // of the aligner. Also, if we have alt alignments here, we need to
+            // realign as well since we need the multi-allelic case handling in the
+            // realigner.
             Ok(Some(self.realigner.borrow_mut().allele_support(
                 &**read,
                 [&self.locus].iter(),
                 self,
+                alt_variants,
             )?))
         } else {
             let mut prob_ref = LogProb::ln_one();
@@ -203,17 +205,16 @@ impl<R: Realigner> Variant for Mnv<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct MnvEmissionParams<'a> {
+pub(crate) struct MnvEmissionParams {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
     alt_start: usize,
     alt_end: usize, // exclusive end
     alt_seq: Rc<Vec<u8>>,
-    read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
+impl RefBaseEmission for MnvEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -225,34 +226,20 @@ impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
         }
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        Some(self.alt_start..self.alt_end)
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
     }
-
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for MnvEmissionParams<'a> {
-    default_emission!();
 
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> bio::stats::pairhmm::Emission for MnvEmissionParams<'a> {
-    #[inline]
-    fn emission_x(&self, i: usize) -> u8 {
-        self.ref_base(i)
-    }
-
-    #[inline]
-    fn emission_y(&self, j: usize) -> u8 {
-        unsafe {
-            self.read_emission
-                .read_seq
-                .decoded_base_unchecked(self.read_emission.project_j(j))
-        }
+impl VariantEmission for MnvEmissionParams {
+    fn is_homopolymer_indel(&self) -> bool {
+        false
     }
 }

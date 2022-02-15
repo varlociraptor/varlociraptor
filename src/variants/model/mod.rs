@@ -12,7 +12,7 @@ use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
-use crate::variants::model::bias::Biases;
+use crate::variants::model::bias::Artifacts;
 
 pub(crate) mod bias;
 pub(crate) mod likelihood;
@@ -29,7 +29,7 @@ pub(crate) struct Contamination {
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Vec<Biases>,
+    pub(crate) biases: Vec<Artifacts>,
 }
 
 impl Event {
@@ -96,7 +96,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(value)..AlleleFreq(value),
             left_exclusive: false,
             right_exclusive: false,
-            zero_offset: NotNan::from(1.0),
+            zero_offset: NotNan::from(1.0_f64),
         }
     }
 
@@ -207,6 +207,10 @@ impl Variant {
         matches!(self, Variant::Breakend { .. })
     }
 
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, Variant::None)
+    }
+
     pub(crate) fn is_type(&self, vartype: &VariantType) -> bool {
         match (self, vartype) {
             (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => {
@@ -259,8 +263,8 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::variants::evidence::observation::{
-        Observation, ObservationBuilder, ReadPosition, Strand,
+    use crate::variants::evidence::observations::read_observation::{
+        AltLocus, ProcessedReadObservation, ReadObservationBuilder, ReadPosition, Strand,
     };
     use bio_types::sequence::SequenceReadPairOrientation;
 
@@ -270,8 +274,9 @@ mod tests {
         prob_mapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
-    ) -> Observation<ReadPosition> {
-        ObservationBuilder::default()
+    ) -> ProcessedReadObservation {
+        ReadObservationBuilder::default()
+            .name(None)
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)
             .prob_ref(prob_ref)
@@ -282,9 +287,13 @@ mod tests {
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
-            .has_alt_indel_operations(false)
+            .prob_observable_at_homopolymer_artifact(None)
+            .prob_observable_at_homopolymer_variant(None)
+            .homopolymer_indel_len(None)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
+            .is_max_mapq(true)
+            .alt_locus(AltLocus::None)
             .build()
             .unwrap()
     }

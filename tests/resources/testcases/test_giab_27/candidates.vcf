@@ -1,0 +1,110 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="Difference in length between REF and ALT alleles">
+##INFO=<ID=END,Number=A,Type=Integer,Description="End position of structural variant (inclusive, 1-based).">
+##INFO=<ID=SVTYPE,Number=A,Type=String,Description="Structural variant type">
+##INFO=<ID=EVENT,Number=A,Type=String,Description="ID of event associated to breakend">
+##INFO=<ID=MATEID,Number=1,Type=String,Description="ID of mate breakend">
+##contig=<ID=1,length=249250621>
+##contig=<ID=10,length=135534747>
+##contig=<ID=11,length=135006516>
+##contig=<ID=12,length=133851895>
+##contig=<ID=13,length=115169878>
+##contig=<ID=14,length=107349540>
+##contig=<ID=15,length=102531392>
+##contig=<ID=16,length=90354753>
+##contig=<ID=17,length=81195210>
+##contig=<ID=18,length=78077248>
+##contig=<ID=19,length=59128983>
+##contig=<ID=2,length=243199373>
+##contig=<ID=20,length=63025520>
+##contig=<ID=21,length=48129895>
+##contig=<ID=22,length=51304566>
+##contig=<ID=3,length=198022430>
+##contig=<ID=4,length=191154276>
+##contig=<ID=5,length=180915260>
+##contig=<ID=6,length=171115067>
+##contig=<ID=7,length=159138663>
+##contig=<ID=8,length=146364022>
+##contig=<ID=9,length=141213431>
+##contig=<ID=MT,length=16569>
+##contig=<ID=X,length=155270560>
+##contig=<ID=Y,length=59373566>
+##contig=<ID=GL000192.1,length=547496>
+##contig=<ID=GL000225.1,length=211173>
+##contig=<ID=GL000194.1,length=191469>
+##contig=<ID=GL000193.1,length=189789>
+##contig=<ID=GL000200.1,length=187035>
+##contig=<ID=GL000222.1,length=186861>
+##contig=<ID=GL000212.1,length=186858>
+##contig=<ID=GL000195.1,length=182896>
+##contig=<ID=GL000223.1,length=180455>
+##contig=<ID=GL000224.1,length=179693>
+##contig=<ID=GL000219.1,length=179198>
+##contig=<ID=GL000205.1,length=174588>
+##contig=<ID=GL000215.1,length=172545>
+##contig=<ID=GL000216.1,length=172294>
+##contig=<ID=GL000217.1,length=172149>
+##contig=<ID=GL000199.1,length=169874>
+##contig=<ID=GL000211.1,length=166566>
+##contig=<ID=GL000213.1,length=164239>
+##contig=<ID=GL000220.1,length=161802>
+##contig=<ID=GL000218.1,length=161147>
+##contig=<ID=GL000209.1,length=159169>
+##contig=<ID=GL000221.1,length=155397>
+##contig=<ID=GL000214.1,length=137718>
+##contig=<ID=GL000228.1,length=129120>
+##contig=<ID=GL000227.1,length=128374>
+##contig=<ID=GL000191.1,length=106433>
+##contig=<ID=GL000208.1,length=92689>
+##contig=<ID=GL000198.1,length=90085>
+##contig=<ID=GL000204.1,length=81310>
+##contig=<ID=GL000233.1,length=45941>
+##contig=<ID=GL000237.1,length=45867>
+##contig=<ID=GL000230.1,length=43691>
+##contig=<ID=GL000242.1,length=43523>
+##contig=<ID=GL000243.1,length=43341>
+##contig=<ID=GL000241.1,length=42152>
+##contig=<ID=GL000236.1,length=41934>
+##contig=<ID=GL000240.1,length=41933>
+##contig=<ID=GL000206.1,length=41001>
+##contig=<ID=GL000232.1,length=40652>
+##contig=<ID=GL000234.1,length=40531>
+##contig=<ID=GL000202.1,length=40103>
+##contig=<ID=GL000238.1,length=39939>
+##contig=<ID=GL000244.1,length=39929>
+##contig=<ID=GL000248.1,length=39786>
+##contig=<ID=GL000196.1,length=38914>
+##contig=<ID=GL000249.1,length=38502>
+##contig=<ID=GL000246.1,length=38154>
+##contig=<ID=GL000203.1,length=37498>
+##contig=<ID=GL000197.1,length=37175>
+##contig=<ID=GL000245.1,length=36651>
+##contig=<ID=GL000247.1,length=36422>
+##contig=<ID=GL000201.1,length=36148>
+##contig=<ID=GL000235.1,length=34474>
+##contig=<ID=GL000239.1,length=33824>
+##contig=<ID=GL000210.1,length=27682>
+##contig=<ID=GL000231.1,length=27386>
+##contig=<ID=GL000229.1,length=19913>
+##contig=<ID=GL000226.1,length=15008>
+##contig=<ID=GL000207.1,length=4262>
+##INFO=<ID=PROB_MAPPING,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_ALT,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_REF,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_MISSED_ALLELE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_SAMPLE_ALT,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_DOUBLE_OVERLAP,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_HIT_BASE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=STRAND,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=READ_ORIENTATION,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=READ_POSITION,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=SOFTCLIPPED,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=ALT_INDEL_OPERATIONS,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PAIRED,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_HOMOPOLYMER_OBSERVABLE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=HOMOPOLYMER_INDEL_LEN,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/NA12878.freebayes.3-of-16.bcf","bam":"results/recal/NA12878.sorted.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/NA12878/NA12878.json","output":"results/observations/NA12878/NA12878.freebayes.3-of-16.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":300,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}
+##varlociraptor_observation_format_version=11
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+11	182	.	C	A	.	.	PROB_MAPPING=19,0,0,0,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132,1,0,39899,48466,1,0,1429,48132,1,0,1429,48132,1,0,1429,48132;PROB_REF=19,0,0,0,1,0,51617,49411,1,0,3352,49305,1,0,13651,49430,1,0,6782,49408,1,0,6782,49408,1,0,15657,47441,1,0,6782,49408,1,0,15657,47441,1,0,15657,47441,1,0,13651,49430,1,0,34351,49426,1,0,46653,47491,1,0,13651,49430,1,0,46653,47491,1,0,15657,47441,1,0,55052,49422,1,0,46653,47491,1,0,13651,49430,1,0,15657,47441;PROB_ALT=19,0,0,0,1,0,20364,47696,1,0,26334,48336,1,0,46653,47491,1,0,9033,47747,1,0,9033,47747,1,0,58487,49433,1,0,9033,47747,1,0,58487,49433,1,0,58487,49433,1,0,46653,47491,1,0,53808,47525,1,0,13651,49430,1,0,46653,47491,1,0,13651,49430,1,0,58487,49433,1,0,50068,47568,1,0,13651,49430,1,0,46653,47491,1,0,58487,49433;PROB_MISSED_ALLELE=19,0,0,0,1,0,38095,48945,1,0,50407,48949,1,0,32018,48945,1,0,40397,48945,1,0,40397,48945,1,0,31440,48945,1,0,40397,48945,1,0,31440,48945,1,0,31440,48945,1,0,32018,48945,1,0,32745,48945,1,0,32018,48945,1,0,32018,48945,1,0,32018,48945,1,0,31440,48945,1,0,33662,48945,1,0,32018,48945,1,0,32018,48945,1,0,31440,48945;PROB_SAMPLE_ALT=19,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0;PROB_DOUBLE_OVERLAP=19,0,0,0,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512,0,0,64512;STRAND=19,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0;READ_ORIENTATION=19,0,0,0,1,0,1,0,0,0,0,0,1,0,1,0,1,0,1,0,8,0,0,0,1,0,8,0,1,0,1,0,0,0,1,0,1,0,1,0,0,0;SOFTCLIPPED=769,0,0,0,0,0,19,0,0,0;PAIRED=769,0,0,0,65280,2047,19,0,0,0;READ_POSITION=19,0,0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0;PROB_HIT_BASE=19,0,0,0,1,0,44817,49299,1,0,44817,49299,1,0,44817,49299,1,0,44817,49299,1,0,44817,49299,1,0,44817,49299,1,0,44817,49299,1,0,44817,49299,1,0,18008,49295,1,0,44817,49299,1,0,44817,49299,1,0,18008,49295,1,0,44817,49299,1,0,44817,49299,1,0,23950,49299,1,0,44817,49299,1,0,44817,49299,1,0,2873,49299,1,0,44817,49299

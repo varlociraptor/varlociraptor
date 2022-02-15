@@ -2,17 +2,17 @@
 
 expected:
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 11.08
+  - PROB_SOMATIC_TUMOR >= 5.0
 
 samples:
   normal:
     path: normal.bam
     properties: '{ "insert_size": { "mean": 362.0, "sd": 80.23866322991103 }, "max_del_cigar_len":
-      24, "max_ins_cigar_len": 18, "frac_max_softclip": 0.832, "max_mapq": 60.0 }'
+      24, "max_ins_cigar_len": 18, "frac_max_softclip": 0.832, "max_mapq": 60 }'
   tumor:
     path: tumor.bam
     properties: '{ "insert_size": { "mean": 394.0, "sd": 79.00456149231279 }, "max_del_cigar_len":
-      20, "max_ins_cigar_len": 16, "frac_max_softclip": 0.848, "max_mapq": 60.0 }'
+      20, "max_ins_cigar_len": 16, "frac_max_softclip": 0.848, "max_mapq": 60 }'
 
 # candidate variant
 candidate: candidates.vcf

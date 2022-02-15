@@ -1,9 +1,8 @@
-# TODO The variant here might be somatic in the normal, but occurs at low VAF in addition with low base quality and only on two forward reads.
-# Varlociraptor decides that this is coincidence and rather attributes it to the tumor. It remains to be investigated whether a prior would change
-# its opinion
+# The variant here might be somatic in the normal, but occurs at low VAF in addition with low base quality and only on two forward reads.
+# This is likely an artifact.
 expected:
   posteriors:
-    - PROB_ARTIFACT <= 2.2
+    - PROB_ARTIFACT <= 2.9
 
 # necessary bam files
 samples:

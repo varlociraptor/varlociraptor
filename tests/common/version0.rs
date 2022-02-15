@@ -87,10 +87,6 @@ impl Testcase for TestcaseVersion0 {
                 let options = Varlociraptor::Preprocess {
                     kind: PreprocessKind::Variants {
                         reference,
-                        // spurious_ins_rate,
-                        // spurious_del_rate,
-                        // spurious_insext_rate,
-                        // spurious_delext_rate,
                         protocol_strandedness,
                         realignment_window: indel_window as u64,
                         max_depth,
@@ -102,9 +98,9 @@ impl Testcase for TestcaseVersion0 {
                         omit_insert_size: false,
                         reference_buffer_size: 10,
                         min_bam_refetch_distance: 1,
-                        // pairhmm_mode: "exact".to_owned(),
                         log_mode: "default".to_owned(),
                         model: Default::default(),
+                        output_raw_observations: None,
                     },
                 };
 
