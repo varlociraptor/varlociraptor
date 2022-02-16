@@ -6,6 +6,7 @@
 use std::cmp;
 use std::collections::HashMap;
 use std::f64;
+use std::ops::Deref;
 use std::str;
 use std::u32;
 
@@ -17,15 +18,15 @@ use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
-use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::homopolymers::is_homopolymer_seq;
+use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::SimpleCounter;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
 use rayon::prelude::*;
 
-const NUM_FRAGMENTS: usize = 100000;
+const NUM_FRAGMENTS: usize = 1000000;
 
 fn default_homopolymer_error_model() -> HashMap<i8, f64> {
     let mut model = HashMap::new();
@@ -465,35 +466,47 @@ impl AlignmentProperties {
                 (tid, *tname)
             })
             .collect();
-        let buf_size = rayon::current_num_threads().max(32);
-        let mut record_buffer = Vec::with_capacity(buf_size);
-        let mut record = bam::Record::new();
+        let reference_seqs: HashMap<&[u8], Vec<u8>> = tid_to_tname
+            .values()
+            .map(|tname| {
+                (
+                    *tname,
+                    reference_buffer
+                        .seq(std::str::from_utf8(tname).unwrap())
+                        .unwrap()
+                        .deref()
+                        .clone(),
+                )
+            })
+            .collect();
+
+        let buf_size = rayon::current_num_threads();
         let mut n_records_read = 0;
         let mut n_records_skipped = 0;
         let mut all_stats = AllStats::default();
         let mut eof = false;
+        let mut records = bam.records();
         while !eof && n_records_read < NUM_FRAGMENTS {
-            eprint!("{:7}  {:7}\r", n_records_read, n_records_skipped);
+            let mut record_buffer = Vec::with_capacity(buf_size);
             while record_buffer.len() < buf_size && !eof {
-                match bam.read(&mut record) {
+                match records.next() {
                     None => {
                         eof = true;
                         break;
                     }
                     Some(res) => {
-                        res?;
+                        let mut record = res?;
                         n_records_read += 1;
-                        let mut r = record.clone();
                         // don't cache cigar for ultralong reads
-                        if r.seq_len() <= 10000 {
-                            r.cache_cigar();
+                        if record.seq_len() <= 32000 {
+                            record.cache_cigar();
                         }
-                        record_buffer.push(r);
+                        record_buffer.push(record);
                     }
                 }
             }
             let batch_stats = record_buffer
-                .par_iter()
+                .into_par_iter()
                 .enumerate()
                 .filter(|(i, record)| {
                     !(record.mapq() == 0
@@ -502,13 +515,13 @@ impl AlignmentProperties {
                         || record.is_unmapped())
                 })
                 .map(|(i, record)| {
-                    let chrom = str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
-
                     let ((is_regular, has_softclip), cigar_stats) =
-                        cigar_stats(record, allow_hardclips);
+                        cigar_stats(&record, allow_hardclips);
 
-                    let homopolymer_counts =
-                        homopolymer_counts(record, reference_buffer.seq(chrom).unwrap().as_ref());
+                    let homopolymer_counts = homopolymer_counts(
+                        &record,
+                        &reference_seqs[tid_to_tname[&(record.tid() as u32)]],
+                    );
 
                     let insert_size = if !is_regular {
                         None
@@ -563,7 +576,6 @@ impl AlignmentProperties {
                 });
             n_records_skipped += buf_size - batch_stats.n_reads;
             all_stats.update(batch_stats);
-            record_buffer.clear();
         }
 
         properties.wildtype_homopolymer_error_model = {
