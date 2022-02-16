@@ -59,7 +59,7 @@ impl AlignmentProperties {
     pub(crate) fn update_homopolymer_error_model(
         &mut self,
         record: &bam::Record,
-        counts: &mut SimpleCounter<i8>,
+        counts: &mut SimpleCounter<(u8, i8)>,
         refseq: &[u8],
     ) {
         let qseq = record.seq().as_bytes();
@@ -71,6 +71,7 @@ impl AlignmentProperties {
                 Cigar::Del(l) => {
                     let l = l as usize;
                     if l < 255 {
+                        let base = refseq[rpos];
                         if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
                             let mut len = l;
                             if rpos + l < refseq.len() {
@@ -86,7 +87,7 @@ impl AlignmentProperties {
                                 )
                             }
                             if len >= MIN_HOMOPOLYMER_LEN {
-                                counts.incr(-(l as i8));
+                                counts.incr((base, -(l as i8)));
                             }
                         }
                     }
@@ -95,6 +96,7 @@ impl AlignmentProperties {
                 Cigar::Ins(l) => {
                     let l = l as usize;
                     if l < 255 {
+                        let base = qseq[qpos];
                         if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
                             let mut len = l + extend_homopolymer_stretch(
                                 qseq[qpos],
@@ -107,7 +109,7 @@ impl AlignmentProperties {
                                 );
                             }
                             if len >= MIN_HOMOPOLYMER_LEN {
-                                counts.incr(l as i8)
+                                counts.incr((base, l as i8))
                             }
                         }
                     }
@@ -115,9 +117,9 @@ impl AlignmentProperties {
                 }
                 Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
                     let l = l as usize;
-                    for (_, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
+                    for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
                         if stretch.count() >= MIN_HOMOPOLYMER_LEN {
-                            counts.incr(0);
+                            counts.incr((base, 0));
                         }
                     }
                     qpos += l as usize;
@@ -315,9 +317,14 @@ impl AlignmentProperties {
                 .values()
                 .filter(|count| **count >= 10)
                 .sum::<usize>() as f64;
-            homopolymer_error_counts
+            let grouped = homopolymer_error_counts
                 .iter()
-                .map(|(len, count)| (*len, *count as f64 / n))
+                .sorted_unstable_by_key(|((_, length), _)| length)
+                .group_by(|((_, length), _)| length);
+            grouped
+                .into_iter()
+                .map(|(length, group)| (length, group.map(|(_, count)| count).sum::<usize>()))
+                .map(|(length, count)| (*length, count as f64 / n))
                 .collect()
         };
 
