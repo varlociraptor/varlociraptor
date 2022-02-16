@@ -125,6 +125,16 @@ pub(crate) fn is_homopolymer_seq(seq: &[u8]) -> bool {
     seq[1..].iter().all(|c| c.to_ascii_uppercase() == base)
 }
 
+pub(crate) fn is_homopolymer_iter(mut seq: impl Iterator<Item = u8>) -> bool {
+    if let Some(first) = seq.next() {
+        let base = first.to_ascii_uppercase();
+        seq.all(|c| c.to_ascii_uppercase() == base)
+    } else {
+        // if the seq is empty, then it's also a homopolymer
+        true
+    }
+}
+
 pub(crate) fn extend_homopolymer_stretch(base: u8, seq: &mut dyn Iterator<Item = &u8>) -> usize {
     let base = base.to_ascii_uppercase();
     seq.take_while(|c| c.to_ascii_uppercase() == base).count()

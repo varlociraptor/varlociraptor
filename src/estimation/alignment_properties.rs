@@ -17,7 +17,7 @@ use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
-use crate::utils::homopolymers::extend_homopolymer_stretch;
+use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::homopolymers::is_homopolymer_seq;
 use crate::utils::SimpleCounter;
 
@@ -79,7 +79,7 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
 
 fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8, i8)> {
     let mut counts = SimpleCounter::default();
-    let qseq = record.seq().encoded;
+    let qseq = record.seq();
     let mut qpos = 0usize;
     let mut rpos = record.pos() as usize;
 
@@ -119,7 +119,7 @@ fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8,
                 let l = l as usize;
                 if l < 255 {
                     let base = qseq[qpos];
-                    if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
+                    if is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i])) {
                         let mut len =
                             l + extend_homopolymer_stretch(qseq[qpos], &mut refseq[rpos..].iter());
                         if rpos > 0 {
@@ -228,7 +228,7 @@ impl AlignmentProperties {
         counts: &mut SimpleCounter<i8>,
         refseq: &[u8],
     ) {
-        let qseq = record.seq().encoded;
+        let qseq = record.seq();
         let mut qpos = 0 as usize;
         let mut rpos = record.pos() as usize;
         let iter = if let Some(cigar) = record.cigar_cached() {
@@ -265,7 +265,7 @@ impl AlignmentProperties {
                 Cigar::Ins(l) => {
                     let l = l as usize;
                     if l < 255 {
-                        if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
+                        if is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i])) {
                             let mut len = l + extend_homopolymer_stretch(
                                 qseq[qpos],
                                 &mut refseq[rpos..].iter(),
