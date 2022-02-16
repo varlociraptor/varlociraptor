@@ -195,6 +195,135 @@ fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> ((bool, bool), Ci
 }
 
 impl AlignmentProperties {
+    pub(crate) fn update_homopolymer_error_model(
+        &mut self,
+        record: &bam::Record,
+        counts: &mut SimpleCounter<i8>,
+        refseq: &[u8],
+    ) {
+        let qseq = record.seq().as_bytes();
+        let mut qpos = 0 as usize;
+        let mut rpos = record.pos() as usize;
+
+        for c in record.cigar_cached().unwrap().iter() {
+            match *c {
+                Cigar::Del(l) => {
+                    let l = l as usize;
+                    if l < 255 {
+                        if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
+                            let mut len = l;
+                            if rpos + l < refseq.len() {
+                                len += extend_homopolymer_stretch(
+                                    refseq[rpos],
+                                    &mut refseq[rpos + l..].iter(),
+                                )
+                            }
+                            if rpos > 1 {
+                                len += extend_homopolymer_stretch(
+                                    refseq[rpos],
+                                    &mut refseq[..rpos - 1].iter().rev(),
+                                )
+                            }
+                            if len >= MIN_HOMOPOLYMER_LEN {
+                                counts.incr(-(l as i8));
+                            }
+                        }
+                    }
+                    rpos += l as usize;
+                }
+                Cigar::Ins(l) => {
+                    let l = l as usize;
+                    if l < 255 {
+                        if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
+                            let mut len = l + extend_homopolymer_stretch(
+                                qseq[qpos],
+                                &mut refseq[rpos..].iter(),
+                            );
+                            if rpos > 0 {
+                                len += extend_homopolymer_stretch(
+                                    qseq[qpos],
+                                    &mut refseq[..rpos].iter().rev(),
+                                );
+                            }
+                            if len >= MIN_HOMOPOLYMER_LEN {
+                                counts.incr(l as i8)
+                            }
+                        }
+                    }
+                    qpos += l as usize;
+                }
+                Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                    let l = l as usize;
+                    for (_, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
+                        if stretch.count() >= MIN_HOMOPOLYMER_LEN {
+                            counts.incr(0);
+                        }
+                    }
+                    qpos += l as usize;
+                    rpos += l as usize;
+                }
+                Cigar::SoftClip(l) => {
+                    qpos += l as usize;
+                }
+                Cigar::RefSkip(l) => {
+                    rpos += l as usize;
+                }
+                Cigar::HardClip(_) | Cigar::Pad(_) => continue,
+            }
+        }
+    }
+
+    /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
+    /// was found in the cigar string.
+    /// The argument `update_unknown` denotes whether unknown properties shall be updated as well.
+    /// This is only desired during initial estimation.
+    pub(crate) fn update_max_cigar_ops_len(
+        &mut self,
+        record: &bam::Record,
+        allow_hardclips: bool,
+    ) -> (bool, bool) {
+        let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
+
+        let mut is_regular = true;
+        let mut has_soft_clip = false;
+        for c in record.cigar_cached().unwrap().iter() {
+            match *c {
+                Cigar::SoftClip(l) => {
+                    let s = norm(l);
+                    if let Some(ref mut maxclipfrac) = self.frac_max_softclip {
+                        *maxclipfrac = *cmp::max(s, NotNan::new(*maxclipfrac).unwrap())
+                    } else if self.initial {
+                        self.frac_max_softclip = Some(*s);
+                    }
+                    is_regular = false;
+                    has_soft_clip = true;
+                }
+                Cigar::Del(l) => {
+                    if let Some(ref mut maxlen) = self.max_del_cigar_len {
+                        *maxlen = cmp::max(l, *maxlen);
+                    } else if self.initial {
+                        self.max_del_cigar_len = Some(l);
+                    }
+                    is_regular = false;
+                }
+                Cigar::Ins(l) => {
+                    if let Some(ref mut maxlen) = self.max_ins_cigar_len {
+                        *maxlen = cmp::max(l, *maxlen);
+                    } else if self.initial {
+                        self.max_ins_cigar_len = Some(l);
+                    }
+                    is_regular = false;
+                }
+                Cigar::HardClip(_) if !allow_hardclips => {
+                    is_regular = false;
+                }
+                _ => continue,
+            }
+        }
+
+        (is_regular, has_soft_clip)
+    }
+
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate<R: bam::Read>(
