@@ -59,15 +59,37 @@ pub(crate) struct AlignmentProperties {
     initial: bool,
 }
 
+fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
+    record.raw_cigar().iter().map(|&c| {
+        let len = c >> 4;
+        match c & 0b1111 {
+            0 => Cigar::Match(len),
+            1 => Cigar::Ins(len),
+            2 => Cigar::Del(len),
+            3 => Cigar::RefSkip(len),
+            4 => Cigar::SoftClip(len),
+            5 => Cigar::HardClip(len),
+            6 => Cigar::Pad(len),
+            7 => Cigar::Equal(len),
+            8 => Cigar::Diff(len),
+            _ => panic!("Unexpected cigar operation"),
+        }
+    })
+}
+
 fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8, i8)> {
     let mut counts = SimpleCounter::default();
-    let qseq = record.seq().as_bytes();
+    let qseq = record.seq().encoded;
     let mut qpos = 0usize;
     let mut rpos = record.pos() as usize;
 
-    let cigar_view = record.cigar_cached().unwrap();
-    for (i, c) in cigar_view.iter().enumerate() {
-        match *c {
+    let iter = if let Some(cigar) = record.cigar_cached() {
+        Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
+    } else {
+        Box::new(iter_cigar(record))
+    };
+    for c in iter {
+        match c {
             Cigar::Del(l) => {
                 let l = l as usize;
                 if l < 255 {
@@ -149,8 +171,13 @@ fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> ((bool, bool), Ci
     let mut frac_max_softclip = None;
     let mut max_del_cigar_len = None;
     let mut max_ins_cigar_len = None;
-    for c in record.cigar_cached().unwrap().iter() {
-        match *c {
+    let iter = if let Some(cigar) = record.cigar_cached() {
+        Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
+    } else {
+        Box::new(iter_cigar(record))
+    };
+    for c in iter {
+        match c {
             Cigar::SoftClip(l) => {
                 let s = norm(l);
                 if let Some(ref mut maxclipfrac) = frac_max_softclip {
@@ -201,12 +228,16 @@ impl AlignmentProperties {
         counts: &mut SimpleCounter<i8>,
         refseq: &[u8],
     ) {
-        let qseq = record.seq().as_bytes();
+        let qseq = record.seq().encoded;
         let mut qpos = 0 as usize;
         let mut rpos = record.pos() as usize;
-
-        for c in record.cigar_cached().unwrap().iter() {
-            match *c {
+        let iter = if let Some(cigar) = record.cigar_cached() {
+            Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
+        } else {
+            Box::new(iter_cigar(record))
+        };
+        for c in iter {
+            match c {
                 Cigar::Del(l) => {
                     let l = l as usize;
                     if l < 255 {
@@ -286,8 +317,13 @@ impl AlignmentProperties {
 
         let mut is_regular = true;
         let mut has_soft_clip = false;
-        for c in record.cigar_cached().unwrap().iter() {
-            match *c {
+        let iter = if let Some(cigar) = record.cigar_cached() {
+            Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
+        } else {
+            Box::new(iter_cigar(record))
+        };
+        for c in iter {
+            match c {
                 Cigar::SoftClip(l) => {
                     let s = norm(l);
                     if let Some(ref mut maxclipfrac) = self.frac_max_softclip {
@@ -448,7 +484,10 @@ impl AlignmentProperties {
                         res?;
                         n_records_read += 1;
                         let mut r = record.clone();
-                        r.cache_cigar();
+                        // don't cache cigar for ultralong reads
+                        if r.seq_len() <= 10000 {
+                            r.cache_cigar();
+                        }
                         record_buffer.push(r);
                     }
                 }
