@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
-use std::ops::Deref;
+use std::ops::{AddAssign, Deref};
 use std::str;
 
 use anyhow::Result;
@@ -576,5 +576,17 @@ where
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl<T> AddAssign for SimpleCounter<T>
+where
+    T: Eq + Hash,
+{
+    fn add_assign(&mut self, rhs: Self) {
+        self.total_count += rhs.total_count;
+        rhs.inner.into_iter().for_each(move |(k, v)| {
+            *self.inner.entry(k).or_insert(0) += v;
+        });
     }
 }

@@ -23,6 +23,10 @@ use crate::utils::SimpleCounter;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
+use rayon::prelude::*;
+
+const NUM_FRAGMENTS: usize = 2000;
+
 fn default_homopolymer_error_model() -> HashMap<i8, f64> {
     let mut model = HashMap::new();
     model.insert(0, 0.9975414130829068);
@@ -55,139 +59,143 @@ pub(crate) struct AlignmentProperties {
     initial: bool,
 }
 
-impl AlignmentProperties {
-    pub(crate) fn update_homopolymer_error_model(
-        &mut self,
-        record: &bam::Record,
-        counts: &mut SimpleCounter<(u8, i8)>,
-        refseq: &[u8],
-    ) {
-        let qseq = record.seq().as_bytes();
-        let mut qpos = 0 as usize;
-        let mut rpos = record.pos() as usize;
+fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8, i8)> {
+    let mut counts = SimpleCounter::default();
+    let qseq = record.seq().as_bytes();
+    let mut qpos = 0usize;
+    let mut rpos = record.pos() as usize;
 
-        for c in record.cigar_cached().unwrap().iter() {
-            match *c {
-                Cigar::Del(l) => {
-                    let l = l as usize;
-                    if l < 255 {
-                        let base = refseq[rpos];
-                        if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
-                            let mut len = l;
-                            if rpos + l < refseq.len() {
-                                len += extend_homopolymer_stretch(
-                                    refseq[rpos],
-                                    &mut refseq[rpos + l..].iter(),
-                                )
-                            }
-                            if rpos > 1 {
-                                len += extend_homopolymer_stretch(
-                                    refseq[rpos],
-                                    &mut refseq[..rpos - 1].iter().rev(),
-                                )
-                            }
-                            if len >= MIN_HOMOPOLYMER_LEN {
-                                counts.incr((base, -(l as i8)));
-                            }
+    let cigar_view = record.cigar_cached().unwrap();
+    for (i, c) in cigar_view.iter().enumerate() {
+        match *c {
+            Cigar::Del(l) => {
+                let l = l as usize;
+                if l < 255 {
+                    let base = refseq[rpos];
+                    if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
+                        let mut len = l;
+                        if rpos + l < refseq.len() {
+                            len += extend_homopolymer_stretch(
+                                refseq[rpos],
+                                &mut refseq[rpos + l..].iter(),
+                            )
+                        }
+                        if rpos > 1 {
+                            len += extend_homopolymer_stretch(
+                                refseq[rpos],
+                                &mut refseq[..rpos - 1].iter().rev(),
+                            )
+                        }
+                        if len >= MIN_HOMOPOLYMER_LEN {
+                            counts.incr((base, -(l as i8)));
                         }
                     }
-                    rpos += l as usize;
                 }
-                Cigar::Ins(l) => {
-                    let l = l as usize;
-                    if l < 255 {
-                        let base = qseq[qpos];
-                        if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
-                            let mut len = l + extend_homopolymer_stretch(
+                rpos += l as usize;
+            }
+            Cigar::Ins(l) => {
+                let l = l as usize;
+                if l < 255 {
+                    let base = qseq[qpos];
+                    if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
+                        let mut len =
+                            l + extend_homopolymer_stretch(qseq[qpos], &mut refseq[rpos..].iter());
+                        if rpos > 0 {
+                            len += extend_homopolymer_stretch(
                                 qseq[qpos],
-                                &mut refseq[rpos..].iter(),
+                                &mut refseq[..rpos].iter().rev(),
                             );
-                            if rpos > 0 {
-                                len += extend_homopolymer_stretch(
-                                    qseq[qpos],
-                                    &mut refseq[..rpos].iter().rev(),
-                                );
-                            }
-                            if len >= MIN_HOMOPOLYMER_LEN {
-                                counts.incr((base, l as i8))
-                            }
+                        }
+                        if len >= MIN_HOMOPOLYMER_LEN {
+                            counts.incr((base, l as i8))
                         }
                     }
-                    qpos += l as usize;
                 }
-                Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
-                    let l = l as usize;
-                    for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
-                        if stretch.count() >= MIN_HOMOPOLYMER_LEN {
-                            counts.incr((base, 0));
-                        }
-                    }
-                    qpos += l as usize;
-                    rpos += l as usize;
-                }
-                Cigar::SoftClip(l) => {
-                    qpos += l as usize;
-                }
-                Cigar::RefSkip(l) => {
-                    rpos += l as usize;
-                }
-                Cigar::HardClip(_) | Cigar::Pad(_) => continue,
+                qpos += l as usize;
             }
+            Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                let l = l as usize;
+                for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
+                    if stretch.count() >= MIN_HOMOPOLYMER_LEN {
+                        counts.incr((base, 0));
+                    }
+                }
+                qpos += l as usize;
+                rpos += l as usize;
+            }
+            Cigar::SoftClip(l) => {
+                qpos += l as usize;
+            }
+            Cigar::RefSkip(l) => {
+                rpos += l as usize;
+            }
+            Cigar::HardClip(_) | Cigar::Pad(_) => continue,
+        }
+    }
+    counts
+}
+
+struct CigarStats {
+    frac_max_softclip: Option<f64>,
+    max_del: Option<u32>,
+    max_ins: Option<u32>,
+}
+
+fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> ((bool, bool), CigarStats) {
+    let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
+
+    let mut is_regular = true;
+    let mut has_soft_clip = false;
+    let mut frac_max_softclip = None;
+    let mut max_del_cigar_len = None;
+    let mut max_ins_cigar_len = None;
+    for c in record.cigar_cached().unwrap().iter() {
+        match *c {
+            Cigar::SoftClip(l) => {
+                let s = norm(l);
+                if let Some(ref mut maxclipfrac) = frac_max_softclip {
+                    *maxclipfrac = *cmp::max(s, NotNan::new(*maxclipfrac).unwrap())
+                } else {
+                    frac_max_softclip = Some(*s);
+                }
+                is_regular = false;
+                has_soft_clip = true;
+            }
+            Cigar::Del(l) => {
+                if let Some(ref mut maxlen) = max_del_cigar_len {
+                    *maxlen = cmp::max(l, *maxlen);
+                } else {
+                    max_del_cigar_len = Some(l);
+                }
+                is_regular = false;
+            }
+            Cigar::Ins(l) => {
+                if let Some(ref mut maxlen) = max_ins_cigar_len {
+                    *maxlen = cmp::max(l, *maxlen);
+                } else {
+                    max_ins_cigar_len = Some(l);
+                }
+                is_regular = false;
+            }
+            Cigar::HardClip(_) if !allow_hardclips => {
+                is_regular = false;
+            }
+            _ => continue,
         }
     }
 
-    /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
-    /// was found in the cigar string.
-    /// The argument `update_unknown` denotes whether unknown properties shall be updated as well.
-    /// This is only desired during initial estimation.
-    pub(crate) fn update_max_cigar_ops_len(
-        &mut self,
-        record: &bam::Record,
-        allow_hardclips: bool,
-    ) -> (bool, bool) {
-        let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
+    (
+        (is_regular, has_soft_clip),
+        CigarStats {
+            frac_max_softclip,
+            max_del: max_del_cigar_len,
+            max_ins: max_ins_cigar_len,
+        },
+    )
+}
 
-        let mut is_regular = true;
-        let mut has_soft_clip = false;
-        for c in record.cigar_cached().unwrap().iter() {
-            match *c {
-                Cigar::SoftClip(l) => {
-                    let s = norm(l);
-                    if let Some(ref mut maxclipfrac) = self.frac_max_softclip {
-                        *maxclipfrac = *cmp::max(s, NotNan::new(*maxclipfrac).unwrap())
-                    } else if self.initial {
-                        self.frac_max_softclip = Some(*s);
-                    }
-                    is_regular = false;
-                    has_soft_clip = true;
-                }
-                Cigar::Del(l) => {
-                    if let Some(ref mut maxlen) = self.max_del_cigar_len {
-                        *maxlen = cmp::max(l, *maxlen);
-                    } else if self.initial {
-                        self.max_del_cigar_len = Some(l);
-                    }
-                    is_regular = false;
-                }
-                Cigar::Ins(l) => {
-                    if let Some(ref mut maxlen) = self.max_ins_cigar_len {
-                        *maxlen = cmp::max(l, *maxlen);
-                    } else if self.initial {
-                        self.max_ins_cigar_len = Some(l);
-                    }
-                    is_regular = false;
-                }
-                Cigar::HardClip(_) if !allow_hardclips => {
-                    is_regular = false;
-                }
-                _ => continue,
-            }
-        }
-
-        (is_regular, has_soft_clip)
-    }
-
-    /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
+impl AlignmentProperties {
+    /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate<R: bam::Read>(
         bam: &mut R,
@@ -230,94 +238,174 @@ impl AlignmentProperties {
             }
         }
 
-        let mut stats = Stats::new();
+        struct RecordStats {
+            mapq: u8,
+            read_len: u32,
+            is_regular: bool,
+            has_softclip: bool,
+            cigar_stats: CigarStats,
+            homopolymer_counts: SimpleCounter<(u8, i8)>,
+            insert_size: Option<f64>,
+        }
+
+        #[derive(Default)]
+        struct AllStats {
+            n_reads: usize,
+            max_mapq: u8,
+            max_read_len: u32,
+            n_softclips: u32,
+            n_not_usable: u32,
+            frac_max_softclip: Option<f64>,
+            max_del: Option<u32>,
+            max_ins: Option<u32>,
+            homopolymer_counts: SimpleCounter<(u8, i8)>,
+            tlens: Vec<f64>,
+        }
+
+        impl AllStats {
+            fn update(&mut self, other: Self) {
+                self.n_reads += other.n_reads;
+                self.max_mapq = self.max_mapq.max(other.max_mapq);
+                self.max_read_len = self.max_read_len.max(other.max_read_len);
+                self.n_softclips += other.n_softclips;
+                self.n_not_usable += other.n_not_usable;
+                self.homopolymer_counts += other.homopolymer_counts;
+                self.frac_max_softclip = match (self.frac_max_softclip, other.frac_max_softclip) {
+                    (Some(a), Some(b)) => Some(a.max(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                };
+                self.max_ins = match (self.max_ins, other.max_ins) {
+                    (Some(a), Some(b)) => Some(a.max(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                };
+                self.max_del = match (self.max_del, other.max_del) {
+                    (Some(a), Some(b)) => Some(a.max(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                };
+            }
+        }
+
+        let header = bam.header().clone();
+        let tid_to_tname: HashMap<_, _> = header
+            .target_names()
+            .iter()
+            .map(|tname| {
+                let tid = header.tid(tname).unwrap();
+                (tid, *tname)
+            })
+            .collect();
+        let buf_size = rayon::current_num_threads().max(16);
+        let mut record_buffer = Vec::with_capacity(buf_size);
         let mut record = bam::Record::new();
-        let mut tlens = Vec::new();
-        let mut max_read_len = 0;
-        let mut i = 0;
-        let mut skipped = 0;
-        let mut n_soft_clip = 0;
-        let mut n_not_useable = 0;
-        let mut homopolymer_error_counts = SimpleCounter::default();
-        while i <= 1000000 {
-            if i < 1000 && skipped >= 100000 {
-                warn!(
-                    "\nWARNING: Stopping alignment property estimation after skipping 100,000\n\
-                     records and inspecting {} records. You should have another look\n\
-                     at your reads (do they properly align to the reference?).\n",
-                    i
-                );
-
-                break;
-            }
-            match bam.read(&mut record) {
-                None => break,
-                Some(res) => res?,
-            }
-            stats.update(&record);
-
-            // Records to skip without updating max_cigar_ops_len AND without incrementing the
-            // counter (to keep looking for 10000 useful records for the estimation)
-            if record.mapq() == 0
-                || record.is_duplicate()
-                || record.is_quality_check_failed()
-                || record.is_unmapped()
-            {
-                skipped += 1;
-                continue;
-            }
-
-            record.cache_cigar();
-
-            let chrom = str::from_utf8(bam.header().tid2name(record.tid() as u32)).unwrap();
-
-            properties.max_mapq = cmp::max(properties.max_mapq, record.mapq());
-            max_read_len = cmp::max(max_read_len, record.seq().len() as u32);
-
-            let (is_regular, has_soft_clip) =
-                properties.update_max_cigar_ops_len(&record, allow_hardclips);
-
-            properties.update_homopolymer_error_model(
-                &record,
-                &mut homopolymer_error_counts,
-                reference_buffer.seq(&chrom)?.as_ref(),
-            );
-
-            // If we are not using the insert size, we do not need to estimate it
-            if omit_insert_size {
-                i += 1;
-                continue;
-            }
-            // // Records to skip after updating max_cigar_ops_len, BUT without incrementing the
-            // // counter (to keep looking for 10000 useful records for the estimation)
-            // if !record.is_paired()
-            //     || !record.is_first_in_template()
-            //     || record.tid() != record.mtid()
-            //     || record.is_mate_unmapped()
-            // {
-            //     skipped += 1;
-            //     continue;
-            // }
-
-            if !is_regular {
-                n_not_useable += 1;
-                if has_soft_clip {
-                    n_soft_clip += 1;
+        let mut n_records_read = 0;
+        let mut n_records_skipped = 0;
+        let mut all_stats = AllStats::default();
+        let mut eof = false;
+        while !eof && n_records_read < NUM_FRAGMENTS && n_records_skipped < 1000 {
+            eprint!("{:7}  {:7}\r", n_records_read, n_records_skipped);
+            while record_buffer.len() < buf_size && !eof {
+                match bam.read(&mut record) {
+                    None => {
+                        eof = true;
+                        break;
+                    }
+                    Some(res) => {
+                        res?;
+                        n_records_read += 1;
+                        let mut r = record.clone();
+                        r.cache_cigar();
+                        record_buffer.push(r);
+                    }
                 }
-            } else {
-                // record insert size
-                tlens.push(record.insert_size().abs() as f64);
             }
+            let batch_stats = record_buffer
+                .par_iter()
+                .enumerate()
+                .filter(|(i, record)| {
+                    !(record.mapq() == 0
+                        || record.is_duplicate()
+                        || record.is_quality_check_failed()
+                        || record.is_unmapped())
+                })
+                .map(|(i, record)| {
+                    let chrom = str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
 
-            i += 1;
+                    let ((is_regular, has_softclip), cigar_stats) =
+                        cigar_stats(record, allow_hardclips);
+
+                    let homopolymer_counts =
+                        homopolymer_counts(record, reference_buffer.seq(chrom).unwrap().as_ref());
+
+                    let insert_size = if !is_regular {
+                        None
+                    } else {
+                        // record insert size
+                        Some(record.insert_size().abs() as f64)
+                    };
+                    RecordStats {
+                        mapq: record.mapq(),
+                        read_len: record.seq().len() as u32,
+                        is_regular,
+                        has_softclip,
+                        cigar_stats,
+                        homopolymer_counts,
+                        insert_size,
+                    }
+                })
+                .fold(AllStats::default, |mut acc, rs| {
+                    acc.n_reads += 1;
+                    acc.max_mapq = acc.max_mapq.max(rs.mapq);
+                    acc.max_read_len = acc.max_read_len.max(rs.read_len);
+                    acc.n_softclips += rs.has_softclip as u32;
+                    acc.n_not_usable += (!rs.is_regular) as u32;
+                    acc.homopolymer_counts += rs.homopolymer_counts;
+                    if let Some(insert_size) = rs.insert_size {
+                        acc.tlens.push(insert_size);
+                    }
+                    acc.frac_max_softclip =
+                        match (acc.frac_max_softclip, rs.cigar_stats.frac_max_softclip) {
+                            (Some(a), Some(b)) => Some(a.max(b)),
+                            (Some(a), None) => Some(a),
+                            (None, Some(b)) => Some(b),
+                            (None, None) => None,
+                        };
+                    acc.max_ins = match (acc.max_ins, rs.cigar_stats.max_ins) {
+                        (Some(a), Some(b)) => Some(a.max(b)),
+                        (Some(a), None) => Some(a),
+                        (None, Some(b)) => Some(b),
+                        (None, None) => None,
+                    };
+                    acc.max_del = match (acc.max_del, rs.cigar_stats.max_del) {
+                        (Some(a), Some(b)) => Some(a.max(b)),
+                        (Some(a), None) => Some(a),
+                        (None, Some(b)) => Some(b),
+                        (None, None) => None,
+                    };
+                    acc
+                })
+                .reduce(AllStats::default, |mut a, b| {
+                    a.update(b);
+                    a
+                });
+            n_records_skipped += buf_size - batch_stats.n_reads;
+            all_stats.update(batch_stats);
+            record_buffer.clear();
         }
 
         properties.wildtype_homopolymer_error_model = {
-            let n = homopolymer_error_counts
+            let n = all_stats
+                .homopolymer_counts
                 .values()
                 .filter(|count| **count >= 10)
                 .sum::<usize>() as f64;
-            let grouped = homopolymer_error_counts
+            let grouped = all_stats
+                .homopolymer_counts
                 .iter()
                 .sorted_unstable_by_key(|((_, length), _)| length)
                 .group_by(|((_, length), _)| length);
@@ -328,7 +416,18 @@ impl AlignmentProperties {
                 .collect()
         };
 
-        properties.max_read_len = max_read_len;
+        let mut foo = all_stats.homopolymer_counts.iter().collect_vec();
+        foo.sort_unstable_by_key(|v| v.0);
+        for ((base, length), prob) in foo {
+            eprintln!("{}\t{}\t{}", base, length, prob);
+        }
+
+        properties.max_read_len = all_stats.max_read_len;
+        properties.max_del_cigar_len = all_stats.max_del;
+        properties.max_ins_cigar_len = all_stats.max_ins;
+        properties.frac_max_softclip = all_stats.frac_max_softclip;
+        properties.max_mapq = all_stats.max_mapq;
+        properties.max_read_len = all_stats.max_read_len;
 
         if properties.max_del_cigar_len.is_none() {
             warn!(
@@ -352,45 +451,45 @@ impl AlignmentProperties {
         // Mark initial estimation as done.
         properties.initial = false;
 
-        if tlens.is_empty() {
-            warn!(
-                "\nFound no records to use for estimating the insert size. Will assume\n\
-                single end sequencing data and calculate deletion probabilities without\n\
-                considering the insert size.\n\
-                \n\
-                If your data should be paired end, please consider manually providing\n\
-                --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
-                the following counts of unusable records might indicate a source of\n\
-                this problem:\n\n\
-                - I, D, S or H CIGAR operation: {nu}\n\
-                - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
-                \n\
-                In addition, {nr} records were skipped in the estimation for one\n\
-                of the following reasons:\n\
-                - not paired: {not_paired}\n\
-                - not the first segment with regard to the template sequence: {not_first_in_template}\n\
-                - mapping quality of 0: {mapq_zero}\n\
-                - marked as a duplicate: {duplicate}\n\
-                - mate mapped to different template (e.g. different chromosome): {mate_ids_dont_match}\n\
-                - failed some quality check according to the 512 SAM flag: {quality_fail}\n\
-                - mate unmapped: {mate_unmapped}\n\
-                - record unmapped: {record_unmapped}\n",
-                nu = n_not_useable,
-                sc = n_soft_clip,
-                nr = skipped,
-                not_paired = stats.inner.get(&("is_paired", false)).unwrap_or(&0),
-                not_first_in_template = stats.inner.get(&("is_first_in_template", false)).unwrap_or(&0),
-                mapq_zero = stats.inner.get(&("mapq_is_zero", true)).unwrap_or(&0),
-                duplicate = stats.inner.get(&("is_duplicate", true)).unwrap_or(&0),
-                mate_ids_dont_match = stats.inner.get(&("mate_ids_match", false)).unwrap_or(&0),
-                quality_fail = stats.inner.get(&("is_quality_check_failed", true)).unwrap_or(&0),
-                mate_unmapped = stats.inner.get(&("is_mate_unmapped", true)).unwrap_or(&0),
-                record_unmapped = stats.inner.get(&("is_unmapped", true)).unwrap_or(&0),
-            );
+        if all_stats.tlens.is_empty() {
+            // warn!(
+            //     "\nFound no records to use for estimating the insert size. Will assume\n\
+            //     single end sequencing data and calculate deletion probabilities without\n\
+            //     considering the insert size.\n\
+            //     \n\
+            //     If your data should be paired end, please consider manually providing\n\
+            //     --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
+            //     the following counts of unusable records might indicate a source of\n\
+            //     this problem:\n\n\
+            //     - I, D, S or H CIGAR operation: {nu}\n\
+            //     - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
+            //     \n\
+            //     In addition, {nr} records were skipped in the estimation for one\n\
+            //     of the following reasons:\n\
+            //     - not paired: {not_paired}\n\
+            //     - not the first segment with regard to the template sequence: {not_first_in_template}\n\
+            //     - mapping quality of 0: {mapq_zero}\n\
+            //     - marked as a duplicate: {duplicate}\n\
+            //     - mate mapped to different template (e.g. different chromosome): {mate_ids_dont_match}\n\
+            //     - failed some quality check according to the 512 SAM flag: {quality_fail}\n\
+            //     - mate unmapped: {mate_unmapped}\n\
+            //     - record unmapped: {record_unmapped}\n",
+            //     nu = all_stats.n_not_useable,
+            //     sc = all_stats.n_softclip,
+            //     nr = 0, // TODO calc skipped
+            //     not_paired = stats.inner.get(&("is_paired", false)).unwrap_or(&0),
+            //     not_first_in_template = stats.inner.get(&("is_first_in_template", false)).unwrap_or(&0),
+            //     mapq_zero = stats.inner.get(&("mapq_is_zero", true)).unwrap_or(&0),
+            //     duplicate = stats.inner.get(&("is_duplicate", true)).unwrap_or(&0),
+            //     mate_ids_dont_match = stats.inner.get(&("mate_ids_match", false)).unwrap_or(&0),
+            //     quality_fail = stats.inner.get(&("is_quality_check_failed", true)).unwrap_or(&0),
+            //     mate_unmapped = stats.inner.get(&("is_mate_unmapped", true)).unwrap_or(&0),
+            //     record_unmapped = stats.inner.get(&("is_unmapped", true)).unwrap_or(&0),
+            // );
             properties.insert_size = None;
             Ok(properties)
         } else {
-            let mut tlens = Data::new(tlens);
+            let mut tlens = Data::new(all_stats.tlens);
             let upper = tlens.percentile(95);
             let lower = tlens.percentile(5);
             let valid = Data::new(
