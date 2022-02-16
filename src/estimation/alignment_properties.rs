@@ -25,7 +25,7 @@ pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
 use rayon::prelude::*;
 
-const NUM_FRAGMENTS: usize = 2000;
+const NUM_FRAGMENTS: usize = 100000;
 
 fn default_homopolymer_error_model() -> HashMap<i8, f64> {
     let mut model = HashMap::new();
@@ -465,14 +465,14 @@ impl AlignmentProperties {
                 (tid, *tname)
             })
             .collect();
-        let buf_size = rayon::current_num_threads().max(16);
+        let buf_size = rayon::current_num_threads().max(32);
         let mut record_buffer = Vec::with_capacity(buf_size);
         let mut record = bam::Record::new();
         let mut n_records_read = 0;
         let mut n_records_skipped = 0;
         let mut all_stats = AllStats::default();
         let mut eof = false;
-        while !eof && n_records_read < NUM_FRAGMENTS && n_records_skipped < 1000 {
+        while !eof && n_records_read < NUM_FRAGMENTS {
             eprint!("{:7}  {:7}\r", n_records_read, n_records_skipped);
             while record_buffer.len() < buf_size && !eof {
                 match bam.read(&mut record) {
