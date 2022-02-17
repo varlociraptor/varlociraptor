@@ -157,7 +157,7 @@ impl HomopolymerErrorModel {
         V: Variant,
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
-            let prob_homopolymer_error = |condition: &dyn Fn(i8) -> bool| {
+            let prob_homopolymer_error = |condition: &dyn Fn(i16) -> bool| {
                 LogProb::ln_sum_exp(
                     &alignment_properties
                         .wildtype_homopolymer_error_model

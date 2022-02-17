@@ -28,7 +28,7 @@ use rayon::prelude::*;
 
 const NUM_FRAGMENTS: usize = 1000000;
 
-fn default_homopolymer_error_model() -> HashMap<i8, f64> {
+fn default_homopolymer_error_model() -> HashMap<i16, f64> {
     let mut model = HashMap::new();
     model.insert(0, 0.9975414130829068);
     model.insert(1, 0.0010076175889726332);
@@ -55,7 +55,7 @@ pub(crate) struct AlignmentProperties {
     #[serde(default = "default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(default = "default_homopolymer_error_model")]
-    pub(crate) wildtype_homopolymer_error_model: HashMap<i8, f64>,
+    pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
     initial: bool,
 }
@@ -78,7 +78,7 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
     })
 }
 
-fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8, i8)> {
+fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8, i16)> {
     let mut counts = SimpleCounter::default();
     let qseq = record.seq();
     let mut qpos = 0usize;
@@ -110,7 +110,7 @@ fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8,
                             )
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
-                            counts.incr((base, -(l as i8)));
+                            counts.incr((base, -(l as i16)));
                         }
                     }
                 }
@@ -130,7 +130,7 @@ fn homopolymer_counts(record: &bam::Record, refseq: &[u8]) -> SimpleCounter<(u8,
                             );
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
-                            counts.incr((base, l as i8))
+                            counts.incr((base, l as i16))
                         }
                     }
                 }
@@ -410,7 +410,7 @@ impl AlignmentProperties {
             is_regular: bool,
             has_softclip: bool,
             cigar_stats: CigarStats,
-            homopolymer_counts: SimpleCounter<(u8, i8)>,
+            homopolymer_counts: SimpleCounter<(u8, i16)>,
             insert_size: Option<f64>,
         }
 
@@ -424,7 +424,7 @@ impl AlignmentProperties {
             frac_max_softclip: Option<f64>,
             max_del: Option<u32>,
             max_ins: Option<u32>,
-            homopolymer_counts: SimpleCounter<(u8, i8)>,
+            homopolymer_counts: SimpleCounter<(u8, i16)>,
             tlens: Vec<f64>,
         }
 
