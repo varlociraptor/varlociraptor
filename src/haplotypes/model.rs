@@ -40,26 +40,30 @@ impl Marginal {
             let event = HaplotypeFractions(fractions.to_vec());
             joint_prob(&event, data)
         } else {
-            let fraction_upper_bound =
-                NotNan::new(1.0).unwrap() - fractions.iter().sum::<NotNan<f64>>();
+            let fraction_upper_bound = NotNan::new(1.0).unwrap() - fractions.iter().sum::<NotNan<f64>>();
             let mut density = |fraction| {
                 let mut fractions = fractions.clone();
                 fractions.push(fraction);
                 self.calc_marginal(data, haplotype_index + 1, &mut fractions, joint_prob)
             };
-            if fraction_upper_bound == NotNan::new(0.0).unwrap() {
-                density(NotNan::new(0.0).unwrap())
-            } else {
-                adaptive_integration::ln_integrate_exp(
-                    density,
-                    NotNan::new(0.0).unwrap(),
-                    fraction_upper_bound,
-                    NotNan::new(0.1).unwrap(),
-                )
+            if haplotype_index == self.n_haplotypes - 1{
+                density(fraction_upper_bound)
+            }
+            else {
+                if fraction_upper_bound == NotNan::new(0.0).unwrap() {
+                    density(NotNan::new(0.0).unwrap())
+                } else {
+                    adaptive_integration::ln_integrate_exp(
+                        density,
+                        NotNan::new(0.0).unwrap(),
+                        fraction_upper_bound,
+                        NotNan::new(0.1).unwrap(),
+                    )
+                }
+            }
             }
         }
     }
-}
 
 impl model::Marginal for Marginal {
     type Event = HaplotypeFractions;

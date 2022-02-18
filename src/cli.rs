@@ -523,7 +523,7 @@ pub enum CallKind {
         )]
         haplotype_calls: PathBuf,
         #[structopt(
-            default_value = "0.01",
+            default_value = "0.05",
             help = "Minimum value for normalized Kallisto counts."
         )]
         min_norm_counts: f64,
