@@ -55,11 +55,11 @@ impl Caller {
         let mut records = Vec::new();
         let (haplotype_frequencies, best_density) = posterior.next().unwrap();
         let best_odds = 1;
-        records.push(best_density.exp().to_string());
+        records.push(format!("{:+.2e}", best_density.exp()));
         records.push(best_odds.to_string());
 
         for frequency in haplotype_frequencies.iter() {
-            records.push(frequency.to_string());
+            records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
         }
         wtr.write_record(records)?;
 
@@ -67,10 +67,10 @@ impl Caller {
         for (haplotype_frequencies, density) in posterior {
             let mut records = Vec::new();
             let odds = (density - best_density).exp();
-            records.push(density.exp().to_string());
-            records.push(odds.to_string());
+            records.push(format!("{:+.2e}", density.exp()));
+            records.push(format!("{:+.2e}", odds));
             for frequency in haplotype_frequencies.iter() {
-                records.push(frequency.to_string());
+                records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
             }
             wtr.write_record(records)?;
         }

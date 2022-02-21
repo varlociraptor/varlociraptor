@@ -497,7 +497,7 @@ pub enum CallKind {
         name = "haplotype-abundances",
         about = "Call haplotype abundances (e.g. for HLA typing or viral strain quantification).",
         usage = "varlociraptor call haplotype-abundances --haplotype-counts counts.hdf5 \
-                 --haplotype-variants calls.vcf --output results.tsv",
+        --haplotype-variants variants.vcf --haplotype-calls calls.bcf --output results.tsv",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     HaplotypeCalls {
