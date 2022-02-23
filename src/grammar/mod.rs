@@ -21,6 +21,7 @@ pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
 use serde::{de, Deserializer};
+use strum::{Display, EnumVariantNames, IntoStaticStr};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.

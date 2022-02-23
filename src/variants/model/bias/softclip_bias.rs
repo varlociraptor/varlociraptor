@@ -3,6 +3,7 @@ use bio::stats::probs::LogProb;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
+use strum::EnumIter;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum SoftclipBias {

@@ -12,6 +12,7 @@ use serde_json::{json, Value};
 use crate::errors;
 use crate::variants::model::AlleleFreq;
 use crate::{Event, SimpleEvent};
+use strum::{Display, EnumIter, EnumString, EnumVariantNames, IntoStaticStr};
 
 /// Consider only variants in coding regions.
 /// We rely on the ANN field for this.

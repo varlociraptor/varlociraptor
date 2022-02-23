@@ -6,6 +6,7 @@ use rust_htslib::{bcf, bcf::record::Numeric};
 use crate::errors;
 use crate::utils::SimpleCounter;
 use crate::variants::model;
+use strum::{Display, EnumIter, EnumString, EnumVariantNames, IntoStaticStr};
 
 #[derive(
     Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, EnumVariantNames, Display, Debug,

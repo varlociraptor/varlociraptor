@@ -28,6 +28,7 @@ use crate::variants::{self, types::Variant};
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
 use crate::variants::evidence::observations::pileup::Pileup;
+use strum::{Display, EnumIter, EnumString, EnumVariantNames, IntoStaticStr};
 
 #[derive(new, Getters, Debug)]
 pub(crate) struct RecordBuffer {

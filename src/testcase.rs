@@ -22,6 +22,7 @@ use crate::variants::model::Variant;
 use crate::variants::sample;
 use crate::variants::types::breakends::BreakendIndex;
 use crate::{cli, reference};
+use strum::{Display, EnumIter, EnumString};
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =

@@ -1,4 +1,5 @@
 use bio::stats::probs::LogProb;
+use strum::EnumIter;
 
 use crate::variants::evidence::observations::read_observation::{
     ProcessedReadObservation, ReadPosition,
