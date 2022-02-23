@@ -518,18 +518,6 @@ impl AlignmentProperties {
                 .collect()
         };
 
-        let mut hops = all_stats.homopolymer_counts.iter().collect_vec();
-        hops.sort_unstable_by_key(|v| v.0);
-        for ((base, length), prob) in hops {
-            eprintln!("{}\t{}\t{}", *base as char, length, prob);
-        }
-
-        let mut gaps = all_stats.gap_counts.iter().collect_vec();
-        gaps.sort_unstable_by_key(|v| v.0);
-        for ((base, length), prob) in gaps {
-            eprintln!("{}\t{}\t{}", *base as char, length, prob);
-        }
-
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
