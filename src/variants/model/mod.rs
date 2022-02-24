@@ -166,22 +166,6 @@ pub enum VariantType {
     None, // site with no suggested alternative allele
 }
 
-impl From<&str> for VariantType {
-    fn from(string: &str) -> VariantType {
-        match string {
-            "INS" => VariantType::Insertion(None),
-            "DEL" => VariantType::Deletion(None),
-            "SNV" => VariantType::Snv,
-            "REF" => VariantType::None,
-            "INV" => VariantType::Inversion,
-            "DUP" => VariantType::Duplication,
-            "REP" => VariantType::Replacement,
-            "BND" => VariantType::Breakend,
-            _ => panic!("bug: given string does not describe a valid variant type"),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) enum Variant {
     Deletion(u64),
