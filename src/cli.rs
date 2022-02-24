@@ -715,19 +715,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     };
 
                     if model.spurious_hop_seq_rate > 0.0 || model.spurious_hop_ref_rate > 0.0 {
+                        let a = LogProb::from(Prob::checked(model.spurious_hop_seq_rate)?);
+                        let b = LogProb::from(Prob::checked(model.spurious_hop_ref_rate)?);
+                        let c = LogProb::from(Prob::checked(model.spurious_hop_seq_ext_rate)?);
+                        let d = LogProb::from(Prob::checked(model.spurious_hop_ref_ext_rate)?);
                         let hop_params = HopParams {
-                            prob_seq_homopolymer: LogProb::from(Prob::checked(
-                                model.spurious_hop_seq_rate,
-                            )?),
-                            prob_ref_homopolymer: LogProb::from(Prob::checked(
-                                model.spurious_hop_ref_rate,
-                            )?),
-                            prob_seq_extend_homopolymer: LogProb::from(Prob::checked(
-                                model.spurious_hop_seq_ext_rate,
-                            )?),
-                            prob_ref_extend_homopolymer: LogProb::from(Prob::checked(
-                                model.spurious_hop_ref_ext_rate,
-                            )?),
+                            prob_seq_homopolymer: vec![a, a, a, a],
+                            prob_ref_homopolymer: vec![b, b, b, b],
+                            prob_seq_extend_homopolymer: vec![c, c, c, c],
+                            prob_ref_extend_homopolymer: vec![d, d, d, d],
                         };
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
