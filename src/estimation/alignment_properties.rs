@@ -26,6 +26,7 @@ use crate::utils::SimpleCounter;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
+use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
 use rayon::prelude::*;
 
 const NUM_FRAGMENTS: usize = 1000000;
@@ -604,6 +605,16 @@ impl AlignmentProperties {
             });
             Ok(properties)
         }
+    }
+}
+
+impl AlignmentProperties {
+    fn gap_params(&self) -> GapParams {
+        todo!()
+    }
+
+    fn hop_params(&self) -> HopParams {
+        todo!()
     }
 }
 
