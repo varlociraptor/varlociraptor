@@ -44,7 +44,11 @@ impl EditDistanceCalculation {
         let l = read_seq.len();
         let read_seq = read_seq.collect();
 
-        let myers = if l <= 64 {
+        #[cfg(has_u128)]
+        let num_bits = 128;
+        #[cfg(not(has_u128))]
+        let num_bits = 64;
+        let myers = if l <= num_bits {
             Myers::Short(myers::Myers::new(&read_seq))
         } else {
             Myers::Long(long::Myers::new(&read_seq))
