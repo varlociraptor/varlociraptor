@@ -129,31 +129,55 @@ impl pairhmm::StartEndGapParameters for GapParams {
 /// Hop parameters for HomopolyPairHMM.
 #[derive(Debug, Clone)]
 pub(crate) struct HopParams {
-    pub(crate) prob_seq_homopolymer: LogProb,
-    pub(crate) prob_ref_homopolymer: LogProb,
-    pub(crate) prob_seq_extend_homopolymer: LogProb,
-    pub(crate) prob_ref_extend_homopolymer: LogProb,
+    pub(crate) prob_seq_homopolymer: Vec<LogProb>,
+    pub(crate) prob_ref_homopolymer: Vec<LogProb>,
+    pub(crate) prob_seq_extend_homopolymer: Vec<LogProb>,
+    pub(crate) prob_ref_extend_homopolymer: Vec<LogProb>,
 }
 
-impl pairhmm::HopParameters for HopParams {
+impl pairhmm::BaseSpecificHopParameters for HopParams {
     #[inline]
-    fn prob_hop_x(&self) -> LogProb {
-        self.prob_seq_homopolymer
+    fn prob_hop_x_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_seq_homopolymer[0],
+            b'C' => self.prob_seq_homopolymer[1],
+            b'G' => self.prob_seq_homopolymer[2],
+            b'T' => self.prob_seq_homopolymer[3],
+            _ => unreachable!(),
+        }
     }
 
     #[inline]
-    fn prob_hop_y(&self) -> LogProb {
-        self.prob_ref_homopolymer
+    fn prob_hop_y_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_ref_homopolymer[0],
+            b'C' => self.prob_ref_homopolymer[1],
+            b'G' => self.prob_ref_homopolymer[2],
+            b'T' => self.prob_ref_homopolymer[3],
+            _ => unreachable!(),
+        }
     }
 
     #[inline]
-    fn prob_hop_x_extend(&self) -> LogProb {
-        self.prob_seq_extend_homopolymer
+    fn prob_hop_x_extend_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_seq_extend_homopolymer[0],
+            b'C' => self.prob_seq_extend_homopolymer[1],
+            b'G' => self.prob_seq_extend_homopolymer[2],
+            b'T' => self.prob_seq_extend_homopolymer[3],
+            _ => unreachable!(),
+        }
     }
 
     #[inline]
-    fn prob_hop_y_extend(&self) -> LogProb {
-        self.prob_ref_extend_homopolymer
+    fn prob_hop_y_extend_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_ref_extend_homopolymer[0],
+            b'C' => self.prob_ref_extend_homopolymer[1],
+            b'G' => self.prob_ref_extend_homopolymer[2],
+            b'T' => self.prob_ref_extend_homopolymer[3],
+            _ => unreachable!(),
+        }
     }
 }
 

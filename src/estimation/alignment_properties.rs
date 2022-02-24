@@ -499,6 +499,8 @@ impl AlignmentProperties {
         }
 
         properties.homopolymer_counts = all_stats.homopolymer_counts.clone();
+        properties.gap_counts = all_stats.gap_counts.clone();
+
         properties.wildtype_homopolymer_error_model = {
             let n = all_stats
                 .homopolymer_counts
@@ -546,7 +548,6 @@ impl AlignmentProperties {
 
         // Mark initial estimation as done.
         properties.initial = false;
-        dbg!(properties.hop_params());
 
         if all_stats.tlens.is_empty() {
             warn!(
