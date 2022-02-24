@@ -58,7 +58,7 @@ pub(crate) struct AlignmentProperties {
     #[serde(default = "default_max_mapq")]
     pub(crate) max_mapq: u8,
     pub(crate) homopolymer_counts: HashMap<(u8, i16), usize>,
-    pub(crate) gap_counts: HashMap<(u8, i16), usize>,
+    pub(crate) gap_counts: HashMap<i16, usize>,
     #[serde(default = "default_homopolymer_error_model")]
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
@@ -86,7 +86,7 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
 fn gap_and_hop_counts(
     record: &bam::Record,
     refseq: &[u8],
-) -> (SimpleCounter<(u8, i16)>, SimpleCounter<(u8, i16)>) {
+) -> (SimpleCounter<i16>, SimpleCounter<(u8, i16)>) {
     let mut hop_counts = SimpleCounter::default();
     let mut gap_counts = SimpleCounter::default();
     let qseq = record.seq();
@@ -122,7 +122,7 @@ fn gap_and_hop_counts(
                             hop_counts.incr((base, -(l as i16)));
                         }
                     } else {
-                        gap_counts.incr((base, -(l as i16)));
+                        gap_counts.incr(-(l as i16));
                     }
                 }
                 rpos += l as usize;
@@ -144,7 +144,7 @@ fn gap_and_hop_counts(
                             hop_counts.incr((base, l as i16));
                         }
                     } else {
-                        gap_counts.incr((base, l as i16));
+                        gap_counts.incr(l as i16);
                     }
                 }
                 qpos += l as usize;
@@ -358,7 +358,7 @@ impl AlignmentProperties {
             read_len: u32,
             cigar_stats: CigarStats,
             homopolymer_counts: SimpleCounter<(u8, i16)>,
-            gap_counts: SimpleCounter<(u8, i16)>,
+            gap_counts: SimpleCounter<i16>,
             insert_size: Option<f64>,
         }
 
@@ -373,7 +373,7 @@ impl AlignmentProperties {
             max_del: Option<u32>,
             max_ins: Option<u32>,
             homopolymer_counts: SimpleCounter<(u8, i16)>,
-            gap_counts: SimpleCounter<(u8, i16)>,
+            gap_counts: SimpleCounter<i16>,
             tlens: Vec<f64>,
         }
 
