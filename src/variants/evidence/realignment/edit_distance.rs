@@ -16,7 +16,10 @@ use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND
 use super::pairhmm::{ReadVsAlleleEmission, VariantEmission};
 
 enum Myers {
+    #[cfg(has_u128)]
     Short(myers::Myers<u128>),
+    #[cfg(not(has_u128))]
+    Short(myers::Myers<u64>),
     Long(long::Myers<u64>),
 }
 
