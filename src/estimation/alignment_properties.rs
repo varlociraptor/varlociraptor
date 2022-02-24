@@ -608,12 +608,65 @@ impl AlignmentProperties {
     }
 }
 
+fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)>) -> f64 {
+    let (sum, count) = value_counts.fold((0usize, 0usize), |(sum, counts), (value, count)| {
+        (sum + value.into() * count, counts + count)
+    });
+    // the MLE of the exponential distribution's lambda parameter is simply 1 / sample_mean
+    let lambda = count as f64 / sum as f64;
+    // … the estimator is slightly biased, which can be corrected for:
+    lambda - (lambda / count as f64)
+}
+
 impl AlignmentProperties {
     fn gap_params(&self) -> GapParams {
+        let counts = |length_predicate: fn(i16) -> bool| {
+            self.gap_counts
+                .iter()
+                .filter(|&(length, _)| length_predicate(*length))
+                .map(|(length, count)| (length.abs() as usize, *count))
+                .collect_vec()
+        };
+        let insertion_gap_counts = counts(|l| l > 0);
+        let deletion_gap_counts = counts(|l| l < 0);
+        let insertion_lambda = exponential_mle(insertion_gap_counts.into_iter());
+        let insertion_prob = (-insertion_lambda).exp();
+        let deletion_lambda = exponential_mle(deletion_gap_counts.into_iter());
+        let deletion_prob = (-deletion_lambda).exp();
+        dbg!(
+            insertion_lambda,
+            insertion_prob,
+            deletion_lambda,
+            deletion_prob
+        );
         todo!()
     }
 
     fn hop_params(&self) -> HopParams {
+        let counts = |base, length_predicate: fn(i16) -> bool| {
+            self.homopolymer_counts
+                .iter()
+                .filter(|((char, length), _)| *char == base && length_predicate(*length))
+                .map(|((_, length), count)| (length.abs() as usize, *count))
+                .collect_vec()
+        };
+        let probs = [b'A', b'C', b'G', b'T']
+            .iter()
+            .map(|base| {
+                let insertion_counts = counts(*base, |l| l > 0);
+                let deletion_counts = counts(*base, |l| l < 0);
+                let insertion_lambda = exponential_mle(insertion_counts.into_iter());
+                let insertion_prob = (-insertion_lambda).exp();
+                let deletion_lambda = exponential_mle(deletion_counts.into_iter());
+                let deletion_prob = (-deletion_lambda).exp();
+                dbg!(
+                    insertion_lambda,
+                    insertion_prob,
+                    deletion_lambda,
+                    deletion_prob
+                );
+            })
+            .collect_vec();
         todo!()
     }
 }
