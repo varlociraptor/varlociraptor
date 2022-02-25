@@ -442,20 +442,6 @@ impl AlignmentProperties {
             tlens: Vec<f64>,
         }
 
-        impl AlignmentStats {
-            fn update(&mut self, other: Self) {
-                self.n_reads += other.n_reads;
-                self.max_mapq = self.max_mapq.max(other.max_mapq);
-                self.max_read_len = self.max_read_len.max(other.max_read_len);
-                self.n_softclips += other.n_softclips;
-                self.n_not_usable += other.n_not_usable;
-                self.cigar_counts += other.cigar_counts;
-                self.frac_max_softclip = self.frac_max_softclip.max(other.frac_max_softclip);
-                self.max_ins = self.max_ins.max(other.max_ins);
-                self.max_del = self.max_del.max(other.max_del);
-            }
-        }
-
         let header = bam.header().clone();
         let tid_to_tname: HashMap<_, _> = header
             .target_names()
@@ -469,14 +455,14 @@ impl AlignmentProperties {
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
         let mut record_flag_stats = RecordFlagStats::new();
-        let mut records = bam.records();
+        let records = bam.records();
         let all_stats = records
             .map(|record| record.unwrap())
             .filter(|record| {
-                let skip = (record.mapq() == 0
+                let skip = record.mapq() == 0
                     || record.is_duplicate()
                     || record.is_quality_check_failed()
-                    || record.is_unmapped());
+                    || record.is_unmapped();
                 if skip {
                     n_records_skipped += 1;
                 }
@@ -497,7 +483,7 @@ impl AlignmentProperties {
                 let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
                 let cigar_counts = cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
 
-                let insert_size = if cigar_stats.is_regular {
+                let insert_size = if cigar_stats.is_regular && !omit_insert_size {
                     Some(record.insert_size().abs() as f64)
                 } else {
                     None
