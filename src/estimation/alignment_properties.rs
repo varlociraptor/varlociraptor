@@ -490,7 +490,12 @@ impl AlignmentProperties {
                 let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
                 let cigar_counts = cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
 
-                let insert_size = if cigar_stats.is_regular && !omit_insert_size {
+                let calc_insert_size = record.is_paired()
+                    && record.is_first_in_template()
+                    && record.tid() == record.mtid()
+                    && !record.is_mate_unmapped();
+                let insert_size = if cigar_stats.is_regular && !omit_insert_size && calc_insert_size
+                {
                     Some(record.insert_size().abs() as f64)
                 } else {
                     None
