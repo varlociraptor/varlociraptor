@@ -469,82 +469,66 @@ impl AlignmentProperties {
             })
             .collect();
 
-        let buf_size = 256;
-        let mut n_records_read = 0;
+        let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
-        let mut all_stats = AlignmentStats::default();
         let mut record_flag_stats = RecordFlagStats::new();
-        let mut eof = false;
         let mut records = bam.records();
-        while !eof && n_records_read < NUM_FRAGMENTS {
-            let mut record_buffer = Vec::with_capacity(buf_size);
-            while record_buffer.len() < buf_size && !eof {
-                match records.next() {
-                    None => {
-                        eof = true;
-                        break;
-                    }
-                    Some(res) => {
-                        let mut record = res?;
-                        record_flag_stats.update(&record);
-                        n_records_read += 1;
-                        // don't cache cigar for "ultralong" reads
-                        if record.seq_len() <= 50000 {
-                            record.cache_cigar();
-                        }
-                        record_buffer.push(record);
-                    }
+        let all_stats = records
+            .map(|record| record.unwrap())
+            .filter(|record| {
+                let skip = (record.mapq() == 0
+                    || record.is_duplicate()
+                    || record.is_quality_check_failed()
+                    || record.is_unmapped());
+                if skip {
+                    n_records_skipped += 1;
                 }
-            }
+                !skip
+            })
+            .step_by(1)
+            .take(NUM_FRAGMENTS)
+            .map(|mut record| {
+                record_flag_stats.update(&record);
+                n_records_analysed += 1;
+                // don't cache cigar for "ultralong" reads
+                if record.seq_len() <= 50000 {
+                    record.cache_cigar();
+                }
 
-            let batch_stats = record_buffer
-                .into_iter()
-                .filter(|record| {
-                    !(record.mapq() == 0
-                        || record.is_duplicate()
-                        || record.is_quality_check_failed()
-                        || record.is_unmapped())
-                })
-                .map(|record| {
-                    let cigar_stats = cigar_stats(&record, allow_hardclips);
+                let cigar_stats = cigar_stats(&record, allow_hardclips);
 
-                    let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
-                    let cigar_counts =
-                        cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
+                let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
+                let cigar_counts = cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
 
-                    let insert_size = if !cigar_stats.is_regular {
-                        None
-                    } else {
-                        // record insert size
-                        Some(record.insert_size().abs() as f64)
-                    };
-                    RecordStats {
-                        mapq: record.mapq(),
-                        read_len: record.seq().len() as u32,
-                        cigar_stats,
-                        cigar_counts,
-                        insert_size,
-                    }
-                })
-                .fold(AlignmentStats::default(), |mut acc, rs| {
-                    acc.n_reads += 1;
-                    acc.max_mapq = acc.max_mapq.max(rs.mapq);
-                    acc.max_read_len = acc.max_read_len.max(rs.read_len);
-                    acc.n_softclips += rs.cigar_stats.has_soft_clip as u32;
-                    acc.n_not_usable += (!rs.cigar_stats.is_regular) as u32;
-                    acc.cigar_counts += rs.cigar_counts;
-                    if let Some(insert_size) = rs.insert_size {
-                        acc.tlens.push(insert_size);
-                    }
-                    acc.frac_max_softclip =
-                        acc.frac_max_softclip.max(rs.cigar_stats.frac_max_softclip);
-                    acc.max_ins = acc.max_ins.max(rs.cigar_stats.max_ins);
-                    acc.max_del = acc.max_del.max(rs.cigar_stats.max_del);
-                    acc
-                });
-            n_records_skipped += buf_size - batch_stats.n_reads;
-            all_stats.update(batch_stats);
-        }
+                let insert_size = if !cigar_stats.is_regular {
+                    None
+                } else {
+                    // record insert size
+                    Some(record.insert_size().abs() as f64)
+                };
+                RecordStats {
+                    mapq: record.mapq(),
+                    read_len: record.seq().len() as u32,
+                    cigar_stats,
+                    cigar_counts,
+                    insert_size,
+                }
+            })
+            .fold(AlignmentStats::default(), |mut acc, rs| {
+                acc.n_reads += 1;
+                acc.max_mapq = acc.max_mapq.max(rs.mapq);
+                acc.max_read_len = acc.max_read_len.max(rs.read_len);
+                acc.n_softclips += rs.cigar_stats.has_soft_clip as u32;
+                acc.n_not_usable += (!rs.cigar_stats.is_regular) as u32;
+                acc.cigar_counts += rs.cigar_counts;
+                if let Some(insert_size) = rs.insert_size {
+                    acc.tlens.push(insert_size);
+                }
+                acc.frac_max_softclip = acc.frac_max_softclip.max(rs.cigar_stats.frac_max_softclip);
+                acc.max_ins = acc.max_ins.max(rs.cigar_stats.max_ins);
+                acc.max_del = acc.max_del.max(rs.cigar_stats.max_del);
+                acc
+            });
 
         properties.cigar_counts = all_stats.cigar_counts.clone();
 
