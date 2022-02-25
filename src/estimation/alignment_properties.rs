@@ -466,21 +466,8 @@ impl AlignmentProperties {
                 (tid, *tname)
             })
             .collect();
-        let reference_seqs: HashMap<&[u8], Vec<u8>> = tid_to_tname
-            .values()
-            .map(|tname| {
-                (
-                    *tname,
-                    reference_buffer
-                        .seq(std::str::from_utf8(tname).unwrap())
-                        .unwrap()
-                        .deref()
-                        .clone(),
-                )
-            })
-            .collect();
 
-        let buf_size = rayon::current_num_threads();
+        let buf_size = rayon::current_num_threads().max(16);
         let mut n_records_read = 0;
         let mut n_records_skipped = 0;
         let mut all_stats = AlignmentStats::default();
@@ -499,30 +486,29 @@ impl AlignmentProperties {
                         let mut record = res?;
                         record_flag_stats.update(&record);
                         n_records_read += 1;
-                        // don't cache cigar for ultralong reads
-                        if record.seq_len() <= 32000 {
+                        // don't cache cigar for "ultralong" reads
+                        if record.seq_len() <= 50000 {
                             record.cache_cigar();
                         }
                         record_buffer.push(record);
                     }
                 }
             }
+
             let batch_stats = record_buffer
-                .into_par_iter()
-                .enumerate()
-                .filter(|(_i, record)| {
+                .into_iter()
+                .filter(|record| {
                     !(record.mapq() == 0
                         || record.is_duplicate()
                         || record.is_quality_check_failed()
                         || record.is_unmapped())
                 })
-                .map(|(_i, record)| {
+                .map(|record| {
                     let cigar_stats = cigar_stats(&record, allow_hardclips);
 
-                    let cigar_counts = cigar_op_counts(
-                        &record,
-                        &reference_seqs[tid_to_tname[&(record.tid() as u32)]],
-                    );
+                    let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
+                    let cigar_counts =
+                        cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
 
                     let insert_size = if !cigar_stats.is_regular {
                         None
@@ -538,7 +524,7 @@ impl AlignmentProperties {
                         insert_size,
                     }
                 })
-                .fold(AlignmentStats::default, |mut acc, rs| {
+                .fold(AlignmentStats::default(), |mut acc, rs| {
                     acc.n_reads += 1;
                     acc.max_mapq = acc.max_mapq.max(rs.mapq);
                     acc.max_read_len = acc.max_read_len.max(rs.read_len);
@@ -553,10 +539,6 @@ impl AlignmentProperties {
                     acc.max_ins = acc.max_ins.max(rs.cigar_stats.max_ins);
                     acc.max_del = acc.max_del.max(rs.cigar_stats.max_del);
                     acc
-                })
-                .reduce(AlignmentStats::default, |mut a, b| {
-                    a.update(b);
-                    a
                 });
             n_records_skipped += buf_size - batch_stats.n_reads;
             all_stats.update(batch_stats);
