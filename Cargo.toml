@@ -82,3 +82,8 @@ use-intrinsics = ["half/use-intrinsics"]
 [profile.release]
 lto = "fat"
 codegen-units = 1
+
+[profile.develop]
+inherits="release"
+lto = false
+codegen-units = 128
