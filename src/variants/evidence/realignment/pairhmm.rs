@@ -10,7 +10,6 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use bio::stats::pairhmm;
-use bio::stats::pairhmm::Emission;
 use bio::stats::{LogProb, Prob};
 use rust_htslib::bam;
 

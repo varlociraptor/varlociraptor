@@ -4,16 +4,14 @@
 // except according to those terms.
 
 use std::cmp;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::f64;
-use std::ops::{AddAssign, Deref};
+use std::ops::AddAssign;
 use std::str;
 use std::u32;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use boolean_expression::Expr::Not;
 use counter::Counter;
 use itertools::Itertools;
 use num_traits::Zero;
@@ -29,7 +27,6 @@ use crate::utils::SimpleCounter;
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
 use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
-use rayon::prelude::*;
 
 const NUM_FRAGMENTS: usize = 1_000_000;
 
