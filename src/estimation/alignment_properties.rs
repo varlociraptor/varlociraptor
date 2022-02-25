@@ -89,6 +89,64 @@ pub(crate) struct CigarCounts {
     pub(crate) match_counts: SimpleCounter<u32>,
 }
 
+impl CigarCounts {
+    fn num_bases(&self) -> usize {
+        self.match_counts
+            .iter()
+            .map(|(l, c)| *l as usize * *c)
+            .sum::<usize>()
+            + self
+                .gap_counts
+                .iter()
+                .map(|(l, c)| l.abs() as usize * *c)
+                .sum::<usize>()
+            + self
+                .hop_counts
+                .iter()
+                .map(|((_, l), c)| l.abs() as usize * *c)
+                .sum::<usize>()
+    }
+
+    fn num_match_bases(&self) -> usize {
+        self.match_counts
+            .iter()
+            .map(|(l, c)| *l as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_insertion_gap_bases(&self) -> usize {
+        self.gap_counts
+            .iter()
+            .filter(|(l, _)| **l > 0)
+            .map(|(l, c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_deletion_gap_bases(&self) -> usize {
+        self.gap_counts
+            .iter()
+            .filter(|(l, _)| **l < 0)
+            .map(|(l, c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_insertion_hop_bases(&self) -> usize {
+        self.hop_counts
+            .iter()
+            .filter(|((_, l), _)| *l > 0)
+            .map(|((_, l), c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_deletion_hop_bases(&self) -> usize {
+        self.hop_counts
+            .iter()
+            .filter(|((_, l), _)| *l < 0)
+            .map(|((_, l), c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+}
+
 impl AddAssign for CigarCounts {
     fn add_assign(&mut self, rhs: Self) {
         self.gap_counts += rhs.gap_counts;
@@ -638,21 +696,23 @@ impl AlignmentProperties {
         };
         let insertion_gap_counts = counts(|l| l > 0);
         let deletion_gap_counts = counts(|l| l < 0);
+
         let insertion_lambda =
             exponential_mle(insertion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
         let insertion_prob = (-insertion_lambda).exp();
+
         let deletion_lambda =
             exponential_mle(deletion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
         let deletion_prob = (-deletion_lambda).exp();
-        dbg!(
-            insertion_lambda,
-            insertion_prob,
-            deletion_lambda,
-            deletion_prob
-        );
+
+        let c = &self.cigar_counts;
+        let num_bases = c.num_bases();
+        let gap_open_ins = c.num_insertion_gap_bases() as f64 / num_bases as f64;
+        let gap_open_del = c.num_deletion_gap_bases() as f64 / num_bases as f64;
+
         GapParams {
-            prob_insertion_artifact: Default::default(),
-            prob_deletion_artifact: Default::default(),
+            prob_insertion_artifact: LogProb::from(Prob::checked(gap_open_ins).unwrap()),
+            prob_deletion_artifact: LogProb::from(Prob::checked(gap_open_del).unwrap()),
             prob_insertion_extend_artifact: LogProb::from(Prob::checked(insertion_prob).unwrap()),
             prob_deletion_extend_artifact: LogProb::from(Prob::checked(deletion_prob).unwrap()),
         }
@@ -675,20 +735,29 @@ impl AlignmentProperties {
             .map(|base| {
                 let insertion_counts = counts(*base, |l| l > 0 && l < 6);
                 let deletion_counts = counts(*base, |l| l < 0 && l > -6);
+
+                let i = insertion_counts.iter().map(|(l, c)| *l * *c).sum::<usize>();
+                let d = deletion_counts.iter().map(|(l, c)| *l * *c).sum::<usize>();
+                let n = counts(*base, |l| l == 0)
+                    .iter()
+                    .map(|(_, c)| *c)
+                    .sum::<usize>();
+                let hop_start_ins = i as f64 / (n + i) as f64;
+                let hop_start_del = d as f64 / (n + d) as f64;
+
                 let insertion_lambda =
                     exponential_mle(insertion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                 let insertion_prob = (-insertion_lambda).exp();
+
                 let deletion_lambda =
                     exponential_mle(deletion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                 let deletion_prob = (-deletion_lambda).exp();
-                dbg!(
-                    insertion_lambda,
-                    insertion_prob,
-                    deletion_lambda,
-                    deletion_prob
-                );
+
                 (
-                    (LogProb::default(), LogProb::default()),
+                    (
+                        LogProb::from(Prob::checked(hop_start_ins).unwrap()),
+                        LogProb::from(Prob::checked(hop_start_del).unwrap()),
+                    ),
                     (
                         LogProb::from(Prob::checked(insertion_prob).unwrap()),
                         LogProb::from(Prob::checked(deletion_prob).unwrap()),
