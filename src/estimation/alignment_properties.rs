@@ -13,8 +13,10 @@ use std::u32;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
+use boolean_expression::Expr::Not;
 use counter::Counter;
 use itertools::Itertools;
+use num_traits::Zero;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{Data, Distribution, OrderStatistics};
@@ -467,7 +469,7 @@ impl AlignmentProperties {
             })
             .collect();
 
-        let buf_size = rayon::current_num_threads().max(16);
+        let buf_size = 256;
         let mut n_records_read = 0;
         let mut n_records_skipped = 0;
         let mut all_stats = AlignmentStats::default();
@@ -682,21 +684,25 @@ impl AlignmentProperties {
         let insertion_lambda =
             exponential_mle(insertion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
         let insertion_prob = (-insertion_lambda).exp();
+        let insertion_prob = NotNan::new(insertion_prob).unwrap_or(NotNan::zero());
 
         let deletion_lambda =
             exponential_mle(deletion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
         let deletion_prob = (-deletion_lambda).exp();
+        let deletion_prob = NotNan::new(deletion_prob).unwrap_or(NotNan::zero());
 
         let c = &self.cigar_counts;
         let num_bases = c.num_bases();
         let gap_open_ins = c.num_insertion_gap_bases() as f64 / num_bases as f64;
+        let gap_open_ins = NotNan::new(gap_open_ins).unwrap_or(NotNan::zero());
         let gap_open_del = c.num_deletion_gap_bases() as f64 / num_bases as f64;
+        let gap_open_del = NotNan::new(gap_open_del).unwrap_or(NotNan::zero());
 
         GapParams {
-            prob_insertion_artifact: LogProb::from(Prob::checked(gap_open_ins).unwrap()),
-            prob_deletion_artifact: LogProb::from(Prob::checked(gap_open_del).unwrap()),
-            prob_insertion_extend_artifact: LogProb::from(Prob::checked(insertion_prob).unwrap()),
-            prob_deletion_extend_artifact: LogProb::from(Prob::checked(deletion_prob).unwrap()),
+            prob_insertion_artifact: LogProb::from(Prob::checked(*gap_open_ins).unwrap()),
+            prob_deletion_artifact: LogProb::from(Prob::checked(*gap_open_del).unwrap()),
+            prob_insertion_extend_artifact: LogProb::from(Prob::checked(*insertion_prob).unwrap()),
+            prob_deletion_extend_artifact: LogProb::from(Prob::checked(*deletion_prob).unwrap()),
         }
     }
 
@@ -724,25 +730,30 @@ impl AlignmentProperties {
                     .iter()
                     .map(|(_, c)| *c)
                     .sum::<usize>();
+
                 let hop_start_ins = i as f64 / (n + i) as f64;
+                let hop_start_ins = NotNan::new(hop_start_ins).unwrap_or(NotNan::zero());
                 let hop_start_del = d as f64 / (n + d) as f64;
+                let hop_start_del = NotNan::new(hop_start_del).unwrap_or(NotNan::zero());
 
                 let insertion_lambda =
                     exponential_mle(insertion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                 let insertion_prob = (-insertion_lambda).exp();
+                let insertion_prob = NotNan::new(insertion_prob).unwrap_or(NotNan::zero());
 
                 let deletion_lambda =
                     exponential_mle(deletion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                 let deletion_prob = (-deletion_lambda).exp();
+                let deletion_prob = NotNan::new(deletion_prob).unwrap_or(NotNan::zero());
 
                 (
                     (
-                        LogProb::from(Prob::checked(hop_start_ins).unwrap()),
-                        LogProb::from(Prob::checked(hop_start_del).unwrap()),
+                        LogProb::from(Prob::checked(*hop_start_ins).unwrap()),
+                        LogProb::from(Prob::checked(*hop_start_del).unwrap()),
                     ),
                     (
-                        LogProb::from(Prob::checked(insertion_prob).unwrap()),
-                        LogProb::from(Prob::checked(deletion_prob).unwrap()),
+                        LogProb::from(Prob::checked(*insertion_prob).unwrap()),
+                        LogProb::from(Prob::checked(*deletion_prob).unwrap()),
                     ),
                 )
             })
