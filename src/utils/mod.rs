@@ -536,7 +536,7 @@ mod tests {
     }
 }
 
-#[derive(CopyGetters)]
+#[derive(CopyGetters, Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct SimpleCounter<T>
 where
     T: Eq + Hash,

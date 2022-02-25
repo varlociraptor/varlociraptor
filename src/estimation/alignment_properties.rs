@@ -7,7 +7,7 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::f64;
-use std::ops::Deref;
+use std::ops::{AddAssign, Deref};
 use std::str;
 use std::u32;
 
@@ -57,8 +57,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_read_len: u32,
     #[serde(default = "default_max_mapq")]
     pub(crate) max_mapq: u8,
-    pub(crate) homopolymer_counts: HashMap<(u8, i16), usize>,
-    pub(crate) gap_counts: HashMap<i16, usize>,
+    pub(crate) cigar_counts: CigarCounts,
     #[serde(default = "default_homopolymer_error_model")]
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
@@ -83,12 +82,23 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
     })
 }
 
-fn gap_and_hop_counts(
-    record: &bam::Record,
-    refseq: &[u8],
-) -> (SimpleCounter<i16>, SimpleCounter<(u8, i16)>) {
-    let mut hop_counts = SimpleCounter::default();
-    let mut gap_counts = SimpleCounter::default();
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CigarCounts {
+    pub(crate) gap_counts: SimpleCounter<isize>,
+    pub(crate) hop_counts: SimpleCounter<(u8, i16)>,
+    pub(crate) match_counts: SimpleCounter<u32>,
+}
+
+impl AddAssign for CigarCounts {
+    fn add_assign(&mut self, rhs: Self) {
+        self.gap_counts += rhs.gap_counts;
+        self.hop_counts += rhs.hop_counts;
+        self.match_counts += rhs.match_counts;
+    }
+}
+
+fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
+    let mut cigar_counts = CigarCounts::default();
     let qseq = record.seq();
     let mut qpos = 0usize;
     let mut rpos = record.pos() as usize;
@@ -119,10 +129,10 @@ fn gap_and_hop_counts(
                             )
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
-                            hop_counts.incr((base, -(l as i16)));
+                            cigar_counts.hop_counts.incr((base, -(l as i16)));
                         }
                     } else {
-                        gap_counts.incr(-(l as i16));
+                        cigar_counts.gap_counts.incr(-(l as isize));
                     }
                 }
                 rpos += l as usize;
@@ -141,19 +151,20 @@ fn gap_and_hop_counts(
                             );
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
-                            hop_counts.incr((base, l as i16));
+                            cigar_counts.hop_counts.incr((base, l as i16));
                         }
                     } else {
-                        gap_counts.incr(l as i16);
+                        cigar_counts.gap_counts.incr(l as isize);
                     }
                 }
                 qpos += l as usize;
             }
             Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                cigar_counts.match_counts.incr(l);
                 let l = l as usize;
                 for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
                     if stretch.count() >= MIN_HOMOPOLYMER_LEN {
-                        hop_counts.incr((base, 0));
+                        cigar_counts.hop_counts.incr((base, 0));
                     }
                 }
                 qpos += l as usize;
@@ -168,7 +179,7 @@ fn gap_and_hop_counts(
             Cigar::HardClip(_) | Cigar::Pad(_) => continue,
         }
     }
-    (gap_counts, hop_counts)
+    cigar_counts
 }
 
 struct CigarStats {
@@ -325,8 +336,7 @@ impl AlignmentProperties {
             frac_max_softclip: None,
             max_read_len: 0,
             max_mapq: 0,
-            homopolymer_counts: Default::default(),
-            gap_counts: Default::default(),
+            cigar_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
         };
@@ -357,8 +367,7 @@ impl AlignmentProperties {
             mapq: u8,
             read_len: u32,
             cigar_stats: CigarStats,
-            homopolymer_counts: SimpleCounter<(u8, i16)>,
-            gap_counts: SimpleCounter<i16>,
+            cigar_counts: CigarCounts,
             insert_size: Option<f64>,
         }
 
@@ -372,8 +381,7 @@ impl AlignmentProperties {
             frac_max_softclip: Option<f64>,
             max_del: Option<u32>,
             max_ins: Option<u32>,
-            homopolymer_counts: SimpleCounter<(u8, i16)>,
-            gap_counts: SimpleCounter<i16>,
+            cigar_counts: CigarCounts,
             tlens: Vec<f64>,
         }
 
@@ -384,8 +392,7 @@ impl AlignmentProperties {
                 self.max_read_len = self.max_read_len.max(other.max_read_len);
                 self.n_softclips += other.n_softclips;
                 self.n_not_usable += other.n_not_usable;
-                self.homopolymer_counts += other.homopolymer_counts;
-                self.gap_counts += other.gap_counts;
+                self.cigar_counts += other.cigar_counts;
                 self.frac_max_softclip = self.frac_max_softclip.max(other.frac_max_softclip);
                 self.max_ins = self.max_ins.max(other.max_ins);
                 self.max_del = self.max_del.max(other.max_del);
@@ -454,7 +461,7 @@ impl AlignmentProperties {
                 .map(|(_i, record)| {
                     let cigar_stats = cigar_stats(&record, allow_hardclips);
 
-                    let (gap_counts, homopolymer_counts) = gap_and_hop_counts(
+                    let cigar_counts = cigar_op_counts(
                         &record,
                         &reference_seqs[tid_to_tname[&(record.tid() as u32)]],
                     );
@@ -469,8 +476,7 @@ impl AlignmentProperties {
                         mapq: record.mapq(),
                         read_len: record.seq().len() as u32,
                         cigar_stats,
-                        homopolymer_counts,
-                        gap_counts,
+                        cigar_counts,
                         insert_size,
                     }
                 })
@@ -480,8 +486,7 @@ impl AlignmentProperties {
                     acc.max_read_len = acc.max_read_len.max(rs.read_len);
                     acc.n_softclips += rs.cigar_stats.has_soft_clip as u32;
                     acc.n_not_usable += (!rs.cigar_stats.is_regular) as u32;
-                    acc.homopolymer_counts += rs.homopolymer_counts;
-                    acc.gap_counts += rs.gap_counts;
+                    acc.cigar_counts += rs.cigar_counts;
                     if let Some(insert_size) = rs.insert_size {
                         acc.tlens.push(insert_size);
                     }
@@ -499,18 +504,19 @@ impl AlignmentProperties {
             all_stats.update(batch_stats);
         }
 
-        properties.homopolymer_counts = all_stats.homopolymer_counts.clone();
-        properties.gap_counts = all_stats.gap_counts.clone();
+        properties.cigar_counts = all_stats.cigar_counts.clone();
 
         properties.wildtype_homopolymer_error_model = {
             let n = all_stats
-                .homopolymer_counts
+                .cigar_counts
+                .hop_counts
                 .values()
                 .filter(|count| **count >= 10)
                 .sum::<usize>() as f64;
             // group by length, i.e. discard base information
             let grouped = all_stats
-                .homopolymer_counts
+                .cigar_counts
+                .hop_counts
                 .iter()
                 .sorted_unstable_by_key(|((_, length), _)| length)
                 .group_by(|((_, length), _)| length);
@@ -549,6 +555,8 @@ impl AlignmentProperties {
 
         // Mark initial estimation as done.
         properties.initial = false;
+        dbg!(properties.gap_params());
+        dbg!(properties.hop_params());
 
         if all_stats.tlens.is_empty() {
             warn!(
@@ -620,8 +628,9 @@ fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)
 
 impl AlignmentProperties {
     fn gap_params(&self) -> GapParams {
-        let counts = |length_predicate: fn(i16) -> bool| {
-            self.gap_counts
+        let counts = |length_predicate: fn(isize) -> bool| {
+            self.cigar_counts
+                .gap_counts
                 .iter()
                 .filter(|&(length, _)| length_predicate(*length))
                 .map(|(length, count)| (length.abs() as usize, *count))
@@ -629,9 +638,11 @@ impl AlignmentProperties {
         };
         let insertion_gap_counts = counts(|l| l > 0);
         let deletion_gap_counts = counts(|l| l < 0);
-        let insertion_lambda = exponential_mle(insertion_gap_counts.into_iter());
+        let insertion_lambda =
+            exponential_mle(insertion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
         let insertion_prob = (-insertion_lambda).exp();
-        let deletion_lambda = exponential_mle(deletion_gap_counts.into_iter());
+        let deletion_lambda =
+            exponential_mle(deletion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
         let deletion_prob = (-deletion_lambda).exp();
         dbg!(
             insertion_lambda,
@@ -639,25 +650,36 @@ impl AlignmentProperties {
             deletion_lambda,
             deletion_prob
         );
-        todo!()
+        GapParams {
+            prob_insertion_artifact: Default::default(),
+            prob_deletion_artifact: Default::default(),
+            prob_insertion_extend_artifact: LogProb::from(Prob::checked(insertion_prob).unwrap()),
+            prob_deletion_extend_artifact: LogProb::from(Prob::checked(deletion_prob).unwrap()),
+        }
     }
 
     fn hop_params(&self) -> HopParams {
         let counts = |base, length_predicate: fn(i16) -> bool| {
-            self.homopolymer_counts
+            self.cigar_counts
+                .hop_counts
                 .iter()
                 .filter(|((char, length), _)| *char == base && length_predicate(*length))
                 .map(|((_, length), count)| (length.abs() as usize, *count))
                 .collect_vec()
         };
-        let probs = [b'A', b'C', b'G', b'T']
+        let (
+            (prob_seq_homopolymer, prob_ref_homopolymer),
+            (prob_seq_extend_homopolymer, prob_ref_extend_homopolymer),
+        ): ((Vec<_>, Vec<_>), (Vec<_>, Vec<_>)) = [b'A', b'C', b'G', b'T']
             .iter()
             .map(|base| {
-                let insertion_counts = counts(*base, |l| l > 0);
-                let deletion_counts = counts(*base, |l| l < 0);
-                let insertion_lambda = exponential_mle(insertion_counts.into_iter());
+                let insertion_counts = counts(*base, |l| l > 0 && l < 6);
+                let deletion_counts = counts(*base, |l| l < 0 && l > -6);
+                let insertion_lambda =
+                    exponential_mle(insertion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                 let insertion_prob = (-insertion_lambda).exp();
-                let deletion_lambda = exponential_mle(deletion_counts.into_iter());
+                let deletion_lambda =
+                    exponential_mle(deletion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                 let deletion_prob = (-deletion_lambda).exp();
                 dbg!(
                     insertion_lambda,
@@ -665,9 +687,21 @@ impl AlignmentProperties {
                     deletion_lambda,
                     deletion_prob
                 );
+                (
+                    (LogProb::default(), LogProb::default()),
+                    (
+                        LogProb::from(Prob::checked(insertion_prob).unwrap()),
+                        LogProb::from(Prob::checked(deletion_prob).unwrap()),
+                    ),
+                )
             })
-            .collect_vec();
-        todo!()
+            .unzip();
+        HopParams {
+            prob_seq_homopolymer,
+            prob_ref_homopolymer,
+            prob_seq_extend_homopolymer,
+            prob_ref_extend_homopolymer,
+        }
     }
 }
 
