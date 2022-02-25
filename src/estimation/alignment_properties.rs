@@ -500,11 +500,10 @@ impl AlignmentProperties {
                 let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
                 let cigar_counts = cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
 
-                let insert_size = if !cigar_stats.is_regular {
-                    None
-                } else {
-                    // record insert size
+                let insert_size = if cigar_stats.is_regular {
                     Some(record.insert_size().abs() as f64)
+                } else {
+                    None
                 };
                 RecordStats {
                     mapq: record.mapq(),
@@ -581,8 +580,6 @@ impl AlignmentProperties {
 
         // Mark initial estimation as done.
         properties.initial = false;
-        dbg!(properties.gap_params());
-        dbg!(properties.hop_params());
 
         if all_stats.tlens.is_empty() {
             warn!(
