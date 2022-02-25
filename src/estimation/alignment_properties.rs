@@ -154,6 +154,10 @@ impl AddAssign for CigarCounts {
     }
 }
 
+/// Count the following operations:
+/// - gaps, both insertions and deletions, by length
+/// - homopolymer runs, both insertions and deletions, by length and base
+/// - matches, independent of the fact whether they are exact or contain substitutions
 fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
     let mut cigar_counts = CigarCounts::default();
     let qseq = record.seq();
@@ -239,6 +243,7 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
     cigar_counts
 }
 
+// TODO: This can be merged with CigarCounts, so that only one pass through a record's cigar string is sufficient
 struct CigarStats {
     is_regular: bool,
     has_soft_clip: bool,
@@ -468,7 +473,9 @@ impl AlignmentProperties {
                 }
                 !skip
             })
+            // TODO expose step parameter to cli
             .step_by(1)
+            // TODO expose num fragments parameter to cli
             .take(NUM_FRAGMENTS)
             .map(|mut record| {
                 record_flag_stats.update(&record);
