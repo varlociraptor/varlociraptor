@@ -29,7 +29,6 @@ use crate::grammar;
 use crate::reference;
 use crate::testcase;
 use crate::variants::evidence::realignment;
-use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
 
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
@@ -136,6 +135,10 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
+fn default_pairhmm_mode() -> String {
+    "exact".to_owned()
+}
+
 fn default_log_mode() -> String {
     "default".to_owned()
 }
@@ -211,13 +214,6 @@ pub enum PreprocessKind {
         )]
         output: Option<PathBuf>,
         #[structopt(
-            parse(from_os_str),
-            long,
-            required = true,
-            help = "Error model defined in the varlociraptor error model grammar."
-        )]
-        model: PathBuf,
-        #[structopt(
             long = "strandedness",
             default_value = "opposite",
             possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
@@ -246,7 +242,20 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         omit_insert_size: bool,
-
+        #[structopt(
+            long = "pairhmm-mode",
+            possible_values = &["fast", "exact"],
+            default_value = "exact",
+            help = "PairHMM computation mode (either fast or exact). Fast mode means that only the best \
+                    alignment path is considered for probability calculation. In rare cases, this can lead \
+                    to wrong results for single reads. Hence, we advice to not use it when \
+                    discrete allele frequences are of interest (0.5, 1.0). For continuous \
+                    allele frequencies, fast mode should cause almost no deviations from the \
+                    exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
+                    in large cohorts), fast mode can be safely used."
+        )]
+        #[serde(default = "default_pairhmm_mode")]
+        pairhmm_mode: String,
         #[structopt(
             long = "log-mode",
             possible_values = &["default", "each-record"],
@@ -636,41 +645,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     bam,
                     alignment_properties,
                     output,
-                    model,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
+                    pairhmm_mode,
                     reference_buffer_size,
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
                 } => {
                     // TODO: handle testcases
-
-                    #[derive(Deserialize, Getters)]
-                    #[get = "pub(crate)"]
-                    #[serde(deny_unknown_fields)]
-                    pub(crate) struct Model {
-                        spurious_ins_rate: f64,
-                        spurious_del_rate: f64,
-                        spurious_insext_rate: f64,
-                        spurious_delext_rate: f64,
-
-                        #[serde(default)]
-                        spurious_hop_ref_rate: f64,
-                        #[serde(default)]
-                        spurious_hop_seq_rate: f64,
-                        #[serde(default)]
-                        spurious_hop_ref_ext_rate: f64,
-                        #[serde(default)]
-                        spurious_hop_seq_ext_rate: f64,
-
-                        #[serde(default)]
-                        fast: bool,
-                    }
-                    let model = std::fs::read(model)?;
-                    let model: Model = serde_yaml::from_slice(&model)?;
                     if realignment_window > (128 / 2) {
                         return Err(
                             structopt::clap::Error::with_description(
@@ -693,20 +678,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         Arc::get_mut(&mut reference_buffer).unwrap(),
                     )?;
 
-                    let gap_params = GapParams {
-                        prob_insertion_artifact: LogProb::from(Prob::checked(
-                            model.spurious_ins_rate,
-                        )?),
-                        prob_deletion_artifact: LogProb::from(Prob::checked(
-                            model.spurious_del_rate,
-                        )?),
-                        prob_insertion_extend_artifact: LogProb::from(Prob::checked(
-                            model.spurious_insext_rate,
-                        )?),
-                        prob_deletion_extend_artifact: LogProb::from(Prob::checked(
-                            model.spurious_delext_rate,
-                        )?),
-                    };
+                    let gap_params = alignment_properties.gap_params();
 
                     let log_each_record = if log_mode == "each-record" {
                         true
@@ -714,17 +686,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         false
                     };
 
-                    if model.spurious_hop_seq_rate > 0.0 || model.spurious_hop_ref_rate > 0.0 {
-                        let a = LogProb::from(Prob::checked(model.spurious_hop_seq_rate)?);
-                        let b = LogProb::from(Prob::checked(model.spurious_hop_ref_rate)?);
-                        let c = LogProb::from(Prob::checked(model.spurious_hop_seq_ext_rate)?);
-                        let d = LogProb::from(Prob::checked(model.spurious_hop_ref_ext_rate)?);
-                        let hop_params = HopParams {
-                            prob_seq_homopolymer: vec![a, a, a, a],
-                            prob_ref_homopolymer: vec![b, b, b, b],
-                            prob_seq_extend_homopolymer: vec![c, c, c, c],
-                            prob_ref_extend_homopolymer: vec![d, d, d, d],
-                        };
+                    let is_nanopore = false;
+                    if is_nanopore {
+                        let hop_params = alignment_properties.hop_params();
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
                                 .alignment_properties(alignment_properties)
@@ -748,7 +712,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 .build();
 
                         processor.process()?;
-                    } else if model.fast {
+                    } else if pairhmm_mode == "fast" {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
                                 .alignment_properties(alignment_properties)

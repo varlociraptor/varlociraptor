@@ -88,6 +88,7 @@ pub(crate) struct CigarCounts {
     pub(crate) match_counts: SimpleCounter<u32>,
 }
 
+#[allow(dead_code)]
 impl CigarCounts {
     fn num_bases(&self) -> usize {
         self.match_counts
@@ -645,7 +646,7 @@ fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)
 }
 
 impl AlignmentProperties {
-    fn gap_params(&self) -> GapParams {
+    pub(crate) fn gap_params(&self) -> GapParams {
         let counts = |length_predicate: fn(isize) -> bool| {
             self.cigar_counts
                 .gap_counts
@@ -682,7 +683,7 @@ impl AlignmentProperties {
         }
     }
 
-    fn hop_params(&self) -> HopParams {
+    pub(crate) fn hop_params(&self) -> HopParams {
         let counts = |base, length_predicate: fn(i16) -> bool| {
             self.cigar_counts
                 .hop_counts
