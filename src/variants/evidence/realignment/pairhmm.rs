@@ -75,7 +75,7 @@ macro_rules! default_ref_base_emission {
 }
 
 /// Gap parameters for PairHMM.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GapParams {
     pub(crate) prob_insertion_artifact: LogProb,
     pub(crate) prob_deletion_artifact: LogProb,
@@ -126,7 +126,7 @@ impl pairhmm::StartEndGapParameters for GapParams {
 }
 
 /// Hop parameters for HomopolyPairHMM.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct HopParams {
     pub(crate) prob_seq_homopolymer: Vec<LogProb>,
     pub(crate) prob_ref_homopolymer: Vec<LogProb>,

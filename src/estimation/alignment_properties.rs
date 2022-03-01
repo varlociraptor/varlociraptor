@@ -30,21 +30,63 @@ use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
 
 const NUM_FRAGMENTS: usize = 1_000_000;
 
-fn default_homopolymer_error_model() -> HashMap<i16, f64> {
-    let mut model = HashMap::new();
-    model.insert(0, 0.9975414130829068);
-    model.insert(1, 0.0010076175889726332);
-    model.insert(-1, 0.0010076175889726332);
-    model.insert(-2, 0.00020152351779452663);
-    model.insert(2, 0.00010076175889726332);
-    model.insert(3, 5.038087944863166e-05);
-    model.insert(-3, 9.068558300753699e-05);
+struct BackwardsCompatibility;
 
-    model
-}
+impl BackwardsCompatibility {
+    fn default_homopolymer_error_model() -> HashMap<i16, f64> {
+        let mut model = HashMap::new();
+        model.insert(0, 0.9975414130829068);
+        model.insert(1, 0.0010076175889726332);
+        model.insert(-1, 0.0010076175889726332);
+        model.insert(-2, 0.00020152351779452663);
+        model.insert(2, 0.00010076175889726332);
+        model.insert(3, 5.038087944863166e-05);
+        model.insert(-3, 9.068558300753699e-05);
 
-fn default_max_mapq() -> u8 {
-    60
+        model
+    }
+
+    fn default_max_mapq() -> u8 {
+        60
+    }
+
+    fn default_gap_params() -> GapParams {
+        GapParams {
+            prob_insertion_artifact: LogProb::from(Prob(2.8e-6)),
+            prob_deletion_artifact: LogProb::from(Prob(5.1e-6)),
+            prob_insertion_extend_artifact: LogProb::zero(),
+            prob_deletion_extend_artifact: LogProb::zero(),
+        }
+    }
+
+    fn default_hop_params() -> HopParams {
+        HopParams {
+            prob_seq_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+            prob_ref_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+            prob_seq_extend_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+            prob_ref_extend_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -54,10 +96,15 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
-    #[serde(default = "default_max_mapq")]
+    #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
+    #[serde(default)]
     pub(crate) cigar_counts: CigarCounts,
-    #[serde(default = "default_homopolymer_error_model")]
+    #[serde(default = "BackwardsCompatibility::default_gap_params")]
+    pub(crate) gap_params: GapParams,
+    #[serde(default = "BackwardsCompatibility::default_hop_params")]
+    pub(crate) hop_params: HopParams,
+    #[serde(default = "BackwardsCompatibility::default_homopolymer_error_model")]
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
     initial: bool,
@@ -419,6 +466,8 @@ impl AlignmentProperties {
             cigar_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
+            gap_params: BackwardsCompatibility::default_gap_params(),
+            hop_params: BackwardsCompatibility::default_hop_params(),
         };
 
         #[derive(Debug)]
@@ -570,6 +619,9 @@ impl AlignmentProperties {
                 .map(|(length, count)| (*length, count as f64 / n))
                 .collect()
         };
+
+        properties.gap_params = properties.gap_params();
+        properties.hop_params = properties.hop_params();
 
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
