@@ -687,78 +687,80 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     };
 
                     let is_nanopore = false;
-                    if is_nanopore {
-                        let hop_params = alignment_properties.hop_params();
-                        let mut processor =
-                            calling::variants::preprocessing::ObservationProcessor::builder()
-                                .alignment_properties(alignment_properties)
-                                .protocol_strandedness(protocol_strandedness)
-                                .max_depth(max_depth)
-                                .inbam(bam)
-                                .min_bam_refetch_distance(min_bam_refetch_distance)
-                                .reference_buffer(Arc::clone(&reference_buffer))
-                                .breakend_index(BreakendIndex::new(&candidates)?)
-                                .inbcf(candidates)
-                                .options(opt_clone)
-                                .outbcf(output)
-                                .realigner(realignment::HomopolyPairHMMRealigner::new(
-                                    reference_buffer,
-                                    gap_params,
-                                    hop_params,
-                                    realignment_window,
-                                ))
-                                .raw_observation_output(output_raw_observations)
-                                .log_each_record(log_each_record)
-                                .build();
-
-                        processor.process()?;
-                    } else if pairhmm_mode == "fast" {
-                        let mut processor =
-                            calling::variants::preprocessing::ObservationProcessor::builder()
-                                .alignment_properties(alignment_properties)
-                                .protocol_strandedness(protocol_strandedness)
-                                .max_depth(max_depth)
-                                .inbam(bam)
-                                .min_bam_refetch_distance(min_bam_refetch_distance)
-                                .reference_buffer(Arc::clone(&reference_buffer))
-                                .breakend_index(BreakendIndex::new(&candidates)?)
-                                .inbcf(candidates)
-                                .options(opt_clone)
-                                .outbcf(output)
-                                .realigner(realignment::PathHMMRealigner::new(
-                                    gap_params,
-                                    realignment_window,
-                                    reference_buffer,
-                                ))
-                                .raw_observation_output(output_raw_observations)
-                                .log_each_record(log_each_record)
-                                .build();
-
-                        processor.process()?;
-                    } else {
-                        let mut processor =
-                            calling::variants::preprocessing::ObservationProcessor::builder()
-                                .alignment_properties(alignment_properties)
-                                .protocol_strandedness(protocol_strandedness)
-                                .max_depth(max_depth)
-                                .inbam(bam)
-                                .min_bam_refetch_distance(min_bam_refetch_distance)
-                                .reference_buffer(Arc::clone(&reference_buffer))
-                                .breakend_index(BreakendIndex::new(&candidates)?)
-                                .inbcf(candidates)
-                                .options(opt_clone)
-                                .outbcf(output)
-                                .realigner(realignment::PairHMMRealigner::new(
-                                    reference_buffer,
-                                    gap_params,
-                                    realignment_window,
-                                ))
-                                .log_each_record(log_each_record)
-                                .raw_observation_output(output_raw_observations)
-                                .build();
-
-                        processor.process()?;
-                    }
+                    let fast = pairhmm_mode == "fast";
+                    match (is_nanopore, fast) {
+                        (true, _) => {
+                            let hop_params = alignment_properties.hop_params();
+                            let mut processor =
+                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
+                                    .max_depth(max_depth)
+                                    .inbam(bam)
+                                    .min_bam_refetch_distance(min_bam_refetch_distance)
+                                    .reference_buffer(Arc::clone(&reference_buffer))
+                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .inbcf(candidates)
+                                    .options(opt_clone)
+                                    .outbcf(output)
+                                    .raw_observation_output(output_raw_observations)
+                                    .log_each_record(log_each_record)
+                                    .realigner(realignment::HomopolyPairHMMRealigner::new(
+                                        reference_buffer,
+                                        gap_params,
+                                        hop_params,
+                                        realignment_window,
+                                    ))
+                                    .build();
+                            processor.process()?;
+                        }
+                        (_, true) => {
+                            let mut processor =
+                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
+                                    .max_depth(max_depth)
+                                    .inbam(bam)
+                                    .min_bam_refetch_distance(min_bam_refetch_distance)
+                                    .reference_buffer(Arc::clone(&reference_buffer))
+                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .inbcf(candidates)
+                                    .options(opt_clone)
+                                    .outbcf(output)
+                                    .raw_observation_output(output_raw_observations)
+                                    .log_each_record(log_each_record)
+                                    .realigner(realignment::PathHMMRealigner::new(
+                                        gap_params,
+                                        realignment_window,
+                                        reference_buffer,
+                                    ))
+                                    .build();
+                            processor.process()?;
+                        }
+                        (_, false) => {
+                            let mut processor =
+                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
+                                    .max_depth(max_depth)
+                                    .inbam(bam)
+                                    .min_bam_refetch_distance(min_bam_refetch_distance)
+                                    .reference_buffer(Arc::clone(&reference_buffer))
+                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .inbcf(candidates)
+                                    .options(opt_clone)
+                                    .outbcf(output)
+                                    .raw_observation_output(output_raw_observations)
+                                    .log_each_record(log_each_record)
+                                    .realigner(realignment::PairHMMRealigner::new(
+                                        reference_buffer,
+                                        gap_params,
+                                        realignment_window,
+                                    ))
+                                    .build();
+                            processor.process()?;
+                        }
+                    };
                 }
             }
         }
