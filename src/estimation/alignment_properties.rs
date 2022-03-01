@@ -84,7 +84,7 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CigarCounts {
     pub(crate) gap_counts: SimpleCounter<isize>,
-    pub(crate) hop_counts: SimpleCounter<(u8, i16)>,
+    pub(crate) hop_counts: HashMap<u8, SimpleCounter<i16>>,
     pub(crate) match_counts: SimpleCounter<u32>,
 }
 
@@ -103,7 +103,8 @@ impl CigarCounts {
             + self
                 .hop_counts
                 .iter()
-                .map(|((_, l), c)| l.abs() as usize * *c)
+                .flat_map(|(_base, counts)| counts.iter())
+                .map(|(l, c)| l.abs() as usize * *c)
                 .sum::<usize>()
     }
 
@@ -133,16 +134,18 @@ impl CigarCounts {
     fn num_insertion_hop_bases(&self) -> usize {
         self.hop_counts
             .iter()
-            .filter(|((_, l), _)| *l > 0)
-            .map(|((_, l), c)| l.abs() as usize * *c)
+            .flat_map(|(_base, counts)| counts.iter())
+            .filter(|(l, _)| **l > 0)
+            .map(|(l, c)| l.abs() as usize * *c)
             .sum::<usize>()
     }
 
     fn num_deletion_hop_bases(&self) -> usize {
         self.hop_counts
             .iter()
-            .filter(|((_, l), _)| *l < 0)
-            .map(|((_, l), c)| l.abs() as usize * *c)
+            .flat_map(|(_base, counts)| counts.iter())
+            .filter(|(l, _)| **l < 0)
+            .map(|(l, c)| l.abs() as usize * *c)
             .sum::<usize>()
     }
 }
@@ -150,7 +153,9 @@ impl CigarCounts {
 impl AddAssign for CigarCounts {
     fn add_assign(&mut self, rhs: Self) {
         self.gap_counts += rhs.gap_counts;
-        self.hop_counts += rhs.hop_counts;
+        for (base, counts) in rhs.hop_counts {
+            *self.hop_counts.entry(base).or_insert_with(Default::default) += counts;
+        }
         self.match_counts += rhs.match_counts;
     }
 }
@@ -191,7 +196,11 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                             )
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
-                            cigar_counts.hop_counts.incr((base, -(l as i16)));
+                            cigar_counts
+                                .hop_counts
+                                .entry(base)
+                                .or_insert_with(SimpleCounter::default)
+                                .incr(-(l as i16));
                         }
                     } else {
                         cigar_counts.gap_counts.incr(-(l as isize));
@@ -213,7 +222,11 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                             );
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
-                            cigar_counts.hop_counts.incr((base, l as i16));
+                            cigar_counts
+                                .hop_counts
+                                .entry(base)
+                                .or_insert_with(SimpleCounter::default)
+                                .incr(l as i16);
                         }
                     } else {
                         cigar_counts.gap_counts.incr(l as isize);
@@ -226,7 +239,11 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                 let l = l as usize;
                 for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
                     if stretch.count() >= MIN_HOMOPOLYMER_LEN {
-                        cigar_counts.hop_counts.incr((base, 0));
+                        cigar_counts
+                            .hop_counts
+                            .entry(base)
+                            .or_insert_with(SimpleCounter::default)
+                            .incr(0);
                     }
                 }
                 qpos += l as usize;
@@ -532,15 +549,21 @@ impl AlignmentProperties {
                 .cigar_counts
                 .hop_counts
                 .values()
+                .flat_map(|counter| counter.values())
                 .filter(|count| **count >= 10)
                 .sum::<usize>() as f64;
             // group by length, i.e. discard base information
-            let grouped = all_stats
+            let counts = all_stats
                 .cigar_counts
                 .hop_counts
+                .values()
+                .flat_map(|counter| counter.iter())
+                .map(|(k, v)| (*k, *v))
+                .collect_vec();
+            let grouped = counts
                 .iter()
-                .sorted_unstable_by_key(|((_, length), _)| length)
-                .group_by(|((_, length), _)| length);
+                .sorted_unstable_by_key(|(length, _)| length)
+                .group_by(|(length, _)| length);
             grouped
                 .into_iter()
                 .map(|(length, group)| (length, group.map(|(_, count)| count).sum::<usize>()))
@@ -687,9 +710,11 @@ impl AlignmentProperties {
         let counts = |base, length_predicate: fn(i16) -> bool| {
             self.cigar_counts
                 .hop_counts
+                .get(&base)
+                .unwrap_or(&Default::default())
                 .iter()
-                .filter(|((char, length), _)| *char == base && length_predicate(*length))
-                .map(|((_, length), count)| (length.abs() as usize, *count))
+                .filter(|(length, _)| length_predicate(**length))
+                .map(|(length, count)| (length.abs() as usize, *count))
                 .collect_vec()
         };
         let (
