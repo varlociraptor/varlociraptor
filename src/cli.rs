@@ -245,15 +245,17 @@ pub enum PreprocessKind {
         omit_insert_size: bool,
         #[structopt(
             long = "pairhmm-mode",
-            possible_values = &["fast", "exact"],
+            possible_values = &["fast", "exact", "homopolymer"],
             default_value = "exact",
-            help = "PairHMM computation mode (either fast or exact). Fast mode means that only the best \
+            help = "PairHMM computation mode (either fast, exact or homopolymer). Fast mode means that only the best \
                     alignment path is considered for probability calculation. In rare cases, this can lead \
                     to wrong results for single reads. Hence, we advice to not use it when \
                     discrete allele frequences are of interest (0.5, 1.0). For continuous \
                     allele frequencies, fast mode should cause almost no deviations from the \
                     exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
-                    in large cohorts), fast mode can be safely used."
+                    in large cohorts), fast mode can be safely used. \
+                    The homopolymer mode should be used for ONT data; it is similar to the exact mode \
+                    but considers homopolymer errors to be different from gaps."
         )]
         #[serde(default = "default_pairhmm_mode")]
         pairhmm_mode: String,
@@ -690,23 +692,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         false
                     };
 
-                    let mut bam_reader = rust_htslib::bam::Reader::from_path(&bam)?;
-                    use rust_htslib::bam::record::Aux;
-                    let is_nanopore = bam_reader
-                        .records()
-                        .next()
-                        .and_then(|r| {
-                            r.and_then(|r| {
-                                r.aux(b"PL")
-                                    .map(|platform| matches!(platform, Aux::String("ONT")))
-                            })
-                            .ok()
-                        })
-                        .unwrap_or(false);
-
-                    let fast = pairhmm_mode == "fast";
-                    match (is_nanopore, fast) {
-                        (true, _) => {
+                    match pairhmm_mode.as_ref() {
+                        "homopolymer" => {
                             let hop_params = alignment_properties.hop_params();
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
@@ -731,7 +718,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .build();
                             processor.process()?;
                         }
-                        (_, true) => {
+                        "fast" => {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .alignment_properties(alignment_properties)
@@ -754,7 +741,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .build();
                             processor.process()?;
                         }
-                        (_, false) => {
+                        "exact" => {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .alignment_properties(alignment_properties)
@@ -777,6 +764,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .build();
                             processor.process()?;
                         }
+                        _ => panic!("Unknown pairhmm mode '{}'", pairhmm_mode),
                     };
                 }
             }
