@@ -110,285 +110,6 @@ pub(crate) struct AlignmentProperties {
     initial: bool,
 }
 
-fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
-    record.raw_cigar().iter().map(|&c| {
-        let len = c >> 4;
-        match c & 0b1111 {
-            0 => Cigar::Match(len),
-            1 => Cigar::Ins(len),
-            2 => Cigar::Del(len),
-            3 => Cigar::RefSkip(len),
-            4 => Cigar::SoftClip(len),
-            5 => Cigar::HardClip(len),
-            6 => Cigar::Pad(len),
-            7 => Cigar::Equal(len),
-            8 => Cigar::Diff(len),
-            _ => panic!("Unexpected cigar operation"),
-        }
-    })
-}
-
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct CigarCounts {
-    pub(crate) gap_counts: SimpleCounter<isize>,
-    pub(crate) hop_counts: HashMap<u8, SimpleCounter<i16>>,
-    pub(crate) match_counts: SimpleCounter<u32>,
-}
-
-#[allow(dead_code)]
-impl CigarCounts {
-    fn num_bases(&self) -> usize {
-        self.match_counts
-            .iter()
-            .map(|(l, c)| *l as usize * *c)
-            .sum::<usize>()
-            + self
-                .gap_counts
-                .iter()
-                .map(|(l, c)| l.abs() as usize * *c)
-                .sum::<usize>()
-            + self
-                .hop_counts
-                .iter()
-                .flat_map(|(_base, counts)| counts.iter())
-                .map(|(l, c)| l.abs() as usize * *c)
-                .sum::<usize>()
-    }
-
-    fn num_match_bases(&self) -> usize {
-        self.match_counts
-            .iter()
-            .map(|(l, c)| *l as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_insertion_gap_bases(&self) -> usize {
-        self.gap_counts
-            .iter()
-            .filter(|(l, _)| **l > 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_deletion_gap_bases(&self) -> usize {
-        self.gap_counts
-            .iter()
-            .filter(|(l, _)| **l < 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_insertion_hop_bases(&self) -> usize {
-        self.hop_counts
-            .iter()
-            .flat_map(|(_base, counts)| counts.iter())
-            .filter(|(l, _)| **l > 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_deletion_hop_bases(&self) -> usize {
-        self.hop_counts
-            .iter()
-            .flat_map(|(_base, counts)| counts.iter())
-            .filter(|(l, _)| **l < 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-}
-
-impl AddAssign for CigarCounts {
-    fn add_assign(&mut self, rhs: Self) {
-        self.gap_counts += rhs.gap_counts;
-        for (base, counts) in rhs.hop_counts {
-            *self.hop_counts.entry(base).or_insert_with(Default::default) += counts;
-        }
-        self.match_counts += rhs.match_counts;
-    }
-}
-
-/// Count the following operations:
-/// - gaps, both insertions and deletions, by length
-/// - homopolymer runs, both insertions and deletions, by length and base
-/// - matches, independent of the fact whether they are exact or contain substitutions
-fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
-    let mut cigar_counts = CigarCounts::default();
-    let qseq = record.seq();
-    let mut qpos = 0usize;
-    let mut rpos = record.pos() as usize;
-
-    let iter = if let Some(cigar) = record.cigar_cached() {
-        Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
-    } else {
-        Box::new(iter_cigar(record))
-    };
-    for c in iter {
-        match c {
-            Cigar::Del(l) => {
-                let l = l as usize;
-                if l < i16::MAX as usize {
-                    let base = refseq[rpos];
-                    if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
-                        let mut len = l;
-                        if rpos + l < refseq.len() {
-                            len += extend_homopolymer_stretch(
-                                refseq[rpos],
-                                &mut refseq[rpos + l..].iter(),
-                            )
-                        }
-                        if rpos > 1 {
-                            len += extend_homopolymer_stretch(
-                                refseq[rpos],
-                                &mut refseq[..rpos - 1].iter().rev(),
-                            )
-                        }
-                        if len >= MIN_HOMOPOLYMER_LEN {
-                            cigar_counts
-                                .hop_counts
-                                .entry(base)
-                                .or_insert_with(SimpleCounter::default)
-                                .incr(-(l as i16));
-                        }
-                    } else {
-                        cigar_counts.gap_counts.incr(-(l as isize));
-                    }
-                }
-                rpos += l as usize;
-            }
-            Cigar::Ins(l) => {
-                let l = l as usize;
-                if l < i16::MAX as usize {
-                    let base = qseq[qpos];
-                    if is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i])) {
-                        let mut len =
-                            l + extend_homopolymer_stretch(qseq[qpos], &mut refseq[rpos..].iter());
-                        if rpos > 0 {
-                            len += extend_homopolymer_stretch(
-                                qseq[qpos],
-                                &mut refseq[..rpos].iter().rev(),
-                            );
-                        }
-                        if len >= MIN_HOMOPOLYMER_LEN {
-                            cigar_counts
-                                .hop_counts
-                                .entry(base)
-                                .or_insert_with(SimpleCounter::default)
-                                .incr(l as i16);
-                        }
-                    } else {
-                        cigar_counts.gap_counts.incr(l as isize);
-                    }
-                }
-                qpos += l as usize;
-            }
-            Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
-                cigar_counts.match_counts.incr(l);
-                let l = l as usize;
-                for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
-                    if stretch.count() >= MIN_HOMOPOLYMER_LEN {
-                        cigar_counts
-                            .hop_counts
-                            .entry(base)
-                            .or_insert_with(SimpleCounter::default)
-                            .incr(0);
-                    }
-                }
-                qpos += l as usize;
-                rpos += l as usize;
-            }
-            Cigar::SoftClip(l) => {
-                qpos += l as usize;
-            }
-            Cigar::RefSkip(l) => {
-                rpos += l as usize;
-            }
-            Cigar::HardClip(_) | Cigar::Pad(_) => continue,
-        }
-    }
-    cigar_counts
-}
-
-// TODO: This can be merged with CigarCounts, so that only one pass through a record's cigar string is sufficient
-struct CigarStats {
-    is_regular: bool,
-    has_soft_clip: bool,
-    frac_max_softclip: Option<f64>,
-    max_del: Option<u32>,
-    max_ins: Option<u32>,
-}
-
-fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> CigarStats {
-    let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
-
-    let mut is_regular = true;
-    let mut has_soft_clip = false;
-    let mut frac_max_softclip = None;
-    let mut max_del_cigar_len = None;
-    let mut max_ins_cigar_len = None;
-    let iter = if let Some(cigar) = record.cigar_cached() {
-        Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
-    } else {
-        Box::new(iter_cigar(record))
-    };
-    for c in iter {
-        match c {
-            Cigar::SoftClip(l) => {
-                let s = norm(l);
-                if let Some(ref mut maxclipfrac) = frac_max_softclip {
-                    *maxclipfrac = *cmp::max(s, NotNan::new(*maxclipfrac).unwrap())
-                } else {
-                    frac_max_softclip = Some(*s);
-                }
-                is_regular = false;
-                has_soft_clip = true;
-            }
-            Cigar::Del(l) => {
-                if let Some(ref mut maxlen) = max_del_cigar_len {
-                    *maxlen = cmp::max(l, *maxlen);
-                } else {
-                    max_del_cigar_len = Some(l);
-                }
-                is_regular = false;
-            }
-            Cigar::Ins(l) => {
-                if let Some(ref mut maxlen) = max_ins_cigar_len {
-                    *maxlen = cmp::max(l, *maxlen);
-                } else {
-                    max_ins_cigar_len = Some(l);
-                }
-                is_regular = false;
-            }
-            Cigar::HardClip(_) if !allow_hardclips => {
-                is_regular = false;
-            }
-            _ => continue,
-        }
-    }
-
-    CigarStats {
-        is_regular,
-        has_soft_clip,
-        frac_max_softclip,
-        max_del: max_del_cigar_len,
-        max_ins: max_ins_cigar_len,
-    }
-}
-
-trait OptionMax {
-    fn max(self, other: Option<f64>) -> Option<f64>;
-}
-
-impl OptionMax for Option<f64> {
-    fn max(self, other: Option<f64>) -> Option<f64> {
-        match (self, other) {
-            (None, None) => None,
-            (Some(a), None) => Some(a),
-            (None, Some(b)) => Some(b),
-            (Some(a), Some(b)) => Some(a.max(b)),
-        }
-    }
-}
-
 impl AlignmentProperties {
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
@@ -707,6 +428,270 @@ impl AlignmentProperties {
     }
 }
 
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CigarCounts {
+    pub(crate) gap_counts: SimpleCounter<isize>,
+    pub(crate) hop_counts: HashMap<u8, SimpleCounter<i16>>,
+    pub(crate) match_counts: SimpleCounter<u32>,
+}
+
+#[allow(dead_code)]
+impl CigarCounts {
+    fn num_bases(&self) -> usize {
+        self.match_counts
+            .iter()
+            .map(|(l, c)| *l as usize * *c)
+            .sum::<usize>()
+            + self
+                .gap_counts
+                .iter()
+                .map(|(l, c)| l.abs() as usize * *c)
+                .sum::<usize>()
+            + self
+                .hop_counts
+                .iter()
+                .flat_map(|(_base, counts)| counts.iter())
+                .map(|(l, c)| l.abs() as usize * *c)
+                .sum::<usize>()
+    }
+
+    fn num_match_bases(&self) -> usize {
+        self.match_counts
+            .iter()
+            .map(|(l, c)| *l as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_insertion_gap_bases(&self) -> usize {
+        self.gap_counts
+            .iter()
+            .filter(|(l, _)| **l > 0)
+            .map(|(l, c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_deletion_gap_bases(&self) -> usize {
+        self.gap_counts
+            .iter()
+            .filter(|(l, _)| **l < 0)
+            .map(|(l, c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_insertion_hop_bases(&self) -> usize {
+        self.hop_counts
+            .iter()
+            .flat_map(|(_base, counts)| counts.iter())
+            .filter(|(l, _)| **l > 0)
+            .map(|(l, c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+
+    fn num_deletion_hop_bases(&self) -> usize {
+        self.hop_counts
+            .iter()
+            .flat_map(|(_base, counts)| counts.iter())
+            .filter(|(l, _)| **l < 0)
+            .map(|(l, c)| l.abs() as usize * *c)
+            .sum::<usize>()
+    }
+}
+
+impl AddAssign for CigarCounts {
+    fn add_assign(&mut self, rhs: Self) {
+        self.gap_counts += rhs.gap_counts;
+        for (base, counts) in rhs.hop_counts {
+            *self.hop_counts.entry(base).or_insert_with(Default::default) += counts;
+        }
+        self.match_counts += rhs.match_counts;
+    }
+}
+
+fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
+    record.raw_cigar().iter().map(|&c| {
+        let len = c >> 4;
+        match c & 0b1111 {
+            0 => Cigar::Match(len),
+            1 => Cigar::Ins(len),
+            2 => Cigar::Del(len),
+            3 => Cigar::RefSkip(len),
+            4 => Cigar::SoftClip(len),
+            5 => Cigar::HardClip(len),
+            6 => Cigar::Pad(len),
+            7 => Cigar::Equal(len),
+            8 => Cigar::Diff(len),
+            _ => panic!("Unexpected cigar operation"),
+        }
+    })
+}
+
+/// Count the following operations:
+/// - gaps, both insertions and deletions, by length
+/// - homopolymer runs, both insertions and deletions, by length and base
+/// - matches, independent of the fact whether they are exact or contain substitutions
+fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
+    let mut cigar_counts = CigarCounts::default();
+    let qseq = record.seq();
+    let mut qpos = 0usize;
+    let mut rpos = record.pos() as usize;
+
+    let iter = if let Some(cigar) = record.cigar_cached() {
+        Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
+    } else {
+        Box::new(iter_cigar(record))
+    };
+    for c in iter {
+        match c {
+            Cigar::Del(l) => {
+                let l = l as usize;
+                if l < i16::MAX as usize {
+                    let base = refseq[rpos];
+                    if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
+                        let mut len = l;
+                        if rpos + l < refseq.len() {
+                            len += extend_homopolymer_stretch(
+                                refseq[rpos],
+                                &mut refseq[rpos + l..].iter(),
+                            )
+                        }
+                        if rpos > 1 {
+                            len += extend_homopolymer_stretch(
+                                refseq[rpos],
+                                &mut refseq[..rpos - 1].iter().rev(),
+                            )
+                        }
+                        if len >= MIN_HOMOPOLYMER_LEN {
+                            cigar_counts
+                                .hop_counts
+                                .entry(base)
+                                .or_insert_with(SimpleCounter::default)
+                                .incr(-(l as i16));
+                        }
+                    } else {
+                        cigar_counts.gap_counts.incr(-(l as isize));
+                    }
+                }
+                rpos += l as usize;
+            }
+            Cigar::Ins(l) => {
+                let l = l as usize;
+                if l < i16::MAX as usize {
+                    let base = qseq[qpos];
+                    if is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i])) {
+                        let mut len =
+                            l + extend_homopolymer_stretch(qseq[qpos], &mut refseq[rpos..].iter());
+                        if rpos > 0 {
+                            len += extend_homopolymer_stretch(
+                                qseq[qpos],
+                                &mut refseq[..rpos].iter().rev(),
+                            );
+                        }
+                        if len >= MIN_HOMOPOLYMER_LEN {
+                            cigar_counts
+                                .hop_counts
+                                .entry(base)
+                                .or_insert_with(SimpleCounter::default)
+                                .incr(l as i16);
+                        }
+                    } else {
+                        cigar_counts.gap_counts.incr(l as isize);
+                    }
+                }
+                qpos += l as usize;
+            }
+            Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                cigar_counts.match_counts.incr(l);
+                let l = l as usize;
+                for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
+                    if stretch.count() >= MIN_HOMOPOLYMER_LEN {
+                        cigar_counts
+                            .hop_counts
+                            .entry(base)
+                            .or_insert_with(SimpleCounter::default)
+                            .incr(0);
+                    }
+                }
+                qpos += l as usize;
+                rpos += l as usize;
+            }
+            Cigar::SoftClip(l) => {
+                qpos += l as usize;
+            }
+            Cigar::RefSkip(l) => {
+                rpos += l as usize;
+            }
+            Cigar::HardClip(_) | Cigar::Pad(_) => continue,
+        }
+    }
+    cigar_counts
+}
+
+// TODO: This can be merged with CigarCounts, so that only one pass through a record's cigar string is sufficient
+struct CigarStats {
+    is_regular: bool,
+    has_soft_clip: bool,
+    frac_max_softclip: Option<f64>,
+    max_del: Option<u32>,
+    max_ins: Option<u32>,
+}
+
+fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> CigarStats {
+    let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
+
+    let mut is_regular = true;
+    let mut has_soft_clip = false;
+    let mut frac_max_softclip = None;
+    let mut max_del_cigar_len = None;
+    let mut max_ins_cigar_len = None;
+    let iter = if let Some(cigar) = record.cigar_cached() {
+        Box::new(cigar.iter().copied()) as Box<dyn Iterator<Item = Cigar>>
+    } else {
+        Box::new(iter_cigar(record))
+    };
+    for c in iter {
+        match c {
+            Cigar::SoftClip(l) => {
+                let s = norm(l);
+                if let Some(ref mut maxclipfrac) = frac_max_softclip {
+                    *maxclipfrac = *cmp::max(s, NotNan::new(*maxclipfrac).unwrap())
+                } else {
+                    frac_max_softclip = Some(*s);
+                }
+                is_regular = false;
+                has_soft_clip = true;
+            }
+            Cigar::Del(l) => {
+                if let Some(ref mut maxlen) = max_del_cigar_len {
+                    *maxlen = cmp::max(l, *maxlen);
+                } else {
+                    max_del_cigar_len = Some(l);
+                }
+                is_regular = false;
+            }
+            Cigar::Ins(l) => {
+                if let Some(ref mut maxlen) = max_ins_cigar_len {
+                    *maxlen = cmp::max(l, *maxlen);
+                } else {
+                    max_ins_cigar_len = Some(l);
+                }
+                is_regular = false;
+            }
+            Cigar::HardClip(_) if !allow_hardclips => {
+                is_regular = false;
+            }
+            _ => continue,
+        }
+    }
+
+    CigarStats {
+        is_regular,
+        has_soft_clip,
+        frac_max_softclip,
+        max_del: max_del_cigar_len,
+        max_ins: max_ins_cigar_len,
+    }
+}
+
 fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)>) -> f64 {
     let (sum, count) = value_counts.fold((0usize, 0usize), |(sum, counts), (value, count)| {
         (sum + value.into() * count, counts + count)
@@ -828,6 +813,21 @@ impl AlignmentProperties {
 pub(crate) struct InsertSize {
     pub(crate) mean: f64,
     pub(crate) sd: f64,
+}
+
+trait OptionMax {
+    fn max(self, other: Option<f64>) -> Option<f64>;
+}
+
+impl OptionMax for Option<f64> {
+    fn max(self, other: Option<f64>) -> Option<f64> {
+        match (self, other) {
+            (None, None) => None,
+            (Some(a), None) => Some(a),
+            (None, Some(b)) => Some(b),
+            (Some(a), Some(b)) => Some(a.max(b)),
+        }
+    }
 }
 
 #[cfg(test)]
