@@ -722,6 +722,10 @@ fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)
 
 impl AlignmentProperties {
     pub(crate) fn gap_params(&self) -> GapParams {
+        // if we didn't count any gaps, assume default gap rates
+        if self.cigar_counts.gap_counts.is_empty() {
+            return BackwardsCompatibility::default_gap_params();
+        }
         let counts = |length_predicate: fn(isize) -> bool| {
             self.cigar_counts
                 .gap_counts
