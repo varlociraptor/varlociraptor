@@ -14,6 +14,7 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
+use rust_htslib::bam::Read;
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
@@ -689,7 +690,20 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         false
                     };
 
-                    let is_nanopore = false;
+                    let mut bam_reader = rust_htslib::bam::Reader::from_path(&bam)?;
+                    use rust_htslib::bam::record::Aux;
+                    let is_nanopore = bam_reader
+                        .records()
+                        .next()
+                        .and_then(|r| {
+                            r.and_then(|r| {
+                                r.aux(b"PL")
+                                    .map(|platform| matches!(platform, Aux::String("ONT")))
+                            })
+                            .ok()
+                        })
+                        .unwrap_or(false);
+
                     let fast = pairhmm_mode == "fast";
                     match (is_nanopore, fast) {
                         (true, _) => {
