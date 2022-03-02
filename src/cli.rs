@@ -343,6 +343,8 @@ pub enum EstimateKind {
             help = "BAM file with aligned reads from a single sample."
         )]
         bam: PathBuf,
+        #[structopt(long, help = "Number of records to sample from the BAM file")]
+        num_records: Option<usize>,
     },
     #[structopt(
         name = "mutational-burden",
@@ -676,6 +678,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         &bam,
                         omit_insert_size,
                         Arc::get_mut(&mut reference_buffer).unwrap(),
+                        Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
                     )?;
 
                     let gap_params = alignment_properties.gap_params();
@@ -1077,11 +1080,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 mode,
                 cutoff as f64,
             )?,
-            EstimateKind::AlignmentProperties { reference, bam } => {
+            EstimateKind::AlignmentProperties {
+                reference,
+                bam,
+                num_records,
+            } => {
                 let mut reference_buffer =
                     reference::Buffer::new(fasta::IndexedReader::from_file(&reference)?, 1);
                 let alignment_properties =
-                    estimate_alignment_properties(bam, false, &mut reference_buffer)?;
+                    estimate_alignment_properties(bam, false, &mut reference_buffer, num_records)?;
                 println!("{}", serde_json::to_string(&alignment_properties)?);
             }
         },
@@ -1139,13 +1146,14 @@ pub(crate) fn est_or_load_alignment_properties(
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
+    num_records: Option<usize>,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer)
+        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer, num_records)
     }
 }
 

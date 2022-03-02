@@ -317,8 +317,12 @@ impl Testcase {
         // second pass, write samples
         let mut samples = HashMap::new();
         for (name, path) in &self.bams {
-            let properties =
-                sample::estimate_alignment_properties(path, false, &mut self.reference_buffer)?;
+            let properties = sample::estimate_alignment_properties(
+                path,
+                false,
+                &mut self.reference_buffer,
+                Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
+            )?;
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
 

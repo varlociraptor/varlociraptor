@@ -28,7 +28,7 @@ pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
 use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
 
-const NUM_FRAGMENTS: usize = 1_000_000;
+pub(crate) const NUM_FRAGMENTS: usize = 1_000_000;
 
 struct BackwardsCompatibility;
 
@@ -452,6 +452,7 @@ impl AlignmentProperties {
         bam: &mut R,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
+        num_records: Option<usize>,
     ) -> Result<Self> {
         // If we do not consider insert size, it is safe to also process hardclipped reads.
         let allow_hardclips = omit_insert_size;
@@ -515,20 +516,12 @@ impl AlignmentProperties {
         }
 
         let header = bam.header().clone();
-        let tid_to_tname: HashMap<_, _> = header
-            .target_names()
-            .iter()
-            .map(|tname| {
-                let tid = header.tid(tname).unwrap();
-                (tid, *tname)
-            })
-            .collect();
 
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
         let mut record_flag_stats = RecordFlagStats::new();
         let records = bam.records();
-        let all_stats = records
+        let records = records
             .map(|record| record.unwrap())
             .filter(|record| {
                 let skip = record.mapq() == 0
@@ -541,9 +534,13 @@ impl AlignmentProperties {
                 !skip
             })
             // TODO expose step parameter to cli
-            .step_by(1)
-            // TODO expose num fragments parameter to cli
-            .take(NUM_FRAGMENTS)
+            .step_by(1);
+        let records = if let Some(num_records) = num_records {
+            Box::new(records.take(num_records)) as Box<dyn Iterator<Item = bam::Record>>
+        } else {
+            Box::new(records)
+        };
+        let all_stats = records
             .map(|mut record| {
                 record_flag_stats.update(&record);
                 n_records_analysed += 1;
@@ -554,7 +551,7 @@ impl AlignmentProperties {
 
                 let cigar_stats = cigar_stats(&record, allow_hardclips);
 
-                let chrom = std::str::from_utf8(tid_to_tname[&(record.tid() as u32)]).unwrap();
+                let chrom = std::str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
                 let cigar_counts = cigar_op_counts(&record, &reference_buffer.seq(chrom).unwrap());
 
                 let calc_insert_size = record.is_paired()
@@ -851,7 +848,13 @@ mod tests {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
         let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(&mut bam, false, &mut reference_buffer).unwrap();
+        let props = AlignmentProperties::estimate(
+            &mut bam,
+            false,
+            &mut reference_buffer,
+            Some(NUM_FRAGMENTS),
+        )
+        .unwrap();
         println!("{:?}", props);
 
         if let Some(isize) = props.insert_size {
@@ -872,7 +875,13 @@ mod tests {
                 .unwrap();
         let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(&mut bam, false, &mut reference_buffer).unwrap();
+        let props = AlignmentProperties::estimate(
+            &mut bam,
+            false,
+            &mut reference_buffer,
+            Some(NUM_FRAGMENTS),
+        )
+        .unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
@@ -890,7 +899,13 @@ mod tests {
         .unwrap();
         let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(&mut bam, false, &mut reference_buffer).unwrap();
+        let props = AlignmentProperties::estimate(
+            &mut bam,
+            false,
+            &mut reference_buffer,
+            Some(NUM_FRAGMENTS),
+        )
+        .unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
