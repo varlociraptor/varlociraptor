@@ -121,6 +121,7 @@ impl Likelihood {
                 )
             })
             .sum()
+        //LogProb::ln_one()
     }
 
     fn compute_varlociraptor(
@@ -131,27 +132,32 @@ impl Likelihood {
     ) -> LogProb {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
-        let variant_matrix: Vec<BitVec> = data.haplotype_variants.values().cloned().collect();
+        let variant_matrix: Vec<(BitVec, BitVec)> =
+            data.haplotype_variants.values().cloned().collect();
         let variant_calls: Vec<AlleleFreqDist> = data.haplotype_calls.values().cloned().collect();
 
         variant_matrix
             .iter()
             .zip(variant_calls.iter())
-            .map(|(matrix, afd)| {
-                let vaf_sum = event
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, fraction)| {
-                        if matrix[i as u64] {
-                            Some(fraction)
-                        } else {
-                            None
-                        }
-                    })
-                    .sum();
+            .map(|((var_matrix, loc_matrix), afd)| {
+                let mut denom = NotNan::new(1.0).unwrap();
+                let mut vaf_sum = NotNan::new(0.0).unwrap();
+                event.iter().enumerate().for_each(|(i, fraction)| {
+                    if var_matrix[i as u64] && loc_matrix[i as u64] {
+                        vaf_sum += *fraction;
+                    } else if loc_matrix[i as u64] {
+                        ()
+                    } else {
+                        denom -= *fraction;
+                    }
+                });
+                if denom != NotNan::new(0.0).unwrap() {
+                    vaf_sum /= denom;
+                }
                 afd.vaf_query(vaf_sum)
             })
             .sum()
+        //LogProb::ln_one()
     }
 }
 

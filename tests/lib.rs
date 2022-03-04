@@ -408,17 +408,17 @@ fn check_haplotype_fractions_pure() {
         .build()
         .unwrap()
         .call();
-    
+
     //check if the haplotype is correct
     let mut rdr = csv::Reader::from_path("test_output_pure.csv").unwrap();
     let headers = rdr.headers().unwrap();
-    assert_eq!(headers, vec!["density","odds","HLA:HLA20547"]);
+    assert_eq!(headers, vec!["density", "odds", "HLA:HLA20547"]);
 
     //check if the fraction of HLA20547 is 1.0
     let mut iter = rdr.records();
     if let Some(result) = iter.next() {
         let record = result.unwrap();
-        assert_eq!(record[2], "+1.00e0".to_string()); 
+        assert_eq!(record[2], "+1.00e0".to_string());
     }
 }
 
@@ -435,17 +435,20 @@ fn check_haplotype_fractions_5050() {
         .build()
         .unwrap()
         .call();
-    
+
     //check if the haplotypes are correct
     let mut rdr = csv::Reader::from_path("test_output_5050.csv").unwrap();
     let headers = rdr.headers().unwrap();
-    assert_eq!(headers, vec!["density","odds","HLA:HLA24424","HLA:HLA20547"]);
+    assert_eq!(
+        headers,
+        vec!["density", "odds", "HLA:HLA24424", "HLA:HLA20547"]
+    );
 
     //check if the fractions are 0.5 each
     let mut iter = rdr.records();
     if let Some(result) = iter.next() {
         let record = result.unwrap();
-        assert_eq!(record[2], "+5.00e-1".to_string()); 
+        assert_eq!(record[2], "+5.00e-1".to_string());
         assert_eq!(record[3], "+5.00e-1".to_string());
     }
 }

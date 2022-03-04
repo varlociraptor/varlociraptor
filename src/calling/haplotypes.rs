@@ -24,6 +24,7 @@ impl Caller {
     pub fn call(&mut self) -> Result<()> {
         // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
+        dbg!(&kallisto_estimates);
         let haplotypes: Vec<String> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
         let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants, &haplotypes)?;
         let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
@@ -55,11 +56,19 @@ impl Caller {
         let mut records = Vec::new();
         let (haplotype_frequencies, best_density) = posterior.next().unwrap();
         let best_odds = 1;
-        records.push(format!("{:+.2e}", best_density.exp()));
+        if best_density.exp() < 0.1 {
+            records.push(format!("{:+.2e}", best_density.exp()));
+        } else {
+            records.push(best_density.exp().to_string());
+        }
         records.push(best_odds.to_string());
 
         for frequency in haplotype_frequencies.iter() {
-            records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
+            if frequency < &NotNan::new(0.1).unwrap() {
+                records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
+            } else {
+                records.push(frequency.to_string())
+            }
         }
         wtr.write_record(records)?;
 
@@ -67,10 +76,23 @@ impl Caller {
         for (haplotype_frequencies, density) in posterior {
             let mut records = Vec::new();
             let odds = (density - best_density).exp();
-            records.push(format!("{:+.2e}", density.exp()));
-            records.push(format!("{:+.2e}", odds));
+            if density.exp() < 0.1 {
+                records.push(format!("{:+.2e}", density.exp()));
+            } else {
+                records.push(density.exp().to_string());
+            }
+
+            if odds < 0.1 {
+                records.push(format!("{:+.2e}", odds));
+            } else {
+                records.push(odds.to_string());
+            }
             for frequency in haplotype_frequencies.iter() {
-                records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
+                if frequency < &NotNan::new(0.1).unwrap() {
+                    records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
+                } else {
+                    records.push(frequency.to_string())
+                }
             }
             wtr.write_record(records)?;
         }
@@ -173,7 +195,7 @@ impl KallistoEstimates {
 pub(crate) struct VariantID(#[deref] i32);
 
 #[derive(Derefable, Debug, Clone, PartialEq, Eq, PartialOrd)]
-pub(crate) struct HaplotypeVariants(#[deref] BTreeMap<VariantID, BitVec>);
+pub(crate) struct HaplotypeVariants(#[deref] BTreeMap<VariantID, (BitVec, BitVec)>);
 
 impl HaplotypeVariants {
     pub(crate) fn new(
@@ -202,7 +224,16 @@ impl HaplotypeVariants {
                     haplotype_variants.push(*gta == Unphased(1));
                 }
             });
-            variant_records.insert(VariantID(variant_id), haplotype_variants);
+            let mut haplotype_loci: BitVec<usize> = BitVec::new();
+            let loci = record
+                .format(b"C")
+                .integer()
+                .expect("Couldn't retrieve C field");
+            haplotype_indices.iter().for_each(|sample_index| {
+                if loci[*sample_index] == &[1] {}
+                haplotype_loci.push(loci[*sample_index] == &[1]);
+            });
+            variant_records.insert(VariantID(variant_id), (haplotype_variants, haplotype_loci));
         }
         Ok(HaplotypeVariants(variant_records))
     }
@@ -248,3 +279,10 @@ impl HaplotypeCalls {
         Ok(HaplotypeCalls(calls))
     }
 }
+// fn output_scientific(number: f64) -> {
+//     if number < 0.1 {
+//         records.push(format!("{:+.2e}", number.exp()));
+//     } else {
+//         records.push(number.exp().to_string());
+//     }
+// }
