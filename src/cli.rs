@@ -1091,7 +1091,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     reference::Buffer::new(fasta::IndexedReader::from_file(&reference)?, 1);
                 let alignment_properties =
                     estimate_alignment_properties(bam, false, &mut reference_buffer, num_records)?;
-                println!("{}", serde_json::to_string(&alignment_properties)?);
+                println!("{}", serde_json::to_string_pretty(&alignment_properties)?);
             }
         },
         Varlociraptor::Plot { kind } => match kind {
