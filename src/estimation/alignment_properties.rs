@@ -551,7 +551,11 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
             Cigar::Ins(l) => {
                 let l = l as usize;
                 if l < i16::MAX as usize {
-                    let base = qseq[qpos];
+                    let base = if refseq[rpos].to_ascii_uppercase() == qseq[qpos] {
+                        refseq[rpos]
+                    } else {
+                        qseq[qpos]
+                    };
                     if is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i])) {
                         let mut len =
                             l + extend_homopolymer_stretch(qseq[qpos], &mut refseq[rpos..].iter());
