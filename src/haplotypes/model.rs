@@ -154,6 +154,11 @@ impl Likelihood {
                 if denom != NotNan::new(0.0).unwrap() {
                     vaf_sum /= denom;
                 }
+                if vaf_sum > NotNan::new(1.0).unwrap() {
+                    vaf_sum = NotNan::new((vaf_sum * NotNan::new(1000.0).unwrap()).round())
+                        .unwrap()
+                        / NotNan::new(1000.0).unwrap(); //to overcome the bug that results in larger than 1.0 VAF. After around 10 - 15th decimal place, the value becomes larger.
+                }
                 afd.vaf_query(vaf_sum)
             })
             .sum()
