@@ -219,6 +219,7 @@ pub(crate) trait Testcase {
                             ref mut bam,
                             ref mut alignment_properties,
                             ref mut output_raw_observations,
+                            ref mut pairhmm_mode,
                             ..
                         },
                 } => {
@@ -237,7 +238,7 @@ pub(crate) trait Testcase {
                     *output = Some(self.sample_preprocessed_path(sample_name, &temp_preprocess));
                     *alignment_properties = Some(props.path().to_owned());
                     *output_raw_observations = Some(self.sample_observations_path(sample_name));
-
+                    *pairhmm_mode = pairhmm_mode_override.into();
                     run(options)?;
                 }
                 _ => panic!("bug: unsupported options"),
