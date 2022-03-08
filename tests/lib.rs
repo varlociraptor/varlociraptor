@@ -224,6 +224,8 @@ testcase_should_panic!(test_overlapping_events, exact);
 testcase!(test_l2fc, exact, fast);
 testcase!(test_cmp, exact, fast);
 
+testcase!(test_nanopore_01, homopolymer);
+
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }
