@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.11.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.2...v4.11.3) (2022-02-24)
+
+
+### Bug Fixes
+
+* check if cfg has_u128 or not ([#264](https://www.github.com/varlociraptor/varlociraptor/issues/264)) ([6cbe399](https://www.github.com/varlociraptor/varlociraptor/commit/6cbe3993f041971a284937c2a0cde96af59481df))
+* remove conflicting From<&str> implementation ([#265](https://www.github.com/varlociraptor/varlociraptor/issues/265)) ([b724485](https://www.github.com/varlociraptor/varlociraptor/commit/b724485764d142ce5558a152cb2f4ac6087992f8))
+
 ### [4.11.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.1...v4.11.2) (2022-02-09)
 
 
