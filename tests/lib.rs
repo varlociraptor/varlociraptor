@@ -225,6 +225,7 @@ testcase!(test_l2fc, exact, fast);
 testcase!(test_cmp, exact, fast);
 
 testcase!(test_nanopore_01, homopolymer);
+testcase!(test_nanopore_02, homopolymer);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
