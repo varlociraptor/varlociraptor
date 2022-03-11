@@ -184,8 +184,8 @@ impl HomopolymerErrorModel {
             } // else both of them are already zero, nothing to do.
 
             let model = Some(HomopolymerErrorModel {
-                prob_homopolymer_artifact_insertion: prob_homopolymer_artifact_insertion,
-                prob_homopolymer_artifact_deletion: prob_homopolymer_artifact_deletion,
+                prob_homopolymer_artifact_insertion,
+                prob_homopolymer_artifact_deletion,
                 prob_homopolymer_variant_insertion: prob_homopolymer_insertion,
                 prob_homopolymer_variant_deletion: prob_homopolymer_deletion,
                 prob_homopolymer_variant_no_indel: prob_homopolymer_error(&|item_len| {
