@@ -73,11 +73,11 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = Rc<bam::Record>> + 'a {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Rc<bam::Record>> + '_ {
         self.inner
             .iter()
             .filter(|record| is_valid_record(record.as_ref()))
-            .map(|record| Rc::clone(record))
+            .map(Rc::clone)
     }
 }
 

@@ -16,7 +16,6 @@ use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
-use csv;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
