@@ -254,6 +254,7 @@ pub enum PreprocessKind {
                     allele frequencies, fast mode should cause almost no deviations from the \
                     exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
                     in large cohorts), fast mode can be safely used. \
+                    Note that fast and exact mode are not suitable for ONT data.\
                     The homopolymer mode should be used for ONT data; it is similar to the exact mode \
                     but considers homopolymer errors to be different from gaps."
         )]
