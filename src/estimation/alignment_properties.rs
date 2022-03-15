@@ -678,12 +678,12 @@ fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)
     // the MLE of the exponential distribution's lambda parameter is simply 1 / sample_mean
     let lambda = count as f64 / sum as f64;
     // … the estimator is slightly biased, which can be corrected for:
-    lambda - (lambda / count as f64)
+    assert!(count > 1);
+    lambda - (lambda / (count - 1) as f64)
 }
 
 impl AlignmentProperties {
     pub(crate) fn gap_params(&self) -> GapParams {
-        // if we didn't count any gaps, assume default gap rates
         if let Some(cigar_counts) = &self.cigar_counts {
             let counts = |length_predicate: fn(isize) -> bool| {
                 cigar_counts
@@ -697,12 +697,12 @@ impl AlignmentProperties {
             let deletion_gap_counts = counts(|l| l < 0);
 
             let insertion_lambda =
-                exponential_mle(insertion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
+                exponential_mle(insertion_gap_counts.into_iter().map(|(l, c)| (l - 1, c)));
             let insertion_prob = (-insertion_lambda).exp();
             let insertion_prob = NotNan::new(insertion_prob).unwrap_or_else(|_| NotNan::zero());
 
             let deletion_lambda =
-                exponential_mle(deletion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
+                exponential_mle(deletion_gap_counts.into_iter().map(|(l, c)| (l - 1, c)));
             let deletion_prob = (-deletion_lambda).exp();
             let deletion_prob = NotNan::new(deletion_prob).unwrap_or_else(|_| NotNan::zero());
 
@@ -724,6 +724,7 @@ impl AlignmentProperties {
                 ),
             }
         } else {
+            // if we didn't count any gaps, assume default gap rates
             BackwardsCompatibility::default_gap_params()
         }
     }
