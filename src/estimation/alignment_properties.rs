@@ -40,8 +40,8 @@ impl BackwardsCompatibility {
         model.insert(-1, 0.0010076175889726332);
         model.insert(-2, 0.00020152351779452663);
         model.insert(2, 0.00010076175889726332);
-        model.insert(3, 5.038087944863166e-05);
-        model.insert(-3, 9.068558300753699e-05);
+        model.insert(3, 5.038_087_944_863_166e-5);
+        model.insert(-3, 9.068_558_300_753_699e-5);
 
         model
     }
@@ -699,19 +699,19 @@ impl AlignmentProperties {
             let insertion_lambda =
                 exponential_mle(insertion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
             let insertion_prob = (-insertion_lambda).exp();
-            let insertion_prob = NotNan::new(insertion_prob).unwrap_or(NotNan::zero());
+            let insertion_prob = NotNan::new(insertion_prob).unwrap_or_else(|_| NotNan::zero());
 
             let deletion_lambda =
                 exponential_mle(deletion_gap_counts.into_iter().map(|(v, c)| (v - 1, c)));
             let deletion_prob = (-deletion_lambda).exp();
-            let deletion_prob = NotNan::new(deletion_prob).unwrap_or(NotNan::zero());
+            let deletion_prob = NotNan::new(deletion_prob).unwrap_or_else(|_| NotNan::zero());
 
             let c = cigar_counts;
             let num_bases = c.num_bases();
             let gap_open_ins = c.num_insertion_gap_bases() as f64 / num_bases as f64;
-            let gap_open_ins = NotNan::new(gap_open_ins).unwrap_or(NotNan::zero());
+            let gap_open_ins = NotNan::new(gap_open_ins).unwrap_or_else(|_| NotNan::zero());
             let gap_open_del = c.num_deletion_gap_bases() as f64 / num_bases as f64;
-            let gap_open_del = NotNan::new(gap_open_del).unwrap_or(NotNan::zero());
+            let gap_open_del = NotNan::new(gap_open_del).unwrap_or_else(|_| NotNan::zero());
 
             GapParams {
                 prob_insertion_artifact: LogProb::from(Prob::checked(*gap_open_ins).unwrap()),
@@ -757,19 +757,23 @@ impl AlignmentProperties {
                         .sum::<usize>();
 
                     let hop_start_ins = i as f64 / (n + i) as f64;
-                    let hop_start_ins = NotNan::new(hop_start_ins).unwrap_or(NotNan::zero());
+                    let hop_start_ins =
+                        NotNan::new(hop_start_ins).unwrap_or_else(|_| NotNan::zero());
                     let hop_start_del = d as f64 / (n + d) as f64;
-                    let hop_start_del = NotNan::new(hop_start_del).unwrap_or(NotNan::zero());
+                    let hop_start_del =
+                        NotNan::new(hop_start_del).unwrap_or_else(|_| NotNan::zero());
 
                     let insertion_lambda =
                         exponential_mle(insertion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                     let insertion_prob = (-insertion_lambda).exp();
-                    let insertion_prob = NotNan::new(insertion_prob).unwrap_or(NotNan::zero());
+                    let insertion_prob =
+                        NotNan::new(insertion_prob).unwrap_or_else(|_| NotNan::zero());
 
                     let deletion_lambda =
                         exponential_mle(deletion_counts.into_iter().map(|(v, c)| (v - 1, c)));
                     let deletion_prob = (-deletion_lambda).exp();
-                    let deletion_prob = NotNan::new(deletion_prob).unwrap_or(NotNan::zero());
+                    let deletion_prob =
+                        NotNan::new(deletion_prob).unwrap_or_else(|_| NotNan::zero());
 
                     (
                         (
