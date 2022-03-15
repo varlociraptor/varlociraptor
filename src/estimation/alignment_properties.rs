@@ -677,9 +677,14 @@ fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)
     });
     // the MLE of the exponential distribution's lambda parameter is simply 1 / sample_mean
     let lambda = count as f64 / sum as f64;
-    // … the estimator is slightly biased, which can be corrected for:
-    assert!(count > 1);
-    lambda - (lambda / (count - 1) as f64)
+
+    if count > 1 {
+        // … the estimator is slightly biased, which can be corrected for:
+        lambda - (lambda / (count - 1) as f64)
+    } else {
+        // if there are insufficiently many counts, do not perform bias correction
+        lambda
+    }
 }
 
 impl AlignmentProperties {
