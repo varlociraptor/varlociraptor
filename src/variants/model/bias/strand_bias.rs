@@ -52,11 +52,7 @@ impl Bias for StrandBias {
     }
 
     fn is_artifact(&self) -> bool {
-        if let StrandBias::None { .. } = self {
-            false
-        } else {
-            true
-        }
+        !matches!(self, StrandBias::None { .. })
     }
 
     fn is_informative(&self, pileups: &[Pileup]) -> bool {
@@ -73,7 +69,7 @@ impl Bias for StrandBias {
             // METHOD: either we can estimate the forward rate, or non-artifact biases are discarded by
             // is_informative(). In that case, it is safe to just fall back to a forward rate of 0.5.
             *forward_rate =
-                Self::estimate_forward_rate(pileups).unwrap_or(NotNan::new(0.5).unwrap());
+                Self::estimate_forward_rate(pileups).unwrap_or_else(|| NotNan::new(0.5).unwrap());
         }
     }
 }
@@ -83,7 +79,7 @@ impl StrandBias {
         let strong_all = LogProb::ln_sum_exp(
             &pileups
                 .iter()
-                .map(|pileup| {
+                .flat_map(|pileup| {
                     pileup.read_observations().iter().filter_map(|obs| {
                         if obs.is_strong_ref_support() && obs.strand != Strand::Both {
                             Some(obs.prob_mapping())
@@ -92,14 +88,13 @@ impl StrandBias {
                         }
                     })
                 })
-                .flatten()
                 .collect_vec(),
         )
         .exp();
         let strong_forward = LogProb::ln_sum_exp(
             &pileups
                 .iter()
-                .map(|pileup| {
+                .flat_map(|pileup| {
                     pileup.read_observations().iter().filter_map(|obs| {
                         if obs.is_strong_ref_support() && obs.strand == Strand::Forward {
                             Some(obs.prob_mapping())
@@ -108,14 +103,13 @@ impl StrandBias {
                         }
                     })
                 })
-                .flatten()
                 .collect_vec(),
         )
         .exp();
 
         if strong_all > 2.0 {
             let forward_fraction = strong_forward / strong_all;
-            if forward_fraction >= 0.4 && forward_fraction <= 0.6 {
+            if (0.4..=0.6).contains(&forward_fraction) {
                 return Some(NotNan::new(0.5).unwrap());
             }
         }

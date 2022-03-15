@@ -662,7 +662,7 @@ impl Realigner for HomopolyPairHMMRealigner {
     ) -> LogProb {
         // METHOD: We shrink the area to run the HMM against to an environment around the best
         // edit distance hits.
-        allele_params.shrink_to_hit(&hit);
+        allele_params.shrink_to_hit(hit);
 
         // METHOD: Further, we run the HMM on a band around the best edit distance.
         self.pairhmm.prob_related(

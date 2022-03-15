@@ -28,7 +28,7 @@ impl HomopolymerIndelOperation {
             let best_aln = aligner.global(pattern, text);
 
             let mut ret =
-                HomopolymerIndelOperation::from_alignment(&text, &pattern, &best_aln.operations);
+                HomopolymerIndelOperation::from_alignment(text, &pattern, &best_aln.operations);
             if reverse_direction {
                 if let Some(op) = ret.as_mut() {
                     op.len *= -1;
@@ -183,7 +183,7 @@ impl HomopolymerErrorModel {
                 prob_homopolymer_artifact_deletion -= prob_total;
             } // else both of them are already zero, nothing to do.
 
-            let model = Some(HomopolymerErrorModel {
+            Some(HomopolymerErrorModel {
                 prob_homopolymer_artifact_insertion,
                 prob_homopolymer_artifact_deletion,
                 prob_homopolymer_variant_insertion: prob_homopolymer_insertion,
@@ -192,9 +192,7 @@ impl HomopolymerErrorModel {
                     item_len == 0
                 }),
                 variant_homopolymer_indel_len,
-            });
-
-            model
+            })
         } else {
             None
         }

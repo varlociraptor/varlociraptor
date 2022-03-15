@@ -55,7 +55,7 @@ pub trait Event {
         format!(
             "##INFO=<ID={tag_name},Number=A,Type=Float,\
              Description=\"{desc} {name} variant\">",
-            name = self.name().replace("_", "-"),
+            name = self.name().replace('_', "-"),
             desc = desc,
             tag_name = &self.tag_name(prefix)
         )

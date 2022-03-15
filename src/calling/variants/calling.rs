@@ -336,8 +336,6 @@ where
 
             // process work item
             let contig = str::from_utf8(work_item.call.chrom()).unwrap();
-            let _model;
-            let _events;
             let _last_rid;
 
             let model_mode = (
@@ -346,8 +344,8 @@ where
                 work_item.check_softclip_bias,
                 work_item.check_homopolymer_artifact_detection,
             );
-            _model = models.entry(model_mode).or_insert_with(|| self.model());
-            _events = events.entry(model_mode).or_insert_with(Vec::new);
+            let _model = models.entry(model_mode).or_insert_with(|| self.model());
+            let _events = events.entry(model_mode).or_insert_with(Vec::new);
             {
                 let entry = last_rids.entry(model_mode).or_insert(None);
                 _last_rid = *entry;
@@ -368,7 +366,7 @@ where
                 work_item.check_homopolymer_artifact_detection,
             )?;
 
-            self.call_record(&mut work_item, _model, &_events);
+            self.call_record(&mut work_item, _model, _events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
             progress_logger.update(1u64);
@@ -433,7 +431,7 @@ where
 
             let rid = first_record
                 .rid()
-                .ok_or_else(|| errors::Error::RecordMissingChrom { i: index + 1 })?;
+                .ok_or(errors::Error::RecordMissingChrom { i: index + 1 })?;
 
             (call, snv, bnd_event, rid, is_snv_or_mnv)
         };
@@ -553,10 +551,10 @@ where
             let mut vaf_universes = self.scenario.sample_info();
             let mut ploidies = self.scenario.sample_info();
             for (sample_name, sample) in self.scenario.samples().iter() {
-                let universe = sample.contig_universe(&contig, self.scenario.species())?;
+                let universe = sample.contig_universe(contig, self.scenario.species())?;
                 vaf_universes = vaf_universes.push(sample_name, universe.to_owned());
 
-                let ploidy = sample.contig_ploidy(&contig, self.scenario.species())?;
+                let ploidy = sample.contig_ploidy(contig, self.scenario.species())?;
                 ploidies = ploidies.push(sample_name, ploidy);
             }
 

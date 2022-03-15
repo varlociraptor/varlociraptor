@@ -53,8 +53,7 @@ impl Bias for ReadOrientationBias {
         // reference reads.
         let n_uncertain: usize = pileups
             .iter()
-            .map(|pileup| pileup.read_observations().iter())
-            .flatten()
+            .flat_map(|pileup| pileup.read_observations().iter())
             .map(|observation| {
                 if !(observation.read_orientation == SequenceReadPairOrientation::F1R2
                     || observation.read_orientation == SequenceReadPairOrientation::F2R1)
@@ -76,8 +75,7 @@ impl Bias for ReadOrientationBias {
         // in the alt reads.
         let strong_ref_total_count = pileups
             .iter()
-            .map(|pileup| pileup.read_observations().iter())
-            .flatten()
+            .flat_map(|pileup| pileup.read_observations().iter())
             .filter(|observation| {
                 observation.is_strong_ref_support()
                     && (observation.read_orientation == SequenceReadPairOrientation::F1R2
@@ -86,8 +84,7 @@ impl Bias for ReadOrientationBias {
             .count();
         let strong_ref_f1r2 = pileups
             .iter()
-            .map(|pileup| pileup.read_observations().iter())
-            .flatten()
+            .flat_map(|pileup| pileup.read_observations().iter())
             .filter(|observation| {
                 observation.is_strong_ref_support()
                     && (observation.read_orientation == SequenceReadPairOrientation::F1R2)
@@ -95,7 +92,7 @@ impl Bias for ReadOrientationBias {
             .count();
         let uniform_distribution = if strong_ref_total_count > 2 {
             let fraction = strong_ref_f1r2 as f64 / strong_ref_total_count as f64;
-            fraction >= 0.4 && fraction <= 0.6
+            (0.4..=0.6).contains(&fraction)
         } else {
             false
         };

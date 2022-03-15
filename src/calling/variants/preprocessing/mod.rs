@@ -11,7 +11,6 @@ use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{Context, Result};
-use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
@@ -641,7 +640,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut alt_locus = Vec::with_capacity(read_observations.len());
 
-    let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
+    let encode_logprob = utils::MiniLogProb::new;
     for obs in read_observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
         prob_ref.push(encode_logprob(obs.prob_ref));
@@ -660,11 +659,11 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
 
         prob_observable_at_homopolymer_artifact.push(
             obs.prob_observable_at_homopolymer_artifact
-                .map(|prob| encode_logprob(prob)),
+                .map(encode_logprob),
         );
         prob_observable_at_homopolymer_variant.push(
             obs.prob_observable_at_homopolymer_variant
-                .map(|prob| encode_logprob(prob)),
+                .map(encode_logprob),
         );
         homopolymer_indel_len.push(obs.homopolymer_indel_len);
     }

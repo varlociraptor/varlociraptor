@@ -201,7 +201,7 @@ impl Call {
 
                 obs_counts.insert(
                     i,
-                    expected_depth(&sample_info.pileup.read_observations()) as i32,
+                    expected_depth(sample_info.pileup.read_observations()) as i32,
                 );
 
                 observations.insert(
@@ -337,7 +337,7 @@ impl Call {
             .all(|sample| sample.as_ref().map_or(true, |info| info.pileup.is_empty()));
 
         let mut push_prob =
-            |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob]);
+            |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &[prob]);
         if is_missing_data {
             // missing data
             for (event, _) in event_probs {
