@@ -82,9 +82,9 @@ impl model::Marginal for Marginal {
 
 #[derive(Debug, new)]
 pub(crate) struct Data {
-    kallisto_estimates: Vec<KallistoEstimate>,
-    haplotype_variants: HaplotypeVariants,
-    haplotype_calls: HaplotypeCalls,
+    pub kallisto_estimates: Vec<KallistoEstimate>,
+    pub haplotype_variants: HaplotypeVariants,
+    pub haplotype_calls: HaplotypeCalls,
 }
 
 #[derive(Debug, new)]
@@ -135,7 +135,6 @@ impl Likelihood {
         let variant_matrix: Vec<(BitVec, BitVec)> =
             data.haplotype_variants.values().cloned().collect();
         let variant_calls: Vec<AlleleFreqDist> = data.haplotype_calls.values().cloned().collect();
-
         variant_matrix
             .iter()
             .zip(variant_calls.iter())
