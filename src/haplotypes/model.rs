@@ -138,27 +138,26 @@ impl Likelihood {
         variant_matrix
             .iter()
             .zip(variant_calls.iter())
-            .map(|((var_matrix, loc_matrix), afd)| {
+            .map(|((genotypes, covered), afd)| {
                 let mut denom = NotNan::new(1.0).unwrap();
                 let mut vaf_sum = NotNan::new(0.0).unwrap();
                 event.iter().enumerate().for_each(|(i, fraction)| {
-                    if var_matrix[i as u64] && loc_matrix[i as u64] {
+                    if genotypes[i as u64] && covered[i as u64] {
                         vaf_sum += *fraction;
-                    } else if loc_matrix[i as u64] {
+                    } else if covered[i as u64] {
                         ()
                     } else {
                         denom -= *fraction;
                     }
                 });
-                if denom != NotNan::new(0.0).unwrap() {
+                if denom > NotNan::new(0.0).unwrap() {
                     vaf_sum /= denom;
                 }
-                if vaf_sum > NotNan::new(1.0).unwrap() {
-                    vaf_sum = NotNan::new((vaf_sum * NotNan::new(1000.0).unwrap()).round())
-                        .unwrap()
-                        / NotNan::new(1000.0).unwrap(); //to overcome the bug that results in larger than 1.0 VAF. After around 10 - 15th decimal place, the value becomes larger.
-                }
-                afd.vaf_query(vaf_sum)
+                //to overcome a bug that results in larger than 1.0 VAF. After around 10 - 15th decimal place, the value becomes larger.
+                //In any case, for a direct query to the AFD VAFs (they contain 2 decimal places).
+                vaf_sum = NotNan::new((vaf_sum * NotNan::new(100.0).unwrap()).round()).unwrap()
+                    / NotNan::new(100.0).unwrap();
+                afd.vaf_query(&vaf_sum)
             })
             .sum()
         //LogProb::ln_one()
