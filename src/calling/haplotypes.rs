@@ -43,47 +43,39 @@ impl Caller {
         let m = model.compute_from_marginal(&Marginal::new(haplotypes.len()), &data);
         
         //add variant query and probabilities to the outout table for each event
-        // let variant_matrix: Vec<(BitVec, BitVec)> =
-        //     data.haplotype_variants.values().cloned().collect();
-        // let variant_calls: Vec<AlleleFreqDist> = data.haplotype_calls.values().cloned().collect();
-        // let posterior = m.event_posteriors();
-        // let mut event_queries: Vec<BTreeMap<i64, (AlleleFreq, LogProb)>> = Vec::new();
-        // posterior.for_each(|(fractions, _)| {
-        //     let mut vaf_queries: BTreeMap<i64, (AlleleFreq, LogProb)> = BTreeMap::new();
-        //     let mut j = 1;
-        //     variant_matrix.iter().zip(variant_calls.iter()).for_each(
-        //         |((var_matrix, loc_matrix), afd)| {
-        //             let mut denom = NotNan::new(0.0).unwrap();
-        //             let mut vaf_sum = NotNan::new(0.0).unwrap();
-        //             fractions.iter().enumerate().for_each(|(i, fraction)| {
-        //                 // dbg!(&j);
-        //                 // dbg!(&fraction);
-        //                 // dbg!(&var_matrix);
-        //                 // dbg!(&loc_matrix);
-        //                 if var_matrix[i as u64] && loc_matrix[i as u64] {
-        //                     vaf_sum += *fraction;
-        //                 } else if loc_matrix[i as u64] {
-        //                     ();
-        //                 } else {
-        //                     denom -= *fraction;
-        //                 }
-        //             });
-        //             if denom != NotNan::new(0.0).unwrap() {
-        //                 vaf_sum /= denom;
-        //             }
-        //             if vaf_sum > NotNan::new(1.0).unwrap() {
-        //                 vaf_sum = NotNan::new((vaf_sum * NotNan::new(1000.0).unwrap()).round())
-        //                     .unwrap()
-        //                     / NotNan::new(1000.0).unwrap(); //to overcome the bug that results in larger than 1.0 VAF. After around 10 - 15th decimal place, the value becomes larger.
-        //             }
-        //             let r = afd.vaf_query(&vaf_sum);
-        //             //dbg!(&r);
-        //             vaf_queries.insert(j, (vaf_sum, r));
-        //             j = j + 1;
-        //         },
-        //     );
-        //     event_queries.push(vaf_queries);
-        // });
+        let variant_matrix: Vec<(BitVec, BitVec)> =
+            data.haplotype_variants.values().cloned().collect();
+        let variant_calls: Vec<AlleleFreqDist> = data.haplotype_calls.values().cloned().collect();
+        let posterior = m.event_posteriors();
+        let mut event_queries: Vec<BTreeMap<i64, (AlleleFreq, LogProb)>> = Vec::new();
+        posterior.for_each(|(fractions, _)| {
+            let mut vaf_queries: BTreeMap<i64, (AlleleFreq, LogProb)> = BTreeMap::new();
+            let mut j = 1;
+            variant_matrix.iter().zip(variant_calls.iter()).for_each(
+                |((var_matrix, loc_matrix), afd)| {
+                    let mut denom = NotNan::new(0.0).unwrap();
+                    let mut vaf_sum = NotNan::new(0.0).unwrap();
+                    fractions.iter().enumerate().for_each(|(i, fraction)| {
+                        if var_matrix[i as u64] && loc_matrix[i as u64] {
+                            vaf_sum += *fraction;
+                        } else if loc_matrix[i as u64] {
+                            ();
+                        } else {
+                            denom -= *fraction;
+                        }
+                    });
+                    if denom > NotNan::new(0.0).unwrap() {
+                        vaf_sum /= denom;
+                    }
+                    vaf_sum = NotNan::new((vaf_sum * NotNan::new(100.0).unwrap()).round()).unwrap()
+                        / NotNan::new(100.0).unwrap();
+                    let r = afd.vaf_query(&vaf_sum);
+                    vaf_queries.insert(j, (vaf_sum, r));
+                    j = j + 1;
+                },
+            );
+            event_queries.push(vaf_queries);
+        });
 
         // Step 4: print TSV table with results
         // TODO use csv crate
@@ -93,8 +85,8 @@ impl Caller {
         let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
         let mut headers: Vec<_> = vec!["density".to_string(), "odds".to_string()];
         headers.extend(haplotypes);
-        //let variant_names = event_queries[0].keys().map(|key|format!("{}{}", "variant", key)).collect::<Vec<String>>();
-        //headers.extend(variant_names); //add variant names as separate columns
+        let variant_names = event_queries[0].keys().map(|key|format!("{}{}", "variant", key)).collect::<Vec<String>>();
+        headers.extend(variant_names); //add variant names as separate columns
         wtr.write_record(&headers)?;
 
         //write best record on top
@@ -117,20 +109,20 @@ impl Caller {
         }
 
         //add vaf queries and probabilities for the first event to the output table
-        // let queries: Vec<(AlleleFreq, LogProb)> = event_queries
-        //     .iter()
-        //     .next()
-        //     .unwrap()
-        //     .values()
-        //     .cloned()
-        //     .collect();
-        // queries
-        //     .iter()
-        //     .for_each(|(query, res)| records.push(format!("{}{}{:?}", query, ":", res)));
+        let queries: Vec<(AlleleFreq, LogProb)> = event_queries
+            .iter()
+            .next()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect();
+        queries
+            .iter()
+            .for_each(|(query, res)| records.push(format!("{}{}{:?}", query, ":", res)));
         wtr.write_record(records)?;
 
-        //write the rest of the records, .zip(queries.iter()) (query, res)
-        posterior.for_each(|(haplotype_frequencies, density)| {
+        //write the rest of the records
+        posterior.zip(event_queries.iter()).for_each(|((haplotype_frequencies, density), queries)| {
             let mut records = Vec::new();
             let odds = (density - best_density).exp();
             if density.exp() < 0.1 {
@@ -152,8 +144,10 @@ impl Caller {
                 }
             }
 
-            //records.push(format!("{}{}{:?}", query, ":", res)); //add vaf queries and probabilities for each event to the output table
-            wtr.write_record(records).unwrap(); // (?) operator?
+            queries
+            .iter()
+            .for_each(|(_, (query, res))| records.push(format!("{}{}{:?}", query, ":", res))); //add vaf queries and probabilities for each event to the output table
+            wtr.write_record(records).unwrap();
         });
         Ok(())
     }
