@@ -1,7 +1,7 @@
 use crate::haplotypes::model::{Data, Likelihood, Marginal, Posterior, Prior};
 use crate::variants::model::AlleleFreq;
 use anyhow::Result;
-use bio::stats::{bayesian::model::Model, probs::LogProb, PHREDProb};
+use bio::stats::{bayesian::model::Model, probs::LogProb, PHREDProb, Prob};
 use bv::BitVec;
 use derive_builder::Builder;
 use hdf5;
@@ -41,7 +41,7 @@ impl Caller {
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
         let m = model.compute_from_marginal(&Marginal::new(haplotypes.len()), &data);
-        
+
         //add variant query and probabilities to the outout table for each event
         let variant_matrix: Vec<(BitVec, BitVec)> =
             data.haplotype_variants.values().cloned().collect();
@@ -50,16 +50,18 @@ impl Caller {
         let mut event_queries: Vec<BTreeMap<i64, (AlleleFreq, LogProb)>> = Vec::new();
         posterior.for_each(|(fractions, _)| {
             let mut vaf_queries: BTreeMap<i64, (AlleleFreq, LogProb)> = BTreeMap::new();
-            let mut j = 1;
+            let mut variant_num = 1;
             variant_matrix.iter().zip(variant_calls.iter()).for_each(
-                |((var_matrix, loc_matrix), afd)| {
-                    let mut denom = NotNan::new(0.0).unwrap();
+                |((genotypes, covered), afd)| {
+                    let mut denom = NotNan::new(1.0).unwrap();
                     let mut vaf_sum = NotNan::new(0.0).unwrap();
+                    let mut counter = 0;
                     fractions.iter().enumerate().for_each(|(i, fraction)| {
-                        if var_matrix[i as u64] && loc_matrix[i as u64] {
+                        if genotypes[i as u64] && covered[i as u64] {
                             vaf_sum += *fraction;
-                        } else if loc_matrix[i as u64] {
-                            ();
+                            counter += 1;
+                        } else if covered[i as u64] {
+                            counter += 1;
                         } else {
                             denom -= *fraction;
                         }
@@ -69,9 +71,12 @@ impl Caller {
                     }
                     vaf_sum = NotNan::new((vaf_sum * NotNan::new(100.0).unwrap()).round()).unwrap()
                         / NotNan::new(100.0).unwrap();
-                    let r = afd.vaf_query(&vaf_sum);
-                    vaf_queries.insert(j, (vaf_sum, r));
-                    j = j + 1;
+                    let answer = afd.vaf_query(&vaf_sum);
+
+                    if counter > 0 {
+                        vaf_queries.insert(variant_num, (vaf_sum, answer));
+                    }
+                    variant_num = variant_num + 1;
                 },
             );
             event_queries.push(vaf_queries);
@@ -85,7 +90,10 @@ impl Caller {
         let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
         let mut headers: Vec<_> = vec!["density".to_string(), "odds".to_string()];
         headers.extend(haplotypes);
-        let variant_names = event_queries[0].keys().map(|key|format!("{}{}", "variant", key)).collect::<Vec<String>>();
+        let variant_names = event_queries[0]
+            .keys()
+            .map(|key| format!("{}{}", "variant", key))
+            .collect::<Vec<String>>();
         headers.extend(variant_names); //add variant names as separate columns
         wtr.write_record(&headers)?;
 
@@ -93,20 +101,20 @@ impl Caller {
         let mut records = Vec::new();
         let (haplotype_frequencies, best_density) = posterior.next().unwrap();
         let best_odds = 1;
-        if best_density.exp() < 0.1 {
+        if best_density.exp() <= 0.1 {
             records.push(format!("{:+.2e}", best_density.exp()));
         } else {
-            records.push(best_density.exp().to_string());
+            records.push(format!("{:.2}", best_density.exp()));
         }
         records.push(best_odds.to_string());
 
-        for frequency in haplotype_frequencies.iter() {
-            if frequency < &NotNan::new(0.1).unwrap() {
+        haplotype_frequencies.iter().for_each(|frequency| {
+            if frequency <= &NotNan::new(0.1).unwrap() {
                 records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
             } else {
-                records.push(frequency.to_string())
+                records.push(format!("{:.2}", frequency))
             }
-        }
+        });
 
         //add vaf queries and probabilities for the first event to the output table
         let queries: Vec<(AlleleFreq, LogProb)> = event_queries
@@ -116,39 +124,52 @@ impl Caller {
             .values()
             .cloned()
             .collect();
-        queries
-            .iter()
-            .for_each(|(query, res)| records.push(format!("{}{}{:?}", query, ":", res)));
+        queries.iter().for_each(|(query, answer)| {
+            let prob = f64::from(Prob::from(*answer));
+            if prob <= 0.1 {
+                records.push(format!("{}{}{:+.2e}", query, ":", prob));
+            } else {
+                records.push(format!("{}{}{}", query, ":", prob));
+            }
+        });
         wtr.write_record(records)?;
 
         //write the rest of the records
-        posterior.zip(event_queries.iter()).for_each(|((haplotype_frequencies, density), queries)| {
-            let mut records = Vec::new();
-            let odds = (density - best_density).exp();
-            if density.exp() < 0.1 {
-                records.push(format!("{:+.2e}", density.exp()));
-            } else {
-                records.push(density.exp().to_string());
-            }
+        posterior.zip(event_queries.iter()).for_each(
+            |((haplotype_frequencies, density), queries)| {
+                let mut records = Vec::new();
+                let odds = (density - best_density).exp();
 
-            if odds < 0.1 {
-                records.push(format!("{:+.2e}", odds));
-            } else {
-                records.push(odds.to_string());
-            }
-            for frequency in haplotype_frequencies.iter() {
-                if frequency < &NotNan::new(0.1).unwrap() {
-                    records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
+                if density.exp() <= 0.1 {
+                    records.push(format!("{:+.2e}", density.exp()));
                 } else {
-                    records.push(frequency.to_string())
+                    records.push(format!("{:.2}", density.exp()));
                 }
-            }
 
-            queries
-            .iter()
-            .for_each(|(_, (query, res))| records.push(format!("{}{}{:?}", query, ":", res))); //add vaf queries and probabilities for each event to the output table
-            wtr.write_record(records).unwrap();
-        });
+                if odds <= 0.1 {
+                    records.push(format!("{:+.2e}", odds));
+                } else {
+                    records.push(format!("{:.2}", odds));
+                }
+
+                haplotype_frequencies.iter().for_each(|frequency| {
+                    if frequency <= &NotNan::new(0.1).unwrap() {
+                        records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
+                    } else {
+                        records.push(format!("{:.2}", frequency))
+                    }
+                });
+                queries.iter().for_each(|(_, (query, answer))| {
+                    let prob = f64::from(Prob::from(*answer));
+                    if prob <= 0.1 {
+                        records.push(format!("{}{}{:+.2e}", query, ":", prob));
+                    } else {
+                        records.push(format!("{}{}{}", query, ":", prob));
+                    }
+                });
+                wtr.write_record(records).unwrap();
+            },
+        );
         Ok(())
     }
 }
@@ -333,10 +354,3 @@ impl HaplotypeCalls {
         Ok(HaplotypeCalls(calls))
     }
 }
-// fn output_scientific(number: f64) -> {
-//     if number < 0.1 {
-//         records.push(format!("{:+.2e}", number.exp()));
-//     } else {
-//         records.push(number.exp().to_string());
-//     }
-// }
