@@ -50,7 +50,7 @@ impl Caller {
         let mut event_queries: Vec<BTreeMap<i64, (AlleleFreq, LogProb)>> = Vec::new();
         posterior.for_each(|(fractions, _)| {
             let mut vaf_queries: BTreeMap<i64, (AlleleFreq, LogProb)> = BTreeMap::new();
-            let mut variant_num = 1;
+            let mut variant_num = 0;
             variant_matrix.iter().zip(variant_calls.iter()).for_each(
                 |((genotypes, covered), afd)| {
                     let mut denom = NotNan::new(1.0).unwrap();
@@ -129,7 +129,7 @@ impl Caller {
             if prob <= 0.1 {
                 records.push(format!("{}{}{:+.2e}", query, ":", prob));
             } else {
-                records.push(format!("{}{}{}", query, ":", prob));
+                records.push(format!("{}{}{:.2}", query, ":", prob));
             }
         });
         wtr.write_record(records)?;
@@ -164,7 +164,7 @@ impl Caller {
                     if prob <= 0.1 {
                         records.push(format!("{}{}{:+.2e}", query, ":", prob));
                     } else {
-                        records.push(format!("{}{}{}", query, ":", prob));
+                        records.push(format!("{}{}{:.2}", query, ":", prob));
                     }
                 });
                 wtr.write_record(records).unwrap();
@@ -174,7 +174,7 @@ impl Caller {
     }
 }
 
-#[derive(Derefable, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Derefable, Debug, Clone, PartialEq, Eq, Hash, PartialOrd,Ord)]
 pub(crate) struct Haplotype(#[deref] String);
 
 #[derive(Debug, Clone)]
@@ -184,7 +184,7 @@ pub(crate) struct KallistoEstimate {
 }
 
 #[derive(Debug, Clone, Derefable)]
-pub(crate) struct KallistoEstimates(#[deref] HashMap<Haplotype, KallistoEstimate>);
+pub(crate) struct KallistoEstimates(#[deref] BTreeMap<Haplotype, KallistoEstimate>);
 
 impl KallistoEstimates {
     /// Generate new instance.
@@ -196,7 +196,7 @@ impl KallistoEstimates {
         let num_bootstraps = hdf5_reader.dataset("aux/num_bootstrap")?.read_1d::<i32>()?;
         let seq_length = hdf5_reader.dataset("aux/lengths")?.read_1d::<f64>()?;
 
-        let mut estimates = HashMap::new();
+        let mut estimates = BTreeMap::new();
 
         for seqname in seqnames {
             let index = ids.iter().position(|x| x.as_str() == seqname).unwrap();
