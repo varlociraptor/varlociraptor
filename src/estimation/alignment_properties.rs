@@ -5,6 +5,7 @@
 
 use std::cmp;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::f64;
 use std::ops::AddAssign;
 use std::str;
@@ -24,7 +25,7 @@ use crate::utils::homopolymers::is_homopolymer_seq;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::SimpleCounter;
 
-pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
+pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 2;
 
 use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
 
@@ -406,70 +407,8 @@ impl AlignmentProperties {
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct CigarCounts {
     pub(crate) gap_counts: SimpleCounter<isize>,
-    pub(crate) hop_counts: HashMap<u8, SimpleCounter<i16>>,
+    pub(crate) hop_counts: HashMap<u8, SimpleCounter<(usize, usize)>>,
     pub(crate) match_counts: SimpleCounter<u32>,
-}
-
-#[allow(dead_code)]
-impl CigarCounts {
-    fn num_bases(&self) -> usize {
-        self.match_counts
-            .iter()
-            .map(|(l, c)| *l as usize * *c)
-            .sum::<usize>()
-            + self
-                .gap_counts
-                .iter()
-                .map(|(l, c)| l.abs() as usize * *c)
-                .sum::<usize>()
-            + self
-                .hop_counts
-                .iter()
-                .flat_map(|(_base, counts)| counts.iter())
-                .map(|(l, c)| l.abs() as usize * *c)
-                .sum::<usize>()
-    }
-
-    fn num_match_bases(&self) -> usize {
-        self.match_counts
-            .iter()
-            .map(|(l, c)| *l as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_insertion_gap_bases(&self) -> usize {
-        self.gap_counts
-            .iter()
-            .filter(|(l, _)| **l > 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_deletion_gap_bases(&self) -> usize {
-        self.gap_counts
-            .iter()
-            .filter(|(l, _)| **l < 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_insertion_hop_bases(&self) -> usize {
-        self.hop_counts
-            .iter()
-            .flat_map(|(_base, counts)| counts.iter())
-            .filter(|(l, _)| **l > 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
-
-    fn num_deletion_hop_bases(&self) -> usize {
-        self.hop_counts
-            .iter()
-            .flat_map(|(_base, counts)| counts.iter())
-            .filter(|(l, _)| **l < 0)
-            .map(|(l, c)| l.abs() as usize * *c)
-            .sum::<usize>()
-    }
 }
 
 impl AddAssign for CigarCounts {
@@ -540,10 +479,10 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                                 .hop_counts
                                 .entry(base)
                                 .or_insert_with(SimpleCounter::default)
-                                .incr(-(l as i16));
+                                .incr((len, l));
                         }
                     } else {
-                        cigar_counts.gap_counts.incr(-(l as isize));
+                        cigar_counts.gap_counts.incr(-(isize::try_from(l).unwrap()));
                     }
                 }
                 rpos += l as usize;
@@ -570,10 +509,10 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                                 .hop_counts
                                 .entry(base)
                                 .or_insert_with(SimpleCounter::default)
-                                .incr(l as i16);
+                                .incr((len, l));
                         }
                     } else {
-                        cigar_counts.gap_counts.incr(l as isize);
+                        cigar_counts.gap_counts.incr(isize::try_from(l).unwrap());
                     }
                 }
                 qpos += l as usize;
@@ -581,13 +520,20 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
             Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
                 cigar_counts.match_counts.incr(l);
                 let l = l as usize;
-                for (base, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
-                    if stretch.count() >= MIN_HOMOPOLYMER_LEN {
-                        cigar_counts
-                            .hop_counts
-                            .entry(base)
-                            .or_insert_with(SimpleCounter::default)
-                            .incr(0);
+                for ((rbase, qbase), stretch) in &refseq[rpos..rpos + l]
+                    .iter()
+                    .zip((qpos..qpos + l).map(|i| qseq[i]))
+                    .group_by(|(c_r, c_q)| (**c_r, *c_q))
+                {
+                    if rbase.to_ascii_uppercase() == qbase {
+                        let len = stretch.count();
+                        if len >= MIN_HOMOPOLYMER_LEN {
+                            cigar_counts
+                                .hop_counts
+                                .entry(rbase)
+                                .or_insert_with(SimpleCounter::default)
+                                .incr((len, len));
+                        }
                     }
                 }
                 qpos += l as usize;
@@ -690,44 +636,7 @@ fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)
 impl AlignmentProperties {
     pub(crate) fn gap_params(&self) -> GapParams {
         if let Some(cigar_counts) = &self.cigar_counts {
-            let counts = |length_predicate: fn(isize) -> bool| {
-                cigar_counts
-                    .gap_counts
-                    .iter()
-                    .filter(|&(length, _)| length_predicate(*length))
-                    .map(|(length, count)| (length.abs() as usize, *count))
-                    .collect_vec()
-            };
-            let insertion_gap_counts = counts(|l| l > 0);
-            let deletion_gap_counts = counts(|l| l < 0);
-
-            let insertion_lambda =
-                exponential_mle(insertion_gap_counts.into_iter().map(|(l, c)| (l - 1, c)));
-            let insertion_prob = (-insertion_lambda).exp();
-            let insertion_prob = NotNan::new(insertion_prob).unwrap_or_else(|_| NotNan::zero());
-
-            let deletion_lambda =
-                exponential_mle(deletion_gap_counts.into_iter().map(|(l, c)| (l - 1, c)));
-            let deletion_prob = (-deletion_lambda).exp();
-            let deletion_prob = NotNan::new(deletion_prob).unwrap_or_else(|_| NotNan::zero());
-
-            let c = cigar_counts;
-            let num_bases = c.num_bases();
-            let gap_open_ins = c.num_insertion_gap_bases() as f64 / num_bases as f64;
-            let gap_open_ins = NotNan::new(gap_open_ins).unwrap_or_else(|_| NotNan::zero());
-            let gap_open_del = c.num_deletion_gap_bases() as f64 / num_bases as f64;
-            let gap_open_del = NotNan::new(gap_open_del).unwrap_or_else(|_| NotNan::zero());
-
-            GapParams {
-                prob_insertion_artifact: LogProb::from(Prob::checked(*gap_open_ins).unwrap()),
-                prob_deletion_artifact: LogProb::from(Prob::checked(*gap_open_del).unwrap()),
-                prob_insertion_extend_artifact: LogProb::from(
-                    Prob::checked(*insertion_prob).unwrap(),
-                ),
-                prob_deletion_extend_artifact: LogProb::from(
-                    Prob::checked(*deletion_prob).unwrap(),
-                ),
-            }
+            unimplemented!()
         } else {
             // if we didn't count any gaps, assume default gap rates
             BackwardsCompatibility::default_gap_params()
@@ -736,15 +645,15 @@ impl AlignmentProperties {
 
     pub(crate) fn hop_params(&self) -> HopParams {
         if let Some(cigar_counts) = &self.cigar_counts {
-            let counts = |base, length_predicate: fn(i16) -> bool| {
+            let empty = SimpleCounter::default();
+            let counts = |base, length_predicate: fn((usize, usize)) -> bool| {
                 cigar_counts
                     .hop_counts
                     .get(&base)
-                    .unwrap_or(&Default::default())
+                    .unwrap_or(&empty)
                     .iter()
-                    .filter(|(length, _)| length_predicate(**length))
-                    .map(|(length, count)| (length.abs() as usize, *count))
-                    .collect_vec()
+                    .filter(move |(lengths, _)| length_predicate(**lengths))
+                    .map(|(lengths, count)| (lengths, *count))
             };
             let (
                 (prob_seq_homopolymer, prob_ref_homopolymer),
@@ -752,43 +661,47 @@ impl AlignmentProperties {
             ): ((Vec<_>, Vec<_>), (Vec<_>, Vec<_>)) = [b'A', b'C', b'G', b'T']
                 .iter()
                 .map(|base| {
-                    let insertion_counts = counts(*base, |l| l > 0 && l < 6);
-                    let deletion_counts = counts(*base, |l| l < 0 && l > -6);
-
-                    let i = insertion_counts.iter().map(|(l, c)| *l * *c).sum::<usize>();
-                    let d = deletion_counts.iter().map(|(l, c)| *l * *c).sum::<usize>();
-                    let n = counts(*base, |l| l == 0)
-                        .iter()
-                        .map(|(_, c)| *c)
+                    let num_ins_1 = counts(*base, |(r, q)| q - r == 1)
+                        .map(|(_, c)| c)
+                        .sum::<usize>();
+                    let num_ins_at_least_1 = counts(*base, |(r, q)| (q - r) >= 1)
+                        .map(|(_, c)| c)
+                        .sum::<usize>();
+                    let num_del_1 = counts(*base, |(r, q)| (r - q) == 1)
+                        .map(|(_, c)| c)
+                        .sum::<usize>();
+                    let num_del_at_least_1 = counts(*base, |(r, q)| (r - q) >= 1)
+                        .map(|(_, c)| c)
+                        .sum::<usize>();
+                    let num_no_change = counts(*base, |(r, q)| r - q == 0)
+                        .map(|(_, c)| c)
                         .sum::<usize>();
 
-                    let hop_start_ins = i as f64 / (n + i) as f64;
-                    let hop_start_ins =
-                        NotNan::new(hop_start_ins).unwrap_or_else(|_| NotNan::zero());
-                    let hop_start_del = d as f64 / (n + d) as f64;
-                    let hop_start_del =
-                        NotNan::new(hop_start_del).unwrap_or_else(|_| NotNan::zero());
+                    let hop_start_query =
+                        *NotNan::new(num_ins_at_least_1 as f64 / num_no_change as f64)
+                            .unwrap_or_else(|_| NotNan::zero());
+                    let hop_extend_query = *NotNan::new(num_ins_1 as f64 / num_no_change as f64)
+                        .unwrap_or_else(|_| NotNan::zero());
+                    let hop_start_ref =
+                        *NotNan::new(num_del_at_least_1 as f64 / num_no_change as f64)
+                            .unwrap_or_else(|_| NotNan::zero());
+                    let hop_extend_ref = *NotNan::new(num_del_1 as f64 / num_no_change as f64)
+                        .unwrap_or_else(|_| NotNan::zero());
 
-                    let insertion_lambda =
-                        exponential_mle(insertion_counts.into_iter().map(|(v, c)| (v - 1, c)));
-                    let insertion_prob = (-insertion_lambda).exp();
-                    let insertion_prob =
-                        NotNan::new(insertion_prob).unwrap_or_else(|_| NotNan::zero());
-
-                    let deletion_lambda =
-                        exponential_mle(deletion_counts.into_iter().map(|(v, c)| (v - 1, c)));
-                    let deletion_prob = (-deletion_lambda).exp();
-                    let deletion_prob =
-                        NotNan::new(deletion_prob).unwrap_or_else(|_| NotNan::zero());
-
+                    dbg!(
+                        hop_start_query,
+                        hop_start_ref,
+                        hop_extend_query,
+                        hop_extend_ref
+                    );
                     (
                         (
-                            LogProb::from(Prob::checked(*hop_start_ins).unwrap()),
-                            LogProb::from(Prob::checked(*hop_start_del).unwrap()),
+                            LogProb::from(Prob::checked(hop_start_query).unwrap()),
+                            LogProb::from(Prob::checked(hop_start_ref).unwrap()),
                         ),
                         (
-                            LogProb::from(Prob::checked(*insertion_prob).unwrap()),
-                            LogProb::from(Prob::checked(*deletion_prob).unwrap()),
+                            LogProb::from(Prob::checked(hop_extend_query).unwrap()),
+                            LogProb::from(Prob::checked(hop_extend_ref).unwrap()),
                         ),
                     )
                 })
@@ -806,28 +719,29 @@ impl AlignmentProperties {
 
     pub(crate) fn wildtype_homopolymer_error_model(&self) -> HashMap<i16, f64> {
         if let Some(cigar_counts) = &self.cigar_counts {
-            let n = cigar_counts
-                .hop_counts
-                .values()
-                .flat_map(|counter| counter.values())
-                .filter(|count| **count >= 10)
-                .sum::<usize>() as f64;
-            // group by length, i.e. discard base information
-            let counts = cigar_counts
-                .hop_counts
-                .values()
-                .flat_map(|counter| counter.iter())
-                .map(|(k, v)| (*k, *v))
-                .collect_vec();
-            let grouped = counts
-                .iter()
-                .sorted_unstable_by_key(|(length, _)| length)
-                .group_by(|(length, _)| length);
-            grouped
-                .into_iter()
-                .map(|(length, group)| (length, group.map(|(_, count)| count).sum::<usize>()))
-                .map(|(length, count)| (*length, count as f64 / n))
-                .collect()
+            // let n = cigar_counts
+            //     .hop_counts
+            //     .values()
+            //     .flat_map(|counter| counter.values())
+            //     .filter(|count| **count >= 10)
+            //     .sum::<usize>() as f64;
+            // // group by length, i.e. discard base information
+            // let counts = cigar_counts
+            //     .hop_counts
+            //     .values()
+            //     .flat_map(|counter| counter.iter())
+            //     .map(|(k, v)| (*k, *v))
+            //     .collect_vec();
+            // let grouped = counts
+            //     .iter()
+            //     .sorted_unstable_by_key(|(length, _)| length)
+            //     .group_by(|(length, _)| length);
+            // grouped
+            //     .into_iter()
+            //     .map(|(length, group)| (length, group.map(|(_, count)| count).sum::<usize>()))
+            //     .map(|(length, count)| (*length, count as f64 / n))
+            //     .collect()
+            Default::default()
         } else {
             BackwardsCompatibility::default_homopolymer_error_model()
         }
