@@ -628,7 +628,40 @@ fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> CigarStats {
 impl AlignmentProperties {
     pub(crate) fn gap_params(&self) -> GapParams {
         if let Some(cigar_counts) = &self.cigar_counts {
-            BackwardsCompatibility::default_gap_params()
+            let gaps = &cigar_counts.gap_counts;
+            let gap_counts_with_length = |length: isize| {
+                gaps.iter()
+                    .filter(|(len, _)| **len == length)
+                    .map(|(_, c)| c)
+                    .sum::<usize>()
+            };
+
+            let [(del_open, del_extend), (ins_open, ins_extend)] = [-1, 1].map(|sign| {
+                let num_gap1 = gap_counts_with_length(1 * sign);
+                let num_gap2 = gap_counts_with_length(2 * sign);
+
+                let gap_open =
+                    (num_gap1 + num_gap2) as f64 / cigar_counts.num_aligned_read_bases as f64;
+                let gap_extend = num_gap1 as f64 / (num_gap1 as f64 + num_gap2 as f64);
+                (gap_open, gap_extend)
+            });
+
+            dbg!(del_open, del_extend, ins_open, ins_extend);
+
+            GapParams {
+                prob_insertion_artifact: LogProb::from(
+                    Prob::checked(ins_open).unwrap_or_else(|_| Prob::zero()),
+                ),
+                prob_deletion_artifact: LogProb::from(
+                    Prob::checked(del_open).unwrap_or_else(|_| Prob::zero()),
+                ),
+                prob_insertion_extend_artifact: LogProb::from(
+                    Prob::checked(ins_extend).unwrap_or_else(|_| Prob::zero()),
+                ),
+                prob_deletion_extend_artifact: LogProb::from(
+                    Prob::checked(del_extend).unwrap_or_else(|_| Prob::zero()),
+                ),
+            }
         } else {
             // if we didn't count any gaps, assume default gap rates
             self.gap_params.clone()
