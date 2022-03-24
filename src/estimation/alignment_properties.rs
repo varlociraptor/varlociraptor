@@ -409,10 +409,12 @@ pub(crate) struct CigarCounts {
     pub(crate) gap_counts: SimpleCounter<isize>,
     pub(crate) hop_counts: HashMap<u8, SimpleCounter<(usize, usize)>>,
     pub(crate) match_counts: SimpleCounter<u32>,
+    pub(crate) num_aligned_read_bases: u64,
 }
 
 impl AddAssign for CigarCounts {
     fn add_assign(&mut self, rhs: Self) {
+        self.num_aligned_read_bases += rhs.num_aligned_read_bases;
         self.gap_counts += rhs.gap_counts;
         for (base, counts) in rhs.hop_counts {
             *self.hop_counts.entry(base).or_insert_with(Default::default) += counts;
@@ -460,7 +462,8 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                 let l = l as usize;
                 if l < i16::MAX as usize {
                     let base = refseq[rpos];
-                    if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
+                    let is_homopolymer = is_homopolymer_seq(&refseq[rpos..rpos + l]);
+                    if is_homopolymer {
                         let mut len = l;
                         if rpos + l < refseq.len() {
                             len += extend_homopolymer_stretch(
@@ -481,13 +484,15 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                                 .or_insert_with(SimpleCounter::default)
                                 .incr((len, len - l));
                         }
-                    } else {
+                    }
+                    if !is_homopolymer || l == 1 {
                         cigar_counts.gap_counts.incr(-(isize::try_from(l).unwrap()));
                     }
                 }
                 rpos += l as usize;
             }
             Cigar::Ins(l) => {
+                cigar_counts.num_aligned_read_bases += l as u64;
                 let l = l as usize;
                 if l < i16::MAX as usize {
                     let base = if refseq[rpos].to_ascii_uppercase() == qseq[qpos] {
@@ -495,7 +500,8 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                     } else {
                         qseq[qpos]
                     };
-                    if is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i])) {
+                    let is_homopolymer = is_homopolymer_iter((qpos..qpos + l).map(|i| qseq[i]));
+                    if is_homopolymer {
                         let mut len =
                             l + extend_homopolymer_stretch(qseq[qpos], &mut refseq[rpos..].iter());
                         if rpos > 0 {
@@ -511,13 +517,15 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                                 .or_insert_with(SimpleCounter::default)
                                 .incr((len - l, l));
                         }
-                    } else {
+                    }
+                    if !is_homopolymer || l == 1 {
                         cigar_counts.gap_counts.incr(isize::try_from(l).unwrap());
                     }
                 }
                 qpos += l as usize;
             }
             Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                cigar_counts.num_aligned_read_bases += l as u64;
                 cigar_counts.match_counts.incr(l);
                 let l = l as usize;
                 for ((rbase, qbase), stretch) in &refseq[rpos..rpos + l]
