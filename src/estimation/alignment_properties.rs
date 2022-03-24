@@ -661,10 +661,13 @@ impl AlignmentProperties {
                     let prob_ins_hop_start_or_extend =
                         num_diff_1_ins_events as f64 / num_diff_1_ins_bases as f64;
 
-                    let prob_ins =
-                        LogProb::from(Prob::checked(prob_ins_hop_start_or_extend).unwrap());
-                    let prob_del =
-                        LogProb::from(Prob::checked(prob_del_hop_start_or_extend).unwrap());
+                    let prob_ins = LogProb::from(
+                        Prob::checked(prob_ins_hop_start_or_extend)
+                            .unwrap_or_else(|_| Prob::zero()),
+                    );
+                    let prob_del = LogProb::from(
+                        Prob::checked(prob_del_hop_start_or_extend).unwrap_or(|_| Prob::zero()),
+                    );
                     ((prob_ins, prob_del), (prob_ins, prob_del))
                 })
                 .unzip();
