@@ -645,13 +645,14 @@ impl AlignmentProperties {
                 .iter()
                 .map(|base| {
                     let events = |predicate: fn((usize, usize)) -> bool| {
-                        counts(*base).filter(move |(l, c)| predicate(*l))
+                        counts(*base).filter(move |(l, _)| predicate(*l))
                     };
-                    let dels = events(|(r, q)| r - q == 1).collect_vec();
+                    // METHOD: only look at homopolymer events with a length difference of 1 (either ins or del) since these are very likely always artifacts
+                    let dels = events(|(r, q)| r == q + 1).collect_vec();
                     let num_diff_1_del_events = dels.iter().map(|(_, c)| c).sum::<usize>();
                     let num_diff_1_del_bases = dels.iter().map(|((r, _), c)| r * c).sum::<usize>();
 
-                    let ins = events(|(r, q)| q - r == 1).collect_vec();
+                    let ins = events(|(r, q)| q == r + 1).collect_vec();
                     let num_diff_1_ins_events = ins.iter().map(|(_, c)| c).sum::<usize>();
                     let num_diff_1_ins_bases = ins.iter().map(|((_, q), c)| q * c).sum::<usize>();
 
