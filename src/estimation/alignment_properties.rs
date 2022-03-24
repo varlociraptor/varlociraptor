@@ -623,7 +623,7 @@ impl AlignmentProperties {
             BackwardsCompatibility::default_gap_params()
         } else {
             // if we didn't count any gaps, assume default gap rates
-            BackwardsCompatibility::default_gap_params()
+            self.gap_params.clone()
         }
     }
 
@@ -674,37 +674,42 @@ impl AlignmentProperties {
                 prob_ref_extend_homopolymer,
             }
         } else {
-            BackwardsCompatibility::default_hop_params()
+            self.hop_params.clone()
         }
     }
 
     pub(crate) fn wildtype_homopolymer_error_model(&self) -> HashMap<i16, f64> {
         if let Some(cigar_counts) = &self.cigar_counts {
-            // let n = cigar_counts
-            //     .hop_counts
-            //     .values()
-            //     .flat_map(|counter| counter.values())
-            //     .filter(|count| **count >= 10)
-            //     .sum::<usize>() as f64;
-            // // group by length, i.e. discard base information
-            // let counts = cigar_counts
-            //     .hop_counts
-            //     .values()
-            //     .flat_map(|counter| counter.iter())
-            //     .map(|(k, v)| (*k, *v))
-            //     .collect_vec();
-            // let grouped = counts
-            //     .iter()
-            //     .sorted_unstable_by_key(|(length, _)| length)
-            //     .group_by(|(length, _)| length);
-            // grouped
-            //     .into_iter()
-            //     .map(|(length, group)| (length, group.map(|(_, count)| count).sum::<usize>()))
-            //     .map(|(length, count)| (*length, count as f64 / n))
-            //     .collect()
-            Default::default()
+            let n = cigar_counts
+                .hop_counts
+                .values()
+                .flat_map(|counter| counter.values())
+                .filter(|count| **count >= 10)
+                .sum::<usize>() as f64;
+            // group by length, i.e. discard base information
+            let counts = cigar_counts
+                .hop_counts
+                .values()
+                .flat_map(|counter| counter.iter())
+                .map(|(k, v)| {
+                    (
+                        (isize::try_from(k.0).unwrap() - isize::try_from(k.1).unwrap())
+                            .clamp(i16::MIN.into(), i16::MAX.into()) as i16,
+                        *v,
+                    )
+                })
+                .collect_vec();
+            let grouped = counts
+                .iter()
+                .sorted_unstable_by_key(|(length, _)| length)
+                .group_by(|(length, _)| length);
+            grouped
+                .into_iter()
+                .map(|(length, group)| (length, group.map(|(_, count)| count).sum::<usize>()))
+                .map(|(length, count)| (*length, count as f64 / n))
+                .collect()
         } else {
-            BackwardsCompatibility::default_homopolymer_error_model()
+            self.wildtype_homopolymer_error_model.clone()
         }
     }
 }
