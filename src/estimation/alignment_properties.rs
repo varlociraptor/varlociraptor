@@ -617,26 +617,10 @@ fn cigar_stats(record: &bam::Record, allow_hardclips: bool) -> CigarStats {
     }
 }
 
-fn exponential_mle<V: Into<usize>>(value_counts: impl Iterator<Item = (V, usize)>) -> f64 {
-    let (sum, count) = value_counts.fold((0usize, 0usize), |(sum, counts), (value, count)| {
-        (sum + value.into() * count, counts + count)
-    });
-    // the MLE of the exponential distribution's lambda parameter is simply 1 / sample_mean
-    let lambda = count as f64 / sum as f64;
-
-    if count > 1 {
-        // … the estimator is slightly biased, which can be corrected for:
-        lambda - (lambda / (count - 1) as f64)
-    } else {
-        // if there are insufficiently many counts, do not perform bias correction
-        lambda
-    }
-}
-
 impl AlignmentProperties {
     pub(crate) fn gap_params(&self) -> GapParams {
         if let Some(cigar_counts) = &self.cigar_counts {
-            unimplemented!()
+            BackwardsCompatibility::default_gap_params()
         } else {
             // if we didn't count any gaps, assume default gap rates
             BackwardsCompatibility::default_gap_params()
@@ -646,14 +630,13 @@ impl AlignmentProperties {
     pub(crate) fn hop_params(&self) -> HopParams {
         if let Some(cigar_counts) = &self.cigar_counts {
             let empty = SimpleCounter::default();
-            let counts = |base, length_predicate: fn((usize, usize)) -> bool| {
+            let counts = |base| {
                 cigar_counts
                     .hop_counts
                     .get(&base)
                     .unwrap_or(&empty)
                     .iter()
-                    .filter(move |(lengths, _)| length_predicate(**lengths))
-                    .map(|(lengths, count)| (lengths, *count))
+                    .map(|(lengths, count)| (*lengths, *count))
             };
             let (
                 (prob_seq_homopolymer, prob_ref_homopolymer),
@@ -661,49 +644,27 @@ impl AlignmentProperties {
             ): ((Vec<_>, Vec<_>), (Vec<_>, Vec<_>)) = [b'A', b'C', b'G', b'T']
                 .iter()
                 .map(|base| {
-                    let num_ins_1 = counts(*base, |(r, q)| q - r == 1)
-                        .map(|(_, c)| c)
-                        .sum::<usize>();
-                    let num_ins_at_least_1 = counts(*base, |(r, q)| (q - r) >= 1)
-                        .map(|(_, c)| c)
-                        .sum::<usize>();
-                    let num_del_1 = counts(*base, |(r, q)| (r - q) == 1)
-                        .map(|(_, c)| c)
-                        .sum::<usize>();
-                    let num_del_at_least_1 = counts(*base, |(r, q)| (r - q) >= 1)
-                        .map(|(_, c)| c)
-                        .sum::<usize>();
-                    let num_no_change = counts(*base, |(r, q)| r - q == 0)
-                        .map(|(_, c)| c)
-                        .sum::<usize>();
+                    let events = |predicate: fn((usize, usize)) -> bool| {
+                        counts(*base).filter(move |(l, c)| predicate(*l))
+                    };
+                    let dels = events(|(r, q)| r - q == 1).collect_vec();
+                    let num_diff_1_del_events = dels.iter().map(|(_, c)| c).sum::<usize>();
+                    let num_diff_1_del_bases = dels.iter().map(|((r, _), c)| r * c).sum::<usize>();
 
-                    let hop_start_query =
-                        *NotNan::new(num_ins_at_least_1 as f64 / num_no_change as f64)
-                            .unwrap_or_else(|_| NotNan::zero());
-                    let hop_extend_query = *NotNan::new(num_ins_1 as f64 / num_no_change as f64)
-                        .unwrap_or_else(|_| NotNan::zero());
-                    let hop_start_ref =
-                        *NotNan::new(num_del_at_least_1 as f64 / num_no_change as f64)
-                            .unwrap_or_else(|_| NotNan::zero());
-                    let hop_extend_ref = *NotNan::new(num_del_1 as f64 / num_no_change as f64)
-                        .unwrap_or_else(|_| NotNan::zero());
+                    let ins = events(|(r, q)| q - r == 1).collect_vec();
+                    let num_diff_1_ins_events = ins.iter().map(|(_, c)| c).sum::<usize>();
+                    let num_diff_1_ins_bases = ins.iter().map(|((_, q), c)| q * c).sum::<usize>();
 
-                    dbg!(
-                        hop_start_query,
-                        hop_start_ref,
-                        hop_extend_query,
-                        hop_extend_ref
-                    );
-                    (
-                        (
-                            LogProb::from(Prob::checked(hop_start_query).unwrap()),
-                            LogProb::from(Prob::checked(hop_start_ref).unwrap()),
-                        ),
-                        (
-                            LogProb::from(Prob::checked(hop_extend_query).unwrap()),
-                            LogProb::from(Prob::checked(hop_extend_ref).unwrap()),
-                        ),
-                    )
+                    let prob_del_hop_start_or_extend =
+                        num_diff_1_del_events as f64 / num_diff_1_del_bases as f64;
+                    let prob_ins_hop_start_or_extend =
+                        num_diff_1_ins_events as f64 / num_diff_1_ins_bases as f64;
+
+                    let prob_ins =
+                        LogProb::from(Prob::checked(prob_ins_hop_start_or_extend).unwrap());
+                    let prob_del =
+                        LogProb::from(Prob::checked(prob_del_hop_start_or_extend).unwrap());
+                    ((prob_ins, prob_del), (prob_ins, prob_del))
                 })
                 .unzip();
             HopParams {
