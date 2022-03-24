@@ -666,7 +666,8 @@ impl AlignmentProperties {
                             .unwrap_or_else(|_| Prob::zero()),
                     );
                     let prob_del = LogProb::from(
-                        Prob::checked(prob_del_hop_start_or_extend).unwrap_or(|_| Prob::zero()),
+                        Prob::checked(prob_del_hop_start_or_extend)
+                            .unwrap_or_else(|_| Prob::zero()),
                     );
                     ((prob_ins, prob_del), (prob_ins, prob_del))
                 })
