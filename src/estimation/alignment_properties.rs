@@ -479,7 +479,7 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                                 .hop_counts
                                 .entry(base)
                                 .or_insert_with(SimpleCounter::default)
-                                .incr((len, l));
+                                .incr((len, len - l));
                         }
                     } else {
                         cigar_counts.gap_counts.incr(-(isize::try_from(l).unwrap()));
@@ -509,7 +509,7 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                                 .hop_counts
                                 .entry(base)
                                 .or_insert_with(SimpleCounter::default)
-                                .incr((len, l));
+                                .incr((len - l, l));
                         }
                     } else {
                         cigar_counts.gap_counts.incr(isize::try_from(l).unwrap());
