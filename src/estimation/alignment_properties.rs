@@ -642,7 +642,7 @@ impl AlignmentProperties {
             };
 
             let [(del_open, del_extend), (ins_open, ins_extend)] = [-1, 1].map(|sign| {
-                let num_gap1 = gap_counts_with_length(1 * sign);
+                let num_gap1 = gap_counts_with_length(sign);
                 let num_gap2 = gap_counts_with_length(2 * sign);
 
                 let gap_open = (num_gap1 + num_gap2) as f64
