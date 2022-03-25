@@ -409,12 +409,16 @@ pub(crate) struct CigarCounts {
     pub(crate) gap_counts: SimpleCounter<isize>,
     pub(crate) hop_counts: HashMap<u8, SimpleCounter<(usize, usize)>>,
     pub(crate) match_counts: SimpleCounter<u32>,
-    pub(crate) num_aligned_read_bases: u64,
+    pub(crate) num_match_bases: u64,
+    pub(crate) num_ins_bases: u64,
+    pub(crate) num_del_bases: u64,
 }
 
 impl AddAssign for CigarCounts {
     fn add_assign(&mut self, rhs: Self) {
-        self.num_aligned_read_bases += rhs.num_aligned_read_bases;
+        self.num_match_bases += rhs.num_match_bases;
+        self.num_ins_bases += rhs.num_ins_bases;
+        self.num_del_bases += rhs.num_del_bases;
         self.gap_counts += rhs.gap_counts;
         for (base, counts) in rhs.hop_counts {
             *self.hop_counts.entry(base).or_insert_with(Default::default) += counts;
@@ -459,6 +463,7 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
     for c in iter {
         match c {
             Cigar::Del(l) => {
+                cigar_counts.num_del_bases += l as u64;
                 let l = l as usize;
                 if l < i16::MAX as usize {
                     let base = refseq[rpos];
@@ -492,7 +497,7 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                 rpos += l as usize;
             }
             Cigar::Ins(l) => {
-                cigar_counts.num_aligned_read_bases += l as u64;
+                cigar_counts.num_ins_bases += l as u64;
                 let l = l as usize;
                 if l < i16::MAX as usize {
                     let base = if refseq[rpos].to_ascii_uppercase() == qseq[qpos] {
@@ -525,7 +530,7 @@ fn cigar_op_counts(record: &bam::Record, refseq: &[u8]) -> CigarCounts {
                 qpos += l as usize;
             }
             Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
-                cigar_counts.num_aligned_read_bases += l as u64;
+                cigar_counts.num_match_bases += l as u64;
                 cigar_counts.match_counts.incr(l);
                 let l = l as usize;
                 for ((rbase, qbase), stretch) in &refseq[rpos..rpos + l]
@@ -640,8 +645,8 @@ impl AlignmentProperties {
                 let num_gap1 = gap_counts_with_length(1 * sign);
                 let num_gap2 = gap_counts_with_length(2 * sign);
 
-                let gap_open =
-                    (num_gap1 + num_gap2) as f64 / cigar_counts.num_aligned_read_bases as f64;
+                let gap_open = (num_gap1 + num_gap2) as f64
+                    / (cigar_counts.num_match_bases + cigar_counts.num_ins_bases) as f64;
                 let gap_extend = num_gap1 as f64 / (num_gap1 as f64 + num_gap2 as f64);
                 (gap_open, gap_extend)
             });
