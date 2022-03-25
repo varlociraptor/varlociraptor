@@ -651,8 +651,6 @@ impl AlignmentProperties {
                 (gap_open, gap_extend)
             });
 
-            dbg!(del_open, del_extend, ins_open, ins_extend);
-
             GapParams {
                 prob_insertion_artifact: LogProb::from(
                     Prob::checked(ins_open).unwrap_or_else(|_| Prob::zero()),
