@@ -647,7 +647,7 @@ impl AlignmentProperties {
 
                 let gap_open = (num_gap1 + num_gap2) as f64
                     / (cigar_counts.num_match_bases + cigar_counts.num_ins_bases) as f64;
-                let gap_extend = num_gap1 as f64 / (num_gap1 as f64 + num_gap2 as f64);
+                let gap_extend = num_gap2 as f64 / (num_gap1 as f64 + num_gap2 as f64);
                 (gap_open, gap_extend)
             });
 
