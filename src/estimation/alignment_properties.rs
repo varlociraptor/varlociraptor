@@ -109,6 +109,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
     initial: bool,
+    #[serde(skip, default)]
+    epsilon_gap: f64,
 }
 
 impl AlignmentProperties {
@@ -175,6 +177,7 @@ impl AlignmentProperties {
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
+        epsilon_gap: f64,
     ) -> Result<Self> {
         // If we do not consider insert size, it is safe to also process hardclipped reads.
         let allow_hardclips = omit_insert_size;
@@ -191,6 +194,7 @@ impl AlignmentProperties {
             initial: true,
             gap_params: BackwardsCompatibility::default_gap_params(),
             hop_params: BackwardsCompatibility::default_hop_params(),
+            epsilon_gap: 0.,
         };
 
         #[derive(Debug)]
@@ -648,6 +652,11 @@ impl AlignmentProperties {
                 let gap_open = (num_gap1 + num_gap2) as f64
                     / (cigar_counts.num_match_bases + cigar_counts.num_ins_bases) as f64;
                 let gap_extend = num_gap2 as f64 / (num_gap1 as f64 + num_gap2 as f64);
+                let gap_extend = if gap_extend < self.epsilon_gap {
+                    0.
+                } else {
+                    gap_extend
+                };
                 (gap_open, gap_extend)
             });
 
@@ -809,6 +818,7 @@ mod tests {
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
+            0.,
         )
         .unwrap();
         println!("{:?}", props);
@@ -836,6 +846,7 @@ mod tests {
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
+            0.,
         )
         .unwrap();
         println!("{:?}", props);
@@ -860,6 +871,7 @@ mod tests {
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
+            0.,
         )
         .unwrap();
         println!("{:?}", props);
