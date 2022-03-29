@@ -194,7 +194,7 @@ impl AlignmentProperties {
             initial: true,
             gap_params: BackwardsCompatibility::default_gap_params(),
             hop_params: BackwardsCompatibility::default_hop_params(),
-            epsilon_gap: 0.,
+            epsilon_gap,
         };
 
         #[derive(Debug)]
