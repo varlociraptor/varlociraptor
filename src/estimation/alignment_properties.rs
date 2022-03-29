@@ -328,22 +328,30 @@ impl AlignmentProperties {
         properties.max_mapq = all_stats.max_mapq;
         properties.max_read_len = all_stats.max_read_len;
 
+        let s = if let Some(n) = num_records {
+            format!("in {} alignments", n)
+        } else {
+            "in any alignments".into()
+        };
         if properties.max_del_cigar_len.is_none() {
             warn!(
-                "No deletion CIGAR operations found in first 10000 alignments. \
-                Varlociraptor will be unable to estimate the sampling bias for deletions."
+                "No deletion CIGAR operations found {}. \
+                Varlociraptor will be unable to estimate the sampling bias for deletions.",
+                s,
             );
         }
         if properties.max_ins_cigar_len.is_none() {
             warn!(
-                "No deletion CIGAR operations found in first 10000 alignments. \
-                Varlociraptor will be unable to estimate the sampling bias for insertions."
+                "No deletion CIGAR operations found {}. \
+                Varlociraptor will be unable to estimate the sampling bias for insertions.",
+                s
             );
         }
         if properties.frac_max_softclip.is_none() {
             warn!(
-                "No softclip CIGAR operations found in the first 10000 alignments. \
-                Varlociraptor will be unable to estimate the sampling bias for larger indels."
+                "No softclip CIGAR operations found {}. \
+                Varlociraptor will be unable to estimate the sampling bias for larger indels.",
+                s,
             )
         }
 
