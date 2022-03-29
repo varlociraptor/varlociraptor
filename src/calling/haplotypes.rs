@@ -7,7 +7,7 @@ use derive_builder::Builder;
 use hdf5;
 use ordered_float::NotNan;
 use rust_htslib::bcf::{self, record::GenotypeAllele::Unphased, Read};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::{path::PathBuf, str};
 
 #[derive(Builder)]
@@ -49,6 +49,7 @@ impl Caller {
         let posterior = m.event_posteriors();
         let mut event_queries: Vec<BTreeMap<i64, (AlleleFreq, LogProb)>> = Vec::new();
         posterior.for_each(|(fractions, _)| {
+            let f_num = fractions.len();
             let mut vaf_queries: BTreeMap<i64, (AlleleFreq, LogProb)> = BTreeMap::new();
             let mut variant_num = 0;
             variant_matrix.iter().zip(variant_calls.iter()).for_each(
@@ -61,7 +62,7 @@ impl Caller {
                             vaf_sum += *fraction;
                             counter += 1;
                         } else if covered[i as u64] {
-                            counter += 1;
+                            ()
                         } else {
                             denom -= *fraction;
                         }
@@ -72,8 +73,7 @@ impl Caller {
                     vaf_sum = NotNan::new((vaf_sum * NotNan::new(100.0).unwrap()).round()).unwrap()
                         / NotNan::new(100.0).unwrap();
                     let answer = afd.vaf_query(&vaf_sum);
-
-                    if counter > 0 {
+                    if counter > 0 && counter < f_num && vaf_sum > NotNan::new(0.0).unwrap() && vaf_sum < NotNan::new(1.0).unwrap() {
                         vaf_queries.insert(variant_num, (vaf_sum, answer));
                     }
                     variant_num = variant_num + 1;
@@ -101,7 +101,7 @@ impl Caller {
         let mut records = Vec::new();
         let (haplotype_frequencies, best_density) = posterior.next().unwrap();
         let best_odds = 1;
-        if best_density.exp() <= 0.1 {
+        if best_density.exp() <= 0.01 {
             records.push(format!("{:+.2e}", best_density.exp()));
         } else {
             records.push(format!("{:.2}", best_density.exp()));
@@ -109,7 +109,7 @@ impl Caller {
         records.push(best_odds.to_string());
 
         haplotype_frequencies.iter().for_each(|frequency| {
-            if frequency <= &NotNan::new(0.1).unwrap() {
+            if frequency <= &NotNan::new(0.01).unwrap() {
                 records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
             } else {
                 records.push(format!("{:.2}", frequency))
@@ -126,7 +126,7 @@ impl Caller {
             .collect();
         queries.iter().for_each(|(query, answer)| {
             let prob = f64::from(Prob::from(*answer));
-            if prob <= 0.1 {
+            if prob <= 0.01 {
                 records.push(format!("{}{}{:+.2e}", query, ":", prob));
             } else {
                 records.push(format!("{}{}{:.2}", query, ":", prob));
@@ -140,20 +140,20 @@ impl Caller {
                 let mut records = Vec::new();
                 let odds = (density - best_density).exp();
 
-                if density.exp() <= 0.1 {
+                if density.exp() <= 0.01 {
                     records.push(format!("{:+.2e}", density.exp()));
                 } else {
                     records.push(format!("{:.2}", density.exp()));
                 }
 
-                if odds <= 0.1 {
+                if odds <= 0.01 {
                     records.push(format!("{:+.2e}", odds));
                 } else {
                     records.push(format!("{:.2}", odds));
                 }
 
                 haplotype_frequencies.iter().for_each(|frequency| {
-                    if frequency <= &NotNan::new(0.1).unwrap() {
+                    if frequency <= &NotNan::new(0.01).unwrap() {
                         records.push(format!("{:+.2e}", NotNan::into_inner(*frequency)));
                     } else {
                         records.push(format!("{:.2}", frequency))
@@ -161,7 +161,7 @@ impl Caller {
                 });
                 queries.iter().for_each(|(_, (query, answer))| {
                     let prob = f64::from(Prob::from(*answer));
-                    if prob <= 0.1 {
+                    if prob <= 0.01 {
                         records.push(format!("{}{}{:+.2e}", query, ":", prob));
                     } else {
                         records.push(format!("{}{}{:.2}", query, ":", prob));
