@@ -728,7 +728,6 @@ where
                                     let others_equal_map = || {
                                         map_estimates.events().iter().all(
                                             |(other_sample, map_event)| {
-                                                //dbg!((other_sample, sample, estimate.events().get(other_sample).unwrap(), map_event));
                                                 if other_sample != sample {
                                                     // check if other event is the same as the map event
                                                     let other_event = estimate
