@@ -221,6 +221,8 @@ testcase!(issue_154, exact, fast);
 testcase!(test_low_cov_vaf, exact);
 testcase!(test_slight_somatic_normal_with_prior, exact);
 testcase!(test_slight_somatic_normal_without_prior, exact);
+testcase!(test_clear_somatic_normal_with_prior, exact);
+testcase!(test_clear_somatic_normal_without_prior, exact);
 testcase_should_panic!(test_overlapping_events, exact);
 
 testcase!(test_l2fc, exact, fast);

@@ -1,0 +1,33 @@
+expected:
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_NORMAL == inf
+
+# necessary bam files
+samples:
+  tumor_resection:
+    path: 'tumor_resection.bam'
+    properties: '{"insert_size":{"mean":181.92410353910265,"sd":51.347214418645244},"max_del_cigar_len":33,"max_ins_cigar_len":24,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"wildtype_homopolymer_error_model":{"6":1.94024435437399e-6,"-4":0.000014136066010439068,"-11":3.3261331789268396e-6,"7":5.5435552982114e-7,"-5":4.98919976839026e-6,"-21":2.7717776491057e-7,"2":0.00009562632889414664,"-13":8.315332947317099e-7,"-9":2.7717776491057e-7,"5":8.03815518240653e-6,"0":0.9982975741679193,"-20":2.7717776491057e-7,"-8":8.315332947317099e-7,"4":0.00001191864389115451,"-17":5.5435552982114e-7,"-12":8.315332947317099e-7,"-7":1.6630665894634198e-6,"3":0.00002383728778230902,"-1":0.000776097741749596,"-18":2.7717776491057e-7,"-15":2.7717776491057e-7,"-6":3.3261331789268396e-6,"-10":8.315332947317099e-7,"1":0.0006236499710487825,"-2":0.00011031675043440685,"-3":0.000027163420961235858,"-16":2.7717776491057e-7},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/PAT_X/PAT_XR.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":214.60833071604466,"sd":69.74738296878685},"max_del_cigar_len":30,"max_ins_cigar_len":23,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"wildtype_homopolymer_error_model":{"-9":7.73433886613561e-7,"-18":2.578112955378537e-7,"-11":0.000015210866436733366,"-1":0.001055221632636435,"6":5.671848501832781e-6,"7":2.5781129553785365e-6,"-2":0.00014927274011641728,"-10":1.2890564776892683e-6,"-7":2.0624903643028295e-6,"-6":2.320301659840683e-6,"4":0.000027327997327012487,"1":0.0008652147078250369,"-4":0.000024492073076096097,"-16":2.578112955378537e-7,"-12":2.320301659840683e-6,"0":0.9976100892903641,"3":0.000042023241172670146,"2":0.00012271817667601834,"8":2.578112955378537e-7,"-3":0.00005697629631386566,"5":0.000014953055141195513,"-8":1.546867773227122e-6,"-15":2.578112955378537e-7,"-5":8.249961457211318e-6,"-19":2.578112955378537e-7},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/PAT_X/PAT_XN.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
