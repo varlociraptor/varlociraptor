@@ -1,7 +1,7 @@
 expected:
   posteriors:
     # write down a list of expressions of the form
-    - PROB_SOMATIC_NORMAL > 0.00
+    - PROB_SOMATIC_NORMAL < 90
 
 # necessary bam files
 samples:
