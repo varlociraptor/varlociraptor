@@ -1,0 +1,37 @@
+expected:
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_NORMAL == inf
+
+# necessary bam files
+samples:
+  tumor_biopsy:
+    path: 'tumor_biopsy.bam'
+    properties: '{"insert_size":{"mean":201.1809245083948,"sd":61.29281166390462},"max_del_cigar_len":33,"max_ins_cigar_len":27,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"wildtype_homopolymer_error_model":{"-2":0.00012090633562783672,"-3":0.000033962453828044024,"4":8.150988918730565e-6,"1":0.0006621319998315463,"3":0.000020920871558075117,"-18":2.716996306243522e-7,"-9":1.3584981531217607e-6,"-4":0.000015758578576212426,"5":2.4452966756191697e-6,"14":2.716996306243522e-7,"-1":0.0008324876682330151,"-6":2.7169963062435215e-6,"-19":2.716996306243522e-7,"-11":3.260395567492226e-6,"0":0.9981975446504381,"-10":1.9018974143704652e-6,"7":8.150988918730565e-7,"-16":2.716996306243522e-7,"6":1.0867985224974087e-6,"2":0.00009563826997977196,"-13":5.433992612487044e-7,"-14":5.433992612487044e-7,"-7":1.3584981531217607e-6,"-12":2.1735970449948174e-6,"10":2.716996306243522e-7,"-8":1.0867985224974087e-6,"-5":6.520791134984452e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/NEO_04/NEO_04B.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":216.34711330752333,"sd":71.97928539603285},"max_del_cigar_len":45,"max_ins_cigar_len":27,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"wildtype_homopolymer_error_model":{"6":4.21144285874847e-6,"-2":0.000145557993805494,"9":7.896455360153381e-7,"-1":0.0010407528164682156,"-11":6.0539491094509255e-6,"11":2.6321517867177937e-7,"3":0.000030269745547254627,"-6":4.21144285874847e-6,"4":0.000015529695541634982,"8":5.264303573435587e-7,"-12":2.6321517867177937e-7,"-3":0.00005422232680638655,"2":0.00014371548755479153,"5":0.000010265391968199395,"-14":5.264303573435587e-7,"-7":1.0528607146871175e-6,"-4":0.000022899720544444804,"-10":7.896455360153381e-7,"-18":7.896455360153381e-7,"-5":0.000014476834826947865,"-9":7.896455360153381e-7,"0":0.9976247462276658,"-17":2.6321517867177937e-7,"1":0.0008830869244438197,"-8":1.0528607146871175e-6,"7":1.0528607146871175e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/NEO_04/NEO_04N.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  tumor_resection:
+    path: 'tumor_resection.bam'
+    properties: '{"insert_size":{"mean":182.64455857299762,"sd":52.49253852512493},"max_del_cigar_len":26,"max_ins_cigar_len":23,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"wildtype_homopolymer_error_model":{"-5":9.104395420020877e-6,"-3":0.00003225557234521682,"11":2.6012558342916794e-7,"-18":2.6012558342916794e-7,"-12":5.202511668583359e-7,"8":2.6012558342916794e-7,"5":8.063893086304206e-6,"-15":5.202511668583359e-7,"-2":0.00011159387529111304,"3":0.000022110674591479276,"1":0.0005171296598571859,"-1":0.000779076122370358,"-7":1.3006279171458396e-6,"7":2.6012558342916794e-7,"14":2.6012558342916794e-7,"10":2.6012558342916794e-7,"-21":2.6012558342916794e-7,"-11":3.901883751437519e-6,"4":0.000010405023337166717,"-10":2.6012558342916794e-7,"-9":2.6012558342916794e-7,"-6":2.6012558342916793e-6,"2":0.00005644725160412944,"-8":5.202511668583359e-7,"6":3.641758168008351e-6,"-4":0.000012746153588029228,"0":0.9984309224807553},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/NEO_04/NEO_04R.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario_without_somatic_normal_prior.yaml'
+
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
