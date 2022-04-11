@@ -22,7 +22,7 @@ samples:
 # candidate variant
 candidate: 'candidates.vcf'
 
-scenario: 'scenario_with_somatic_normal_prior.yaml'
+scenario: 'scenario.yaml'
 
 
 

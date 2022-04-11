@@ -1,0 +1,46 @@
+species:
+  heterozygosity: 0.001
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+
+
+samples:
+  normal:
+    resolution: 0.1
+    sex: female
+
+  tumor_resection:
+    resolution: 0.01
+    sex: female
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      subclonal:
+        from: tumor_biopsy
+    contamination:
+      by: normal
+      fraction: 0.09999999999999998
+
+  tumor_biopsy:
+    resolution: 0.01
+    sex: female
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: false
+
+
+events:
+  somatic_tumor: "( tumor_biopsy:]0.0,1.0] | tumor_resection:]0.0,1.0] ) & normal:0.0 & !( l2fc(tumor_resection, tumor_biopsy) >= 1.0 ) & !( l2fc(tumor_resection, tumor_biopsy) <= -1.0 )"
+  somatic_resection_doubled: "( tumor_biopsy:]0.0,1.0] | tumor_resection:]0.0,1.0] ) & normal:0.0 & ( l2fc(tumor_resection, tumor_biopsy) >= 1.0 ) & !( l2fc(tumor_resection, tumor_biopsy) <= -1.0 )"
+  somatic_resection_halved: "( tumor_biopsy:]0.0,1.0] | tumor_resection:]0.0,1.0] ) & normal:0.0 & ( l2fc(tumor_resection, tumor_biopsy) <= -1.0 ) & !( l2fc(tumor_resection, tumor_biopsy) >= 1.0 )"
+  somatic_resection_doubled_and_halved: "( tumor_biopsy:]0.0,1.0] | tumor_resection:]0.0,1.0] ) & normal:0.0 & ( l2fc(tumor_resection, tumor_biopsy) >= 1.0 ) & ( l2fc(tumor_resection, tumor_biopsy) <= -1.0 )"
+  somatic_normal: "normal:]0.0,0.5["
+  germline: "normal:0.5 | normal:1.0"
