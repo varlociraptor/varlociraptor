@@ -31,13 +31,14 @@ extern crate derefable;
 #[macro_use]
 extern crate typed_builder;
 
-pub(crate) mod calling;
+pub mod calling;
 pub mod cli;
 pub(crate) mod conversion;
 pub(crate) mod errors;
 pub(crate) mod estimation;
 pub mod filtration;
 pub(crate) mod grammar;
+pub mod haplotypes;
 pub(crate) mod reference;
 pub mod testcase;
 pub mod utils;

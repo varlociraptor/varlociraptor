@@ -14,6 +14,7 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
+use rust_htslib::bcf;
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
@@ -491,6 +492,47 @@ pub enum CallKind {
         #[serde(default = "default_log_mode")]
         log_mode: String,
     },
+
+    #[structopt(
+        name = "haplotype-abundances",
+        about = "Call haplotype abundances (e.g. for HLA typing or viral strain quantification).",
+        usage = "varlociraptor call haplotype-abundances --haplotype-counts counts.hdf5 \
+        --haplotype-variants variants.vcf --haplotype-calls calls.bcf --output results.tsv",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    HaplotypeCalls {
+        #[structopt(
+            parse(from_os_str),
+            long = "haplotype-counts",
+            required = true,
+            help = "HDF5 haplotype counts calculated by Kallisto."
+        )]
+        haplotype_counts: PathBuf,
+        #[structopt(
+                parse(from_os_str),
+                long = "haplotype-variants",
+                required = true,
+                help = "Haplotype variants compared to a common reference.", // TODO later, we will add a subcommand to generate this file with Varlociraptor as well
+            )]
+        haplotype_variants: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "haplotype-calls",
+            required = true,
+            help = "Haplotype calls"
+        )]
+        haplotype_calls: PathBuf,
+        #[structopt(
+            default_value = "0.01",
+            help = "Minimum value for normalized Kallisto counts."
+        )]
+        min_norm_counts: f64,
+        #[structopt(
+            long,
+            help = "Folder to store quality control plots for the inference of a CDF from Kallisto bootstraps for each haplotype of interest."
+        )]
+        output: Option<PathBuf>,
+    },
     // #[structopt(
     //     name = "cnvs",
     //     about = "Call CNVs in tumor-normal sample pairs. This is experimental (do not use it yet).",
@@ -530,7 +572,7 @@ pub enum CallKind {
     //     max_dist: u32,
     //     #[structopt(long, short = "t", help = "Number of threads to use.")]
     //     threads: usize,
-    // },
+    // }
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -996,32 +1038,50 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         }
                     }
                 } // CallKind::CNVs {
-                  //     calls,
-                  //     output,
-                  //     min_bayes_factor,
-                  //     threads,
-                  //     purity,
-                  //     max_dist,
-                  // } => {
-                  //     rayon::ThreadPoolBuilder::new()
-                  //         .num_threads(threads)
-                  //         .build_global()?;
+                //     calls,
+                //     output,
+                //     min_bayes_factor,
+                //     threads,
+                //     purity,
+                //     max_dist,
+                // } => {
+                //     rayon::ThreadPoolBuilder::new()
+                //         .num_threads(threads)
+                //         .build_global()?;
 
-                  //     if min_bayes_factor <= 1.0 {
-                  //         Err(errors::Error::InvalidMinBayesFactor)?
-                  //     }
+                //     if min_bayes_factor <= 1.0 {
+                //         Err(errors::Error::InvalidMinBayesFactor)?
+                //     }
 
-                  //     let mut caller = calling::cnvs::CallerBuilder::default()
-                  //         .bcfs(calls.as_ref(), output.as_ref())?
-                  //         .min_bayes_factor(min_bayes_factor)
-                  //         .purity(purity)
-                  //         .max_dist(max_dist)
-                  //         .build()
-                  //         .unwrap();
-                  //     caller.call()?;
-                  // }
+                //     let mut caller = calling::cnvs::CallerBuilder::default()
+                //         .bcfs(calls.as_ref(), output.as_ref())?
+                //         .min_bayes_factor(min_bayes_factor)
+                //         .purity(purity)
+                //         .max_dist(max_dist)
+                //         .build()
+                //         .unwrap();
+                //     caller.call()?;
+                // }
+                CallKind::HaplotypeCalls {
+                    haplotype_counts,
+                    haplotype_variants,
+                    haplotype_calls,
+                    output,
+                    min_norm_counts,
+                } => {
+                    let mut caller = calling::haplotypes::CallerBuilder::default()
+                        .hdf5_reader(hdf5::File::open(&haplotype_counts)?)
+                        .haplotype_variants(bcf::Reader::from_path(&haplotype_variants)?)
+                        .haplotype_calls(bcf::Reader::from_path(&haplotype_calls)?)
+                        .min_norm_counts(min_norm_counts)
+                        .outcsv(output)
+                        .build()
+                        .unwrap();
+                    caller.call()?;
+                }
             }
         }
+
         Varlociraptor::FilterCalls { method } => match method {
             FilterMethod::ControlFDR {
                 calls,
