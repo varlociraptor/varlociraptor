@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.12.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.4...v4.12.0) (2022-04-27)
+
+
+### Features
+
+* improved formula simplification for negations which can provide major speedups and fixes a bug where part of the VAF spectrum is not missed in evalution. Further, it is now possible to define VAF sets as mysample:{0.5,1.0} in formulas and {0.0,0.5,1.0} in universe definitions. ([#271](https://www.github.com/varlociraptor/varlociraptor/issues/271)) ([9658c7d](https://www.github.com/varlociraptor/varlociraptor/commit/9658c7d48f4b155f35ad38a6ec4b7116cd9f5b76))
+
 ### [4.11.4](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.3...v4.11.4) (2022-03-31)
 
 
