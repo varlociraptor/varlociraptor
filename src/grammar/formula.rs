@@ -429,6 +429,24 @@ impl Formula {
         }
     }
 
+    fn sort(&mut self) {
+        match self {
+            Formula::Conjunction { operands } => {
+                for operand in operands.iter_mut() {
+                    operand.sort();
+                }
+                operands.sort()
+            }
+            Formula::Disjunction { operands } => {
+                for operand in operands.iter_mut() {
+                    operand.sort();
+                }
+                operands.sort()
+            }
+            _ => (),
+        }
+    }
+
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
         // METHOD: Expand all expressions and move negations down to atoms. Then, simplify via BDDs,
         // merge atoms (VAF intervals) of same sample in the same conjuction, and simplify again.
@@ -439,6 +457,7 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
+        simplified.sort();
         Ok(simplified.into_normalized_formula())
     }
 
@@ -561,7 +580,10 @@ impl Formula {
                         }
                         *statements = vec![Formula::Terminal(merged_statement)];
                     } else {
-                        continue;
+                        // non-atoms, apply recursively
+                        for statement in statements {
+                            *statement = statement.merge_atoms();
+                        }
                     }
                 }
 
@@ -624,7 +646,10 @@ impl Formula {
                         merged_statements.push(Formula::Terminal(current_statement));
                         *statements = merged_statements;
                     } else {
-                        continue;
+                        // non-atoms, apply recursively
+                        for statement in statements {
+                            *statement = statement.merge_atoms();
+                        }
                     }
                 }
                 Formula::Disjunction {
@@ -873,7 +898,7 @@ impl Formula {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Hash, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 pub(crate) enum NormalizedFormula {
     Conjunction {
         operands: Vec<NormalizedFormula>,
@@ -896,6 +921,12 @@ pub(crate) enum NormalizedFormula {
         predicate: Log2FoldChangePredicate,
     },
     False,
+}
+
+impl std::fmt::Debug for NormalizedFormula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
 }
 
 impl std::fmt::Display for NormalizedFormula {
@@ -1260,6 +1291,10 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
                             let inner = pair.into_inner();
                             operands.insert(parse_vafrange(inner));
                         }
+                        Rule::vafset => {
+                            let inner = pair.into_inner();
+                            operands.insert(parse_vafset(inner));
+                        }
                         Rule::EOI => (),
                         _ => unreachable!(),
                     }
@@ -1334,6 +1369,11 @@ fn parse_vafrange(mut inner: Pairs<Rule>) -> VAFSpectrum {
     VAFSpectrum::Range(range)
 }
 
+fn parse_vafset(mut inner: Pairs<Rule>) -> VAFSpectrum {
+    let mut set = inner.map(|vaf| vaf.as_str().parse().unwrap()).collect();
+    VAFSpectrum::Set(set)
+}
+
 fn parse_formula<E>(pair: Pair<Rule>) -> Result<Formula, E>
 where
     E: de::Error,
@@ -1371,6 +1411,14 @@ where
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: parse_vafrange(inner.next().unwrap().into_inner()),
+            })
+        }
+        Rule::sample_vafset => {
+            let mut inner = pair.into_inner();
+            let sample = inner.next().unwrap().as_str().to_owned();
+            Formula::Terminal(FormulaTerminal::Atom {
+                sample,
+                vafs: parse_vafset(inner.next().unwrap().into_inner()),
             })
         }
         Rule::conjunction => {
@@ -1433,6 +1481,7 @@ where
         Rule::bound => unreachable!(),
         Rule::universe => unreachable!(),
         Rule::vafrange => unreachable!(),
+        Rule::vafset => unreachable!(),
         Rule::identifier => unreachable!(),
         Rule::number => unreachable!(),
         Rule::vaf => unreachable!(),
@@ -1480,6 +1529,58 @@ mod test {
             right_exclusive: true,
         };
         assert_eq!(expected, r1 & r2);
+    }
+
+    #[test]
+    fn test_merge_atoms() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"
+species:
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+        all: 2
+        X: 1
+        Y: 1
+    female:
+        all: 2
+        X: 2
+        Y: 0
+  genome-size: 3.5e9
+
+samples:
+  tumor:
+    sex: female
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: false
+    contamination:
+      by: normal
+      fraction: 0.11
+  normal:
+    sex: female
+    somatic-effective-mutation-rate: 1e-10
+
+expressions:
+  loh: "normal:0.5 & tumor:1.0"
+  loh_or_amplification: "normal:0.5 & tumor:[0.9,1.0["
+events:
+  germline: "(normal:0.5 | normal:1.0) & !($loh | $loh_or_amplification)"
+  expected: "(normal:0.5 & tumor:{0.0, 0.5}) | (normal:0.5 & tumor:]0.0,0.5[) | (normal:0.5 & tumor:]0.5,0.9[) | normal:1.0""#,
+        )
+        .unwrap();
+        let expected = scenario.events["expected"]
+            .clone()
+            .normalize(&scenario, "all")
+            .unwrap();
+        let germline = scenario.events["germline"]
+            .clone()
+            .normalize(&scenario, "all")
+            .unwrap();
+        assert_eq!(germline, expected);
     }
 
     #[test]

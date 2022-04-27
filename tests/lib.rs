@@ -37,6 +37,14 @@ macro_rules! testcase {
                     )
                     .unwrap();
                     let mode = stringify!($pairhmm_mode);
+
+                    // setup logger
+                    // fern::Dispatch::new()
+                    // .level(log::LevelFilter::Info)
+                    // .chain(std::io::stderr())
+                    // .apply()
+                    // .unwrap();
+
                     testcase.run(mode).unwrap();
                     testcase.check();
                 }
