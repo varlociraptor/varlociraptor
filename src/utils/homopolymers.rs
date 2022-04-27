@@ -24,8 +24,17 @@ impl HomopolymerIndelOperation {
         };
 
         if pattern.len() <= 256 {
-            let mut aligner = Aligner::with_scoring(Scoring::from_scores(-1, -1, 1, -1));
+            let mut aligner = Aligner::with_scoring(Scoring::from_scores(-2, -1, 1, -1));
             let best_aln = aligner.global(pattern, text);
+
+            if !is_single_indel(&best_aln.operations) {
+                // METHOD: if replacement contains either multiple indels or additional substitutions
+                // it is a complex variant which we do not consider for homopolymer errors.
+                // As we basically test whether the indel is in phase with the others in such
+                // cases, we should be safe in any case, as homopolymer errors are random and should
+                // not occur in phase with each other or substitutions.
+                return None;
+            }
 
             let mut ret =
                 HomopolymerIndelOperation::from_alignment(text, &pattern, &best_aln.operations);
@@ -118,6 +127,21 @@ impl HomopolymerIndelOperation {
             base: homopolymer_base.unwrap(),
         })
     }
+}
+
+fn is_single_indel(alignment: &[AlignmentOperation]) -> bool {
+    let op_blocks = alignment
+        .iter()
+        .group_by(|op| *op)
+        .into_iter()
+        .filter(|(op, stretch)| match op {
+            AlignmentOperation::Del | AlignmentOperation::Ins | AlignmentOperation::Subst => true,
+            AlignmentOperation::Match => false,
+            _ => unreachable!("bug: unexpected alignment operation"),
+        })
+        .count();
+
+    op_blocks == 1
 }
 
 pub(crate) fn is_homopolymer_seq(seq: &[u8]) -> bool {

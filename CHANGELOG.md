@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.11.4](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.3...v4.11.4) (2022-03-31)
+
+
+### Bug Fixes
+
+* only check for homopolymer errors if the indel operation is alone in the variant ([#267](https://www.github.com/varlociraptor/varlociraptor/issues/267)) ([61aa7ba](https://www.github.com/varlociraptor/varlociraptor/commit/61aa7ba5a60cd80c5ac21af7cea1e94b91c79406))
+
 ### [4.11.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.2...v4.11.3) (2022-02-24)
 
 
