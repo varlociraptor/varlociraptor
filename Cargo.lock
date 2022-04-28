@@ -2308,7 +2308,7 @@ dependencies = [
 
 [[package]]
 name = "varlociraptor"
-version = "4.12.0"
+version = "5.0.0"
 dependencies = [
  "GSL",
  "anyhow",
