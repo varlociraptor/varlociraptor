@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.12.0...v5.0.0) (2022-04-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* Introduce homopolymer aware pair HMM (#227)
+
+### Features
+
+* Introduce homopolymer aware pair HMM ([#227](https://www.github.com/varlociraptor/varlociraptor/issues/227)) ([1edfc09](https://www.github.com/varlociraptor/varlociraptor/commit/1edfc0967946058dc46447b525e7c70925debf2f))
+
 ## [4.12.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.4...v4.12.0) (2022-04-27)
 
 
