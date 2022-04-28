@@ -10,7 +10,7 @@ include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "te
 edition = "2018"
 
 [dependencies]
-bio = "0.39"
+bio = "0.40.0"
 bio-types = { version = "0.12", features = ["serde"] }
 rust-htslib = "0.38"
 log = "0.4"
@@ -82,3 +82,8 @@ use-intrinsics = ["half/use-intrinsics"]
 [profile.release]
 lto = "fat"
 codegen-units = 1
+
+[profile.develop]
+inherits="release"
+lto = false
+codegen-units = 128

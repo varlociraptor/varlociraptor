@@ -37,7 +37,7 @@ impl HomopolymerIndelOperation {
             }
 
             let mut ret =
-                HomopolymerIndelOperation::from_alignment(&text, &pattern, &best_aln.operations);
+                HomopolymerIndelOperation::from_alignment(text, &pattern, &best_aln.operations);
             if reverse_direction {
                 if let Some(op) = ret.as_mut() {
                     op.len *= -1;
@@ -149,6 +149,16 @@ pub(crate) fn is_homopolymer_seq(seq: &[u8]) -> bool {
     seq[1..].iter().all(|c| c.to_ascii_uppercase() == base)
 }
 
+pub(crate) fn is_homopolymer_iter(mut seq: impl Iterator<Item = u8>) -> bool {
+    if let Some(first) = seq.next() {
+        let base = first.to_ascii_uppercase();
+        seq.all(|c| c.to_ascii_uppercase() == base)
+    } else {
+        // if the seq is empty, then it's also a homopolymer
+        true
+    }
+}
+
 pub(crate) fn extend_homopolymer_stretch(base: u8, seq: &mut dyn Iterator<Item = &u8>) -> usize {
     let base = base.to_ascii_uppercase();
     seq.take_while(|c| c.to_ascii_uppercase() == base).count()
@@ -171,7 +181,7 @@ impl HomopolymerErrorModel {
         V: Variant,
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
-            let prob_homopolymer_error = |condition: &dyn Fn(i8) -> bool| {
+            let prob_homopolymer_error = |condition: &dyn Fn(i16) -> bool| {
                 LogProb::ln_sum_exp(
                     &alignment_properties
                         .wildtype_homopolymer_error_model
@@ -197,18 +207,16 @@ impl HomopolymerErrorModel {
                 prob_homopolymer_artifact_deletion -= prob_total;
             } // else both of them are already zero, nothing to do.
 
-            let model = Some(HomopolymerErrorModel {
-                prob_homopolymer_artifact_insertion: prob_homopolymer_artifact_insertion,
-                prob_homopolymer_artifact_deletion: prob_homopolymer_artifact_deletion,
+            Some(HomopolymerErrorModel {
+                prob_homopolymer_artifact_insertion,
+                prob_homopolymer_artifact_deletion,
                 prob_homopolymer_variant_insertion: prob_homopolymer_insertion,
                 prob_homopolymer_variant_deletion: prob_homopolymer_deletion,
                 prob_homopolymer_variant_no_indel: prob_homopolymer_error(&|item_len| {
                     item_len == 0
                 }),
                 variant_homopolymer_indel_len,
-            });
-
-            model
+            })
         } else {
             None
         }

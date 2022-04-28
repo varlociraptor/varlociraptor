@@ -221,8 +221,7 @@ pub(crate) fn collect_estimates(
             // calculate mutational burden (mb) function (expected number of variants per minimum allele frequency)
             let groups = mb
                 .range(AlleleFreq(cutoff)..AlleleFreq(1.0))
-                .map(|(_, records)| records)
-                .flatten()
+                .flat_map(|(_, records)| records)
                 .map(|record| ((record.vartype, record.sample.clone()), record.prob))
                 .into_group_map();
 
@@ -255,8 +254,7 @@ pub(crate) fn collect_estimates(
             for (i, center_vaf) in linspace(0.05, 0.95, 19).enumerate() {
                 let groups = mb
                     .range(AlleleFreq(center_vaf - 0.05)..AlleleFreq(center_vaf + 0.05))
-                    .map(|(_, records)| records)
-                    .flatten()
+                    .flat_map(|(_, records)| records)
                     .map(|record| (record.vartype, record.prob))
                     .into_group_map();
                 for (vartype, probs) in groups {
@@ -294,8 +292,7 @@ pub(crate) fn collect_estimates(
             for (i, min_vaf) in min_vafs.enumerate() {
                 let groups = mb
                     .range(min_vaf..)
-                    .map(|(_, records)| records)
-                    .flatten()
+                    .flat_map(|(_, records)| records)
                     .map(|record| (record.vartype, record.prob))
                     .into_group_map();
 

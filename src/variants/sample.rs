@@ -73,11 +73,11 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = Rc<bam::Record>> + 'a {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Rc<bam::Record>> + '_ {
         self.inner
             .iter()
             .filter(|record| is_valid_record(record.as_ref()))
-            .map(|record| Rc::clone(record))
+            .map(Rc::clone)
     }
 }
 
@@ -169,12 +169,16 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
+    num_records: Option<usize>,
+    epsilon_gap: f64,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
     alignment_properties::AlignmentProperties::estimate(
         &mut bam,
         omit_insert_size,
         reference_buffer,
+        num_records,
+        epsilon_gap,
     )
 }
 

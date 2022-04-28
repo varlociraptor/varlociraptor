@@ -655,8 +655,7 @@ impl Formula {
                 Formula::Disjunction {
                     operands: grouped_operands
                         .into_iter()
-                        .map(|(_, statements)| statements)
-                        .flatten()
+                        .flat_map(|(_, statements)| statements)
                         .collect(),
                 }
             }

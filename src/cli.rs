@@ -29,7 +29,6 @@ use crate::grammar;
 use crate::reference;
 use crate::testcase;
 use crate::variants::evidence::realignment;
-use crate::variants::evidence::realignment::pairhmm::GapParams;
 
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
@@ -215,30 +214,6 @@ pub enum PreprocessKind {
         )]
         output: Option<PathBuf>,
         #[structopt(
-            long = "spurious-ins-rate",
-            default_value = "2.8e-6",
-            help = "Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016)."
-        )]
-        spurious_ins_rate: f64,
-        #[structopt(
-            long = "spurious-del-rate",
-            default_value = "5.1e-6",
-            help = "Rate of spuriosly deleted bases by the sequencer (Illumina: 5.1e-6, see Schirmer et al. BMC Bioinformatics 2016)."
-        )]
-        spurious_del_rate: f64,
-        #[structopt(
-            long = "spurious-insext-rate",
-            default_value = "0.0",
-            help = "Extension rate of spurious insertions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
-        )]
-        spurious_insext_rate: f64,
-        #[structopt(
-            long = "spurious-delext-rate",
-            default_value = "0.0",
-            help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
-        )]
-        spurious_delext_rate: f64,
-        #[structopt(
             long = "strandedness",
             default_value = "opposite",
             possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
@@ -269,15 +244,18 @@ pub enum PreprocessKind {
         omit_insert_size: bool,
         #[structopt(
             long = "pairhmm-mode",
-            possible_values = &["fast", "exact"],
+            possible_values = &["fast", "exact", "homopolymer"],
             default_value = "exact",
-            help = "PairHMM computation mode (either fast or exact). Fast mode means that only the best \
+            help = "PairHMM computation mode (either fast, exact or homopolymer). Fast mode means that only the best \
                     alignment path is considered for probability calculation. In rare cases, this can lead \
                     to wrong results for single reads. Hence, we advice to not use it when \
                     discrete allele frequences are of interest (0.5, 1.0). For continuous \
                     allele frequencies, fast mode should cause almost no deviations from the \
                     exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
-                    in large cohorts), fast mode can be safely used."
+                    in large cohorts), fast mode can be safely used. \
+                    Note that fast and exact mode are not suitable for ONT data.\
+                    The homopolymer mode should be used for ONT data; it is similar to the exact mode \
+                    but considers homopolymer errors to be different from gaps."
         )]
         #[serde(default = "default_pairhmm_mode")]
         pairhmm_mode: String,
@@ -362,12 +340,23 @@ pub enum EstimateKind {
             help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
         )]
         reference: PathBuf,
+
         #[structopt(
             long,
             required = true,
             help = "BAM file with aligned reads from a single sample."
         )]
         bam: PathBuf,
+
+        #[structopt(long, help = "Number of records to sample from the BAM file")]
+        num_records: Option<usize>,
+
+        #[structopt(
+            long,
+            help = "Estimated gap extension probabilities below this threshold will be set to zero.",
+            default_value = "1e-10"
+        )]
+        epsilon_gap: f64,
     },
     #[structopt(
         name = "mutational-burden",
@@ -670,26 +659,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     bam,
                     alignment_properties,
                     output,
-                    spurious_ins_rate,
-                    spurious_del_rate,
-                    spurious_insext_rate,
-                    spurious_delext_rate,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
+                    pairhmm_mode,
                     reference_buffer_size,
                     min_bam_refetch_distance,
-                    pairhmm_mode,
                     log_mode,
                     output_raw_observations,
                 } => {
                     // TODO: handle testcases
-
-                    let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
-                    let spurious_del_rate = Prob::checked(spurious_del_rate)?;
-                    let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
-                    let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
                     if realignment_window > (128 / 2) {
                         return Err(
                             structopt::clap::Error::with_description(
@@ -710,68 +690,88 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         &bam,
                         omit_insert_size,
                         Arc::get_mut(&mut reference_buffer).unwrap(),
+                        Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
+                        0.,
                     )?;
 
-                    let gap_params = GapParams {
-                        prob_insertion_artifact: LogProb::from(spurious_ins_rate),
-                        prob_deletion_artifact: LogProb::from(spurious_del_rate),
-                        prob_insertion_extend_artifact: LogProb::from(spurious_insext_rate),
-                        prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
+                    let gap_params = alignment_properties.gap_params();
+
+                    let log_each_record = log_mode == "each-record";
+
+                    match pairhmm_mode.as_ref() {
+                        "homopolymer" => {
+                            let hop_params = alignment_properties.hop_params();
+                            let mut processor =
+                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
+                                    .max_depth(max_depth)
+                                    .inbam(bam)
+                                    .min_bam_refetch_distance(min_bam_refetch_distance)
+                                    .reference_buffer(Arc::clone(&reference_buffer))
+                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .inbcf(candidates)
+                                    .options(opt_clone)
+                                    .outbcf(output)
+                                    .raw_observation_output(output_raw_observations)
+                                    .log_each_record(log_each_record)
+                                    .realigner(realignment::HomopolyPairHMMRealigner::new(
+                                        reference_buffer,
+                                        gap_params,
+                                        hop_params,
+                                        realignment_window,
+                                    ))
+                                    .build();
+                            processor.process()?;
+                        }
+                        "fast" => {
+                            let mut processor =
+                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
+                                    .max_depth(max_depth)
+                                    .inbam(bam)
+                                    .min_bam_refetch_distance(min_bam_refetch_distance)
+                                    .reference_buffer(Arc::clone(&reference_buffer))
+                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .inbcf(candidates)
+                                    .options(opt_clone)
+                                    .outbcf(output)
+                                    .raw_observation_output(output_raw_observations)
+                                    .log_each_record(log_each_record)
+                                    .realigner(realignment::PathHMMRealigner::new(
+                                        gap_params,
+                                        realignment_window,
+                                        reference_buffer,
+                                    ))
+                                    .build();
+                            processor.process()?;
+                        }
+                        "exact" => {
+                            let mut processor =
+                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
+                                    .max_depth(max_depth)
+                                    .inbam(bam)
+                                    .min_bam_refetch_distance(min_bam_refetch_distance)
+                                    .reference_buffer(Arc::clone(&reference_buffer))
+                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .inbcf(candidates)
+                                    .options(opt_clone)
+                                    .outbcf(output)
+                                    .raw_observation_output(output_raw_observations)
+                                    .log_each_record(log_each_record)
+                                    .realigner(realignment::PairHMMRealigner::new(
+                                        reference_buffer,
+                                        gap_params,
+                                        realignment_window,
+                                    ))
+                                    .build();
+                            processor.process()?;
+                        }
+                        _ => panic!("Unknown pairhmm mode '{}'", pairhmm_mode),
                     };
-
-                    let log_each_record = if log_mode == "each-record" {
-                        true
-                    } else {
-                        false
-                    };
-
-                    if pairhmm_mode == "fast" {
-                        let mut processor =
-                            calling::variants::preprocessing::ObservationProcessor::builder()
-                                .log_each_record(log_each_record)
-                                .alignment_properties(alignment_properties)
-                                .protocol_strandedness(protocol_strandedness)
-                                .max_depth(max_depth)
-                                .inbam(bam)
-                                .min_bam_refetch_distance(min_bam_refetch_distance)
-                                .reference_buffer(Arc::clone(&reference_buffer))
-                                .breakend_index(BreakendIndex::new(&candidates)?)
-                                .inbcf(candidates)
-                                .options(opt_clone)
-                                .outbcf(output)
-                                .realigner(realignment::PathHMMRealigner::new(
-                                    gap_params,
-                                    realignment_window,
-                                    reference_buffer,
-                                ))
-                                .raw_observation_output(output_raw_observations)
-                                .build();
-
-                        processor.process()?;
-                    } else {
-                        let mut processor =
-                            calling::variants::preprocessing::ObservationProcessor::builder()
-                                .alignment_properties(alignment_properties)
-                                .protocol_strandedness(protocol_strandedness)
-                                .max_depth(max_depth)
-                                .inbam(bam)
-                                .min_bam_refetch_distance(min_bam_refetch_distance)
-                                .reference_buffer(Arc::clone(&reference_buffer))
-                                .breakend_index(BreakendIndex::new(&candidates)?)
-                                .inbcf(candidates)
-                                .options(opt_clone)
-                                .outbcf(output)
-                                .realigner(realignment::PairHMMRealigner::new(
-                                    reference_buffer,
-                                    gap_params,
-                                    realignment_window,
-                                ))
-                                .log_each_record(log_each_record)
-                                .raw_observation_output(output_raw_observations)
-                                .build();
-
-                        processor.process()?;
-                    }
                 }
             }
         }
@@ -806,11 +806,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         None
                     };
 
-                    let log_each_record = if log_mode == "each-record" {
-                        true
-                    } else {
-                        false
-                    };
+                    let log_each_record = log_mode == "each-record";
 
                     let call_generic = |scenario: grammar::Scenario,
                                         observations: PathMap|
@@ -1088,12 +1084,22 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 mode,
                 cutoff as f64,
             )?,
-            EstimateKind::AlignmentProperties { reference, bam } => {
+            EstimateKind::AlignmentProperties {
+                reference,
+                bam,
+                num_records,
+                epsilon_gap,
+            } => {
                 let mut reference_buffer =
                     reference::Buffer::new(fasta::IndexedReader::from_file(&reference)?, 1);
-                let alignment_properties =
-                    estimate_alignment_properties(bam, false, &mut reference_buffer)?;
-                println!("{}", serde_json::to_string(&alignment_properties)?);
+                let alignment_properties = estimate_alignment_properties(
+                    bam,
+                    false,
+                    &mut reference_buffer,
+                    num_records,
+                    epsilon_gap,
+                )?;
+                println!("{}", serde_json::to_string_pretty(&alignment_properties)?);
             }
         },
         Varlociraptor::Plot { kind } => match kind {
@@ -1150,13 +1156,21 @@ pub(crate) fn est_or_load_alignment_properties(
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
+    num_records: Option<usize>,
+    epsilon_gap: f64,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer)
+        estimate_alignment_properties(
+            bam_file,
+            omit_insert_size,
+            reference_buffer,
+            num_records,
+            epsilon_gap,
+        )
     }
 }
 

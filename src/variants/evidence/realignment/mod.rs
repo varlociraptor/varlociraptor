@@ -32,6 +32,7 @@ pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
+use bio::stats::pairhmm::HomopolyPairHMM;
 
 use self::pairhmm::RefBaseEmission;
 use self::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission};
@@ -614,5 +615,60 @@ impl Realigner for PathHMMRealigner {
         }
 
         best_prob.unwrap()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct HomopolyPairHMMRealigner {
+    gap_params: pairhmm::GapParams,
+    hop_params: pairhmm::HopParams,
+    pairhmm: HomopolyPairHMM,
+    max_window: u64,
+    ref_buffer: Arc<reference::Buffer>,
+}
+
+impl HomopolyPairHMMRealigner {
+    /// Create a new instance.
+    pub(crate) fn new(
+        ref_buffer: Arc<reference::Buffer>,
+        gap_params: pairhmm::GapParams,
+        hop_params: pairhmm::HopParams,
+        max_window: u64,
+    ) -> Self {
+        let pairhmm = HomopolyPairHMM::new(&gap_params, &hop_params);
+        HomopolyPairHMMRealigner {
+            gap_params,
+            hop_params,
+            pairhmm,
+            max_window,
+            ref_buffer,
+        }
+    }
+}
+
+impl Realigner for HomopolyPairHMMRealigner {
+    fn ref_buffer(&self) -> &Arc<reference::Buffer> {
+        &self.ref_buffer
+    }
+
+    fn max_window(&self) -> u64 {
+        self.max_window
+    }
+
+    fn calculate_prob_allele(
+        &mut self,
+        hit: &EditDistanceHit,
+        allele_params: &mut ReadVsAlleleEmission,
+    ) -> LogProb {
+        // METHOD: We shrink the area to run the HMM against to an environment around the best
+        // edit distance hits.
+        allele_params.shrink_to_hit(hit);
+
+        // METHOD: Further, we run the HMM on a band around the best edit distance.
+        self.pairhmm.prob_related(
+            allele_params,
+            &self.gap_params,
+            Some(hit.dist_upper_bound()),
+        )
     }
 }

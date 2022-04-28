@@ -75,7 +75,7 @@ macro_rules! default_ref_base_emission {
 }
 
 /// Gap parameters for PairHMM.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GapParams {
     pub(crate) prob_insertion_artifact: LogProb,
     pub(crate) prob_deletion_artifact: LogProb,
@@ -122,6 +122,61 @@ impl pairhmm::StartEndGapParameters for GapParams {
     #[inline]
     fn prob_start_gap_x(&self, _: usize) -> LogProb {
         LogProb::ln_one()
+    }
+}
+
+/// Hop parameters for HomopolyPairHMM.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct HopParams {
+    pub(crate) prob_seq_homopolymer: Vec<LogProb>,
+    pub(crate) prob_ref_homopolymer: Vec<LogProb>,
+    pub(crate) prob_seq_extend_homopolymer: Vec<LogProb>,
+    pub(crate) prob_ref_extend_homopolymer: Vec<LogProb>,
+}
+
+impl pairhmm::BaseSpecificHopParameters for HopParams {
+    #[inline]
+    fn prob_hop_x_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_seq_homopolymer[0],
+            b'C' => self.prob_seq_homopolymer[1],
+            b'G' => self.prob_seq_homopolymer[2],
+            b'T' => self.prob_seq_homopolymer[3],
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn prob_hop_y_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_ref_homopolymer[0],
+            b'C' => self.prob_ref_homopolymer[1],
+            b'G' => self.prob_ref_homopolymer[2],
+            b'T' => self.prob_ref_homopolymer[3],
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn prob_hop_x_extend_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_seq_extend_homopolymer[0],
+            b'C' => self.prob_seq_extend_homopolymer[1],
+            b'G' => self.prob_seq_extend_homopolymer[2],
+            b'T' => self.prob_seq_extend_homopolymer[3],
+            _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn prob_hop_y_extend_with_base(&self, base: u8) -> LogProb {
+        match base.to_ascii_uppercase() {
+            b'A' => self.prob_ref_extend_homopolymer[0],
+            b'C' => self.prob_ref_extend_homopolymer[1],
+            b'G' => self.prob_ref_extend_homopolymer[2],
+            b'T' => self.prob_ref_extend_homopolymer[3],
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -198,15 +253,30 @@ impl<'a> pairhmm::EmissionParameters for ReadVsAlleleEmission<'a> {
         self.read_emission.read_end() - self.read_emission.read_offset()
     }
 
+    #[inline]
     fn len_x(&self) -> usize {
         self.allele_emission.len_x()
+    }
+}
+
+impl<'a> bio::stats::pairhmm::Emission for ReadVsAlleleEmission<'a> {
+    fn emission_x(&self, i: usize) -> u8 {
+        self.allele_emission.ref_base(i)
+    }
+
+    fn emission_y(&self, j: usize) -> u8 {
+        unsafe {
+            self.read_emission
+                .read_seq
+                .decoded_base_unchecked(self.read_emission.project_j(j))
+        }
     }
 }
 
 #[derive(Getters)]
 #[getset(get = "pub")]
 pub(crate) struct ReadEmission<'a> {
-    read_seq: bam::record::Seq<'a>,
+    pub(crate) read_seq: bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
     no_miscall: Vec<LogProb>,
     read_offset: usize,
@@ -257,7 +327,7 @@ impl<'a> ReadEmission<'a> {
     }
 
     #[inline]
-    fn project_j(&self, j: usize) -> usize {
+    pub(crate) fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
     }
 

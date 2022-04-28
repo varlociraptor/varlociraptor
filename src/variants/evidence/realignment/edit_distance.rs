@@ -69,7 +69,6 @@ impl EditDistanceCalculation {
         };
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
-        let alignments: Vec<Alignment>;
         let max_dist = max_dist.unwrap_or(self.read_seq.len());
 
         let mut handle_match = |pos, dist: usize| match dist.cmp(&best_dist) {
@@ -84,7 +83,7 @@ impl EditDistanceCalculation {
             Ordering::Greater => (),
         };
 
-        match &mut self.myers {
+        let alignments: Vec<Alignment> = match &mut self.myers {
             Myers::Short(myers) => {
                 let mut matches = myers.find_all_lazy(ref_seq(), max_dist as u8);
                 for (pos, dist) in &mut matches {
@@ -92,7 +91,7 @@ impl EditDistanceCalculation {
                 }
 
                 // collect alignments
-                alignments = positions
+                positions
                     .iter()
                     .cloned()
                     .map(|pos| {
@@ -101,7 +100,7 @@ impl EditDistanceCalculation {
                         alignment.start = start;
                         alignment
                     })
-                    .collect();
+                    .collect()
             }
             Myers::Long(myers) => {
                 let mut matches = myers.find_all_lazy(ref_seq(), max_dist);
@@ -110,7 +109,7 @@ impl EditDistanceCalculation {
                 }
 
                 // collect alignments
-                alignments = positions
+                positions
                     .iter()
                     .cloned()
                     .map(|pos| {
@@ -121,9 +120,9 @@ impl EditDistanceCalculation {
                         alignment.start = start;
                         alignment
                     })
-                    .collect();
+                    .collect()
             }
-        }
+        };
 
         if positions.is_empty() {
             None

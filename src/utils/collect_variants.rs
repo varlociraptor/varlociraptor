@@ -208,22 +208,20 @@ pub(crate) fn collect_variants(
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
                 variants.push(model::Variant::Mnv(alt_allele.to_vec()));
+            } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
+                variants.push(model::Variant::Deletion(
+                    (ref_allele.len() - alt_allele.len()) as u64,
+                ));
+            } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
+                variants.push(model::Variant::Insertion(
+                    alt_allele[ref_allele.len()..].to_owned(),
+                ));
             } else {
-                if is_valid_deletion_alleles(ref_allele, alt_allele) {
-                    variants.push(model::Variant::Deletion(
-                        (ref_allele.len() - alt_allele.len()) as u64,
-                    ));
-                } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                    variants.push(model::Variant::Insertion(
-                        alt_allele[ref_allele.len()..].to_owned(),
-                    ));
-                } else {
-                    // arbitrary replacement
-                    variants.push(model::Variant::Replacement {
-                        ref_allele: ref_allele.to_owned(),
-                        alt_allele: alt_allele.to_vec(),
-                    });
-                }
+                // arbitrary replacement
+                variants.push(model::Variant::Replacement {
+                    ref_allele: ref_allele.to_owned(),
+                    alt_allele: alt_allele.to_vec(),
+                });
             }
         }
     }

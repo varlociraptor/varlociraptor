@@ -22,7 +22,7 @@ pub(crate) fn genotype() -> Result<()> {
         let genotypes: Vec<_> = vafs
             .iter()
             .zip(dps.iter())
-            .map(|(vaf, dp)| {
+            .flat_map(|(vaf, dp)| {
                 let vaf = vaf[0];
                 let dp = dp[0];
                 if relative_eq!(vaf, 0.5) {
@@ -43,7 +43,6 @@ pub(crate) fn genotype() -> Result<()> {
                     ]
                 }
             })
-            .flatten()
             .collect();
         record.push_genotypes(&genotypes)?;
 

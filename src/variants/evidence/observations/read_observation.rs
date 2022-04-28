@@ -332,12 +332,10 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
                     locus_to_bucket(alt_locus, alignment_properties) == *major_alt_locus
                 }) {
                     AltLocus::Major
+                } else if self.alt_locus.is_empty() {
+                    AltLocus::None
                 } else {
-                    if self.alt_locus.is_empty() {
-                        AltLocus::None
-                    } else {
-                        AltLocus::Some
-                    }
+                    AltLocus::Some
                 }
             } else {
                 AltLocus::None
@@ -461,12 +459,11 @@ pub(crate) fn major_alt_locus(
 ) -> Option<genome::Locus> {
     let counter: Counter<_> = pileup
         .iter()
-        .map(|obs| {
+        .flat_map(|obs| {
             obs.alt_locus
                 .iter()
                 .map(|locus| locus_to_bucket(locus, alignment_properties))
         })
-        .flatten()
         .collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {
@@ -629,7 +626,7 @@ impl Deref for SingleEndEvidence {
     }
 }
 
-const INVALID_XA_FORMAT_MSG: &'static str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
+const INVALID_XA_FORMAT_MSG: &str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
 
 impl Evidence for SingleEndEvidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
