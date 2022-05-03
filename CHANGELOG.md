@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.0...v5.0.1) (2022-05-03)
+
+
+### Bug Fixes
+
+* convert empty VAF spectrum to false and ensure that an empty spectrum evaluates as zero probability ([#274](https://www.github.com/varlociraptor/varlociraptor/issues/274)) ([1f3d041](https://www.github.com/varlociraptor/varlociraptor/commit/1f3d04163fe2296d74216b1b89fe6f7f7128b3aa))
+
 ## [5.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.12.0...v5.0.0) (2022-04-28)
 
 
