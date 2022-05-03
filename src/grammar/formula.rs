@@ -578,6 +578,14 @@ impl Formula {
                         for statement in statements.iter() {
                             merged_statement.merge_conjunctions(statement.to_terminal().unwrap());
                         }
+                        // Return false overall if any operand contains an empty spectrum (as this will evaluate to
+                        // a probability of zero).
+                        if let FormulaTerminal::Atom { vafs, .. } = &merged_statement {
+                            if vafs.is_empty() {
+                                return Formula::Terminal(FormulaTerminal::False);
+                            }
+                        }
+
                         *statements = vec![Formula::Terminal(merged_statement)];
                     } else {
                         // non-atoms, apply recursively
@@ -586,14 +594,13 @@ impl Formula {
                         }
                     }
                 }
+                let operands = grouped_operands
+                    .into_iter()
+                    .map(|(_, statements)| statements)
+                    .flatten()
+                    .collect();
 
-                Formula::Conjunction {
-                    operands: grouped_operands
-                        .into_iter()
-                        .map(|(_, statements)| statements)
-                        .flatten()
-                        .collect(),
-                }
+                Formula::Conjunction { operands: operands }
             }
             Formula::Disjunction { operands } => {
                 // collect statements per sample
@@ -1013,12 +1020,21 @@ impl VAFSpectrum {
             VAFSpectrum::Range(ref range) => range.contains(vaf),
         }
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        match self {
+            VAFSpectrum::Set(set) => set.is_empty(),
+            VAFSpectrum::Range(range) => range.is_empty(),
+        }
+    }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Hash, CopyGetters)]
 pub(crate) struct VAFRange {
     inner: ops::Range<AlleleFreq>,
+    #[getset(get_copy = "pub")]
     left_exclusive: bool,
+    #[getset(get_copy = "pub")]
     right_exclusive: bool,
 }
 
@@ -1039,6 +1055,10 @@ impl VAFRange {
             left_exclusive: true,
             right_exclusive: true,
         }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.start == self.end
     }
 
     pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
