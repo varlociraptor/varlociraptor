@@ -276,7 +276,11 @@ impl GenericPosterior {
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
-                        if is_clear_ref && *vafs.start > 0.0 {
+                        if vafs.is_empty() {
+                            // METHOD: empty interval, integral must be zero.
+                            return LogProb::ln_zero();
+                        }
+                        if is_clear_ref && (*vafs.start > 0.0) {
                             // METHOD: shortcut for the case that all obs support the reference but the vaf
                             // range in this event is > 0. Then, we don't need to recurse further and can
                             // immediately stop, returning a probability of zero.
