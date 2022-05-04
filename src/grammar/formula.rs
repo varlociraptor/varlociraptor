@@ -42,6 +42,12 @@ impl Iupac {
     }
 }
 
+impl std::fmt::Display for Iupac {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", std::char::from_u32(**self as u32).unwrap())
+    }
+}
+
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
 pub(crate) struct FormulaParser;
@@ -240,8 +246,8 @@ impl std::fmt::Display for Formula {
             }) => format!(
                 "{negate}({refbase}>{altbase})",
                 negate = if *positive { "" } else { "!" },
-                refbase = **refbase,
-                altbase = **altbase,
+                refbase = refbase,
+                altbase = altbase,
             ),
             Formula::Terminal(FormulaTerminal::Expression {
                 identifier,
@@ -977,8 +983,8 @@ impl std::fmt::Display for NormalizedFormula {
             } => format!(
                 "{negate}({refbase}>{altbase})",
                 negate = if *positive { "" } else { "!" },
-                refbase = **refbase,
-                altbase = **altbase,
+                refbase = refbase,
+                altbase = altbase,
             ),
             NormalizedFormula::Conjunction { operands } => {
                 operands.iter().map(&fmt_operand).join(" & ")

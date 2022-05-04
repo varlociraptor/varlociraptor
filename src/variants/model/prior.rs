@@ -448,10 +448,21 @@ impl Prior {
             ) {
                 (true, Some(somatic_mutation_rate)) => {
                     // METHOD: de novo somatic variation in the sample, anything is possible.
-                    let denovo_vaf = event[sample].allele_freq
-                        - germline_vafs[sample]
-                        - self.effective_somatic_vaf(parent, event, germline_vafs);
-                    self.prob_somatic_mutation(somatic_mutation_rate, denovo_vaf)
+                    let parent_somatic_vaf =
+                        self.effective_somatic_vaf(parent, event, germline_vafs);
+                    let somatic_vaf = self.effective_somatic_vaf(sample, event, germline_vafs);
+                    if *parent_somatic_vaf != 0.0 {
+                        // METHOD: any change of the inherited somatic vaf is possible
+                        // we don't want to penalize these changes with an additional somatic prior
+                        // as this can lead to unintuitive side effects like the model suddenly deciding against
+                        // the parent somatic mutation because having two independent somatic mutations is too
+                        // expensive. Instead, we assume that no mutation appears twice (infinite sites assumption)
+                        // and consider the fluctuation to be caused by other overlapping events or fitness
+                        // effects on the growth rate.
+                        LogProb::ln_one()
+                    } else {
+                        self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf)
+                    }
                 }
                 (true, None) => {
                     // METHOD: somatic variation has to stay the same since it is inherited and unmodified.
