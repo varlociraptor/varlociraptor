@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.0.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.1...v5.0.2) (2022-05-04)
+
+
+### Bug Fixes
+
+* do not count an inherited somatic mutation twice if the VAF changes between samples, as this is unplausible to be an independent mutation. Rather we consider this a growth effect or a side effect of an overlapping mutation. ([894c579](https://www.github.com/varlociraptor/varlociraptor/commit/894c579fefa698c3ceccedf60086da9c7da686c6))
+* improved display of VAF sets in unnormalized formulas ([#276](https://www.github.com/varlociraptor/varlociraptor/issues/276)) ([c1159f3](https://www.github.com/varlociraptor/varlociraptor/commit/c1159f3fe0b3aa3c551e076cfa12ef4c77985977))
+
 ### [5.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.0...v5.0.1) (2022-05-03)
 
 
