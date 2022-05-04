@@ -213,15 +213,15 @@ impl std::fmt::Display for Formula {
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Set(vafs),
-            }) => {
-                if self.is_terminal_false() {
-                    "false".to_owned()
-                } else {
-                    vafs.iter()
-                        .map(|vaf| format!("{}:{}", sample, vaf))
-                        .join("|")
-                }
-            }
+            }) => match vafs.len() {
+                1 => format!("{}:{}", sample, vafs.iter().next().unwrap()),
+                x if x > 1 => format!(
+                    "{}:{{{}}}",
+                    sample,
+                    vafs.iter().map(|vaf| format!("{:.3}", vaf)).join(", "),
+                ),
+                _ => "false".to_owned(),
+            },
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Range(vafrange),
@@ -1093,12 +1093,10 @@ impl VAFRange {
         };
 
         let to_spectrum = |range: VAFRange| {
-            if range.start == range.end {
-                if !(range.left_exclusive && self.right_exclusive) {
-                    Some(VAFSpectrum::singleton(range.start))
-                } else {
-                    None
-                }
+            if range.is_empty() {
+                None
+            } else if range.is_singleton() {
+                Some(VAFSpectrum::singleton(range.start))
             } else {
                 Some(VAFSpectrum::Range(range))
             }
@@ -1594,7 +1592,7 @@ expressions:
   loh_or_amplification: "normal:0.5 & tumor:[0.9,1.0["
 events:
   germline: "(normal:0.5 | normal:1.0) & !($loh | $loh_or_amplification)"
-  expected: "(normal:0.5 & tumor:{0.0, 0.5}) | (normal:0.5 & tumor:]0.0,0.5[) | (normal:0.5 & tumor:]0.5,0.9[) | normal:1.0""#,
+  expected: "(normal:0.5 & tumor:[0.0, 0.9[) | normal:1.0""#,
         )
         .unwrap();
         let expected = scenario.events["expected"]

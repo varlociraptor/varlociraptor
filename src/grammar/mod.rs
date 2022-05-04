@@ -532,17 +532,19 @@ impl Sample {
                     })
                     .collect()
             };
+            let is_somatic = self.somatic_effective_mutation_rate.is_some();
             Ok(
                 match (
                     self.contig_ploidy(contig, species)?,
-                    self.somatic_effective_mutation_rate.is_some(),
+                    is_somatic,
+                    self.is_clonal_or_subclonal_inheritance(),
                 ) {
-                    (Some(ploidy), false) => {
+                    (Some(ploidy), false, _) => {
                         let mut universe = VAFUniverse::default();
                         universe.insert(VAFSpectrum::Set(ploidy_derived_spectrum(ploidy)));
                         universe
                     }
-                    (Some(ploidy), true) => {
+                    (Some(ploidy), true, false) => {
                         let ploidy_spectrum = ploidy_derived_spectrum(ploidy);
 
                         let mut universe = VAFUniverse::default();
@@ -560,7 +562,9 @@ impl Sample {
                         universe.insert(VAFSpectrum::Set(ploidy_spectrum));
                         universe
                     }
-                    (None, true) => {
+                    (None, true, _) | (Some(_), true, true) => {
+                        // METHOD: in case of clonal inheritance and somatic mutation (the second case in above pattern),
+                        // it does not matter how the ploidy derived VAFs look like.
                         let mut universe = VAFUniverse::default();
                         universe.insert(VAFSpectrum::Range(VAFRange::builder()
                             .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
@@ -570,7 +574,7 @@ impl Sample {
                         ));
                         universe
                     }
-                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration {
+                    (None, false, _) => return Err(errors::Error::InvalidPriorConfiguration {
                         msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
                     }
                         .into()),
@@ -610,6 +614,13 @@ impl Sample {
             species
                 .as_ref()
                 .and_then(|species| species.somatic_effective_mutation_rate)
+        }
+    }
+
+    pub(crate) fn is_clonal_or_subclonal_inheritance(&self) -> bool {
+        match self.inheritance {
+            Some(Inheritance::Clonal { .. }) | Some(Inheritance::Subclonal { .. }) => true,
+            _ => false,
         }
     }
 }
