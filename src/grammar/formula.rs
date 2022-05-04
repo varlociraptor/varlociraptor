@@ -213,15 +213,15 @@ impl std::fmt::Display for Formula {
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Set(vafs),
-            }) => {
-                if self.is_terminal_false() {
-                    "false".to_owned()
-                } else {
-                    vafs.iter()
-                        .map(|vaf| format!("{}:{}", sample, vaf))
-                        .join("|")
-                }
-            }
+            }) => match vafs.len() {
+                1 => format!("{}:{}", sample, vafs.iter().next().unwrap()),
+                x if x > 1 => format!(
+                    "{}:{{{}}}",
+                    sample,
+                    vafs.iter().map(|vaf| format!("{:.3}", vaf)).join(", "),
+                ),
+                _ => "false".to_owned(),
+            },
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Range(vafrange),
