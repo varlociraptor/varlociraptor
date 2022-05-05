@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.0.3](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.2...v5.0.3) (2022-05-05)
+
+
+### Bug Fixes
+
+* fix insufficient data leading to probabilities of 0 leading to nulls in alignment properties ([#279](https://www.github.com/varlociraptor/varlociraptor/issues/279)) ([3995118](https://www.github.com/varlociraptor/varlociraptor/commit/3995118763e90cd77e59a54d2f24e0a323e53033))
+
 ### [5.0.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.1...v5.0.2) (2022-05-04)
 
 
