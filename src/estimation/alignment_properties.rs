@@ -570,7 +570,8 @@ impl AlignmentProperties {
                     .map(|(_, c)| c)
                     .sum::<usize>()
             };
-            if ![2, -2].iter().any(|i| gap_counts_with_length(*i) > 0) || gaps.total_count() < 1000 {
+            if ![2, -2].iter().any(|i| gap_counts_with_length(*i) > 0) || gaps.total_count() < 1000
+            {
                 warn!("Insufficient observations for gap parameter estimation, falling back to default gap parameters");
                 return Err(anyhow!(
                     "Insufficient observations for gap parameter estimation"
