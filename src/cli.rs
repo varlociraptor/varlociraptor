@@ -694,13 +694,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         0.,
                     )?;
 
-                    let gap_params = alignment_properties.gap_params().unwrap_or_default();
+                    let gap_params = alignment_properties.gap_params.clone();
 
                     let log_each_record = log_mode == "each-record";
 
                     match pairhmm_mode.as_ref() {
                         "homopolymer" => {
-                            let hop_params = alignment_properties.hop_params().unwrap_or_default();
+                            let hop_params = alignment_properties.hop_params.clone();
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .alignment_properties(alignment_properties)

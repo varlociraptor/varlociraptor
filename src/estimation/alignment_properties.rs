@@ -281,8 +281,8 @@ impl AlignmentProperties {
 
         properties.wildtype_homopolymer_error_model = properties.wildtype_homopolymer_error_model();
 
-        properties.gap_params = properties.gap_params().unwrap_or_default();
-        properties.hop_params = properties.hop_params().unwrap_or_default();
+        properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
+        properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
 
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
@@ -561,7 +561,7 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
 }
 
 impl AlignmentProperties {
-    pub(crate) fn gap_params(&self) -> Result<GapParams> {
+    pub(crate) fn estimate_gap_params(&self) -> Result<GapParams> {
         if let Some(cigar_counts) = &self.cigar_counts {
             let gaps = &cigar_counts.gap_counts;
             let gap_counts_with_length = |length: isize| {
@@ -615,7 +615,7 @@ impl AlignmentProperties {
         }
     }
 
-    pub(crate) fn hop_params(&self) -> Result<HopParams> {
+    pub(crate) fn estimate_hop_params(&self) -> Result<HopParams> {
         if let Some(cigar_counts) = &self.cigar_counts {
             let mut insufficient_counts = false;
             let empty = SimpleCounter::default();
