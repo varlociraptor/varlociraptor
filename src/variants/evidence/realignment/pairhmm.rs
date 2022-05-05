@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
+use num_traits::Zero;
 use rust_htslib::bam;
 
 use crate::variants::evidence::bases::prob_read_base_miscall;
@@ -77,10 +78,45 @@ macro_rules! default_ref_base_emission {
 /// Gap parameters for PairHMM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GapParams {
+    #[serde(deserialize_with = "parse_float_or_null")]
     pub(crate) prob_insertion_artifact: LogProb,
+    #[serde(deserialize_with = "parse_float_or_null")]
     pub(crate) prob_deletion_artifact: LogProb,
+    #[serde(deserialize_with = "parse_float_or_null")]
     pub(crate) prob_insertion_extend_artifact: LogProb,
+    #[serde(deserialize_with = "parse_float_or_null")]
     pub(crate) prob_deletion_extend_artifact: LogProb,
+}
+
+impl Default for GapParams {
+    fn default() -> Self {
+        Self {
+            prob_insertion_artifact: LogProb::from(Prob(2.8e-6)),
+            prob_deletion_artifact: LogProb::from(Prob(5.1e-6)),
+            prob_insertion_extend_artifact: LogProb::zero(),
+            prob_deletion_extend_artifact: LogProb::zero(),
+        }
+    }
+}
+
+fn parse_float_or_null<'de, D>(d: D) -> Result<LogProb, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(d)
+        .map(|x: Option<f64>| x.map(|v| LogProb(v)).unwrap_or(LogProb::zero()))
+}
+
+fn parse_vec_of_float_or_null<'de, D>(d: D) -> Result<Vec<LogProb>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(d).map(|values: Vec<Option<f64>>| {
+        values
+            .into_iter()
+            .map(|x| x.map(|v| LogProb(v)).unwrap_or(LogProb::zero()))
+            .collect()
+    })
 }
 
 impl pairhmm::GapParameters for GapParams {
@@ -128,10 +164,45 @@ impl pairhmm::StartEndGapParameters for GapParams {
 /// Hop parameters for HomopolyPairHMM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct HopParams {
+    #[serde(deserialize_with = "parse_vec_of_float_or_null")]
     pub(crate) prob_seq_homopolymer: Vec<LogProb>,
+    #[serde(deserialize_with = "parse_vec_of_float_or_null")]
     pub(crate) prob_ref_homopolymer: Vec<LogProb>,
+    #[serde(deserialize_with = "parse_vec_of_float_or_null")]
     pub(crate) prob_seq_extend_homopolymer: Vec<LogProb>,
+    #[serde(deserialize_with = "parse_vec_of_float_or_null")]
     pub(crate) prob_ref_extend_homopolymer: Vec<LogProb>,
+}
+
+impl Default for HopParams {
+    fn default() -> Self {
+        Self {
+            prob_seq_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+            prob_ref_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+            prob_seq_extend_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+            prob_ref_extend_homopolymer: vec![
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+                LogProb::zero(),
+            ],
+        }
+    }
 }
 
 impl pairhmm::BaseSpecificHopParameters for HopParams {

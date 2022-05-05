@@ -11,7 +11,7 @@ use std::ops::AddAssign;
 use std::str;
 use std::u32;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bio::stats::{LogProb, Prob};
 use counter::Counter;
 use itertools::Itertools;
@@ -50,44 +50,6 @@ impl BackwardsCompatibility {
     fn default_max_mapq() -> u8 {
         60
     }
-
-    fn default_gap_params() -> GapParams {
-        GapParams {
-            prob_insertion_artifact: LogProb::from(Prob(2.8e-6)),
-            prob_deletion_artifact: LogProb::from(Prob(5.1e-6)),
-            prob_insertion_extend_artifact: LogProb::zero(),
-            prob_deletion_extend_artifact: LogProb::zero(),
-        }
-    }
-
-    fn default_hop_params() -> HopParams {
-        HopParams {
-            prob_seq_homopolymer: vec![
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-            ],
-            prob_ref_homopolymer: vec![
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-            ],
-            prob_seq_extend_homopolymer: vec![
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-            ],
-            prob_ref_extend_homopolymer: vec![
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-                LogProb::zero(),
-            ],
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -101,9 +63,9 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
     pub(crate) cigar_counts: Option<CigarStats>,
-    #[serde(default = "BackwardsCompatibility::default_gap_params")]
+    #[serde(default)]
     pub(crate) gap_params: GapParams,
-    #[serde(default = "BackwardsCompatibility::default_hop_params")]
+    #[serde(default)]
     pub(crate) hop_params: HopParams,
     #[serde(default = "BackwardsCompatibility::default_homopolymer_error_model")]
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
@@ -192,8 +154,8 @@ impl AlignmentProperties {
             cigar_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
-            gap_params: BackwardsCompatibility::default_gap_params(),
-            hop_params: BackwardsCompatibility::default_hop_params(),
+            gap_params: Default::default(),
+            hop_params: Default::default(),
             epsilon_gap,
         };
 
@@ -226,7 +188,7 @@ impl AlignmentProperties {
             insert_size: Option<f64>,
         }
 
-        #[derive(Default)]
+        #[derive(Default, Debug)]
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
@@ -319,8 +281,8 @@ impl AlignmentProperties {
 
         properties.wildtype_homopolymer_error_model = properties.wildtype_homopolymer_error_model();
 
-        properties.gap_params = properties.gap_params();
-        properties.hop_params = properties.hop_params();
+        properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
+        properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
 
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
@@ -599,7 +561,7 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
 }
 
 impl AlignmentProperties {
-    pub(crate) fn gap_params(&self) -> GapParams {
+    pub(crate) fn estimate_gap_params(&self) -> Result<GapParams> {
         if let Some(cigar_counts) = &self.cigar_counts {
             let gaps = &cigar_counts.gap_counts;
             let gap_counts_with_length = |length: isize| {
@@ -608,6 +570,13 @@ impl AlignmentProperties {
                     .map(|(_, c)| c)
                     .sum::<usize>()
             };
+            if ![2, -2].iter().any(|i| gap_counts_with_length(*i) > 0) || gaps.total_count() < 1000
+            {
+                warn!("Insufficient observations for gap parameter estimation, falling back to default gap parameters");
+                return Err(anyhow!(
+                    "Insufficient observations for gap parameter estimation"
+                ));
+            }
 
             let [(del_open, del_extend), (ins_open, ins_extend)] = [-1, 1].map(|sign| {
                 let num_gap1 = gap_counts_with_length(sign);
@@ -624,7 +593,7 @@ impl AlignmentProperties {
                 (gap_open, gap_extend)
             });
 
-            GapParams {
+            Ok(GapParams {
                 prob_insertion_artifact: LogProb::from(
                     Prob::checked(ins_open).unwrap_or_else(|_| Prob::zero()),
                 ),
@@ -637,15 +606,18 @@ impl AlignmentProperties {
                 prob_deletion_extend_artifact: LogProb::from(
                     Prob::checked(del_extend).unwrap_or_else(|_| Prob::zero()),
                 ),
-            }
+            })
         } else {
-            // if we didn't count any gaps, assume default gap rates
-            self.gap_params.clone()
+            warn!("No cigar operations counted, falling back to default gap parameters.");
+            Err(anyhow!(
+                "Insufficient observations for gap parameter estimation"
+            ))
         }
     }
 
-    pub(crate) fn hop_params(&self) -> HopParams {
+    pub(crate) fn estimate_hop_params(&self) -> Result<HopParams> {
         if let Some(cigar_counts) = &self.cigar_counts {
+            let mut insufficient_counts = false;
             let empty = SimpleCounter::default();
             let counts = |base| {
                 cigar_counts
@@ -678,6 +650,10 @@ impl AlignmentProperties {
                     let prob_ins_hop_start_or_extend =
                         num_diff_1_ins_events as f64 / num_diff_1_ins_bases as f64;
 
+                    if num_diff_1_del_events < 100 || num_diff_1_ins_events < 100 {
+                        insufficient_counts |= true;
+                    }
+
                     let prob_ins = LogProb::from(
                         Prob::checked(prob_ins_hop_start_or_extend)
                             .unwrap_or_else(|_| Prob::zero()),
@@ -689,14 +665,24 @@ impl AlignmentProperties {
                     ((prob_ins, prob_del), (prob_ins, prob_del))
                 })
                 .unzip();
-            HopParams {
+
+            if insufficient_counts {
+                warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
+                return Err(anyhow!(
+                    "Insufficient observations for hop parameter estimation"
+                ));
+            }
+            Ok(HopParams {
                 prob_seq_homopolymer,
                 prob_ref_homopolymer,
                 prob_seq_extend_homopolymer,
                 prob_ref_extend_homopolymer,
-            }
+            })
         } else {
-            self.hop_params.clone()
+            warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
+            Err(anyhow!(
+                "No cigar operations counted, falling back to default hop parameters"
+            ))
         }
     }
 
