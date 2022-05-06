@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.0.4](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.3...v5.0.4) (2022-05-06)
+
+
+### Bug Fixes
+
+* update CLI description ([bb0ac95](https://www.github.com/varlociraptor/varlociraptor/commit/bb0ac95e4a55551fc9400dec49def3a0330b0f32))
+
 ### [5.0.3](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.2...v5.0.3) (2022-05-05)
 
 
