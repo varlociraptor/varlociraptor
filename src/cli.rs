@@ -40,7 +40,8 @@ use crate::SimpleEvent;
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
     name = "varlociraptor",
-    about = "Flexible, arbitrary-scenario, uncertainty-aware variant calling with parameter free filtration via FDR control for small and structural variants.",
+    about = "Flexible, arbitrary-scenario, uncertainty-aware variant calling \
+    with parameter free filtration via FDR control for small and structural variants.",
     setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub enum Varlociraptor {
