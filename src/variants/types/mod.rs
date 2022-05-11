@@ -24,6 +24,7 @@ use crate::variants::sample;
 pub(crate) mod breakends;
 pub(crate) mod deletion;
 pub(crate) mod duplication;
+pub(crate) mod haplotype_block;
 pub(crate) mod insertion;
 pub(crate) mod inversion;
 pub(crate) mod mnv;

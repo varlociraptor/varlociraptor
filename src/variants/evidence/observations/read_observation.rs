@@ -3,12 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::char;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
+use std::{char, iter};
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -676,6 +676,20 @@ pub(crate) enum PairedEndEvidence {
         left: Rc<bam::Record>,
         right: Rc<bam::Record>,
     },
+}
+
+impl PairedEndEvidence {
+    pub(crate) fn into_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
+        match self {
+            PairedEndEvidence::SingleEnd(record) => {
+                vec![SingleEndEvidence::new(Rc::clone(record))]
+            }
+            PairedEndEvidence::PairedEnd { left, right } => vec![
+                SingleEndEvidence::new(Rc::clone(left)),
+                SingleEndEvidence::new(Rc::clone(right)),
+            ],
+        }
+    }
 }
 
 impl Evidence for PairedEndEvidence {
