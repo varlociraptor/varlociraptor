@@ -37,7 +37,11 @@ use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model;
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
-use crate::variants::types::breakends::{Breakend, BreakendIndex};
+use crate::variants::types::breakends::Breakend;
+
+pub(crate) mod haplotype_feature_index;
+
+use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 
 #[derive(TypedBuilder)]
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
@@ -51,7 +55,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     inbam: PathBuf,
     min_bam_refetch_distance: u64,
     options: cli::Varlociraptor,
-    breakend_index: BreakendIndex,
+    haplotype_feature_index: HaplotypeFeatureIndex,
     #[builder(default)]
     breakend_group_builders: RwLock<
         HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder<R>>>>,
@@ -469,7 +473,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     )? {
                         group.push_breakend(breakend);
 
-                        if self.breakend_index.last_record_index(event).unwrap()
+                        if self
+                            .haplotype_feature_index
+                            .last_record_index(event)
+                            .unwrap()
                             == variants.record_info().index()
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.

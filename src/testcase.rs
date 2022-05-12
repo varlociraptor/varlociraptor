@@ -20,7 +20,7 @@ use crate::utils;
 use crate::utils::anonymize::Anonymizer;
 use crate::variants::model::Variant;
 use crate::variants::sample;
-use crate::variants::types::breakends::BreakendIndex;
+use crate::variants::types::breakends::HaplotypeFeatureIndex;
 use crate::{cli, reference};
 
 lazy_static! {
@@ -200,7 +200,8 @@ impl Testcase {
                         if let Some(event) = utils::info_tag_event(rec)? {
                             // METHOD: for breakend events, collect all the other breakends.
                             if breakend_index.is_none() {
-                                breakend_index = Some(BreakendIndex::new(&self.candidates)?);
+                                breakend_index =
+                                    Some(HaplotypeFeatureIndex::new(&self.candidates)?);
                             }
                             let breakend_index = breakend_index.as_ref().unwrap();
                             let last_idx = breakend_index.last_record_index(&event).unwrap();

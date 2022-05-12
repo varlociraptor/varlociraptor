@@ -32,7 +32,7 @@ use crate::variants::model::modes::generic::{
 use crate::variants::model::Contamination;
 use crate::variants::model::{self};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
-use crate::variants::types::breakends::BreakendIndex;
+use crate::variants::types::breakends::HaplotypeFeatureIndex;
 
 use super::preprocessing::Observations;
 
@@ -59,7 +59,7 @@ where
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
-    breakend_index: BreakendIndex,
+    breakend_index: HaplotypeFeatureIndex,
     #[builder(default)]
     breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
     log_each_record: bool,

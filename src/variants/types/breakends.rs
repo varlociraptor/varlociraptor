@@ -950,45 +950,6 @@ pub(crate) struct Join {
     extension_modification: ExtensionModification,
 }
 
-#[derive(Default, Debug)]
-pub(crate) struct BreakendIndex {
-    last_records: HashMap<Vec<u8>, usize>,
-}
-
-impl BreakendIndex {
-    pub(crate) fn new<P: AsRef<Path>>(inbcf: P) -> Result<Self> {
-        let mut bcf_reader = bcf::Reader::from_path(inbcf)?;
-        if !utils::is_sv_bcf(&bcf_reader) {
-            return Ok(BreakendIndex::default());
-        }
-
-        let mut last_records = HashMap::new();
-
-        let mut i = 0;
-        loop {
-            let mut record = bcf_reader.empty_record();
-            match bcf_reader.read(&mut record) {
-                None => return Ok(BreakendIndex { last_records }),
-                Some(res) => res?,
-            }
-
-            if utils::is_bnd(&mut record)? {
-                // TODO support records without EVENT tag.
-                if let Ok(Some(event)) = record.info(b"EVENT").string() {
-                    let event = event[0];
-                    last_records.insert(event.to_owned(), i);
-                }
-            }
-
-            i += 1;
-        }
-    }
-
-    pub(crate) fn last_record_index(&self, event: &[u8]) -> Option<usize> {
-        self.last_records.get(event).cloned()
-    }
-}
-
 struct LocusPlusOne<'a>(&'a genome::Locus);
 
 impl<'a> AbstractLocus for LocusPlusOne<'a> {
