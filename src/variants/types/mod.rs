@@ -40,6 +40,7 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
+use super::evidence::observations::id_factory::ObservationIdFactory;
 use super::evidence::realignment::Realignable;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
@@ -173,6 +174,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut ObservationIdFactory,
     ) -> Result<Vec<ReadObservation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
@@ -209,6 +211,7 @@ where
                     alignment_properties,
                     &homopolymer_error_model,
                     alt_variants,
+                    observation_id_factory,
                 )? {
                     observations.push(obs);
                 }
@@ -254,6 +257,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut ObservationIdFactory,
     ) -> Result<Vec<ReadObservation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
@@ -353,6 +357,7 @@ where
                     alignment_properties,
                     &homopolymer_error_model,
                     alt_variants,
+                    observation_id_factory,
                 )? {
                     observations.push(obs);
                 }

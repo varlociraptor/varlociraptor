@@ -13,7 +13,7 @@ use std::str;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
-use bio_types::genome::{self, AbstractLocus};
+use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 
@@ -33,6 +33,8 @@ use crate::variants::sample;
 use crate::variants::types::Variant;
 
 use crate::variants::evidence::realignment::Realignable;
+
+use super::id_factory::ObservationIdFactory;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
@@ -229,6 +231,7 @@ where
     A: Clone,
 {
     name: Option<String>,
+    pub(crate) id: u64,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -297,6 +300,7 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
     ) -> ReadObservation<ReadPosition, AltLocus> {
         ReadObservation {
             name: self.name.clone(),
+            id: self.id,
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
             prob_mapping_adj: self.prob_mapping_adj,
@@ -498,6 +502,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut ObservationIdFactory,
     ) -> Result<Vec<ReadObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -514,7 +519,9 @@ where
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut ObservationIdFactory,
     ) -> Result<Option<ReadObservation>> {
+        let id = observation_id_factory.register(evidence);
         Ok(
             match self.allele_support(evidence, alignment_properties, alt_variants)? {
                 // METHOD: only consider allele support if it comes either from forward or reverse strand.
@@ -525,6 +532,7 @@ where
 
                     let mut obs = ReadObservationBuilder::default();
                     obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
+                        .id(id)
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())
                         .prob_ref(allele_support.prob_ref_allele())
@@ -611,6 +619,10 @@ pub(crate) trait Evidence {
     fn len(&self) -> usize;
 
     fn name(&self) -> &[u8];
+
+    fn start_locus(&self) -> genome::Locus;
+
+    fn end_locus(&self) -> genome::Locus;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -654,6 +666,14 @@ impl Evidence for SingleEndEvidence {
 
     fn alt_loci(&self) -> ExactAltLoci {
         ExactAltLoci::from(self.inner.as_ref())
+    }
+
+    fn start_locus(&self) -> genome::Locus {
+        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().start)
+    }
+
+    fn end_locus(&self) -> genome::Locus {
+        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().end)
     }
 }
 
@@ -731,6 +751,28 @@ impl Evidence for PairedEndEvidence {
                 let mut left = ExactAltLoci::from(left.as_ref());
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
+            }
+        }
+    }
+
+    fn start_locus(&self) -> genome::Locus {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                genome::Locus::new(rec.contig().to_owned(), rec.range().start)
+            }
+            PairedEndEvidence::PairedEnd { left, .. } => {
+                genome::Locus::new(left.contig().to_owned(), left.range().start)
+            }
+        }
+    }
+
+    fn end_locus(&self) -> genome::Locus {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                genome::Locus::new(rec.contig().to_owned(), rec.range().end)
+            }
+            PairedEndEvidence::PairedEnd { right, .. } => {
+                genome::Locus::new(right.contig().to_owned(), right.range().end)
             }
         }
     }

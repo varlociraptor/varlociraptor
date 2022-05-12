@@ -25,6 +25,7 @@ use crate::variants::evidence::observations::read_observation::{
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
+use super::evidence::observations::id_factory::ObservationIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
 use crate::variants::evidence::observations::pileup::Pileup;
@@ -195,6 +196,8 @@ pub(crate) struct Sample {
     #[builder(default = "Vec::new()")]
     omit_repeat_regions: Vec<VariantType>,
     protocol_strandedness: ProtocolStrandedness,
+    #[builder(default)]
+    observation_id_factory: ObservationIdFactory,
 }
 
 impl SampleBuilder {
@@ -248,6 +251,7 @@ impl Sample {
             &mut self.alignment_properties,
             self.max_depth,
             alt_variants,
+            &mut self.observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
