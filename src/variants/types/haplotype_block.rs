@@ -3,29 +3,16 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::RefCell;
-use std::cmp;
 use std::fmt::Debug;
-use std::ops::Range;
-use std::rc::Rc;
-use std::sync::Arc;
 
 use anyhow::Result;
 
 use bio::stats::LogProb;
-use bio_types::genome::{self, AbstractInterval};
 use itertools::Itertools;
 
-use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::reference;
-use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
-use crate::variants::evidence::realignment::pairhmm::{
-    RefBaseEmission, RefBaseVariantEmission, VariantEmission,
-};
-use crate::variants::evidence::realignment::{Realignable, Realigner};
-use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
+use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 pub(crate) trait SingleLocusSingleEndVariant:
@@ -266,6 +253,7 @@ impl Variant for HaplotypeBlock {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        todo!()
+        // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that
+        LogProb::ln_one()
     }
 }
