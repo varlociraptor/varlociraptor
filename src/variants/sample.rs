@@ -246,7 +246,7 @@ impl Sample {
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
-        let observation_id_factory = if let Some(contig) = variant.loci().contig() {
+        let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
             // METHOD: we only report read IDs for single contig variants.
             // Reason: we expect those to come in sorted, so that we can clear the
             // read ID registry at each new contig, saving lots of memory.
@@ -263,7 +263,7 @@ impl Sample {
             &mut self.alignment_properties,
             self.max_depth,
             alt_variants,
-            observation_id_factory,
+            &mut observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);

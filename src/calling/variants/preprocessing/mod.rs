@@ -549,7 +549,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         Ok(values)
     }
 
-    let ids: Vec<u64> = read_values(record, b"READ_ID", false)?;
+    let ids: Vec<Option<u64>> = read_values(record, b"READ_ID", false)?;
     let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
     let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
     let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT", false)?;
