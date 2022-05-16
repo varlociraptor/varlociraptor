@@ -247,6 +247,11 @@ impl Sample {
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
         let observation_id_factory = if let Some(contig) = variant.loci().contig() {
+            // METHOD: we only report read IDs for single contig variants.
+            // Reason: we expect those to come in sorted, so that we can clear the
+            // read ID registry at each new contig, saving lots of memory.
+            // In the future, we might find a smarter way and thereby also include
+            // multi-contig variants into the calculation.
             self.observation_id_factory.register_contig(contig);
             Some(&mut self.observation_id_factory)
         } else {
