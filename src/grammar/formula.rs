@@ -1400,8 +1400,8 @@ fn parse_vafrange(mut inner: Pairs<Rule>) -> VAFSpectrum {
     VAFSpectrum::Range(range)
 }
 
-fn parse_vafset(mut inner: Pairs<Rule>) -> VAFSpectrum {
-    let mut set = inner.map(|vaf| vaf.as_str().parse().unwrap()).collect();
+fn parse_vafset(inner: Pairs<Rule>) -> VAFSpectrum {
+    let set = inner.map(|vaf| vaf.as_str().parse().unwrap()).collect();
     VAFSpectrum::Set(set)
 }
 

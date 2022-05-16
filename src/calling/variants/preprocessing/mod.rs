@@ -512,13 +512,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
 pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "14";
 
-pub(crate) struct Observations {
+pub struct Observations {
     pub(crate) pileup: Pileup,
     pub(crate) is_homopolymer_indel: bool,
 }
 
 /// Read observations from BCF record.
-pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
+pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8], allow_missing: bool) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug + Default,

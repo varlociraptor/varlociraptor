@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use bio_types::genome::AbstractLocus;
-
 use super::read_observation::Evidence;
 
 #[derive(Default, Debug)]

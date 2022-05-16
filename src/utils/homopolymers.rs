@@ -134,7 +134,7 @@ fn is_single_indel(alignment: &[AlignmentOperation]) -> bool {
         .iter()
         .group_by(|op| *op)
         .into_iter()
-        .filter(|(op, stretch)| match op {
+        .filter(|(op, _stretch)| match op {
             AlignmentOperation::Del | AlignmentOperation::Ins | AlignmentOperation::Subst => true,
             AlignmentOperation::Match => false,
             _ => unreachable!("bug: unexpected alignment operation"),

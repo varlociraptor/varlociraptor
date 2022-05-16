@@ -22,7 +22,6 @@ use crate::reference;
 use crate::variants::evidence::observations::read_observation::{
     self, major_read_position, Observable, ReadObservation,
 };
-use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
 use super::evidence::observations::id_factory::ObservationIdFactory;
@@ -193,8 +192,6 @@ pub(crate) struct Sample {
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
     max_depth: usize,
-    #[builder(default = "Vec::new()")]
-    omit_repeat_regions: Vec<VariantType>,
     protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
     observation_id_factory: ObservationIdFactory,

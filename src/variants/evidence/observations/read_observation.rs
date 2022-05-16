@@ -45,7 +45,7 @@ pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
 
 /// Strand support for observation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum Strand {
+pub enum Strand {
     Forward,
     Reverse,
     Both,
@@ -124,7 +124,7 @@ impl ops::BitOrAssign for Strand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum ReadPosition {
+pub enum ReadPosition {
     Major,
     Some,
 }
@@ -166,7 +166,7 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 }
 
 #[derive(Debug, Clone, Derefable, Default)]
-pub(crate) struct ExactAltLoci {
+pub struct ExactAltLoci {
     #[deref]
     inner: Vec<genome::Locus>,
 }
@@ -217,7 +217,7 @@ impl<'a> From<&'a bam::Record> for ExactAltLoci {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum AltLocus {
+pub enum AltLocus {
     Major,
     Some,
     None,
@@ -225,7 +225,7 @@ pub(crate) enum AltLocus {
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default, Serialize)]
-pub(crate) struct ReadObservation<P = Option<u32>, A = ExactAltLoci>
+pub struct ReadObservation<P = Option<u32>, A = ExactAltLoci>
 where
     P: Clone,
     A: Clone,

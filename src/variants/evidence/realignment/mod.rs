@@ -621,7 +621,6 @@ impl Realigner for PathHMMRealigner {
 #[derive(Clone)]
 pub(crate) struct HomopolyPairHMMRealigner {
     gap_params: pairhmm::GapParams,
-    hop_params: pairhmm::HopParams,
     pairhmm: HomopolyPairHMM,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
@@ -638,7 +637,6 @@ impl HomopolyPairHMMRealigner {
         let pairhmm = HomopolyPairHMM::new(&gap_params, &hop_params);
         HomopolyPairHMMRealigner {
             gap_params,
-            hop_params,
             pairhmm,
             max_window,
             ref_buffer,

@@ -3,8 +3,8 @@ use bio_types::sequence::SequenceReadPairOrientation;
 use super::{depth_observation::DepthObservation, read_observation::ProcessedReadObservation};
 
 #[derive(new, Debug, Getters, MutGetters, Default)]
-#[getset(get = "pub(crate)", get_mut = "pub(crate)")]
-pub(crate) struct Pileup {
+#[getset(get = "pub", get_mut = "pub(crate)")]
+pub struct Pileup {
     read_observations: Vec<ProcessedReadObservation>,
     depth_observations: Vec<DepthObservation>,
 }

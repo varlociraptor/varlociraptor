@@ -377,12 +377,6 @@ pub(crate) trait Loci {
 pub(crate) struct SingleLocus {
     #[deref]
     interval: genome::Interval,
-    #[builder(default = "true")]
-    #[new(value = "true")]
-    from_left: bool,
-    #[builder(default = "true")]
-    #[new(value = "true")]
-    from_right: bool,
 }
 
 impl AsRef<SingleLocus> for SingleLocus {
