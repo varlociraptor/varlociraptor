@@ -6,45 +6,29 @@ use super::read_observation::Evidence;
 
 #[derive(Default, Debug)]
 pub(crate) struct ObservationIdFactory {
-    last_ends: HashMap<String, u64>,
     ids: HashMap<Vec<u8>, u64>,
     next_id: u64,
+    current_contig: String,
 }
 
 impl ObservationIdFactory {
+    pub(crate) fn register_contig(&mut self, contig: &str) {
+        if self.current_contig != contig {
+            self.ids.clear();
+            self.next_id = 0;
+            self.current_contig = contig.to_owned();
+        }
+    }
     pub(crate) fn register<E>(&mut self, evidence: &E) -> u64
     where
         E: Evidence,
     {
-        // check whether ids can be reset
-        let start_locus = evidence.start_locus();
-        if let Some(last_end) = self.last_ends.get(start_locus.contig()) {
-            if *last_end < start_locus.pos() {
-                self.last_ends.remove(start_locus.contig());
-            }
-        }
-        if self.last_ends.is_empty() {
-            // no overlapping end remaining, set next_id to 0
-            self.next_id = 0;
-        }
-
-        // record end
-        let end_locus = evidence.end_locus();
-        let last_end = self
-            .last_ends
-            .entry(end_locus.contig().to_owned())
-            .or_default();
-        if *last_end < end_locus.pos() {
-            *last_end = end_locus.pos();
-        }
-
-        let name = evidence.name();
-
-        if let Some(id) = self.ids.get(name) {
-            *id
+        if self.ids.contains_key(evidence.name()) {
+            *self.ids.get(evidence.name()).unwrap()
         } else {
             let id = self.next_id;
-            self.ids.insert(name.to_owned(), id);
+            self.ids.insert(evidence.name().to_vec(), id);
+            self.next_id += 1;
             id
         }
     }

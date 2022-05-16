@@ -99,6 +99,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         // store observations
         for name in &vec![
+            "READ_ID",
             "PROB_MAPPING",
             "PROB_ALT",
             "PROB_REF",

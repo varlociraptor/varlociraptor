@@ -231,7 +231,7 @@ where
     A: Clone,
 {
     name: Option<String>,
-    pub(crate) id: u64,
+    pub(crate) id: Option<u64>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -502,7 +502,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut ObservationIdFactory,
+        observation_id_factory: Option<&mut ObservationIdFactory>,
     ) -> Result<Vec<ReadObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -519,9 +519,9 @@ where
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut ObservationIdFactory,
+        observation_id_factory: Option<&mut ObservationIdFactory>,
     ) -> Result<Option<ReadObservation>> {
-        let id = observation_id_factory.register(evidence);
+        let id = observation_id_factory.map(|factory| factory.register(evidence));
         Ok(
             match self.allele_support(evidence, alignment_properties, alt_variants)? {
                 // METHOD: only consider allele support if it comes either from forward or reverse strand.

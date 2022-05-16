@@ -246,12 +246,19 @@ impl Sample {
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
+        let observation_id_factory = if let Some(contig) = variant.loci().contig() {
+            self.observation_id_factory.register_contig(contig);
+            Some(&mut self.observation_id_factory)
+        } else {
+            None
+        };
+
         let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
             alt_variants,
-            &mut self.observation_id_factory,
+            observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
