@@ -4,7 +4,7 @@
 // except according to those terms.
 
 pub(crate) mod calling;
-pub(crate) mod preprocessing;
+pub mod preprocessing;
 
 use std::collections::HashMap;
 use std::rc::Rc;

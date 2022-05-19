@@ -513,8 +513,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "14";
 
 pub struct Observations {
-    pub(crate) pileup: Pileup,
-    pub(crate) is_homopolymer_indel: bool,
+    pub pileup: Pileup,
+    pub is_homopolymer_indel: bool,
 }
 
 /// Read observations from BCF record.
