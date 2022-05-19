@@ -231,7 +231,7 @@ where
     A: Clone,
 {
     name: Option<String>,
-    pub(crate) id: Option<u64>,
+    pub id: Option<u64>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -243,49 +243,49 @@ where
     #[builder(private, default = "None")]
     prob_mismapping_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from the alternative allele.
-    pub(crate) prob_alt: LogProb,
+    pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
-    pub(crate) prob_ref: LogProb,
+    pub prob_ref: LogProb,
     /// Probability that the read/read-pair comes from an unknown allele at an unknown true
     /// locus (in case it is mismapped). This should usually be set as the product of the maxima
     /// of prob_ref and prob_alt per read.
-    pub(crate) prob_missed_allele: LogProb,
+    pub prob_missed_allele: LogProb,
     /// Probability to sample the alt allele
-    pub(crate) prob_sample_alt: LogProb,
+    pub prob_sample_alt: LogProb,
     /// Probability to overlap with both strands
     #[builder(private)]
-    pub(crate) prob_double_overlap: LogProb,
+    pub prob_double_overlap: LogProb,
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
-    pub(crate) prob_single_overlap: LogProb,
-    pub(crate) prob_hit_base: LogProb,
+    pub prob_single_overlap: LogProb,
+    pub prob_hit_base: LogProb,
     /// Strand evidence this observation relies on
-    pub(crate) strand: Strand,
+    pub strand: Strand,
     /// Read orientation support this observation relies on
-    pub(crate) read_orientation: SequenceReadPairOrientation,
+    pub read_orientation: SequenceReadPairOrientation,
     /// True if obervation contains s
-    pub(crate) softclipped: bool,
-    pub(crate) paired: bool,
+    pub softclipped: bool,
+    pub paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
-    pub(crate) read_position: P,
+    pub read_position: P,
     /// Probability to make this observation at a homopolymer artifact
-    pub(crate) prob_observable_at_homopolymer_artifact: Option<LogProb>,
-    pub(crate) prob_observable_at_homopolymer_variant: Option<LogProb>,
+    pub prob_observable_at_homopolymer_artifact: Option<LogProb>,
+    pub prob_observable_at_homopolymer_variant: Option<LogProb>,
     /// Homopolymer indel length (None if there is no homopolymer indel compared to reference)
-    pub(crate) homopolymer_indel_len: Option<i8>,
-    pub(crate) is_max_mapq: bool,
-    pub(crate) alt_locus: A,
+    pub homopolymer_indel_len: Option<i8>,
+    pub is_max_mapq: bool,
+    pub alt_locus: A,
 }
 
-pub(crate) type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
+pub type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
 
 impl<P: Clone, A: Clone> ReadObservationBuilder<P, A> {
-    pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
+    pub fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
     }
 
-    pub(crate) fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
+    pub fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
         self.prob_double_overlap(prob_double_overlap)
             .prob_single_overlap(prob_double_overlap.ln_one_minus_exp())
     }
@@ -349,46 +349,46 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
 }
 
 impl<P: Clone, A: Clone> ReadObservation<P, A> {
-    pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
+    pub fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
 
-    pub(crate) fn prob_mapping_orig(&self) -> LogProb {
+    pub fn prob_mapping_orig(&self) -> LogProb {
         self.prob_mapping
     }
 
-    pub(crate) fn prob_mapping(&self) -> LogProb {
+    pub fn prob_mapping(&self) -> LogProb {
         self.prob_mapping_adj.unwrap_or(self.prob_mapping)
     }
 
-    pub(crate) fn prob_mismapping(&self) -> LogProb {
+    pub fn prob_mismapping(&self) -> LogProb {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
     }
 
-    pub(crate) fn is_uniquely_mapping(&self) -> bool {
+    pub fn is_uniquely_mapping(&self) -> bool {
         self.prob_mapping() >= *PROB_095
     }
 
-    pub(crate) fn is_strong_alt_support(&self) -> bool {
+    pub fn is_strong_alt_support(&self) -> bool {
         BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()
             >= KassRaftery::Strong
     }
 
-    pub(crate) fn is_strong_ref_support(&self) -> bool {
+    pub fn is_strong_ref_support(&self) -> bool {
         BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
             >= KassRaftery::Strong
     }
 
-    pub(crate) fn is_ref_support(&self) -> bool {
+    pub fn is_ref_support(&self) -> bool {
         self.prob_ref > self.prob_alt
     }
 
-    pub(crate) fn is_positive_ref_support(&self) -> bool {
+    pub fn is_positive_ref_support(&self) -> bool {
         BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
             >= KassRaftery::Positive
     }
 
-    pub(crate) fn has_homopolymer_error(&self) -> bool {
+    pub fn has_homopolymer_error(&self) -> bool {
         self.homopolymer_indel_len
             .map(|indel_len| indel_len != 0)
             .unwrap_or(false)
