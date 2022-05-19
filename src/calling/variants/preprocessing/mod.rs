@@ -60,6 +60,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
     log_each_record: bool,
     raw_observation_output: Option<PathBuf>,
+
     report_fragment_ids: bool,
 }
 
@@ -172,7 +173,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
             .protocol_strandedness(self.protocol_strandedness)
-            .omit_observation_ids(!self.report_fragment_ids)
+            .report_fragment_ids(self.report_fragment_ids)
             .alignments(
                 bam_reader,
                 self.alignment_properties.clone(),
