@@ -40,7 +40,7 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
-use super::evidence::observations::id_factory::ObservationIdFactory;
+use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::realignment::Realignable;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
@@ -174,7 +174,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut Option<&mut ObservationIdFactory>,
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Vec<ReadObservation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
@@ -257,7 +257,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut Option<&mut ObservationIdFactory>,
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Vec<ReadObservation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result

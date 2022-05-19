@@ -579,7 +579,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
         .map(|i| {
             let mut obs = ReadObservationBuilder::default();
             obs.name(None) // we do not pass the read names to the calling process
-                .id(ids[i])
+                .fragment_id(ids[i])
                 .prob_mapping_mismapping(prob_mapping[i].to_logprob())
                 .prob_alt(prob_alt[i].to_logprob())
                 .prob_ref(prob_ref[i].to_logprob())
@@ -648,7 +648,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
 
     let encode_logprob = utils::MiniLogProb::new;
     for obs in read_observations {
-        ids.push(obs.id);
+        ids.push(obs.fragment_id);
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
         prob_ref.push(encode_logprob(obs.prob_ref));
         prob_alt.push(encode_logprob(obs.prob_alt));

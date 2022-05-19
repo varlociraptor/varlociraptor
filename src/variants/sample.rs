@@ -24,7 +24,7 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::{self, types::Variant};
 
-use super::evidence::observations::id_factory::ObservationIdFactory;
+use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
 use crate::variants::evidence::observations::pileup::Pileup;
@@ -194,7 +194,7 @@ pub(crate) struct Sample {
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
-    observation_id_factory: ObservationIdFactory,
+    observation_id_factory: FragmentIdFactory,
     omit_observation_ids: bool,
 }
 

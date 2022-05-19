@@ -34,7 +34,7 @@ use crate::variants::types::Variant;
 
 use crate::variants::evidence::realignment::Realignable;
 
-use super::id_factory::ObservationIdFactory;
+use super::fragment_id_factory::FragmentIdFactory;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
@@ -231,7 +231,7 @@ where
     A: Clone,
 {
     name: Option<String>,
-    pub id: Option<u64>,
+    pub fragment_id: Option<u64>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -300,7 +300,7 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
     ) -> ReadObservation<ReadPosition, AltLocus> {
         ReadObservation {
             name: self.name.clone(),
-            id: self.id,
+            fragment_id: self.fragment_id,
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
             prob_mapping_adj: self.prob_mapping_adj,
@@ -502,7 +502,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut Option<&mut ObservationIdFactory>,
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Vec<ReadObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -519,7 +519,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut Option<&mut ObservationIdFactory>,
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Option<ReadObservation>> {
         let id = observation_id_factory
             .as_mut()
@@ -535,7 +535,7 @@ where
 
                     let mut obs = ReadObservationBuilder::default();
                     obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
-                        .id(id)
+                        .fragment_id(id)
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())
                         .prob_ref(allele_support.prob_ref_allele())

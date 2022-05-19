@@ -184,6 +184,7 @@ pub enum PreprocessKind {
             long,
             help = "Report fragment IDs in output BCF. This information can be used for phasing."
         )]
+        #[serde(default)]
         report_fragment_ids: bool,
         #[structopt(
             long = "reference-buffer-size",

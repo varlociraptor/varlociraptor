@@ -3,13 +3,13 @@ use std::collections::HashMap;
 use super::read_observation::Evidence;
 
 #[derive(Default, Debug)]
-pub(crate) struct ObservationIdFactory {
+pub(crate) struct FragmentIdFactory {
     ids: HashMap<Vec<u8>, u64>,
     next_id: u64,
     current_contig: String,
 }
 
-impl ObservationIdFactory {
+impl FragmentIdFactory {
     pub(crate) fn register_contig(&mut self, contig: &str) {
         if self.current_contig != contig {
             self.ids.clear();
