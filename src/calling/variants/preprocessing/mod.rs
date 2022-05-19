@@ -60,6 +60,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
     log_each_record: bool,
     raw_observation_output: Option<PathBuf>,
+    report_fragment_ids: bool,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -99,7 +100,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         // store observations
         for name in &vec![
-            "READ_ID",
+            "FRAGMENT_ID",
             "PROB_MAPPING",
             "PROB_ALT",
             "PROB_REF",
@@ -171,6 +172,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
             .protocol_strandedness(self.protocol_strandedness)
+            .omit_observation_ids(!self.report_fragment_ids)
             .alignments(
                 bam_reader,
                 self.alignment_properties.clone(),
@@ -549,7 +551,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
         Ok(values)
     }
 
-    let ids: Vec<Option<u64>> = read_values(record, b"READ_ID", false)?;
+    let ids: Vec<Option<u64>> = read_values(record, b"FRAGMENT_ID", false)?;
     let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
     let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
     let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT", false)?;
@@ -697,7 +699,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         Ok(())
     }
 
-    push_values(record, b"READ_ID", &ids)?;
+    push_values(record, b"FRAGMENT_ID", &ids)?;
     push_values(record, b"PROB_MAPPING", &prob_mapping)?;
     push_values(record, b"PROB_REF", &prob_ref)?;
     push_values(record, b"PROB_ALT", &prob_alt)?;
@@ -735,7 +737,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
 }
 
 pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
-    header.remove_info(b"READ_ID");
+    header.remove_info(b"FRAGMENT_ID");
     header.remove_info(b"PROB_MAPPING");
     header.remove_info(b"PROB_REF");
     header.remove_info(b"PROB_ALT");

@@ -181,6 +181,11 @@ pub enum PreprocessKind {
         )]
         bam: PathBuf,
         #[structopt(
+            long,
+            help = "Report fragment IDs in output BCF. This information can be used for phasing."
+        )]
+        report_fragment_ids: bool,
+        #[structopt(
             long = "reference-buffer-size",
             short = "b",
             default_value = "10",
@@ -658,6 +663,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     reference,
                     candidates,
                     bam,
+                    report_fragment_ids,
                     alignment_properties,
                     output,
                     protocol_strandedness,
@@ -704,6 +710,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             let hop_params = alignment_properties.hop_params.clone();
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .report_fragment_ids(report_fragment_ids)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -728,6 +735,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         "fast" => {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .report_fragment_ids(report_fragment_ids)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -751,6 +759,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         "exact" => {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
+                                    .report_fragment_ids(report_fragment_ids)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)

@@ -195,6 +195,7 @@ pub(crate) struct Sample {
     protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
     observation_id_factory: ObservationIdFactory,
+    omit_observation_ids: bool,
 }
 
 impl SampleBuilder {
@@ -244,13 +245,17 @@ impl Sample {
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
         let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
-            // METHOD: we only report read IDs for single contig variants.
-            // Reason: we expect those to come in sorted, so that we can clear the
-            // read ID registry at each new contig, saving lots of memory.
-            // In the future, we might find a smarter way and thereby also include
-            // multi-contig variants into the calculation.
-            self.observation_id_factory.register_contig(contig);
-            Some(&mut self.observation_id_factory)
+            if !self.omit_observation_ids {
+                // METHOD: we only report read IDs for single contig variants.
+                // Reason: we expect those to come in sorted, so that we can clear the
+                // read ID registry at each new contig, saving lots of memory.
+                // In the future, we might find a smarter way and thereby also include
+                // multi-contig variants into the calculation.
+                self.observation_id_factory.register_contig(contig);
+                Some(&mut self.observation_id_factory)
+            } else {
+                None
+            }
         } else {
             None
         };
