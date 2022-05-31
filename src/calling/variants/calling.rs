@@ -29,11 +29,11 @@ use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
-use crate::variants::model::Contamination;
 use crate::variants::model::{self};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
-use crate::variants::types::breakends::HaplotypeFeatureIndex;
+use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
+use super::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use super::preprocessing::Observations;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
@@ -59,9 +59,9 @@ where
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
-    breakend_index: HaplotypeFeatureIndex,
+    haplotype_index: HaplotypeFeatureIndex,
     #[builder(default)]
-    breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
+    haplotype_results: RwLock<HashMap<HaplotypeIdentifier, HaplotypeResult>>,
     log_each_record: bool,
 }
 
@@ -329,8 +329,10 @@ where
             }
 
             // obtain variant type
-            let variant_type =
-                utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
+            let variant_type = utils::collect_variants(records.first_not_none_mut()?, false, None)?
+                [0]
+            .variant()
+            .to_type();
 
             let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
 
@@ -381,7 +383,7 @@ where
         index: usize,
         observations: &grammar::SampleInfo<Option<bcf::Reader>>,
     ) -> Result<WorkItem> {
-        let (call, snv, bnd_event, rid, is_snv_or_mnv) = {
+        let (call, snv, haplotype, rid, is_snv_or_mnv) = {
             let first_record = records.first_not_none_mut()?;
             let start = first_record.pos() as u64;
             let chrom = chrom(observations.first_not_none()?, first_record);
@@ -422,18 +424,13 @@ where
                     snv = None;
                 }
             };
-
-            let bnd_event = if utils::is_bnd(first_record)? {
-                Some(utils::info_tag_event(first_record)?.unwrap())
-            } else {
-                None
-            };
+            let haplotype = HaplotypeIdentifier::from(first_record)?;
 
             let rid = first_record
                 .rid()
                 .ok_or(errors::Error::RecordMissingChrom { i: index + 1 })?;
 
-            (call, snv, bnd_event, rid, is_snv_or_mnv)
+            (call, snv, haplotype, rid, is_snv_or_mnv)
         };
 
         let mut variant_builder = VariantBuilder::default();
@@ -444,7 +441,7 @@ where
             call,
             pileups: None,
             snv,
-            bnd_event,
+            haplotype,
             variant_builder,
             index,
             check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
@@ -454,8 +451,13 @@ where
             check_homopolymer_artifact_detection: false,
         };
 
-        if let Some(ref event) = work_item.bnd_event {
-            if self.breakend_results.read().unwrap().contains_key(event) {
+        if let Some(ref haplotype) = work_item.haplotype {
+            if self
+                .haplotype_results
+                .read()
+                .unwrap()
+                .contains_key(haplotype)
+            {
                 // METHOD: Another breakend in the same event was already processed, hence, we will just copy the
                 // results (no pileup needed).
                 return Ok(work_item);
@@ -575,8 +577,8 @@ where
         model: &Model<Pr>,
         event_universe: &[model::Event],
     ) {
-        if let Some(ref bnd_event) = work_item.bnd_event {
-            if let Some(result) = self.breakend_results.read().unwrap().get(bnd_event) {
+        if let Some(ref bnd_event) = work_item.haplotype {
+            if let Some(result) = self.haplotype_results.read().unwrap().get(bnd_event) {
                 // Take sample info and event probs from previous breakend.
                 work_item
                     .variant_builder
@@ -657,15 +659,15 @@ where
 
         let variant = work_item.variant_builder.build().unwrap();
 
-        if let Some(ref event) = work_item.bnd_event {
-            if self.breakend_index.last_record_index(event).unwrap() == work_item.index {
+        if let Some(ref event) = work_item.haplotype {
+            if self.haplotype_index.last_record_index(event).unwrap() == work_item.index {
                 // METHOD: last index, hence clear result
-                self.breakend_results.write().unwrap().remove(event);
+                self.haplotype_results.write().unwrap().remove(event);
             } else {
                 // METHOD: store breakend group result for next breakend of this group
-                self.breakend_results.write().unwrap().insert(
+                self.haplotype_results.write().unwrap().insert(
                     event.to_owned(),
-                    BreakendResult {
+                    HaplotypeResult {
                         event_probs: variant.event_probs().as_ref().unwrap().clone(),
                         sample_info: variant.sample_info().clone(),
                     },
@@ -763,7 +765,7 @@ where
 }
 
 #[derive(Default)]
-pub(crate) struct BreakendResult {
+pub(crate) struct HaplotypeResult {
     event_probs: HashMap<String, LogProb>,
     sample_info: Vec<Option<SampleInfo>>,
 }
@@ -774,7 +776,7 @@ struct WorkItem {
     variant_builder: VariantBuilder,
     pileups: Option<Vec<Pileup>>,
     snv: Option<model::modes::generic::Snv>,
-    bnd_event: Option<Vec<u8>>,
+    haplotype: Option<HaplotypeIdentifier>,
     index: usize,
     check_read_orientation_bias: bool,
     check_strand_bias: bool,

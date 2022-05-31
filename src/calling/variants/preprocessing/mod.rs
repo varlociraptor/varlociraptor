@@ -26,6 +26,7 @@ use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
+use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
@@ -34,7 +35,7 @@ use crate::variants::evidence::observations::read_observation::{
     AltLocus, ReadObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment::{self, Realignable};
-use crate::variants::model;
+use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::breakends::Breakend;
@@ -205,83 +206,98 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             builder
         };
 
-        if !variants.variant_of_interest().is_breakend() {
-            let mut call = call_builder(
-                variants.locus().contig().as_bytes().to_owned(),
-                variants.locus().pos(),
-                variants.record_info().id().clone(),
-            )
-            .build()
-            .unwrap();
+        match variants.variant_of_interest() {
+            VariantInfo {
+                variant,
+                haplotype: None,
+            } => {
+                let mut call = call_builder(
+                    variants.locus().contig().as_bytes().to_owned(),
+                    variants.locus().pos(),
+                    variants.record_info().id().clone(),
+                )
+                .build()
+                .unwrap();
 
-            let chrom_seq = self.reference_buffer.seq(variants.locus().contig())?;
-            let pileup = self.process_pileup(&variants, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
+                let chrom_seq = self.reference_buffer.seq(variants.locus().contig())?;
+                let pileup = self.process_pileup(&variants, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
-            if let Some(path) = &self.raw_observation_output {
-                let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
-                for obs in pileup.read_observations() {
-                    wrt.serialize(obs)?;
-                }
-            }
-
-            // add variant information
-            call.variant = Some(
-                VariantBuilder::default()
-                    .variant(
-                        variants.variant_of_interest(),
-                        variants.locus().pos() as usize,
-                        Some(chrom_seq.as_ref()),
-                    )
-                    .pileup(Some(Rc::new(pileup)))
-                    .build()
-                    .unwrap(),
-            );
-            Ok(vec![call])
-        } else {
-            let mut calls = Vec::new();
-            // process breakend
-            if let model::Variant::Breakend { event, .. } = variants.variant_of_interest() {
-                if let Some(pileup) = self.process_pileup(&variants, sample)? {
-                    let pileup = Rc::new(pileup);
-                    for breakend in self
-                        .breakend_groups
-                        .read()
-                        .unwrap()
-                        .get(event)
-                        .as_ref()
-                        .unwrap()
-                        .lock()
-                        .unwrap()
-                        .breakends()
-                    {
-                        let mut call = call_builder(
-                            breakend.locus().contig().as_bytes().to_owned(),
-                            breakend.locus().pos(),
-                            breakend.id().to_owned(),
-                        )
-                        .mateid(breakend.mateid().to_owned())
-                        .build()
-                        .unwrap();
-
-                        // add variant information
-                        call.variant = Some(
-                            VariantBuilder::default()
-                                .variant(
-                                    &breakend.to_variant(event),
-                                    breakend.locus().pos() as usize,
-                                    None,
-                                )
-                                .pileup(Some(Rc::clone(&pileup)))
-                                .build()
-                                .unwrap(),
-                        );
-                        calls.push(call);
+                if let Some(path) = &self.raw_observation_output {
+                    let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
+                    for obs in pileup.read_observations() {
+                        wrt.serialize(obs)?;
                     }
-                    // As all records a written, the breakend group can be discarded.
-                    self.breakend_groups.write().unwrap().remove(event);
                 }
+
+                // add variant information
+                call.variant = Some(
+                    VariantBuilder::default()
+                        .variant(
+                            variant,
+                            &None,
+                            variants.locus().pos() as usize,
+                            Some(chrom_seq.as_ref()),
+                        )
+                        .pileup(Some(Rc::new(pileup)))
+                        .build()
+                        .unwrap(),
+                );
+                Ok(vec![call])
             }
-            Ok(calls)
+            VariantInfo {
+                variant,
+                haplotype: Some(haplotype),
+            } => {
+                let mut calls = Vec::new();
+                // process breakend
+                if let model::Variant::Breakend { .. } = variants.variant_of_interest().variant() {
+                    if let HaplotypeIdentifier::Event(event) = haplotype {
+                        if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                            let pileup = Rc::new(pileup);
+                            for breakend in self
+                                .breakend_groups
+                                .read()
+                                .unwrap()
+                                .get(event)
+                                .as_ref()
+                                .unwrap()
+                                .lock()
+                                .unwrap()
+                                .breakends()
+                            {
+                                let mut call = call_builder(
+                                    breakend.locus().contig().as_bytes().to_owned(),
+                                    breakend.locus().pos(),
+                                    breakend.id().to_owned(),
+                                )
+                                .mateid(breakend.mateid().to_owned())
+                                .build()
+                                .unwrap();
+
+                                // add variant information
+                                call.variant = Some(
+                                    VariantBuilder::default()
+                                        .variant(
+                                            &breakend.to_variant(event),
+                                            &Some(haplotype.to_owned()),
+                                            breakend.locus().pos() as usize,
+                                            None,
+                                        )
+                                        .pileup(Some(Rc::clone(&pileup)))
+                                        .build()
+                                        .unwrap(),
+                                );
+                                calls.push(call);
+                            }
+                            // As all records a written, the breakend group can be discarded.
+                            self.breakend_groups.write().unwrap().remove(event);
+                        }
+                    } else {
+                        unreachable!("bug: breakends without EVENT tag are skipped")
+                    }
+                }
+                Ok(calls)
+            }
         }
     }
 
@@ -391,9 +407,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let alt_variants = variants
             .alt_variants()
-            .filter(|variant| !variant.is_breakend() && !variant.is_none())
-            .map(|variant| -> Result<Box<dyn Realignable>> {
-                Ok(match variant {
+            .filter(|variant_info| {
+                !variant_info.variant().is_breakend() && !variant_info.variant().is_none()
+            })
+            .map(|variant_info| -> Result<Box<dyn Realignable>> {
+                Ok(match variant_info.variant() {
                     model::Variant::Snv(alt) => Box::new(parse_snv(*alt)?),
                     model::Variant::Mnv(alt) => Box::new(parse_mnv(alt)?),
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
@@ -473,6 +491,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     )? {
                         group.push_breakend(breakend);
 
+                        // If this is the last breakend in the group, process!
                         if self
                             .haplotype_feature_index
                             .last_record_index(event)
@@ -497,6 +516,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                 &Vec::new(), // Do not consider alt variants in case of breakends
                             )?
                         } else {
+                            // Not yet the last one, skip.
                             return Ok(None);
                         }
                     } else {

@@ -5,7 +5,7 @@ use rust_htslib::{bcf, bcf::record::Numeric};
 
 use crate::errors;
 use crate::utils::SimpleCounter;
-use crate::variants::model;
+use crate::variants::model::{self, HaplotypeIdentifier};
 
 #[derive(
     Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, EnumVariantNames, Display, Debug,
@@ -25,12 +25,19 @@ pub(crate) enum SkipReason {
     BreakendNoEvent,
 }
 
+#[derive(Debug, Getters, Clone)]
+#[getset(get = "pub(crate)")]
+pub(crate) struct VariantInfo {
+    variant: model::Variant,
+    haplotype: Option<HaplotypeIdentifier>,
+}
+
 /// Collect variants from a given ´bcf::Record`.
 pub(crate) fn collect_variants(
     record: &mut bcf::Record,
     skip_imprecise: bool,
     skips: Option<&mut SimpleCounter<SkipReason>>,
-) -> Result<Vec<model::Variant>> {
+) -> Result<Vec<VariantInfo>> {
     let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
 
     let skip_incr = |reason| {
@@ -73,11 +80,6 @@ pub(crate) fn collect_variants(
         _ => None,
     };
 
-    let event = match record.info(b"EVENT").string() {
-        Ok(Some(event)) => Some(event[0].to_owned()),
-        _ => None,
-    };
-
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<INS>"
             || (ref_allele.len() < alt_allele.len()
@@ -92,7 +94,16 @@ pub(crate) fn collect_variants(
                 && alt_allele.len() == 1)
     };
 
+    let haplotype = HaplotypeIdentifier::from(record)?;
+
     let mut variants = Vec::new();
+
+    let push_variant = |variant| {
+        variants.push(VariantInfo {
+            variant,
+            haplotype: haplotype.clone(),
+        })
+    };
 
     if let Some(svtype) = svtype {
         if svtype == b"INV" {
@@ -101,7 +112,7 @@ pub(crate) fn collect_variants(
                 skip_incr(SkipReason::InversionInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
-                variants.push(model::Variant::Inversion(len));
+                push_variant(model::Variant::Inversion(len));
             } else {
                 skip_incr(SkipReason::InversionMissingEndTag);
             }
@@ -111,16 +122,15 @@ pub(crate) fn collect_variants(
                 skip_incr(SkipReason::DuplicationInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
-                variants.push(model::Variant::Duplication(len));
+                push_variant(model::Variant::Duplication(len));
             } else {
                 skip_incr(SkipReason::DuplicationMissingEndTag)
             }
         } else if svtype == b"BND" {
             let alleles = record.alleles();
-            if let Some(ref event) = event {
+            if haplotype.is_some() {
                 for spec in &alleles[1..] {
-                    variants.push(model::Variant::Breakend {
-                        event: event.clone(),
+                    push_variant(model::Variant::Breakend {
                         ref_allele: alleles[0].to_owned(),
                         spec: spec.to_vec(),
                     })
@@ -145,7 +155,7 @@ pub(crate) fn collect_variants(
             if alt_allele != b"<INS>" {
                 // don't support insertions without exact sequence
                 if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                    variants.push(model::Variant::Insertion(
+                    push_variant(model::Variant::Insertion(
                         alt_allele[ref_allele.len()..].to_owned(),
                     ));
                 }
@@ -182,7 +192,7 @@ pub(crate) fn collect_variants(
             let alt_allele = alleles[1];
 
             if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
-                variants.push(model::Variant::Deletion(svlen));
+                push_variant(model::Variant::Deletion(svlen));
             }
         }
     } else {
@@ -192,11 +202,11 @@ pub(crate) fn collect_variants(
         for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
             if alt_allele == b"<*>" {
                 // dummy non-ref allele, signifying potential homozygous reference site
-                variants.push(model::Variant::None);
+                push_variant(model::Variant::None);
             } else if alt_allele == b"<DEL>" {
                 if let Some(ref svlens) = svlens {
                     if let Some(svlen) = svlens[i] {
-                        variants.push(model::Variant::Deletion(svlen));
+                        push_variant(model::Variant::Deletion(svlen));
                     }
                     // TODO fail with an error in else case
                 }
@@ -204,21 +214,21 @@ pub(crate) fn collect_variants(
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
-                variants.push(model::Variant::Snv(alt_allele[0]));
+                push_variant(model::Variant::Snv(alt_allele[0]));
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
-                variants.push(model::Variant::Mnv(alt_allele.to_vec()));
+                push_variant(model::Variant::Mnv(alt_allele.to_vec()));
             } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
-                variants.push(model::Variant::Deletion(
+                push_variant(model::Variant::Deletion(
                     (ref_allele.len() - alt_allele.len()) as u64,
                 ));
             } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                variants.push(model::Variant::Insertion(
+                push_variant(model::Variant::Insertion(
                     alt_allele[ref_allele.len()..].to_owned(),
                 ));
             } else {
                 // arbitrary replacement
-                variants.push(model::Variant::Replacement {
+                push_variant(model::Variant::Replacement {
                     ref_allele: ref_allele.to_owned(),
                     alt_allele: alt_allele.to_vec(),
                 });

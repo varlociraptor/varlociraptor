@@ -917,7 +917,6 @@ impl Breakend {
         model::Variant::Breakend {
             ref_allele: self.ref_allele.clone(),
             spec: self.spec(),
-            event: event.to_owned(),
         }
     }
 }
