@@ -96,14 +96,6 @@ pub(crate) fn contains_indel_op(record: &bam::Record) -> bool {
         .any(|op| matches!(op, Cigar::Ins(_) | Cigar::Del(_)))
 }
 
-#[derive(new, Getters, CopyGetters, Debug)]
-pub(crate) struct GenomicLocus {
-    #[getset(get = "pub")]
-    chrom: Vec<u8>,
-    #[getset(get_copy = "pub")]
-    pos: u32,
-}
-
 pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display, F, K>(
     items: impl Iterator<Item = T>,
     keep_order: bool,

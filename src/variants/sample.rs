@@ -22,9 +22,9 @@ use crate::reference;
 use crate::variants::evidence::observations::read_observation::{
     self, major_read_position, Observable, ReadObservation,
 };
-use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
+use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
 use crate::variants::evidence::observations::pileup::Pileup;
@@ -192,9 +192,10 @@ pub(crate) struct Sample {
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
     max_depth: usize,
-    #[builder(default = "Vec::new()")]
-    omit_repeat_regions: Vec<VariantType>,
     protocol_strandedness: ProtocolStrandedness,
+    #[builder(default)]
+    fragment_id_factory: FragmentIdFactory,
+    report_fragment_ids: bool,
 }
 
 impl SampleBuilder {
@@ -243,11 +244,28 @@ impl Sample {
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
+        let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
+            if self.report_fragment_ids {
+                // METHOD: we only report read IDs for single contig variants.
+                // Reason: we expect those to come in sorted, so that we can clear the
+                // read ID registry at each new contig, saving lots of memory.
+                // In the future, we might find a smarter way and thereby also include
+                // multi-contig variants into the calculation.
+                self.fragment_id_factory.register_contig(contig);
+                Some(&mut self.fragment_id_factory)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
             alt_variants,
+            &mut observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);

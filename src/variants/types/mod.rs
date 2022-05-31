@@ -40,6 +40,7 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
+use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::realignment::Realignable;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
@@ -173,6 +174,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Vec<ReadObservation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
@@ -209,6 +211,7 @@ where
                     alignment_properties,
                     &homopolymer_error_model,
                     alt_variants,
+                    observation_id_factory,
                 )? {
                     observations.push(obs);
                 }
@@ -254,6 +257,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Vec<ReadObservation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
@@ -353,6 +357,7 @@ where
                     alignment_properties,
                     &homopolymer_error_model,
                     alt_variants,
+                    observation_id_factory,
                 )? {
                     observations.push(obs);
                 }
@@ -363,18 +368,15 @@ where
     }
 }
 
-pub(crate) trait Loci {}
+pub(crate) trait Loci {
+    fn contig(&self) -> Option<&str>;
+    fn is_single_contig(&self) -> bool;
+}
 
 #[derive(Debug, Derefable, Builder, new, Clone)]
 pub(crate) struct SingleLocus {
     #[deref]
     interval: genome::Interval,
-    #[builder(default = "true")]
-    #[new(value = "true")]
-    from_left: bool,
-    #[builder(default = "true")]
-    #[new(value = "true")]
-    from_right: bool,
 }
 
 impl AsRef<SingleLocus> for SingleLocus {
@@ -411,7 +413,15 @@ impl SingleLocus {
     }
 }
 
-impl Loci for SingleLocus {}
+impl Loci for SingleLocus {
+    fn contig(&self) -> Option<&str> {
+        Some(self.interval.contig())
+    }
+
+    fn is_single_contig(&self) -> bool {
+        true
+    }
+}
 
 #[derive(new, Default, Debug, Derefable, Clone)]
 pub(crate) struct MultiLocus {
@@ -419,7 +429,22 @@ pub(crate) struct MultiLocus {
     loci: Vec<SingleLocus>,
 }
 
-impl Loci for MultiLocus {}
+impl Loci for MultiLocus {
+    fn contig(&self) -> Option<&str> {
+        let contig = self.loci[0].interval.contig();
+        let is_single_contig = self.loci[1..]
+            .iter()
+            .all(|locus| locus.interval.contig() == contig);
+        if is_single_contig {
+            Some(contig)
+        } else {
+            None
+        }
+    }
+    fn is_single_contig(&self) -> bool {
+        self.contig().is_some()
+    }
+}
 
 #[derive(Debug)]
 struct Candidate {

@@ -60,6 +60,8 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
     log_each_record: bool,
     raw_observation_output: Option<PathBuf>,
+
+    report_fragment_ids: bool,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -99,6 +101,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         // store observations
         for name in &vec![
+            "FRAGMENT_ID",
             "PROB_MAPPING",
             "PROB_ALT",
             "PROB_REF",
@@ -170,6 +173,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
             .protocol_strandedness(self.protocol_strandedness)
+            .report_fragment_ids(self.report_fragment_ids)
             .alignments(
                 bam_reader,
                 self.alignment_properties.clone(),
@@ -509,15 +513,15 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "13";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "14";
 
-pub(crate) struct Observations {
-    pub(crate) pileup: Pileup,
-    pub(crate) is_homopolymer_indel: bool,
+pub struct Observations {
+    pub pileup: Pileup,
+    pub is_homopolymer_indel: bool,
 }
 
 /// Read observations from BCF record.
-pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
+pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8], allow_missing: bool) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug + Default,
@@ -548,6 +552,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         Ok(values)
     }
 
+    let ids: Vec<Option<u64>> = read_values(record, b"FRAGMENT_ID", false)?;
     let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
     let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
     let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT", false)?;
@@ -575,6 +580,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         .map(|i| {
             let mut obs = ReadObservationBuilder::default();
             obs.name(None) // we do not pass the read names to the calling process
+                .fragment_id(ids[i])
                 .prob_mapping_mismapping(prob_mapping[i].to_logprob())
                 .prob_alt(prob_alt[i].to_logprob())
                 .prob_ref(prob_ref[i].to_logprob())
@@ -620,6 +626,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let read_observations = pileup.read_observations();
 
     let vec = || Vec::with_capacity(read_observations.len());
+    let mut ids = Vec::with_capacity(read_observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
     let mut prob_alt = vec();
@@ -642,6 +649,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
 
     let encode_logprob = utils::MiniLogProb::new;
     for obs in read_observations {
+        ids.push(obs.fragment_id);
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
         prob_ref.push(encode_logprob(obs.prob_ref));
         prob_alt.push(encode_logprob(obs.prob_alt));
@@ -692,6 +700,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         Ok(())
     }
 
+    push_values(record, b"FRAGMENT_ID", &ids)?;
     push_values(record, b"PROB_MAPPING", &prob_mapping)?;
     push_values(record, b"PROB_REF", &prob_ref)?;
     push_values(record, b"PROB_ALT", &prob_alt)?;
@@ -729,6 +738,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
 }
 
 pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
+    header.remove_info(b"FRAGMENT_ID");
     header.remove_info(b"PROB_MAPPING");
     header.remove_info(b"PROB_REF");
     header.remove_info(b"PROB_ALT");
