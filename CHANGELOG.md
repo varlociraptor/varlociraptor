@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Features
 
-* report read id for each observation; this information can be used by phasing algorithms to combine evidence from multiple variants covered by the same read ([#282](https://www.github.com/varlociraptor/varlociraptor/issues/282)) ([ab93645](https://www.github.com/varlociraptor/varlociraptor/commit/ab9364574d78a111ddebea4c456346f10c43928f))
+* optionally report fragment id for each observation (--report-fragment-ids); this information can be used by phasing algorithms to combine evidence from multiple variants covered by the same read ([#282](https://www.github.com/varlociraptor/varlociraptor/issues/282)) ([ab93645](https://www.github.com/varlociraptor/varlociraptor/commit/ab9364574d78a111ddebea4c456346f10c43928f))
 
 
 ### Bug Fixes
