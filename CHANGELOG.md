@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.3...v5.1.0) (2022-05-31)
+
+
+### Features
+
+* report read id for each observation; this information can be used by phasing algorithms to combine evidence from multiple variants covered by the same read ([#282](https://www.github.com/varlociraptor/varlociraptor/issues/282)) ([ab93645](https://www.github.com/varlociraptor/varlociraptor/commit/ab9364574d78a111ddebea4c456346f10c43928f))
+
+
+### Bug Fixes
+
+* update CLI description ([bb0ac95](https://www.github.com/varlociraptor/varlociraptor/commit/bb0ac95e4a55551fc9400dec49def3a0330b0f32))
+
 ### [5.0.3](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.2...v5.0.3) (2022-05-05)
 
 
