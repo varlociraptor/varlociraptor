@@ -42,6 +42,7 @@ pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
 use super::evidence::realignment::Realignable;
+use super::model;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
@@ -153,6 +154,8 @@ pub(crate) trait Variant {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer_indel_len().is_some()
     }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a>;
 }
 
 impl<V> Observable<SingleEndEvidence> for V

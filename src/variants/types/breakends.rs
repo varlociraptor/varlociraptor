@@ -357,6 +357,17 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             }
         }
     }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
+        Box::new(
+            self.breakends
+                .values()
+                .map(|breakend| model::Variant::Breakend {
+                    ref_allele: breakend.ref_allele.clone(),
+                    spec: breakend.spec(),
+                }),
+        )
+    }
 }
 
 impl<R: Realigner> SamplingBias for BreakendGroup<R> {
@@ -911,13 +922,6 @@ impl Breakend {
                 ..
             })
         )
-    }
-
-    pub(crate) fn to_variant(&self, event: &[u8]) -> model::Variant {
-        model::Variant::Breakend {
-            ref_allele: self.ref_allele.clone(),
-            spec: self.spec(),
-        }
     }
 }
 

@@ -6,6 +6,7 @@ use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
@@ -131,6 +132,10 @@ impl<R: Realigner> Variant for Duplication<R> {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         (**self).prob_sample_alt(evidence, alignment_properties)
+    }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
+        Box::new(iter::once(model::Variant::Duplication(self.len)))
     }
 }
 

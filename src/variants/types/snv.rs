@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::iter;
 use std::ops::Range;
 
 use std::sync::Arc;
@@ -24,6 +25,7 @@ use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -160,6 +162,10 @@ impl<R: Realigner> Variant for Snv<R> {
 
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
+    }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
+        Box::new(iter::once(model::Variant::Snv(self.alt_base)))
     }
 }
 

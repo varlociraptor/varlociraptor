@@ -577,9 +577,9 @@ where
         model: &Model<Pr>,
         event_universe: &[model::Event],
     ) {
-        if let Some(ref bnd_event) = work_item.haplotype {
-            if let Some(result) = self.haplotype_results.read().unwrap().get(bnd_event) {
-                // Take sample info and event probs from previous breakend.
+        if let Some(ref haplotype) = work_item.haplotype {
+            if let Some(result) = self.haplotype_results.read().unwrap().get(haplotype) {
+                // Take sample info and event probs from previous item.
                 work_item
                     .variant_builder
                     .event_probs(Some(result.event_probs.clone()));

@@ -3,6 +3,8 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::iter;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
@@ -11,6 +13,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base_miscall;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::Realignable;
+use crate::variants::model;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -100,6 +103,10 @@ impl Variant for None {
 
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
+    }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
+        Box::new(iter::once(model::Variant::None))
     }
 }
 

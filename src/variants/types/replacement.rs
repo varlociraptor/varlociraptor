@@ -4,10 +4,10 @@
 // except according to those terms.
 
 use std::cell::RefCell;
-use std::cmp;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::{cmp, iter};
 
 use anyhow::Result;
 
@@ -22,11 +22,13 @@ use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 pub(crate) struct Replacement<R: Realigner> {
     locus: MultiLocus,
+    ref_seq: Vec<u8>,
     replacement: Rc<Vec<u8>>,
     realigner: RefCell<R>,
     homopolymer_indel_len: Option<i8>,
@@ -35,14 +37,14 @@ pub(crate) struct Replacement<R: Realigner> {
 impl<R: Realigner> Replacement<R> {
     pub(crate) fn new(locus: genome::Interval, replacement: Vec<u8>, realigner: R) -> Result<Self> {
         let ref_seq = &realigner.ref_buffer().seq(locus.contig())?;
-        let homopolymer_indel_len = HomopolymerIndelOperation::from_text_and_pattern_global(
-            &ref_seq[locus.range().start as usize..locus.range().end as usize],
-            &replacement,
-        )
-        .map(|op| op.len());
+        let ref_seq = ref_seq[locus.range().start as usize..locus.range().end as usize].to_owned();
+        let homopolymer_indel_len =
+            HomopolymerIndelOperation::from_text_and_pattern_global(&ref_seq, &replacement)
+                .map(|op| op.len());
 
         Ok(Replacement {
             locus: MultiLocus::new(vec![SingleLocus::new(locus)]),
+            ref_seq,
             replacement: Rc::new(replacement),
             realigner: RefCell::new(realigner),
             homopolymer_indel_len,
@@ -227,6 +229,13 @@ impl<R: Realigner> Variant for Replacement<R> {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
+    }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
+        Box::new(iter::once(model::Variant::Replacement {
+            ref_allele: self.ref_seq.clone(),
+            alt_allele: self.replacement.to_vec(),
+        }))
     }
 }
 

@@ -63,6 +63,9 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     >,
     #[builder(default)]
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
+    #[builder(default)]
+    haplotype_blocks:
+        RwLock<HashMap<Vec<u8>, Mutex<variants::types::haplotype_block::HaplotypeBlock>>>,
     log_each_record: bool,
     raw_observation_output: Option<PathBuf>,
 }
@@ -250,51 +253,97 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             } => {
                 let mut calls = Vec::new();
                 // process breakend
-                if let model::Variant::Breakend { .. } = variants.variant_of_interest().variant() {
-                    if let HaplotypeIdentifier::Event(event) = haplotype {
-                        if let Some(pileup) = self.process_pileup(&variants, sample)? {
-                            let pileup = Rc::new(pileup);
-                            for breakend in self
-                                .breakend_groups
-                                .read()
-                                .unwrap()
-                                .get(event)
-                                .as_ref()
-                                .unwrap()
-                                .lock()
-                                .unwrap()
-                                .breakends()
-                            {
-                                let mut call = call_builder(
-                                    breakend.locus().contig().as_bytes().to_owned(),
-                                    breakend.locus().pos(),
-                                    breakend.id().to_owned(),
-                                )
-                                .mateid(breakend.mateid().to_owned())
-                                .build()
-                                .unwrap();
-
-                                // add variant information
-                                call.variant = Some(
-                                    VariantBuilder::default()
-                                        .variant(
-                                            &breakend.to_variant(event),
-                                            &Some(haplotype.to_owned()),
-                                            breakend.locus().pos() as usize,
-                                            None,
+                match variants.variant_of_interest().variant() {
+                    model::Variant::Breakend { .. } => {
+                        match haplotype {
+                            HaplotypeIdentifier::Event(event) => {
+                                if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                                    let pileup = Rc::new(pileup);
+                                    for breakend in self
+                                        .breakend_groups
+                                        .read()
+                                        .unwrap()
+                                        .get(event)
+                                        .as_ref()
+                                        .unwrap()
+                                        .lock()
+                                        .unwrap()
+                                        .breakends()
+                                    {
+                                        let mut call = call_builder(
+                                            breakend.locus().contig().as_bytes().to_owned(),
+                                            breakend.locus().pos(),
+                                            breakend.id().to_owned(),
                                         )
-                                        .pileup(Some(Rc::clone(&pileup)))
+                                        .mateid(breakend.mateid().to_owned())
                                         .build()
-                                        .unwrap(),
-                                );
-                                calls.push(call);
+                                        .unwrap();
+
+                                        // add variant information
+                                        call.variant = Some(
+                                            VariantBuilder::default()
+                                                .variant(
+                                                    &breakend.to_variant(event),
+                                                    &Some(haplotype.to_owned()),
+                                                    breakend.locus().pos() as usize,
+                                                    None,
+                                                )
+                                                .pileup(Some(Rc::clone(&pileup)))
+                                                .build()
+                                                .unwrap(),
+                                        );
+                                        calls.push(call);
+                                    }
+                                    // As all records a written, the breakend group can be discarded.
+                                    self.breakend_groups.write().unwrap().remove(event);
+                                }
                             }
-                            // As all records a written, the breakend group can be discarded.
-                            self.breakend_groups.write().unwrap().remove(event);
                         }
-                    } else {
-                        unreachable!("bug: breakends without EVENT tag are skipped")
                     }
+                    variant => match haplotype {
+                        HaplotypeIdentifier::Event(event) => {
+                            if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                                let pileup = Rc::new(pileup);
+                                for variant in self
+                                    .haplotype_blocks
+                                    .read()
+                                    .unwrap()
+                                    .get(event)
+                                    .as_ref()
+                                    .unwrap()
+                                    .lock()
+                                    .unwrap()
+                                    .breakends()
+                                {
+                                    let mut call = call_builder(
+                                        breakend.locus().contig().as_bytes().to_owned(),
+                                        breakend.locus().pos(),
+                                        breakend.id().to_owned(),
+                                    )
+                                    .mateid(breakend.mateid().to_owned())
+                                    .build()
+                                    .unwrap();
+
+                                    // add variant information
+                                    call.variant = Some(
+                                        VariantBuilder::default()
+                                            .variant(
+                                                &breakend.to_variant(event),
+                                                &Some(haplotype.to_owned()),
+                                                breakend.locus().pos() as usize,
+                                                None,
+                                            )
+                                            .pileup(Some(Rc::clone(&pileup)))
+                                            .build()
+                                            .unwrap(),
+                                    );
+                                    calls.push(call);
+                                }
+                                // As all records a written, the breakend group can be discarded.
+                                self.breakend_groups.write().unwrap().remove(event);
+                            }
+                        }
+                    },
                 }
                 Ok(calls)
             }

@@ -13,6 +13,7 @@ use itertools::Itertools;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
 use crate::variants::evidence::realignment::Realignable;
+use crate::variants::model;
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 pub(crate) trait SingleLocusSingleEndVariant:
@@ -35,11 +36,15 @@ pub(crate) trait MultiLocusPairedEndVariant:
 {
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Getters)]
 pub(crate) struct HaplotypeBlock {
+    #[getset(get = "pub(crate)")]
     single_locus_single_end_evidence_variants: Vec<Box<dyn SingleLocusSingleEndVariant>>,
+    #[getset(get = "pub(crate)")]
     single_locus_paired_end_evidence_variants: Vec<Box<dyn SingleLocusPairedEndVariant>>,
+    #[getset(get = "pub(crate)")]
     multi_locus_single_end_evidence_variants: Vec<Box<dyn MultiLocusSingleEndVariant>>,
+    #[getset(get = "pub(crate)")]
     multi_locus_paired_end_evidence_variants: Vec<Box<dyn MultiLocusPairedEndVariant>>,
     loci: MultiLocus,
 }
@@ -255,5 +260,32 @@ impl Variant for HaplotypeBlock {
     ) -> LogProb {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that
         LogProb::ln_one()
+    }
+
+    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
+        Box::new(
+            self.single_locus_single_end_evidence_variants
+                .iter()
+                .map(|variant| variant.to_variant_representation())
+                .flatten()
+                .chain(
+                    self.single_locus_paired_end_evidence_variants
+                        .iter()
+                        .map(|variant| variant.to_variant_representation())
+                        .flatten(),
+                )
+                .chain(
+                    self.multi_locus_single_end_evidence_variants
+                        .iter()
+                        .map(|variant| variant.to_variant_representation())
+                        .flatten(),
+                )
+                .chain(
+                    self.multi_locus_paired_end_evidence_variants
+                        .iter()
+                        .map(|variant| variant.to_variant_representation())
+                        .flatten(),
+                ),
+        )
     }
 }

@@ -4,8 +4,8 @@
 // except according to those terms.
 
 use std::cell::RefCell;
-use std::cmp;
 use std::ops::Range;
+use std::{cmp, iter};
 
 use std::sync::Arc;
 
@@ -25,6 +25,7 @@ use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
@@ -35,6 +36,7 @@ pub(crate) struct Deletion<R: Realigner> {
     fetch_loci: MultiLocus,
     realigner: RefCell<R>,
     homopolymer: Option<Range<u64>>,
+    len: u64,
 }
 
 impl<R: Realigner> Deletion<R> {
@@ -80,6 +82,7 @@ impl<R: Realigner> Deletion<R> {
             fetch_loci,
             realigner: RefCell::new(realigner),
             homopolymer,
+            len,
         })
     }
 
@@ -320,6 +323,10 @@ impl<R: Realigner> Variant for Deletion<R> {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
+    }
+
+    fn to_variant_representation(&self) -> Box<dyn Iterator<Item = model::Variant>> {
+        Box::new(iter::once(model::Variant::Deletion(self.len)))
     }
 }
 
