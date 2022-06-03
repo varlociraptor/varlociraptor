@@ -36,6 +36,8 @@ use crate::variants::types::{
     AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
 };
 
+use super::ToVariantRepresentation;
+
 const MIN_REF_BASES: u64 = 10;
 
 pub(crate) struct BreakendGroup<R: Realigner> {
@@ -356,17 +358,6 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
-    }
-
-    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
-        Box::new(
-            self.breakends
-                .values()
-                .map(|breakend| model::Variant::Breakend {
-                    ref_allele: breakend.ref_allele.clone(),
-                    spec: breakend.spec(),
-                }),
-        )
     }
 }
 
@@ -922,6 +913,13 @@ impl Breakend {
                 ..
             })
         )
+    }
+
+    pub(crate) fn to_variant(&self) -> model::Variant {
+        model::Variant::Breakend {
+            ref_allele: self.ref_allele.clone(),
+            spec: self.spec(),
+        }
     }
 }
 

@@ -28,8 +28,8 @@ pub(crate) enum SkipReason {
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub(crate)")]
 pub(crate) struct VariantInfo {
-    variant: model::Variant,
-    haplotype: Option<HaplotypeIdentifier>,
+    pub(crate) variant: model::Variant,
+    pub(crate) haplotype: Option<HaplotypeIdentifier>,
 }
 
 /// Collect variants from a given ´bcf::Record`.
@@ -98,7 +98,7 @@ pub(crate) fn collect_variants(
 
     let mut variants = Vec::new();
 
-    let push_variant = |variant| {
+    let mut push_variant = |variant| {
         variants.push(VariantInfo {
             variant,
             haplotype: haplotype.clone(),

@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
@@ -38,7 +38,8 @@ use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
-use crate::variants::types::breakends::Breakend;
+use crate::variants::types::haplotype_block::HaplotypeBlock;
+use crate::variants::types::{breakends::Breakend, Loci};
 
 pub(crate) mod haplotype_feature_index;
 
@@ -64,8 +65,9 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     #[builder(default)]
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
     #[builder(default)]
-    haplotype_blocks:
-        RwLock<HashMap<Vec<u8>, Mutex<variants::types::haplotype_block::HaplotypeBlock>>>,
+    haplotype_blocks: RwLock<
+        HashMap<HaplotypeIdentifier, Mutex<variants::types::haplotype_block::HaplotypeBlock>>,
+    >,
     log_each_record: bool,
     raw_observation_output: Option<PathBuf>,
 }
@@ -248,8 +250,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 Ok(vec![call])
             }
             VariantInfo {
-                variant,
                 haplotype: Some(haplotype),
+                ..
             } => {
                 let mut calls = Vec::new();
                 // process breakend
@@ -283,7 +285,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                         call.variant = Some(
                                             VariantBuilder::default()
                                                 .variant(
-                                                    &breakend.to_variant(event),
+                                                    &breakend.to_variant(),
                                                     &Some(haplotype.to_owned()),
                                                     breakend.locus().pos() as usize,
                                                     None,
@@ -300,50 +302,97 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             }
                         }
                     }
-                    variant => match haplotype {
-                        HaplotypeIdentifier::Event(event) => {
-                            if let Some(pileup) = self.process_pileup(&variants, sample)? {
-                                let pileup = Rc::new(pileup);
-                                for variant in self
-                                    .haplotype_blocks
-                                    .read()
-                                    .unwrap()
-                                    .get(event)
-                                    .as_ref()
-                                    .unwrap()
-                                    .lock()
-                                    .unwrap()
-                                    .breakends()
-                                {
-                                    let mut call = call_builder(
-                                        breakend.locus().contig().as_bytes().to_owned(),
-                                        breakend.locus().pos(),
-                                        breakend.id().to_owned(),
-                                    )
-                                    .mateid(breakend.mateid().to_owned())
+                    _ => {
+                        // process haplotype block
+                        // if this is the last variant in the block
+                        if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                            let pileup = Rc::new(pileup);
+                            let haplotype_blocks = self.haplotype_blocks.read().unwrap();
+                            let haplotype_block = haplotype_blocks
+                                .get(haplotype)
+                                .as_ref()
+                                .unwrap()
+                                .lock()
+                                .unwrap();
+
+                            fn to_call<L: Loci>(
+                                loci: &L,
+                                variant: model::Variant,
+                                reference_buffer: Arc<reference::Buffer>,
+                                haplotype: &HaplotypeIdentifier,
+                                pileup: Rc<Pileup>,
+                            ) -> Result<Call> {
+                                let mut call = CallBuilder::default()
+                                    .chrom(loci.first_contig().as_bytes().to_owned())
+                                    .pos(loci.first_pos())
                                     .build()
                                     .unwrap();
+                                let chrom_seq = reference_buffer.seq(loci.first_contig())?;
 
-                                    // add variant information
-                                    call.variant = Some(
-                                        VariantBuilder::default()
-                                            .variant(
-                                                &breakend.to_variant(event),
-                                                &Some(haplotype.to_owned()),
-                                                breakend.locus().pos() as usize,
-                                                None,
-                                            )
-                                            .pileup(Some(Rc::clone(&pileup)))
-                                            .build()
-                                            .unwrap(),
-                                    );
-                                    calls.push(call);
-                                }
-                                // As all records a written, the breakend group can be discarded.
-                                self.breakend_groups.write().unwrap().remove(event);
+                                // add variant information
+                                call.variant = Some(
+                                    VariantBuilder::default()
+                                        .variant(
+                                            &variant,
+                                            &Some(haplotype.to_owned()),
+                                            loci.first_pos() as usize,
+                                            Some(chrom_seq.as_ref()),
+                                        )
+                                        .pileup(Some(Rc::clone(&pileup)))
+                                        .build()
+                                        .unwrap(),
+                                );
+                                Ok(call)
                             }
+
+                            for variant in
+                                haplotype_block.single_locus_single_end_evidence_variants()
+                            {
+                                calls.push(to_call(
+                                    variant.loci(),
+                                    variant.to_variant_representation(),
+                                    Arc::clone(&self.reference_buffer),
+                                    haplotype,
+                                    Rc::clone(&pileup),
+                                )?);
+                            }
+                            for variant in
+                                haplotype_block.single_locus_paired_end_evidence_variants()
+                            {
+                                calls.push(to_call(
+                                    variant.loci(),
+                                    variant.to_variant_representation(),
+                                    Arc::clone(&self.reference_buffer),
+                                    haplotype,
+                                    Rc::clone(&pileup),
+                                )?);
+                            }
+                            for variant in
+                                haplotype_block.multi_locus_single_end_evidence_variants()
+                            {
+                                calls.push(to_call(
+                                    variant.loci(),
+                                    variant.to_variant_representation(),
+                                    Arc::clone(&self.reference_buffer),
+                                    haplotype,
+                                    Rc::clone(&pileup),
+                                )?);
+                            }
+                            for variant in
+                                haplotype_block.multi_locus_paired_end_evidence_variants()
+                            {
+                                calls.push(to_call(
+                                    variant.loci(),
+                                    variant.to_variant_representation(),
+                                    Arc::clone(&self.reference_buffer),
+                                    haplotype,
+                                    Rc::clone(&pileup),
+                                )?);
+                            }
+                            // As all records a written, the haplotype block can be discarded.
+                            self.haplotype_blocks.write().unwrap().remove(haplotype);
                         }
-                    },
+                    }
                 }
                 Ok(calls)
             }
@@ -481,107 +530,196 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(Some(match variants.variant_of_interest() {
-            model::Variant::Snv(alt) => {
-                sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
-            }
-            model::Variant::Mnv(alt) => {
-                sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
-            }
-            model::Variant::None => sample.extract_observations(&parse_none()?, &alt_variants)?,
-            model::Variant::Deletion(l) => {
-                sample.extract_observations(&parse_deletion(*l)?, &alt_variants)?
-            }
-            model::Variant::Insertion(seq) => {
-                sample.extract_observations(&parse_insertion(seq)?, &alt_variants)?
-            }
-            model::Variant::Inversion(len) => {
-                sample.extract_observations(&parse_inversion(*len)?, &alt_variants)?
-            }
-            model::Variant::Duplication(len) => {
-                sample.extract_observations(&parse_duplication(*len)?, &alt_variants)?
-            }
-            model::Variant::Replacement {
-                ref_allele,
-                alt_allele,
-            } => sample
-                .extract_observations(&parse_replacement(ref_allele, alt_allele)?, &alt_variants)?,
-            model::Variant::Breakend {
-                ref_allele,
-                spec,
-                event,
-            } => {
-                {
-                    if !self
-                        .breakend_group_builders
-                        .read()
-                        .unwrap()
-                        .contains_key(event)
-                    {
-                        let mut builder = variants::types::breakends::BreakendGroupBuilder::new();
-                        builder.realigner(self.realigner.clone());
-                        self.breakend_group_builders
-                            .write()
-                            .unwrap()
-                            .insert(event.to_owned(), Mutex::new(Some(builder)));
+        Ok(Some(
+            if let Some(haplotype) = variants.variant_of_interest().haplotype() {
+                match variants.variant_of_interest().variant() {
+                    model::Variant::Breakend { ref_allele, spec } => {
+                        if let HaplotypeIdentifier::Event(event) = haplotype {
+                            {
+                                if !self
+                                    .breakend_group_builders
+                                    .read()
+                                    .unwrap()
+                                    .contains_key(event)
+                                {
+                                    let mut builder =
+                                        variants::types::breakends::BreakendGroupBuilder::new();
+                                    builder.realigner(self.realigner.clone());
+                                    self.breakend_group_builders
+                                        .write()
+                                        .unwrap()
+                                        .insert(event.to_owned(), Mutex::new(Some(builder)));
+                                }
+                            }
+                            let group_builders = self.breakend_group_builders.read().unwrap();
+
+                            let mut group = group_builders.get(event).unwrap().lock().unwrap();
+
+                            if let Some(group) = group.as_mut() {
+                                if let Some(breakend) = Breakend::new(
+                                    variants.locus().clone(),
+                                    ref_allele,
+                                    spec,
+                                    variants.record_info().id(),
+                                    variants.record_info().mateid().clone(),
+                                )? {
+                                    group.push_breakend(breakend);
+
+                                    // If this is the last breakend in the group, process!
+                                    if self
+                                        .haplotype_feature_index
+                                        .last_record_index(haplotype)
+                                        .unwrap()
+                                        == variants.record_info().index()
+                                    {
+                                        // METHOD: last record of the breakend event. Hence, we can extract observations.
+                                        let breakend_group = Mutex::new(group.build());
+                                        self.breakend_groups
+                                            .write()
+                                            .unwrap()
+                                            .insert(event.to_owned(), breakend_group);
+                                        sample.extract_observations(
+                                            &*self
+                                                .breakend_groups
+                                                .read()
+                                                .unwrap()
+                                                .get(event)
+                                                .unwrap()
+                                                .lock()
+                                                .unwrap(),
+                                            &Vec::new(), // Do not consider alt variants in case of breakends
+                                        )?
+                                    } else {
+                                        // Not yet the last one, skip.
+                                        return Ok(None);
+                                    }
+                                } else {
+                                    // Breakend type not supported, remove breakend group.
+                                    self.breakend_group_builders
+                                        .write()
+                                        .unwrap()
+                                        .insert(event.to_owned(), Mutex::new(None));
+                                    return Ok(None);
+                                }
+                            } else {
+                                // Breakend group has been removed before because one breakend was invalid.
+                                return Ok(None);
+                            }
+                        } else {
+                            unreachable!(
+                                "bug: breakend haplotype identifiers have to be EVENT tags"
+                            );
+                        }
                     }
-                }
-                let group_builders = self.breakend_group_builders.read().unwrap();
+                    variant => {
+                        // other variants are grouped into haplotype blocks
+                        if !self
+                            .haplotype_blocks
+                            .read()
+                            .unwrap()
+                            .contains_key(haplotype)
+                        {
+                            // add new haplotype block
+                            self.haplotype_blocks
+                                .write()
+                                .unwrap()
+                                .insert(haplotype.to_owned(), Mutex::new(HaplotypeBlock::new()));
+                        }
+                        let haplotype_blocks = self.haplotype_blocks.read().unwrap();
 
-                let mut group = group_builders.get(event).unwrap().lock().unwrap();
+                        let mut haplotype_block =
+                            haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
-                if let Some(group) = group.as_mut() {
-                    if let Some(breakend) = Breakend::new(
-                        variants.locus().clone(),
-                        ref_allele,
-                        spec,
-                        variants.record_info().id(),
-                        variants.record_info().mateid().clone(),
-                    )? {
-                        group.push_breakend(breakend);
+                        match variant {
+                            model::Variant::Snv(alt) => haplotype_block
+                                .push_single_locus_single_end_evidence_variant(Box::new(
+                                    parse_snv(*alt)?,
+                                )),
+                            model::Variant::Mnv(alt) => haplotype_block
+                                .push_single_locus_single_end_evidence_variant(Box::new(
+                                    parse_mnv(alt)?,
+                                )),
+                            model::Variant::None => haplotype_block
+                                .push_single_locus_single_end_evidence_variant(Box::new(
+                                    parse_none()?,
+                                )),
+                            model::Variant::Deletion(l) => haplotype_block
+                                .push_multi_locus_paired_end_evidence_variant(Box::new(
+                                    parse_deletion(*l)?,
+                                )),
+                            model::Variant::Insertion(seq) => haplotype_block
+                                .push_multi_locus_paired_end_evidence_variant(Box::new(
+                                    parse_insertion(seq)?,
+                                )),
+                            model::Variant::Inversion(len) => haplotype_block
+                                .push_multi_locus_paired_end_evidence_variant(Box::new(
+                                    parse_inversion(*len)?,
+                                )),
+                            model::Variant::Duplication(len) => haplotype_block
+                                .push_multi_locus_paired_end_evidence_variant(Box::new(
+                                    parse_duplication(*len)?,
+                                )),
+                            model::Variant::Replacement {
+                                ref_allele,
+                                alt_allele,
+                            } => haplotype_block.push_multi_locus_paired_end_evidence_variant(
+                                Box::new(parse_replacement(ref_allele, alt_allele)?),
+                            ),
+                            model::Variant::Breakend { .. } => {
+                                bail!(errors::Error::HaplotypeBlockWithBreakend);
+                            }
+                        }
 
                         // If this is the last breakend in the group, process!
                         if self
                             .haplotype_feature_index
-                            .last_record_index(event)
+                            .last_record_index(haplotype)
                             .unwrap()
                             == variants.record_info().index()
                         {
-                            // METHOD: last record of the breakend event. Hence, we can extract observations.
-                            let breakend_group = Mutex::new(group.build());
-                            self.breakend_groups
-                                .write()
-                                .unwrap()
-                                .insert(event.to_owned(), breakend_group);
-                            sample.extract_observations(
-                                &*self
-                                    .breakend_groups
-                                    .read()
-                                    .unwrap()
-                                    .get(event)
-                                    .unwrap()
-                                    .lock()
-                                    .unwrap(),
-                                &Vec::new(), // Do not consider alt variants in case of breakends
-                            )?
+                            sample.extract_observations(&*haplotype_block, &Vec::new())?
                         } else {
-                            // Not yet the last one, skip.
                             return Ok(None);
                         }
-                    } else {
-                        // Breakend type not supported, remove breakend group.
-                        self.breakend_group_builders
-                            .write()
-                            .unwrap()
-                            .insert(event.to_owned(), Mutex::new(None));
-                        return Ok(None);
                     }
-                } else {
-                    // Breakend group has been removed before because one breakend was invalid.
-                    return Ok(None);
                 }
-            }
-        }))
+            } else {
+                // single variants
+                match variants.variant_of_interest().variant() {
+                    model::Variant::Snv(alt) => {
+                        sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
+                    }
+                    model::Variant::Mnv(alt) => {
+                        sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
+                    }
+                    model::Variant::None => {
+                        sample.extract_observations(&parse_none()?, &alt_variants)?
+                    }
+                    model::Variant::Deletion(l) => {
+                        sample.extract_observations(&parse_deletion(*l)?, &alt_variants)?
+                    }
+                    model::Variant::Insertion(seq) => {
+                        sample.extract_observations(&parse_insertion(seq)?, &alt_variants)?
+                    }
+                    model::Variant::Inversion(len) => {
+                        sample.extract_observations(&parse_inversion(*len)?, &alt_variants)?
+                    }
+                    model::Variant::Duplication(len) => {
+                        sample.extract_observations(&parse_duplication(*len)?, &alt_variants)?
+                    }
+                    model::Variant::Replacement {
+                        ref_allele,
+                        alt_allele,
+                    } => sample.extract_observations(
+                        &parse_replacement(ref_allele, alt_allele)?,
+                        &alt_variants,
+                    )?,
+                    model::Variant::Breakend { .. } => unimplemented!(
+                        "bug: breakends without haplotype events should be ignored for now"
+                    ),
+                }
+            },
+        ))
     }
 }
 

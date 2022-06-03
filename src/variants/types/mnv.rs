@@ -31,6 +31,9 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
 
+use super::ToVariantRepresentation;
+
+#[derive(Debug)]
 pub(crate) struct Mnv<R: Realigner> {
     locus: SingleLocus,
     ref_bases: Vec<u8>,
@@ -204,9 +207,11 @@ impl<R: Realigner> Variant for Mnv<R> {
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
+}
 
-    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
-        Box::new(iter::once(model::Variant::Mnv(self.alt_bases.to_vec())))
+impl<R: Realigner> ToVariantRepresentation for Mnv<R> {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Mnv(self.alt_bases.to_vec())
     }
 }
 

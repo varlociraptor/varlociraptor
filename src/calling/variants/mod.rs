@@ -491,8 +491,8 @@ impl VariantBuilder {
         start: usize,
         chrom_seq: Option<&[u8]>,
     ) -> &mut Self {
-        self.event(haplotype.map(|haplotype| match haplotype {
-            HaplotypeIdentifier::Event(event) => event.to_owned(),
+        self.event(haplotype.as_ref().map(|haplotype| match haplotype {
+            HaplotypeIdentifier::Event(event) => event.clone(),
         }));
 
         match variant {

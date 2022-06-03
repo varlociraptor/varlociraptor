@@ -13,14 +13,12 @@ use crate::variants::types::breakends::{
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
-pub(crate) struct Inversion<R: Realigner>(BreakendGroup<R>);
+use super::ToVariantRepresentation;
 
-impl<R: Realigner> Deref for Inversion<R> {
-    type Target = BreakendGroup<R>;
-
-    fn deref(&self) -> &BreakendGroup<R> {
-        &self.0
-    }
+#[derive(Debug)]
+pub(crate) struct Inversion<R: Realigner> {
+    breakends: BreakendGroup<R>,
+    len: u64,
 }
 
 impl<R: Realigner> Inversion<R> {
@@ -92,7 +90,10 @@ impl<R: Realigner> Inversion<R> {
             b"v",
         ));
 
-        Inversion(breakend_group_builder.build())
+        Inversion {
+            breakends: breakend_group_builder.build(),
+            len: interval.range().end - interval.range().start,
+        }
     }
 }
 
@@ -105,11 +106,12 @@ impl<R: Realigner> Variant for Inversion<R> {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        (**self).is_valid_evidence(evidence, alignment_properties)
+        self.breakends
+            .is_valid_evidence(evidence, alignment_properties)
     }
 
     fn loci(&self) -> &Self::Loci {
-        (**self).loci()
+        self.breakends.loci()
     }
 
     fn allele_support(
@@ -118,7 +120,9 @@ impl<R: Realigner> Variant for Inversion<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let support = (**self).allele_support(evidence, alignment_properties, alt_variants)?;
+        let support =
+            self.breakends
+                .allele_support(evidence, alignment_properties, alt_variants)?;
 
         Ok(support)
     }
@@ -128,11 +132,14 @@ impl<R: Realigner> Variant for Inversion<R> {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        (**self).prob_sample_alt(evidence, alignment_properties)
+        self.breakends
+            .prob_sample_alt(evidence, alignment_properties)
     }
+}
 
-    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
-        Box::new(iter::once(model::Variant::Inversion(self.len)))
+impl<R: Realigner> ToVariantRepresentation for Inversion<R> {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Inversion(self.len)
     }
 }
 
@@ -144,6 +151,7 @@ impl<R: Realigner> Realignable for Inversion<R> {
         ref_window: usize,
     ) -> Result<Vec<Box<dyn crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission>>>
     {
-        (**self).alt_emission_params(ref_buffer, ref_interval, ref_window)
+        self.breakends
+            .alt_emission_params(ref_buffer, ref_interval, ref_window)
     }
 }

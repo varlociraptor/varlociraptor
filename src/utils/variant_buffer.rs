@@ -4,7 +4,6 @@ use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 use vec_map::VecMap;
 
-use crate::variants::model;
 use crate::{errors, utils};
 
 use super::collect_variants::VariantInfo;

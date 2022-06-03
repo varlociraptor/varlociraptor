@@ -154,8 +154,10 @@ pub(crate) trait Variant {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer_indel_len().is_some()
     }
+}
 
-    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a>;
+pub(crate) trait ToVariantRepresentation {
+    fn to_variant_representation(&self) -> model::Variant;
 }
 
 impl<V> Observable<SingleEndEvidence> for V
@@ -367,7 +369,10 @@ where
     }
 }
 
-pub(crate) trait Loci {}
+pub(crate) trait Loci {
+    fn first_contig(&self) -> &str;
+    fn first_pos(&self) -> u64;
+}
 
 #[derive(Debug, Derefable, Builder, new, Clone)]
 pub(crate) struct SingleLocus {
@@ -415,7 +420,15 @@ impl SingleLocus {
     }
 }
 
-impl Loci for SingleLocus {}
+impl Loci for SingleLocus {
+    fn first_contig(&self) -> &str {
+        self.contig()
+    }
+
+    fn first_pos(&self) -> u64 {
+        self.range().start
+    }
+}
 
 #[derive(new, Default, Debug, Derefable, Clone)]
 pub(crate) struct MultiLocus {
@@ -423,7 +436,15 @@ pub(crate) struct MultiLocus {
     loci: Vec<SingleLocus>,
 }
 
-impl Loci for MultiLocus {}
+impl Loci for MultiLocus {
+    fn first_contig(&self) -> &str {
+        self[0].contig()
+    }
+
+    fn first_pos(&self) -> u64 {
+        self[0].first_pos()
+    }
+}
 
 #[derive(Debug)]
 struct Candidate {

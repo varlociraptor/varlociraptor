@@ -26,6 +26,9 @@ use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
+use super::ToVariantRepresentation;
+
+#[derive(Debug)]
 pub(crate) struct Replacement<R: Realigner> {
     locus: MultiLocus,
     ref_seq: Vec<u8>,
@@ -230,12 +233,14 @@ impl<R: Realigner> Variant for Replacement<R> {
             }
         }
     }
+}
 
-    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
-        Box::new(iter::once(model::Variant::Replacement {
+impl<R: Realigner> ToVariantRepresentation for Replacement<R> {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Replacement {
             ref_allele: self.ref_seq.clone(),
             alt_allele: self.replacement.to_vec(),
-        }))
+        }
     }
 }
 

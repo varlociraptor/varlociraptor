@@ -68,8 +68,10 @@ pub(crate) enum Error {
     OverlappingEvents { expressions: String },
     #[error("the input VCF/BCF is not sorted")]
     UnsortedVariantFile,
-    #[error("invalid phase set, PS tag only supported for single sample VCF/BCF, may only contain a single value, and records may only contain a single ALT allele")]
-    InvalidPhaseSet,
+    // #[error("invalid phase set, PS tag only supported for single sample VCF/BCF, may only contain a single value, and records may only contain a single ALT allele")]
+    // InvalidPhaseSet,
+    #[error("haplotype block consisting of normal variants in combination with breakends: this is currently unsupported")]
+    HaplotypeBlockWithBreakend,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {

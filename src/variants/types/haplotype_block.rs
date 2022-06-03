@@ -16,27 +16,67 @@ use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
+use super::ToVariantRepresentation;
+
 pub(crate) trait SingleLocusSingleEndVariant:
-    Variant<Loci = SingleLocus, Evidence = SingleEndEvidence> + Observable<SingleEndEvidence> + Debug
+    Variant<Loci = SingleLocus, Evidence = SingleEndEvidence>
+    + Observable<SingleEndEvidence>
+    + ToVariantRepresentation
+{
+}
+
+impl<V> SingleLocusSingleEndVariant for V where
+    V: Variant<Loci = SingleLocus, Evidence = SingleEndEvidence>
+        + ToVariantRepresentation
+        + Observable<SingleEndEvidence>
 {
 }
 
 pub(crate) trait SingleLocusPairedEndVariant:
-    Variant<Loci = SingleLocus, Evidence = PairedEndEvidence> + Observable<PairedEndEvidence> + Debug
+    Variant<Loci = SingleLocus, Evidence = PairedEndEvidence>
+    + Observable<PairedEndEvidence>
+    + ToVariantRepresentation
+{
+}
+
+impl<V> SingleLocusPairedEndVariant for V where
+    V: Variant<Loci = SingleLocus, Evidence = PairedEndEvidence>
+        + ToVariantRepresentation
+        + Observable<PairedEndEvidence>
 {
 }
 
 pub(crate) trait MultiLocusSingleEndVariant:
-    Variant<Loci = MultiLocus, Evidence = SingleEndEvidence> + Observable<SingleEndEvidence> + Debug
+    Variant<Loci = MultiLocus, Evidence = SingleEndEvidence>
+    + Observable<SingleEndEvidence>
+    + ToVariantRepresentation
+{
+}
+
+impl<V> MultiLocusSingleEndVariant for V where
+    V: Variant<Loci = MultiLocus, Evidence = SingleEndEvidence>
+        + ToVariantRepresentation
+        + Observable<SingleEndEvidence>
 {
 }
 
 pub(crate) trait MultiLocusPairedEndVariant:
-    Variant<Loci = MultiLocus, Evidence = PairedEndEvidence> + Observable<PairedEndEvidence> + Debug
+    Variant<Loci = MultiLocus, Evidence = PairedEndEvidence>
+    + Observable<PairedEndEvidence>
+    + ToVariantRepresentation
 {
 }
 
-#[derive(Debug, Default, Getters)]
+impl<V> MultiLocusPairedEndVariant for V where
+    V: Variant<Loci = MultiLocus, Evidence = PairedEndEvidence>
+        + ToVariantRepresentation
+        + Observable<PairedEndEvidence>
+{
+}
+
+pub(crate) trait HaplotypeVariant: Variant + ToVariantRepresentation {}
+
+#[derive(Default, Getters)]
 pub(crate) struct HaplotypeBlock {
     #[getset(get = "pub(crate)")]
     single_locus_single_end_evidence_variants: Vec<Box<dyn SingleLocusSingleEndVariant>>,
@@ -260,32 +300,5 @@ impl Variant for HaplotypeBlock {
     ) -> LogProb {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that
         LogProb::ln_one()
-    }
-
-    fn to_variant_representation<'a>(&'a self) -> Box<dyn Iterator<Item = model::Variant> + 'a> {
-        Box::new(
-            self.single_locus_single_end_evidence_variants
-                .iter()
-                .map(|variant| variant.to_variant_representation())
-                .flatten()
-                .chain(
-                    self.single_locus_paired_end_evidence_variants
-                        .iter()
-                        .map(|variant| variant.to_variant_representation())
-                        .flatten(),
-                )
-                .chain(
-                    self.multi_locus_single_end_evidence_variants
-                        .iter()
-                        .map(|variant| variant.to_variant_representation())
-                        .flatten(),
-                )
-                .chain(
-                    self.multi_locus_paired_end_evidence_variants
-                        .iter()
-                        .map(|variant| variant.to_variant_representation())
-                        .flatten(),
-                ),
-        )
     }
 }

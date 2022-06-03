@@ -1,12 +1,7 @@
-use std::{collections::HashMap, convert::TryFrom, path::Path};
+use std::{collections::HashMap, path::Path};
 
 use anyhow::Result;
-use rust_htslib::bcf::{
-    self,
-    record::Numeric,
-    record::{Genotype, GenotypeAllele},
-    Read,
-};
+use rust_htslib::bcf::{self, Read};
 
 use crate::utils;
 use crate::variants::model::HaplotypeIdentifier;

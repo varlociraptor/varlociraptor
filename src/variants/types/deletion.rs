@@ -31,6 +31,9 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };
 
+use super::ToVariantRepresentation;
+
+#[derive(Debug)]
 pub(crate) struct Deletion<R: Realigner> {
     locus: SingleLocus,
     fetch_loci: MultiLocus,
@@ -324,9 +327,11 @@ impl<R: Realigner> Variant for Deletion<R> {
             }
         }
     }
+}
 
-    fn to_variant_representation(&self) -> Box<dyn Iterator<Item = model::Variant>> {
-        Box::new(iter::once(model::Variant::Deletion(self.len)))
+impl<R: Realigner> ToVariantRepresentation for Deletion<R> {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Deletion(self.len)
     }
 }
 

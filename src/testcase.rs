@@ -15,12 +15,12 @@ use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
 
+use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::errors;
 use crate::utils;
 use crate::utils::anonymize::Anonymizer;
-use crate::variants::model::Variant;
+use crate::variants::model::{HaplotypeIdentifier, Variant};
 use crate::variants::sample;
-use crate::variants::types::breakends::HaplotypeFeatureIndex;
 use crate::{cli, reference};
 
 lazy_static! {
@@ -197,7 +197,7 @@ impl Testcase {
 
                 for rec in &mut found {
                     if utils::is_bnd(rec)? {
-                        if let Some(event) = utils::info_tag_event(rec)? {
+                        if let Some(event) = HaplotypeIdentifier::from(rec)? {
                             // METHOD: for breakend events, collect all the other breakends.
                             if breakend_index.is_none() {
                                 breakend_index =
@@ -209,7 +209,9 @@ impl Testcase {
                             let mut candidate_reader = self.candidate_reader()?;
                             for (i, res) in candidate_reader.records().enumerate() {
                                 let mut other_rec = res?;
-                                if let Some(other_event) = utils::info_tag_event(&mut other_rec)? {
+                                if let Some(other_event) =
+                                    HaplotypeIdentifier::from(&mut other_rec)?
+                                {
                                     if event == other_event
                                         && (other_rec.contig() != rec.contig()
                                             || other_rec.pos() != rec.pos())
@@ -272,31 +274,29 @@ impl Testcase {
         if candidate.is_none() {
             return Err(errors::Error::InvalidIndex.into());
         }
-        let candidate = candidate.unwrap();
+        let (candidate_variant_info, mut candidate_record) = candidate.unwrap();
 
         let chrom_name = self.chrom_name.as_ref().unwrap();
         let pos = self.pos.unwrap();
         let ref_name = str::from_utf8(chrom_name)?;
 
-        let (start, end) = match candidate {
-            (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
-            (Variant::Insertion(ref seq), _) => {
+        let (start, end) = match candidate_variant_info.variant() {
+            Variant::Deletion(l) => (pos.saturating_sub(1000), pos + *l as u64 + 1000),
+            Variant::Insertion(ref seq) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
-            (Variant::Snv(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
-            (Variant::Mnv(ref bases), _) => {
-                (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
-            }
-            (Variant::Breakend { .. }, _) => {
+            Variant::Snv(_) => (pos.saturating_sub(100), pos + 1 + 100),
+            Variant::Mnv(ref bases) => (pos.saturating_sub(100), pos + bases.len() as u64 + 100),
+            Variant::Breakend { .. } => {
                 (pos.saturating_sub(1000), pos + 1 + 1000) // TODO collect entire breakend event!
             }
-            (Variant::Inversion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
-            (Variant::Duplication(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
-            (Variant::Replacement { ref ref_allele, .. }, _) => (
+            Variant::Inversion(l) => (pos.saturating_sub(1000), pos + *l as u64 + 1000),
+            Variant::Duplication(l) => (pos.saturating_sub(1000), pos + *l as u64 + 1000),
+            Variant::Replacement { ref ref_allele, .. } => (
                 pos.saturating_sub(1000),
                 pos + ref_allele.len() as u64 + 1000,
             ),
-            (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
+            Variant::None => (pos.saturating_sub(100), pos + 1 + 100),
         };
 
         let mut ref_start = start;
@@ -379,7 +379,6 @@ impl Testcase {
             true,
             bcf::Format::Vcf,
         )?;
-        let (_, mut candidate_record) = candidate;
         candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
         if let Ok(Some(end)) = candidate_record
             .info(b"END")

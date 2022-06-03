@@ -59,7 +59,7 @@ where
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
-    haplotype_index: HaplotypeFeatureIndex,
+    haplotype_feature_index: HaplotypeFeatureIndex,
     #[builder(default)]
     haplotype_results: RwLock<HashMap<HaplotypeIdentifier, HaplotypeResult>>,
     log_each_record: bool,
@@ -660,7 +660,12 @@ where
         let variant = work_item.variant_builder.build().unwrap();
 
         if let Some(ref event) = work_item.haplotype {
-            if self.haplotype_index.last_record_index(event).unwrap() == work_item.index {
+            if self
+                .haplotype_feature_index
+                .last_record_index(event)
+                .unwrap()
+                == work_item.index
+            {
                 // METHOD: last index, hence clear result
                 self.haplotype_results.write().unwrap().remove(event);
             } else {
