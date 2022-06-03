@@ -3,8 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::fmt::Debug;
-
 use anyhow::Result;
 
 use bio::stats::LogProb;
@@ -13,7 +11,6 @@ use itertools::Itertools;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
 use crate::variants::evidence::realignment::Realignable;
-use crate::variants::model;
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 use super::ToVariantRepresentation;
@@ -295,8 +292,8 @@ impl Variant for HaplotypeBlock {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
-        alignment_properties: &AlignmentProperties,
+        _evidence: &Self::Evidence,
+        _alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that
         LogProb::ln_one()

@@ -5,10 +5,9 @@
 
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::Range;
-use std::path::Path;
 use std::str;
 use std::sync::Arc;
 
@@ -18,14 +17,12 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
 use rust_htslib::bam;
-use rust_htslib::bcf::{self, Read};
 use vec_map::VecMap;
 
 use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
-use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -35,8 +32,6 @@ use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
 };
-
-use super::ToVariantRepresentation;
 
 const MIN_REF_BASES: u64 = 10;
 

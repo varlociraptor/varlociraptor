@@ -3,12 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::char;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
-use std::{char, iter};
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;

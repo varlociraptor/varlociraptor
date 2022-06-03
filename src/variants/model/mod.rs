@@ -8,15 +8,13 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use ordered_float::NotNan;
 use rust_htslib::bcf;
-use rust_htslib::bcf::record::{Genotype, GenotypeAllele, Numeric};
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::errors::Error;
+use crate::grammar;
 use crate::variants::model::bias::Artifacts;
-use crate::{grammar, utils};
 
 pub(crate) mod bias;
 pub(crate) mod likelihood;

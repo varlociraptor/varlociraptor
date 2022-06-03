@@ -4,8 +4,8 @@
 // except according to those terms.
 
 use std::cell::RefCell;
+use std::cmp;
 use std::ops::Range;
-use std::{cmp, iter};
 
 use std::sync::Arc;
 

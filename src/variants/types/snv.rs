@@ -5,7 +5,6 @@
 
 use std::cell::RefCell;
 use std::cmp;
-use std::iter;
 use std::ops::Range;
 
 use std::sync::Arc;

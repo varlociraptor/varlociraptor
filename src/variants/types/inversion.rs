@@ -1,6 +1,3 @@
-use std::iter;
-use std::ops::Deref;
-
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
