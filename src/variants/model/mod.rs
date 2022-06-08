@@ -304,6 +304,7 @@ mod tests {
     ) -> ProcessedReadObservation {
         ReadObservationBuilder::default()
             .name(None)
+            .fragment_id(None)
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)
             .prob_ref(prob_ref)

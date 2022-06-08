@@ -13,7 +13,7 @@ use std::str;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
-use bio_types::genome::{self, AbstractLocus};
+use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 
@@ -34,6 +34,8 @@ use crate::variants::types::Variant;
 
 use crate::variants::evidence::realignment::Realignable;
 
+use super::fragment_id_factory::FragmentIdFactory;
+
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
@@ -43,7 +45,7 @@ pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
 
 /// Strand support for observation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum Strand {
+pub enum Strand {
     Forward,
     Reverse,
     Both,
@@ -122,7 +124,7 @@ impl ops::BitOrAssign for Strand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum ReadPosition {
+pub enum ReadPosition {
     Major,
     Some,
 }
@@ -164,7 +166,7 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 }
 
 #[derive(Debug, Clone, Derefable, Default)]
-pub(crate) struct ExactAltLoci {
+pub struct ExactAltLoci {
     #[deref]
     inner: Vec<genome::Locus>,
 }
@@ -215,7 +217,7 @@ impl<'a> From<&'a bam::Record> for ExactAltLoci {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum AltLocus {
+pub enum AltLocus {
     Major,
     Some,
     None,
@@ -223,12 +225,13 @@ pub(crate) enum AltLocus {
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default, Serialize)]
-pub(crate) struct ReadObservation<P = Option<u32>, A = ExactAltLoci>
+pub struct ReadObservation<P = Option<u32>, A = ExactAltLoci>
 where
     P: Clone,
     A: Clone,
 {
     name: Option<String>,
+    pub fragment_id: Option<u64>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -240,49 +243,49 @@ where
     #[builder(private, default = "None")]
     prob_mismapping_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from the alternative allele.
-    pub(crate) prob_alt: LogProb,
+    pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
-    pub(crate) prob_ref: LogProb,
+    pub prob_ref: LogProb,
     /// Probability that the read/read-pair comes from an unknown allele at an unknown true
     /// locus (in case it is mismapped). This should usually be set as the product of the maxima
     /// of prob_ref and prob_alt per read.
-    pub(crate) prob_missed_allele: LogProb,
+    pub prob_missed_allele: LogProb,
     /// Probability to sample the alt allele
-    pub(crate) prob_sample_alt: LogProb,
+    pub prob_sample_alt: LogProb,
     /// Probability to overlap with both strands
     #[builder(private)]
-    pub(crate) prob_double_overlap: LogProb,
+    pub prob_double_overlap: LogProb,
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
-    pub(crate) prob_single_overlap: LogProb,
-    pub(crate) prob_hit_base: LogProb,
+    pub prob_single_overlap: LogProb,
+    pub prob_hit_base: LogProb,
     /// Strand evidence this observation relies on
-    pub(crate) strand: Strand,
+    pub strand: Strand,
     /// Read orientation support this observation relies on
-    pub(crate) read_orientation: SequenceReadPairOrientation,
+    pub read_orientation: SequenceReadPairOrientation,
     /// True if obervation contains s
-    pub(crate) softclipped: bool,
-    pub(crate) paired: bool,
+    pub softclipped: bool,
+    pub paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
-    pub(crate) read_position: P,
+    pub read_position: P,
     /// Probability to make this observation at a homopolymer artifact
-    pub(crate) prob_observable_at_homopolymer_artifact: Option<LogProb>,
-    pub(crate) prob_observable_at_homopolymer_variant: Option<LogProb>,
+    pub prob_observable_at_homopolymer_artifact: Option<LogProb>,
+    pub prob_observable_at_homopolymer_variant: Option<LogProb>,
     /// Homopolymer indel length (None if there is no homopolymer indel compared to reference)
-    pub(crate) homopolymer_indel_len: Option<i8>,
-    pub(crate) is_max_mapq: bool,
-    pub(crate) alt_locus: A,
+    pub homopolymer_indel_len: Option<i8>,
+    pub is_max_mapq: bool,
+    pub alt_locus: A,
 }
 
-pub(crate) type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
+pub type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
 
 impl<P: Clone, A: Clone> ReadObservationBuilder<P, A> {
-    pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
+    pub fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
     }
 
-    pub(crate) fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
+    pub fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
         self.prob_double_overlap(prob_double_overlap)
             .prob_single_overlap(prob_double_overlap.ln_one_minus_exp())
     }
@@ -297,6 +300,7 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
     ) -> ReadObservation<ReadPosition, AltLocus> {
         ReadObservation {
             name: self.name.clone(),
+            fragment_id: self.fragment_id,
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
             prob_mapping_adj: self.prob_mapping_adj,
@@ -345,46 +349,46 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
 }
 
 impl<P: Clone, A: Clone> ReadObservation<P, A> {
-    pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
+    pub fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
 
-    pub(crate) fn prob_mapping_orig(&self) -> LogProb {
+    pub fn prob_mapping_orig(&self) -> LogProb {
         self.prob_mapping
     }
 
-    pub(crate) fn prob_mapping(&self) -> LogProb {
+    pub fn prob_mapping(&self) -> LogProb {
         self.prob_mapping_adj.unwrap_or(self.prob_mapping)
     }
 
-    pub(crate) fn prob_mismapping(&self) -> LogProb {
+    pub fn prob_mismapping(&self) -> LogProb {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
     }
 
-    pub(crate) fn is_uniquely_mapping(&self) -> bool {
+    pub fn is_uniquely_mapping(&self) -> bool {
         self.prob_mapping() >= *PROB_095
     }
 
-    pub(crate) fn is_strong_alt_support(&self) -> bool {
+    pub fn is_strong_alt_support(&self) -> bool {
         BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()
             >= KassRaftery::Strong
     }
 
-    pub(crate) fn is_strong_ref_support(&self) -> bool {
+    pub fn is_strong_ref_support(&self) -> bool {
         BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
             >= KassRaftery::Strong
     }
 
-    pub(crate) fn is_ref_support(&self) -> bool {
+    pub fn is_ref_support(&self) -> bool {
         self.prob_ref > self.prob_alt
     }
 
-    pub(crate) fn is_positive_ref_support(&self) -> bool {
+    pub fn is_positive_ref_support(&self) -> bool {
         BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
             >= KassRaftery::Positive
     }
 
-    pub(crate) fn has_homopolymer_error(&self) -> bool {
+    pub fn has_homopolymer_error(&self) -> bool {
         self.homopolymer_indel_len
             .map(|indel_len| indel_len != 0)
             .unwrap_or(false)
@@ -498,6 +502,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Vec<ReadObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -514,7 +519,12 @@ where
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Option<ReadObservation>> {
+        let id = observation_id_factory
+            .as_mut()
+            .map(|factory| factory.register(evidence));
+
         Ok(
             match self.allele_support(evidence, alignment_properties, alt_variants)? {
                 // METHOD: only consider allele support if it comes either from forward or reverse strand.
@@ -525,6 +535,7 @@ where
 
                     let mut obs = ReadObservationBuilder::default();
                     obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
+                        .fragment_id(id)
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())
                         .prob_ref(allele_support.prob_ref_allele())
@@ -611,6 +622,10 @@ pub(crate) trait Evidence {
     fn len(&self) -> usize;
 
     fn name(&self) -> &[u8];
+
+    fn start_locus(&self) -> genome::Locus;
+
+    fn end_locus(&self) -> genome::Locus;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -654,6 +669,14 @@ impl Evidence for SingleEndEvidence {
 
     fn alt_loci(&self) -> ExactAltLoci {
         ExactAltLoci::from(self.inner.as_ref())
+    }
+
+    fn start_locus(&self) -> genome::Locus {
+        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().start)
+    }
+
+    fn end_locus(&self) -> genome::Locus {
+        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().end)
     }
 }
 
@@ -745,6 +768,28 @@ impl Evidence for PairedEndEvidence {
                 let mut left = ExactAltLoci::from(left.as_ref());
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
+            }
+        }
+    }
+
+    fn start_locus(&self) -> genome::Locus {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                genome::Locus::new(rec.contig().to_owned(), rec.range().start)
+            }
+            PairedEndEvidence::PairedEnd { left, .. } => {
+                genome::Locus::new(left.contig().to_owned(), left.range().start)
+            }
+        }
+    }
+
+    fn end_locus(&self) -> genome::Locus {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                genome::Locus::new(rec.contig().to_owned(), rec.range().end)
+            }
+            PairedEndEvidence::PairedEnd { right, .. } => {
+                genome::Locus::new(right.contig().to_owned(), right.range().end)
             }
         }
     }
