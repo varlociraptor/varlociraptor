@@ -240,6 +240,8 @@ testcase!(test_nanopore_05, homopolymer);
 testcase_should_panic!(test_nanopore_06, exact);
 
 testcase!(test_haplotype_absent, exact);
+testcase!(test_haplotype_present, exact);
+testcase!(test_haplotype_singleton, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
