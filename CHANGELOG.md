@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.1.0...v5.2.0) (2022-06-08)
+
+
+### Features
+
+* support for haplotype blocks as candidate variants ([#285](https://www.github.com/varlociraptor/varlociraptor/issues/285)) ([0d2eef7](https://www.github.com/varlociraptor/varlociraptor/commit/0d2eef7117792d715379d03b142257fb20b5ee2f))
+
 ## [5.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.0.3...v5.1.0) (2022-05-31)
 
 
