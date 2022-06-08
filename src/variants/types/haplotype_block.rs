@@ -3,15 +3,21 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::mem;
+
 use anyhow::Result;
 
 use bio::stats::LogProb;
 use itertools::Itertools;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
+use crate::variants::evidence::observations::read_observation::{
+    Evidence, Observable, SingleEndEvidence,
+};
 use crate::variants::evidence::realignment::Realignable;
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::types::{
+    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+};
 
 use super::ToVariantRepresentation;
 
@@ -282,11 +288,10 @@ impl Variant for HaplotypeBlock {
         if support.is_empty() {
             Ok(None)
         } else {
-            let mut haplotype_support = support.pop().unwrap();
-            for locus_support in &support {
-                haplotype_support.merge(locus_support);
-            }
-            Ok(Some(haplotype_support))
+            // if evidence.name() == b"simulated.105" {
+            //     dbg!(haplotype_support(&support, true));
+            // }
+            Ok(Some(haplotype_support(&support, false)))
         }
     }
 
@@ -298,4 +303,48 @@ impl Variant for HaplotypeBlock {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that
         LogProb::ln_one()
     }
+}
+
+fn haplotype_support(variant_supports: &[AlleleSupport], dbg: bool) -> AlleleSupport {
+    let prob_alt_allele = variant_supports
+        .iter()
+        .map(|support| support.prob_alt_allele)
+        .sum();
+    // METHOD: calculate prob_ref via dynamic programming:
+    // any combination of ref supports should suffice
+
+    // init values
+    let n = variant_supports.len();
+    let mut current = vec![LogProb::ln_zero(); n + 1];
+    let mut last = vec![LogProb::ln_zero(); n + 1];
+    // initially, there is no ref allele on the haplotype yet
+    last[0] = LogProb::ln_one();
+
+    for variant_support in variant_supports {
+        // still no ref allele
+        current[0] = last[0] + variant_support.prob_alt_allele();
+        for n_ref_allele in 1..=n {
+            current[n_ref_allele] = (
+                // one more ref allele
+                last[n_ref_allele - 1] + variant_support.prob_ref_allele()
+            )
+            .ln_add_exp(
+                // same number of ref alleles as before (this variant must be alt allele hence)
+                last[n_ref_allele] + variant_support.prob_alt_allele(),
+            );
+        }
+        if dbg {
+            dbg!(&current);
+        }
+        mem::swap(&mut current, &mut last);
+    }
+
+    let prob_ref_allele = LogProb::ln_sum_exp(&last[1..]);
+
+    AlleleSupportBuilder::default()
+        .prob_alt_allele(prob_alt_allele)
+        .prob_ref_allele(prob_ref_allele)
+        .strand(variant_supports[0].strand())
+        .build()
+        .unwrap()
 }

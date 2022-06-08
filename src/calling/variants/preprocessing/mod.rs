@@ -260,6 +260,15 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         match haplotype {
                             HaplotypeIdentifier::Event(event) => {
                                 if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                                    if let Some(path) = &self.raw_observation_output {
+                                        let mut wrt = csv::WriterBuilder::new()
+                                            .delimiter(b'\t')
+                                            .from_path(path)?;
+                                        for obs in pileup.read_observations() {
+                                            wrt.serialize(obs)?;
+                                        }
+                                    }
+
                                     let pileup = Rc::new(pileup);
                                     for breakend in self
                                         .breakend_groups
@@ -306,88 +315,98 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         // process haplotype block
                         // if this is the last variant in the block
                         if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                            if let Some(path) = &self.raw_observation_output {
+                                let mut wrt =
+                                    csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
+                                for obs in pileup.read_observations() {
+                                    wrt.serialize(obs)?;
+                                }
+                            }
+
                             let pileup = Rc::new(pileup);
-                            let haplotype_blocks = self.haplotype_blocks.read().unwrap();
-                            let haplotype_block = haplotype_blocks
-                                .get(haplotype)
-                                .as_ref()
-                                .unwrap()
-                                .lock()
-                                .unwrap();
-
-                            fn to_call<L: Loci>(
-                                loci: &L,
-                                variant: model::Variant,
-                                reference_buffer: Arc<reference::Buffer>,
-                                haplotype: &HaplotypeIdentifier,
-                                pileup: Rc<Pileup>,
-                            ) -> Result<Call> {
-                                let mut call = CallBuilder::default()
-                                    .chrom(loci.first_contig().as_bytes().to_owned())
-                                    .pos(loci.first_pos())
-                                    .build()
+                            {
+                                let haplotype_blocks = self.haplotype_blocks.read().unwrap();
+                                let haplotype_block = haplotype_blocks
+                                    .get(haplotype)
+                                    .as_ref()
+                                    .unwrap()
+                                    .lock()
                                     .unwrap();
-                                let chrom_seq = reference_buffer.seq(loci.first_contig())?;
 
-                                // add variant information
-                                call.variant = Some(
-                                    VariantBuilder::default()
-                                        .variant(
-                                            &variant,
-                                            &Some(haplotype.to_owned()),
-                                            loci.first_pos() as usize,
-                                            Some(chrom_seq.as_ref()),
-                                        )
-                                        .pileup(Some(Rc::clone(&pileup)))
+                                fn to_call<L: Loci>(
+                                    loci: &L,
+                                    variant: model::Variant,
+                                    reference_buffer: Arc<reference::Buffer>,
+                                    haplotype: &HaplotypeIdentifier,
+                                    pileup: Rc<Pileup>,
+                                ) -> Result<Call> {
+                                    let mut call = CallBuilder::default()
+                                        .chrom(loci.first_contig().as_bytes().to_owned())
+                                        .pos(loci.first_pos())
                                         .build()
-                                        .unwrap(),
-                                );
-                                Ok(call)
-                            }
+                                        .unwrap();
+                                    let chrom_seq = reference_buffer.seq(loci.first_contig())?;
 
-                            for variant in
-                                haplotype_block.single_locus_single_end_evidence_variants()
-                            {
-                                calls.push(to_call(
-                                    variant.loci(),
-                                    variant.to_variant_representation(),
-                                    Arc::clone(&self.reference_buffer),
-                                    haplotype,
-                                    Rc::clone(&pileup),
-                                )?);
-                            }
-                            for variant in
-                                haplotype_block.single_locus_paired_end_evidence_variants()
-                            {
-                                calls.push(to_call(
-                                    variant.loci(),
-                                    variant.to_variant_representation(),
-                                    Arc::clone(&self.reference_buffer),
-                                    haplotype,
-                                    Rc::clone(&pileup),
-                                )?);
-                            }
-                            for variant in
-                                haplotype_block.multi_locus_single_end_evidence_variants()
-                            {
-                                calls.push(to_call(
-                                    variant.loci(),
-                                    variant.to_variant_representation(),
-                                    Arc::clone(&self.reference_buffer),
-                                    haplotype,
-                                    Rc::clone(&pileup),
-                                )?);
-                            }
-                            for variant in
-                                haplotype_block.multi_locus_paired_end_evidence_variants()
-                            {
-                                calls.push(to_call(
-                                    variant.loci(),
-                                    variant.to_variant_representation(),
-                                    Arc::clone(&self.reference_buffer),
-                                    haplotype,
-                                    Rc::clone(&pileup),
-                                )?);
+                                    // add variant information
+                                    call.variant = Some(
+                                        VariantBuilder::default()
+                                            .variant(
+                                                &variant,
+                                                &Some(haplotype.to_owned()),
+                                                loci.first_pos() as usize,
+                                                Some(chrom_seq.as_ref()),
+                                            )
+                                            .pileup(Some(Rc::clone(&pileup)))
+                                            .build()
+                                            .unwrap(),
+                                    );
+                                    Ok(call)
+                                }
+
+                                for variant in
+                                    haplotype_block.single_locus_single_end_evidence_variants()
+                                {
+                                    calls.push(to_call(
+                                        variant.loci(),
+                                        variant.to_variant_representation(),
+                                        Arc::clone(&self.reference_buffer),
+                                        haplotype,
+                                        Rc::clone(&pileup),
+                                    )?);
+                                }
+                                for variant in
+                                    haplotype_block.single_locus_paired_end_evidence_variants()
+                                {
+                                    calls.push(to_call(
+                                        variant.loci(),
+                                        variant.to_variant_representation(),
+                                        Arc::clone(&self.reference_buffer),
+                                        haplotype,
+                                        Rc::clone(&pileup),
+                                    )?);
+                                }
+                                for variant in
+                                    haplotype_block.multi_locus_single_end_evidence_variants()
+                                {
+                                    calls.push(to_call(
+                                        variant.loci(),
+                                        variant.to_variant_representation(),
+                                        Arc::clone(&self.reference_buffer),
+                                        haplotype,
+                                        Rc::clone(&pileup),
+                                    )?);
+                                }
+                                for variant in
+                                    haplotype_block.multi_locus_paired_end_evidence_variants()
+                                {
+                                    calls.push(to_call(
+                                        variant.loci(),
+                                        variant.to_variant_representation(),
+                                        Arc::clone(&self.reference_buffer),
+                                        haplotype,
+                                        Rc::clone(&pileup),
+                                    )?);
+                                }
                             }
                             // As all records a written, the haplotype block can be discarded.
                             self.haplotype_blocks.write().unwrap().remove(haplotype);
@@ -670,7 +689,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             }
                         }
 
-                        // If this is the last breakend in the group, process!
+                        // If this is the last variant in the group, process!
                         if self
                             .haplotype_feature_index
                             .last_record_index(haplotype)

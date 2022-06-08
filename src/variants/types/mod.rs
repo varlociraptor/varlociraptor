@@ -89,6 +89,7 @@ impl AlleleSupport {
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
+        // TODO set read position to None if both allele supports have one
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
 

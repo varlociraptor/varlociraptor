@@ -1,0 +1,7 @@
+samples:
+  a:
+    universe: "0.0 | 0.5 | 1.0"
+
+events:
+  het: "a:0.5"
+  hom: "a:1.0"

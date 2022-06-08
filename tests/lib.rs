@@ -39,11 +39,11 @@ macro_rules! testcase {
                     let mode = stringify!($pairhmm_mode);
 
                     // setup logger
-                    // fern::Dispatch::new()
-                    // .level(log::LevelFilter::Info)
-                    // .chain(std::io::stderr())
-                    // .apply()
-                    // .unwrap();
+                    fern::Dispatch::new()
+                    .level(log::LevelFilter::Info)
+                    .chain(std::io::stderr())
+                    .apply()
+                    .unwrap();
 
                     testcase.run(mode).unwrap();
                     testcase.check();
@@ -238,6 +238,8 @@ testcase!(test_nanopore_03, homopolymer);
 testcase!(test_nanopore_04, homopolymer);
 testcase!(test_nanopore_05, homopolymer);
 testcase_should_panic!(test_nanopore_06, exact);
+
+testcase!(test_haplotype_absent, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
