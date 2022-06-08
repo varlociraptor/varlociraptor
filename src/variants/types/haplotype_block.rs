@@ -291,7 +291,7 @@ impl Variant for HaplotypeBlock {
             // if evidence.name() == b"simulated.105" {
             //     dbg!(haplotype_support(&support, true));
             // }
-            Ok(Some(haplotype_support(&support, false)))
+            Ok(Some(haplotype_support(&support)))
         }
     }
 
@@ -305,7 +305,7 @@ impl Variant for HaplotypeBlock {
     }
 }
 
-fn haplotype_support(variant_supports: &[AlleleSupport], dbg: bool) -> AlleleSupport {
+fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
     let prob_alt_allele = variant_supports
         .iter()
         .map(|support| support.prob_alt_allele)
@@ -332,9 +332,6 @@ fn haplotype_support(variant_supports: &[AlleleSupport], dbg: bool) -> AlleleSup
                 // same number of ref alleles as before (this variant must be alt allele hence)
                 last[n_ref_allele] + variant_support.prob_alt_allele(),
             );
-        }
-        if dbg {
-            dbg!(&current);
         }
         mem::swap(&mut current, &mut last);
     }
