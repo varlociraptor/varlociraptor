@@ -1,0 +1,23 @@
+rule all:
+    input:
+        "sample.bam"
+
+rule simulate:
+    input:
+        ref="ref.fa",
+        cand="candidates.vcf",
+    output:
+        fq="sample.fq",
+        bam="sample.unsorted.bam",
+    conda:
+        "mason.yaml"
+    shell:
+        "mason_simulator -ir {input.ref} -iv {input.cand} -o {output.fq} -oa {output.bam} -n 500"
+
+rule samtools_sort:
+    input:
+        "sample.unsorted.bam",
+    output:
+        "sample.bam",
+    wrapper:
+        "v1.5.0/bio/samtools/sort"

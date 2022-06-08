@@ -11,10 +11,14 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base_miscall;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::Realignable;
+use crate::variants::model;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
 
+use super::ToVariantRepresentation;
+
+#[derive(Debug)]
 pub(crate) struct None {
     locus: SingleLocus,
     ref_base: u8,
@@ -100,6 +104,12 @@ impl Variant for None {
 
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
+    }
+}
+
+impl ToVariantRepresentation for None {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::None
     }
 }
 

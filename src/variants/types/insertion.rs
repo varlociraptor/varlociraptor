@@ -4,10 +4,10 @@
 // except according to those terms.
 
 use std::cell::RefCell;
-use std::cmp;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::{cmp, iter};
 
 use anyhow::Result;
 
@@ -22,9 +22,13 @@ use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
+use super::ToVariantRepresentation;
+
+#[derive(Debug)]
 pub(crate) struct Insertion<R: Realigner> {
     locus: MultiLocus,
     ins_seq: Rc<Vec<u8>>,
@@ -212,6 +216,12 @@ impl<R: Realigner> Variant for Insertion<R> {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
+    }
+}
+
+impl<R: Realigner> ToVariantRepresentation for Insertion<R> {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Insertion(self.ins_seq.to_vec())
     }
 }
 

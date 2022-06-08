@@ -163,8 +163,12 @@ pub(crate) fn tags_prob_sum(
     for tag in tags {
         if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
             //tag present
-            for (i, (variant, tag_prob)) in variants.iter().zip(tags_probs_in.iter()).enumerate() {
-                if (vartype.is_some() && !variant.is_type(vartype.unwrap())) || tag_prob.is_nan() {
+            for (i, (variant_info, tag_prob)) in
+                variants.iter().zip(tags_probs_in.iter()).enumerate()
+            {
+                if (vartype.is_some() && !variant_info.variant().is_type(vartype.unwrap()))
+                    || tag_prob.is_nan()
+                {
                     continue;
                 }
                 tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));

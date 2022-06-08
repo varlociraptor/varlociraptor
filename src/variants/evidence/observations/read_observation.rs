@@ -701,6 +701,20 @@ pub(crate) enum PairedEndEvidence {
     },
 }
 
+impl PairedEndEvidence {
+    pub(crate) fn into_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
+        match self {
+            PairedEndEvidence::SingleEnd(record) => {
+                vec![SingleEndEvidence::new(Rc::clone(record))]
+            }
+            PairedEndEvidence::PairedEnd { left, right } => vec![
+                SingleEndEvidence::new(Rc::clone(left)),
+                SingleEndEvidence::new(Rc::clone(right)),
+            ],
+        }
+    }
+}
+
 impl Evidence for PairedEndEvidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {

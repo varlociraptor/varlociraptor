@@ -74,10 +74,10 @@ impl Testcase for TestcaseVersion0 {
                 kind:
                     cli::CallKind::Variants {
                         reference,
-                        spurious_ins_rate,
-                        spurious_del_rate,
-                        spurious_insext_rate,
-                        spurious_delext_rate,
+                        spurious_ins_rate: _,
+                        spurious_del_rate: _,
+                        spurious_insext_rate: _,
+                        spurious_delext_rate: _,
                         protocol_strandedness,
                         indel_window,
                         max_depth,

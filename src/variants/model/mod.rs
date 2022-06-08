@@ -8,7 +8,9 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
+use anyhow::Result;
 use ordered_float::NotNan;
+use rust_htslib::bcf;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
@@ -134,6 +136,48 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
+#[derive(Hash, Debug, Eq, PartialEq, Clone)]
+pub(crate) enum HaplotypeIdentifier {
+    Event(Vec<u8>),
+    //PhaseSet { phase_set: u32, genotype: Genotype },
+}
+
+impl HaplotypeIdentifier {
+    pub(crate) fn from(record: &mut bcf::Record) -> Result<Option<Self>> {
+        if let Ok(Some(event)) = record.info(b"EVENT").string() {
+            let event = event[0];
+            return Ok(Some(HaplotypeIdentifier::Event(event.to_owned())));
+        }
+
+        // TODO support phase sets in the future
+        // if let Ok(ps_values) = record.format(b"PS").integer() {
+        //     if ps_values.len() != 1 || ps_values[0].len() != 1 {
+        //         bail!(Error::InvalidPhaseSet);
+        //     }
+        //     let phase_set = ps_values[0][0];
+        //     if !phase_set.is_missing() {
+        //         // phase set definition found
+        //         if let Ok(genotypes) = record.genotypes() {
+        //             let genotype = genotypes.get(0);
+        //             if genotype.len() != 2 || record.allele_count() != 2 {
+        //                 bail!(Error::InvalidPhaseSet);
+        //             }
+        //             if genotype.iter().any(|allele| match allele {
+        //                 GenotypeAllele::Phased(allele_idx) if *allele_idx > 0 => true,
+        //                 _ => false,
+        //             }) {
+        //                 return Ok(Some(HaplotypeIdentifier::PhaseSet {
+        //                     phase_set: phase_set as u32,
+        //                     genotype,
+        //                 }));
+        //             }
+        //         }
+        //     }
+        // }
+        Ok(None)
+    }
+}
+
 #[derive(
     Display,
     Debug,
@@ -175,7 +219,6 @@ pub(crate) enum Variant {
     Breakend {
         ref_allele: Vec<u8>,
         spec: Vec<u8>,
-        event: Vec<u8>,
     },
     Inversion(u64),
     Duplication(u64),

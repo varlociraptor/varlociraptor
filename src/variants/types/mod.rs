@@ -24,6 +24,7 @@ use crate::variants::sample;
 pub(crate) mod breakends;
 pub(crate) mod deletion;
 pub(crate) mod duplication;
+pub(crate) mod haplotype_block;
 pub(crate) mod insertion;
 pub(crate) mod inversion;
 pub(crate) mod mnv;
@@ -42,6 +43,7 @@ pub(crate) use snv::Snv;
 
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::realignment::Realignable;
+use super::model;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
@@ -88,6 +90,7 @@ impl AlleleSupport {
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
+        // TODO set read position to None if both allele supports have one
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
 
@@ -153,6 +156,10 @@ pub(crate) trait Variant {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer_indel_len().is_some()
     }
+}
+
+pub(crate) trait ToVariantRepresentation {
+    fn to_variant_representation(&self) -> model::Variant;
 }
 
 impl<V> Observable<SingleEndEvidence> for V
@@ -371,6 +378,7 @@ where
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
     fn is_single_contig(&self) -> bool;
+    fn first_pos(&self) -> u64;
 }
 
 #[derive(Debug, Derefable, Builder, new, Clone)]
@@ -414,6 +422,9 @@ impl SingleLocus {
 }
 
 impl Loci for SingleLocus {
+    fn first_pos(&self) -> u64 {
+        self.range().start
+    }
     fn contig(&self) -> Option<&str> {
         Some(self.interval.contig())
     }
@@ -430,6 +441,10 @@ pub(crate) struct MultiLocus {
 }
 
 impl Loci for MultiLocus {
+    fn first_pos(&self) -> u64 {
+        self[0].first_pos()
+    }
+
     fn contig(&self) -> Option<&str> {
         let contig = self.loci[0].interval.contig();
         let is_single_contig = self.loci[1..]

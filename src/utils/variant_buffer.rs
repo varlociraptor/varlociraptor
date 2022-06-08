@@ -4,12 +4,13 @@ use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 use vec_map::VecMap;
 
-use crate::variants::model;
 use crate::{errors, utils};
+
+use super::collect_variants::VariantInfo;
 
 pub(crate) struct VariantBuffer {
     reader: bcf::Reader,
-    variants: Vec<model::Variant>,
+    variants: Vec<VariantInfo>,
     variant_index: usize,
     record_infos: VecMap<RecordInfo>,
     locus: Option<Locus>,
@@ -177,9 +178,9 @@ impl VariantBuffer {
 #[derive(CopyGetters, Getters)]
 pub(crate) struct Variants<'a> {
     #[getset(get_copy = "pub(crate)")]
-    variant_of_interest: &'a model::Variant,
-    before: &'a [model::Variant],
-    after: &'a [model::Variant],
+    variant_of_interest: &'a VariantInfo,
+    before: &'a [VariantInfo],
+    after: &'a [VariantInfo],
     #[getset(get = "pub(crate)")]
     locus: Locus,
     #[getset(get_copy = "pub(crate)")]
@@ -187,7 +188,7 @@ pub(crate) struct Variants<'a> {
 }
 
 impl<'a> Variants<'a> {
-    pub(crate) fn alt_variants(&self) -> impl Iterator<Item = &'a model::Variant> {
+    pub(crate) fn alt_variants(&self) -> impl Iterator<Item = &'a VariantInfo> {
         self.before.iter().chain(self.after.iter())
     }
 

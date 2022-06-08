@@ -18,6 +18,7 @@ use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
 use crate::calling;
+use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
@@ -34,7 +35,6 @@ use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
-use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -718,7 +718,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
-                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .haplotype_feature_index(HaplotypeFeatureIndex::new(
+                                        &candidates,
+                                    )?)
                                     .inbcf(candidates)
                                     .options(opt_clone)
                                     .outbcf(output)
@@ -743,7 +745,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
-                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .haplotype_feature_index(HaplotypeFeatureIndex::new(
+                                        &candidates,
+                                    )?)
                                     .inbcf(candidates)
                                     .options(opt_clone)
                                     .outbcf(output)
@@ -767,7 +771,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
-                                    .breakend_index(BreakendIndex::new(&candidates)?)
+                                    .haplotype_feature_index(HaplotypeFeatureIndex::new(
+                                        &candidates,
+                                    )?)
                                     .inbcf(candidates)
                                     .options(opt_clone)
                                     .outbcf(output)
@@ -845,8 +851,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             }
                         }
 
-                        let breakend_index =
-                            BreakendIndex::new(sample_observations.first_not_none()?)?;
+                        let haplotype_feature_index =
+                            HaplotypeFeatureIndex::new(sample_observations.first_not_none()?)?;
 
                         let prior = Prior::builder()
                             .ploidies(None)
@@ -878,7 +884,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
                             .resolutions(sample_infos.resolutions)
-                            .breakend_index(breakend_index)
+                            .haplotype_feature_index(haplotype_feature_index)
                             .outbcf(output)
                             .log_each_record(log_each_record)
                             .build()

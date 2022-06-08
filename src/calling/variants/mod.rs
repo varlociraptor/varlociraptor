@@ -28,6 +28,7 @@ use crate::variants::evidence::observations::read_observation::AltLocus;
 use crate::variants::evidence::observations::read_observation::{ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::bias::AltLocusBias;
+use crate::variants::model::HaplotypeIdentifier;
 use crate::variants::model::{
     bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
@@ -486,9 +487,14 @@ impl VariantBuilder {
     pub(crate) fn variant(
         &mut self,
         variant: &model::Variant,
+        haplotype: &Option<HaplotypeIdentifier>,
         start: usize,
         chrom_seq: Option<&[u8]>,
     ) -> &mut Self {
+        self.event(haplotype.as_ref().map(|haplotype| match haplotype {
+            HaplotypeIdentifier::Event(event) => event.clone(),
+        }));
+
         match variant {
             model::Variant::Deletion(l) => {
                 let l = *l;
@@ -523,14 +529,9 @@ impl VariantBuilder {
             model::Variant::Mnv(bases) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + bases.len()].to_ascii_uppercase())
                 .alt_allele(bases.to_ascii_uppercase()),
-            model::Variant::Breakend {
-                ref_allele,
-                spec,
-                event,
-            } => self
+            model::Variant::Breakend { ref_allele, spec } => self
                 .ref_allele(ref_allele.to_ascii_uppercase())
                 .alt_allele(spec.to_vec())
-                .event(Some(event.to_owned()))
                 .svtype(Some(b"BND".to_vec())),
             model::Variant::Inversion(len) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())

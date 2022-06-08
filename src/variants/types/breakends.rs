@@ -5,10 +5,9 @@
 
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::Range;
-use std::path::Path;
 use std::str;
 use std::sync::Arc;
 
@@ -18,14 +17,12 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
 use rust_htslib::bam;
-use rust_htslib::bcf::{self, Read};
 use vec_map::VecMap;
 
 use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
-use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -913,11 +910,10 @@ impl Breakend {
         )
     }
 
-    pub(crate) fn to_variant(&self, event: &[u8]) -> model::Variant {
+    pub(crate) fn to_variant(&self) -> model::Variant {
         model::Variant::Breakend {
             ref_allele: self.ref_allele.clone(),
             spec: self.spec(),
-            event: event.to_owned(),
         }
     }
 }
@@ -948,45 +944,6 @@ pub(crate) struct Join {
     locus: genome::Locus,
     side: Side,
     extension_modification: ExtensionModification,
-}
-
-#[derive(Default, Debug)]
-pub(crate) struct BreakendIndex {
-    last_records: HashMap<Vec<u8>, usize>,
-}
-
-impl BreakendIndex {
-    pub(crate) fn new<P: AsRef<Path>>(inbcf: P) -> Result<Self> {
-        let mut bcf_reader = bcf::Reader::from_path(inbcf)?;
-        if !utils::is_sv_bcf(&bcf_reader) {
-            return Ok(BreakendIndex::default());
-        }
-
-        let mut last_records = HashMap::new();
-
-        let mut i = 0;
-        loop {
-            let mut record = bcf_reader.empty_record();
-            match bcf_reader.read(&mut record) {
-                None => return Ok(BreakendIndex { last_records }),
-                Some(res) => res?,
-            }
-
-            if utils::is_bnd(&mut record)? {
-                // TODO support records without EVENT tag.
-                if let Ok(Some(event)) = record.info(b"EVENT").string() {
-                    let event = event[0];
-                    last_records.insert(event.to_owned(), i);
-                }
-            }
-
-            i += 1;
-        }
-    }
-
-    pub(crate) fn last_record_index(&self, event: &[u8]) -> Option<usize> {
-        self.last_records.get(event).cloned()
-    }
 }
 
 struct LocusPlusOne<'a>(&'a genome::Locus);

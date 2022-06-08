@@ -24,10 +24,14 @@ use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
 
+use super::ToVariantRepresentation;
+
+#[derive(Debug)]
 pub(crate) struct Snv<R: Realigner> {
     locus: SingleLocus,
     ref_base: u8,
@@ -160,6 +164,12 @@ impl<R: Realigner> Variant for Snv<R> {
 
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
+    }
+}
+
+impl<R: Realigner> ToVariantRepresentation for Snv<R> {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Snv(self.alt_base)
     }
 }
 
