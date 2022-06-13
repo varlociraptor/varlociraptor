@@ -77,7 +77,11 @@ impl VariantBuffer {
                                 && locus.pos() < previous_locus.pos()
                             {
                                 // unsorted input file, fail with an error
-                                return Err(errors::Error::UnsortedVariantFile.into());
+                                return Err(errors::Error::UnsortedVariantFile {
+                                    previous_locus: previous_locus.clone(),
+                                    current_locus: locus.clone(),
+                                }
+                                .into());
                             }
                             self.state = State::LocusComplete;
                         } else {

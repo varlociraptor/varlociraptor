@@ -1,3 +1,4 @@
+use bio_types::genome::Locus;
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -66,8 +67,11 @@ pub(crate) enum Error {
     InvalidReadOrientationInfo { value: String },
     #[error("the following events are not disjunct: {expressions}")]
     OverlappingEvents { expressions: String },
-    #[error("the input VCF/BCF is not sorted")]
-    UnsortedVariantFile,
+    #[error("the input VCF/BCF is not sorted: {previous_locus:?} > {current_locus:?}")]
+    UnsortedVariantFile {
+        previous_locus: Locus,
+        current_locus: Locus,
+    },
     // #[error("invalid phase set, PS tag only supported for single sample VCF/BCF, may only contain a single value, and records may only contain a single ALT allele")]
     // InvalidPhaseSet,
     #[error("haplotype block consisting of normal variants in combination with breakends: this is currently unsupported")]
