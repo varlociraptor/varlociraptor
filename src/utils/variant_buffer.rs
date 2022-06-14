@@ -79,7 +79,7 @@ impl VariantBuffer {
                                 // unsorted input file, fail with an error
                                 return Err(errors::Error::UnsortedVariantFile {
                                     previous_locus: previous_locus.clone(),
-                                    current_locus: locus.clone(),
+                                    current_locus: locus,
                                 }
                                 .into());
                             }
