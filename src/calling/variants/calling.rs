@@ -169,7 +169,7 @@ where
               Description=\"Read position bias estimate: ^ indicates that ALT allele is associated with \
               the most found read position, . indicates that there is no read position bias.
               Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
-              Probability for read orientation bias is captured by the ARTIFACT \
+              Probability for read position bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
         header.push_record(
@@ -199,7 +199,7 @@ where
               reported by the used read mapper. \
               This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
               a homology, a distant variant allele, or a CNV). \
-              Probability for mapping quality bias is captured by the ARTIFACT \
+              Probability for alt locus bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
         header.push_record(
