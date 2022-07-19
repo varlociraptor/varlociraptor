@@ -134,12 +134,14 @@ impl Artifacts {
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
+        consider_alt_locus_bias: bool,
     ) -> Box<dyn Iterator<Item = Self>> {
         if !consider_strand_bias
             && !consider_read_orientation_bias
             && !consider_read_position_bias
             && !consider_softclip_bias
             && !consider_homopolymer_error
+            && !consider_alt_locus_bias
         {
             return Box::new(std::iter::empty());
         }
@@ -169,8 +171,11 @@ impl Artifacts {
         } else {
             vec![HomopolymerError::default()]
         };
-        let alt_locus_bias = AltLocusBias::iter().collect_vec();
-        //let alt_locus_bias = vec![AltLocusBias::None];
+        let alt_locus_bias = if consider_alt_locus_bias {
+            AltLocusBias::iter().collect_vec()
+        } else {
+            vec![AltLocusBias::default()]
+        };
 
         Box::new(
             strand_biases

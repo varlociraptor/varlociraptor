@@ -54,6 +54,7 @@ where
     omit_read_position_bias: bool,
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
+    omit_alt_locus_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -366,6 +367,7 @@ where
                 work_item.check_read_position_bias,
                 work_item.check_softclip_bias,
                 work_item.check_homopolymer_artifact_detection,
+                work_item.check_alt_locus_bias,
             )?;
 
             self.call_record(&mut work_item, _model, _events);
@@ -449,6 +451,7 @@ where
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
             check_homopolymer_artifact_detection: false,
+            check_alt_locus_bias: !self.omit_alt_locus_bias,
         };
 
         if let Some(ref haplotype) = work_item.haplotype {
@@ -509,6 +512,7 @@ where
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
+        consider_alt_locus_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) || events.is_empty() {
             // rid is not the same as before or the model mode has changed to something new, obtain event universe
@@ -536,6 +540,7 @@ where
                     consider_read_position_bias,
                     consider_softclip_bias,
                     consider_homopolymer_error,
+                    consider_alt_locus_bias,
                 )
                 .collect();
 
@@ -788,4 +793,5 @@ struct WorkItem {
     check_read_position_bias: bool,
     check_softclip_bias: bool,
     check_homopolymer_artifact_detection: bool,
+    check_alt_locus_bias: bool,
 }
