@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.2.0...v5.3.0) (2022-07-19)
+
+
+### Features
+
+* allow to omit alt-locus-bias ([#289](https://www.github.com/varlociraptor/varlociraptor/issues/289)) ([e7299d6](https://www.github.com/varlociraptor/varlociraptor/commit/e7299d67e803d3d37ae5add125be29deee7b6307))
+
 ## [5.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.1.0...v5.2.0) (2022-06-08)
 
 
