@@ -243,11 +243,8 @@ testcase!(test_haplotype_absent, exact);
 testcase!(test_haplotype_present, exact);
 testcase!(test_haplotype_singleton, exact);
 
-// These two testcases wrongly lead to an ALT locus bias being called.
-// However, from the data this indeed looks like an artifact, although we know in this case
-// that it is not. In order to avoid overfitting, we hence don't do anything about it.
-//testcase!(test_alt_locus_bias_01, exact);
-//testcase!(test_alt_locus_bias_02, exact);
+testcase!(test_alt_locus_bias_01, exact);
+testcase!(test_alt_locus_bias_02, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
