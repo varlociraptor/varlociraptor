@@ -136,6 +136,14 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_alt_locus_bias(&self) -> bool {
+        if self.yaml()["omit_alt_locus_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_alt_locus_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -259,6 +267,7 @@ pub(crate) trait Testcase {
                         omit_softclip_bias: self.omit_softclip_bias(),
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
+                        omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -297,6 +306,7 @@ pub(crate) trait Testcase {
                         omit_softclip_bias: self.omit_softclip_bias(),
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
+                        omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self

@@ -243,6 +243,9 @@ testcase!(test_haplotype_absent, exact);
 testcase!(test_haplotype_present, exact);
 testcase!(test_haplotype_singleton, exact);
 
+testcase!(test_alt_locus_bias_01, exact);
+testcase!(test_alt_locus_bias_02, exact);
+
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }

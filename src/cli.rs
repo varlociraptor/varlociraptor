@@ -452,6 +452,14 @@ pub enum CallKind {
         #[serde(default)]
         omit_homopolymer_artifact_detection: bool,
         #[structopt(
+            long = "omit-alt-locus-bias",
+            help = "Do not consider alt locus bias when calculating the probability of an artifact. \
+                   Use this flag when you have e.g. prior knowledge about all candidate variants being not \
+                   caused by mapping artifacts."
+        )]
+        #[serde(default)]
+        omit_alt_locus_bias: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -801,6 +809,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_read_position_bias,
                     omit_softclip_bias,
                     omit_homopolymer_artifact_detection,
+                    omit_alt_locus_bias,
                     testcase_locus,
                     testcase_prefix,
                     testcase_anonymous,
@@ -880,6 +889,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_homopolymer_artifact_detection(
                                 omit_homopolymer_artifact_detection,
                             )
+                            .omit_alt_locus_bias(omit_alt_locus_bias)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
