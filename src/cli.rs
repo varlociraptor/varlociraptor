@@ -889,6 +889,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_homopolymer_artifact_detection(
                                 omit_homopolymer_artifact_detection,
                             )
+                            .omit_alt_locus_bias(omit_alt_locus_bias)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
