@@ -267,6 +267,7 @@ pub(crate) trait Testcase {
                         omit_softclip_bias: self.omit_softclip_bias(),
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
+                        omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
