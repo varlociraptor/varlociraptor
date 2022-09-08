@@ -107,126 +107,137 @@ impl Caller<'_> {
                 eprintln!("No LOH candidate intervals found. BED file will be empty.");
                 return Ok(());
             }
-
-            // Define problem and objective sense
-            let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
-
-            // Define Variables
-            let interval_loh_indicator: HashMap<&RangeInclusive<usize>, LpBinary> = intervals
-                .iter()
-                .map(|(range, _)| {
-                    let key = range;
-                    let loh_indicator = LpBinary::new(&format!("i_{}_{}", key.start(), key.end()));
-                    (key, loh_indicator)
-                })
-                .collect();
-
-            // Define Objective Function: maximise length of selected LOH regions
-            let lengths: Vec<LpExpression> = {
-                interval_loh_indicator
-                    .iter()
-                    .map(|(&interval, loh_indicator)| {
-                        let interval_length = (contig.positions[*interval.end()]
-                            - contig.positions[*interval.start()]
-                            + 1) as f32;
-                        interval_length * loh_indicator
-                    })
-                    .collect()
-            };
-            problem += lengths.sum();
-
-            // Constraint: no overlapping intervals for selected intervals
-            for current_interval in intervals.keys() {
-                let mut n_overlapping_selected: Vec<&LpBinary> = Vec::new();
-                for (&interval, loh_indicator) in interval_loh_indicator.iter() {
-                    // current interval will overlap itself, but should not add to the constraint
-                    if current_interval != interval
-                        && (current_interval.contains(interval.start())
-                        // adjacency is equivalent to an overlap
-                        || current_interval.contains(&(interval.start().saturating_sub(1)))
-                        || current_interval.contains(interval.end())
-                        // adjacency is equivalent to an overlap
-                        || current_interval.contains(&(interval.end() + 1)))
-                    {
-                        n_overlapping_selected.push(loh_indicator);
-                    }
-                }
-                if n_overlapping_selected.len() > 0 {
-                    problem += n_overlapping_selected.sum().le(intervals.len() as f32
-                        * (1 - interval_loh_indicator.get(&current_interval).unwrap()));
+            
+            let mut remaining_alpha = alpha;
+            let mut called_intervals = BTreeMap<RangeInclusive<usize>,PHREDProb>::new();
+            while remaining_alpha > 0 && let Some((length, (log_prob_not_no_loh, range))) = intervals.pop_last() {
+                let prob_no_loh = Prob::from(log_prob_not_no_loh.ln_one_minus_exp());
+                if prob_no_loh <= remaining_alpha && TODO_check_overlap {
+                    remaining_alpha -= prob_no_loh;
+                    called_intervals.insert(range,PHREDProb::from(log_prob_not_no_loh));
                 }
             }
+            
 
-            // Constraint: control false discovery rate at alpha
-            let alpha_f64 = f64::from(self.alpha);
-            let selected_probs_vec: Vec<LpExpression> = {
-                interval_loh_indicator
-                    .iter()
-                    .map(|(&interval, loh_indicator)| {
-                        let interval_prob_no_loh = (f64::from(Prob::from(
-                            intervals.get(&interval).unwrap().ln_one_minus_exp(),
-                        )) - alpha_f64) as f32;
-                        interval_prob_no_loh * loh_indicator
-                    })
-                    .collect()
-            };
-            problem += selected_probs_vec.sum().le(0);
-
-            if write_problems {
-                problem.write_lp(&*format!(
-                    "{}/{}.problem.lp",
-                    self.problems_folder
-                        .as_ref()
-                        .unwrap()
-                        .as_os_str()
-                        .to_str()
-                        .unwrap(),
-                    contig_name
-                ))?;
-            }
-
-            // Specify solver
-            let solver = GurobiSolver::new();
-
-            // (terminate if error, or assign status & variable values)
-            match solver.run(&problem) {
-                Ok(solution) => {
-                    println!("Status: {:?}", solution.status);
-                    let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
-                    for (var_name, var_value) in solution.results.iter() {
-                        let split: Vec<_> = var_name.split('_').collect();
-                        if split.len() != 3 {
-                            panic!(
-                                format!("Current chromosome index: {}\n\
-                                        The solver seems to have renamed the variables, probably due to some parsing problem.\n\
-                                        Please use the `--problems-folder` option to save the problem as a *.problem.lp file and manually run it through the solver to check this.",
-                                        contig_id)
-                            );
-                        } else {
-                            let start_index: usize = split[1].parse()?;
-                            let end_index: usize = split[2].parse()?;
-                            let int_var_value = *var_value as u32;
-                            if int_var_value == 1 {
-                                debug!("{} is selected", var_name);
-                                let score = f64::from(
-                                    PHREDProb::from(
-                                        *intervals.get(&(start_index..=end_index)).unwrap(),
-                                    )
-                                )
-                                    .to_string();
-                                // Write result to bed
-                                bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
-                                bed_record.set_end(contig.positions[end_index] + 1); // 1-based
-                                bed_record.set_score(score.as_str());
-                                sorted_records.insert(bed_record.start(), bed_record.clone());
-                            }
-                        }
-                    }
-                    for (_, record) in sorted_records {
-                        bed_writer.write(&record)?;
-                    }
-                },
-                Err(error) => panic!("Could not open the temporary solution file. Probably, the solver did not find a solution. It returned: '{}'", error),
+//            // Define problem and objective sense
+//            let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
+//
+//            // Define Variables
+//            let interval_loh_indicator: HashMap<&RangeInclusive<usize>, LpBinary> = intervals
+//                .iter()
+//                .map(|(range, _)| {
+//                    let key = range;
+//                    let loh_indicator = LpBinary::new(&format!("i_{}_{}", key.start(), key.end()));
+//                    (key, loh_indicator)
+//                })
+//                .collect();
+//
+//            // Define Objective Function: maximise length of selected LOH regions
+//            let lengths: Vec<LpExpression> = {
+//                interval_loh_indicator
+//                    .iter()
+//                    .map(|(&interval, loh_indicator)| {
+//                        let interval_length = (contig.positions[*interval.end()]
+//                            - contig.positions[*interval.start()]
+//                            + 1) as f32;
+//                        interval_length * loh_indicator
+//                    })
+//                    .collect()
+//            };
+//            problem += lengths.sum();
+//
+//            // Constraint: no overlapping intervals for selected intervals
+//            for current_interval in intervals.keys() {
+//                let mut n_overlapping_selected: Vec<&LpBinary> = Vec::new();
+//                for (&interval, loh_indicator) in interval_loh_indicator.iter() {
+//                    // current interval will overlap itself, but should not add to the constraint
+//                    if current_interval != interval
+//                        && (current_interval.contains(interval.start())
+//                        // adjacency is equivalent to an overlap
+//                        || current_interval.contains(&(interval.start().saturating_sub(1)))
+//                        || current_interval.contains(interval.end())
+//                        // adjacency is equivalent to an overlap
+//                        || current_interval.contains(&(interval.end() + 1)))
+//                    {
+//                        n_overlapping_selected.push(loh_indicator);
+//                    }
+//                }
+//                if n_overlapping_selected.len() > 0 {
+//                    problem += n_overlapping_selected.sum().le(intervals.len() as f32
+//                        * (1 - interval_loh_indicator.get(&current_interval).unwrap()));
+//                }
+//            }
+//
+//            // Constraint: control false discovery rate at alpha
+//            let alpha_f64 = f64::from(self.alpha);
+//            let selected_probs_vec: Vec<LpExpression> = {
+//                interval_loh_indicator
+//                    .iter()
+//                    .map(|(&interval, loh_indicator)| {
+//                        let interval_prob_no_loh = (f64::from(Prob::from(
+//                            intervals.get(&interval).unwrap().ln_one_minus_exp(),
+//                        )) - alpha_f64) as f32;
+//                        interval_prob_no_loh * loh_indicator
+//                    })
+//                    .collect()
+//            };
+//            problem += selected_probs_vec.sum().le(0);
+//
+//            if write_problems {
+//                problem.write_lp(&*format!(
+//                    "{}/{}.problem.lp",
+//                    self.problems_folder
+//                        .as_ref()
+//                        .unwrap()
+//                        .as_os_str()
+//                        .to_str()
+//                        .unwrap(),
+//                    contig_name
+//                ))?;
+//            }
+//
+//            // Specify solver
+//            let solver = GurobiSolver::new();
+//
+//            // (terminate if error, or assign status & variable values)
+//            match solver.run(&problem) {
+//                Ok(solution) => {
+//                    println!("Status: {:?}", solution.status);
+//                    let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
+//                    for (var_name, var_value) in solution.results.iter() {
+//                        let split: Vec<_> = var_name.split('_').collect();
+//                        if split.len() != 3 {
+//                            panic!(
+//                                format!("Current chromosome index: {}\n\
+//                                        The solver seems to have renamed the variables, probably due to some parsing problem.\n\
+//                                        Please use the `--problems-folder` option to save the problem as a *.problem.lp file and manually run it through the solver to check this.",
+//                                        contig_id)
+//                            );
+//                        } else {
+//                            let start_index: usize = split[1].parse()?;
+//                            let end_index: usize = split[2].parse()?;
+//                            let int_var_value = *var_value as u32;
+//                            if int_var_value == 1 {
+//                                debug!("{} is selected", var_name);
+//                                let score = f64::from(
+//                                    PHREDProb::from(
+//                                        *intervals.get(&(start_index..=end_index)).unwrap(),
+//                                    )
+//                                )
+//                                    .to_string();
+//                                // Write result to bed
+//                                bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
+//                                bed_record.set_end(contig.positions[end_index] + 1); // 1-based
+//                                bed_record.set_score(score.as_str());
+//                                sorted_records.insert(bed_record.start(), bed_record.clone());
+//                            }
+//                        }
+//                    }
+//                    for (_, record) in sorted_records {
+//                        bed_writer.write(&record)?;
+//                    }
+//                },
+//                Err(error) => panic!("Could not open the temporary solution file. Probably, the solver did not find a solution. It returned: '{}'", error),
             }
         }
         Ok(())
@@ -384,9 +395,9 @@ impl ContigLogPosteriorsLOH {
         &self,
         alpha: Prob,
         filter_bayes_factor_minimum_barely: &bool,
-    ) -> Result<HashMap<RangeInclusive<usize>, LogProb>> {
+    ) -> Result<BTreeMap<usize, (LogProb, RangeInclusive<usize>)>> {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
-        let mut intervals = HashMap::new();
+        let mut intervals = BTreeMap::new();
         for start in 0..(self.cum_loh_posteriors.len() - 1) {
             if !self.valid_start_ends[start] {
                 continue;
@@ -415,7 +426,7 @@ impl ContigLogPosteriorsLOH {
                 {
                     continue;
                 }
-                intervals.insert(start..=end, posterior_log_probability);
+                intervals.insert(end - start + 1, (posterior_log_probability, start..=end) );
             }
         }
         Ok(intervals)
