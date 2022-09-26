@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -9,6 +10,7 @@ use bio::stats::{bayesian, LogProb};
 use bio_types::genome;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
+use derive_new::new;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
@@ -43,9 +45,10 @@ pub(crate) type Model<Pr> =
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub(crate) struct Caller<Pr>
+pub(crate) struct Caller<Pr, CP>
 where
     Pr: bayesian::model::Prior,
+    CP: CallProcessor,
 {
     samplenames: grammar::SampleInfo<String>,
     observations: grammar::SampleInfo<Option<PathBuf>>,
@@ -64,15 +67,13 @@ where
     #[builder(default)]
     haplotype_results: RwLock<HashMap<HaplotypeIdentifier, HaplotypeResult>>,
     log_each_record: bool,
+    call_processor: RefCell<CP>,
 }
 
-impl<Pr> Caller<Pr>
+impl<Pr, CP> Caller<Pr, CP>
 where
-    Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
-        + model::prior::UpdatablePrior
-        + model::prior::CheckablePrior
-        + Clone
-        + Default,
+    Pr: bayesian::model::Prior,
+    CP: CallProcessor,
 {
     pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()
@@ -224,7 +225,17 @@ where
                 .context("Unable to write BCF to STDOUT.")?
         })
     }
+}
 
+impl<Pr, CP> Caller<Pr, CP>
+where
+    Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
+        + model::prior::UpdatablePrior
+        + model::prior::CheckablePrior
+        + Clone
+        + Default,
+    CP: CallProcessor,
+{
     fn model(&self) -> Model<Pr> {
         GenericModelBuilder::default()
             // TODO allow to define prior in the grammar
@@ -251,8 +262,7 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
-        let mut bcf_writer = self.writer()?;
-        bcf_writer.set_threads(1)?;
+        self.call_processor.borrow_mut().setup(self)?;
 
         // Check observation format.
         for obs_reader in observations.iter_not_none() {
@@ -372,7 +382,9 @@ where
 
             self.call_record(&mut work_item, _model, _events);
 
-            work_item.call.write_final_record(&mut bcf_writer)?;
+            self.call_processor
+                .borrow_mut()
+                .process_call(work_item.call)?;
             progress_logger.update(1u64);
 
             i += 1;
@@ -794,4 +806,27 @@ struct WorkItem {
     check_softclip_bias: bool,
     check_homopolymer_artifact_detection: bool,
     check_alt_locus_bias: bool,
+}
+
+pub(crate) trait CallProcessor: Sized {
+    fn setup<Pr: bayesian::model::Prior>(&mut self, caller: &Caller<Pr, Self>) -> Result<()>;
+    fn process_call(&mut self, call: Call) -> Result<()>;
+}
+
+#[derive(Debug, new)]
+pub(crate) struct CallWriter {
+    #[new(default)]
+    bcf_writer: Option<bcf::Writer>,
+}
+
+impl CallProcessor for CallWriter {
+    fn setup<Pr: bayesian::model::Prior>(&mut self, caller: &Caller<Pr, Self>) -> Result<()> {
+        self.bcf_writer = Some(caller.writer()?);
+
+        Ok(())
+    }
+
+    fn process_call(&mut self, call: Call) -> Result<()> {
+        call.write_final_record(self.bcf_writer.as_mut().unwrap())
+    }
 }

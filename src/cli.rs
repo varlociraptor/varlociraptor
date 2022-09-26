@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
@@ -18,6 +19,7 @@ use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
 use crate::calling;
+use crate::calling::variants::calling::CallWriter;
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::conversion;
 use crate::errors;
@@ -897,6 +899,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .haplotype_feature_index(haplotype_feature_index)
                             .outbcf(output)
                             .log_each_record(log_each_record)
+                            .call_processor(RefCell::new(CallWriter::new()))
                             .build()
                             .unwrap();
 
