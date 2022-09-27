@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 use std::sync::RwLock;
 
 use anyhow::{Context, Result};
-use bio::stats::{bayesian, LogProb};
+use bio::stats::{bayesian, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
@@ -24,13 +25,14 @@ use crate::calling::variants::{
 };
 use crate::errors;
 use crate::grammar;
-use crate::utils;
+use crate::utils::{self, PathMap};
 use crate::variants::evidence::observations::pileup::Pileup;
 
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
+use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{self};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
@@ -45,10 +47,11 @@ pub(crate) type Model<Pr> =
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub(crate) struct Caller<Pr, CP>
+pub(crate) struct Caller<Pr, CP, CF>
 where
     Pr: bayesian::model::Prior,
     CP: CallProcessor,
+    CF: CandidateFilter,
 {
     samplenames: grammar::SampleInfo<String>,
     observations: grammar::SampleInfo<Option<PathBuf>>,
@@ -68,12 +71,14 @@ where
     haplotype_results: RwLock<HashMap<HaplotypeIdentifier, HaplotypeResult>>,
     log_each_record: bool,
     call_processor: RefCell<CP>,
+    candidate_filter: CF,
 }
 
-impl<Pr, CP> Caller<Pr, CP>
+impl<Pr, CP, CF> Caller<Pr, CP, CF>
 where
     Pr: bayesian::model::Prior,
     CP: CallProcessor,
+    CF: CandidateFilter,
 {
     pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()
@@ -227,7 +232,7 @@ where
     }
 }
 
-impl<Pr, CP> Caller<Pr, CP>
+impl<Pr, CP, CF> Caller<Pr, CP, CF>
 where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
         + model::prior::UpdatablePrior
@@ -235,6 +240,7 @@ where
         + Clone
         + Default,
     CP: CallProcessor,
+    CF: CandidateFilter,
 {
     fn model(&self) -> Model<Pr> {
         GenericModelBuilder::default()
@@ -347,48 +353,51 @@ where
 
             let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
 
-            // process work item
-            let contig = str::from_utf8(work_item.call.chrom()).unwrap();
-            let _last_rid;
+            if self.candidate_filter.filter(&work_item) {
+                // process work item
+                let contig = str::from_utf8(work_item.call.chrom()).unwrap();
+                let _last_rid;
 
-            let model_mode = (
-                work_item.check_read_orientation_bias,
-                work_item.check_read_position_bias,
-                work_item.check_softclip_bias,
-                work_item.check_homopolymer_artifact_detection,
-            );
-            let _model = models.entry(model_mode).or_insert_with(|| self.model());
-            let _events = events.entry(model_mode).or_insert_with(Vec::new);
-            {
-                let entry = last_rids.entry(model_mode).or_insert(None);
-                _last_rid = *entry;
-                *entry = Some(work_item.rid);
+                let model_mode = (
+                    work_item.check_read_orientation_bias,
+                    work_item.check_read_position_bias,
+                    work_item.check_softclip_bias,
+                    work_item.check_homopolymer_artifact_detection,
+                );
+                let _model = models.entry(model_mode).or_insert_with(|| self.model());
+                let _events = events.entry(model_mode).or_insert_with(Vec::new);
+                {
+                    let entry = last_rids.entry(model_mode).or_insert(None);
+                    _last_rid = *entry;
+                    *entry = Some(work_item.rid);
+                }
+
+                self.configure_model(
+                    work_item.rid,
+                    _last_rid,
+                    _model,
+                    _events,
+                    contig,
+                    variant_type,
+                    work_item.check_read_orientation_bias,
+                    work_item.check_strand_bias,
+                    work_item.check_read_position_bias,
+                    work_item.check_softclip_bias,
+                    work_item.check_homopolymer_artifact_detection,
+                    work_item.check_alt_locus_bias,
+                )?;
+
+                self.call_record(&mut work_item, _model, _events);
+
+                self.call_processor
+                    .borrow_mut()
+                    .process_call(work_item.call)?;
             }
-
-            self.configure_model(
-                work_item.rid,
-                _last_rid,
-                _model,
-                _events,
-                contig,
-                variant_type,
-                work_item.check_read_orientation_bias,
-                work_item.check_strand_bias,
-                work_item.check_read_position_bias,
-                work_item.check_softclip_bias,
-                work_item.check_homopolymer_artifact_detection,
-                work_item.check_alt_locus_bias,
-            )?;
-
-            self.call_record(&mut work_item, _model, _events);
-
-            self.call_processor
-                .borrow_mut()
-                .process_call(work_item.call)?;
             progress_logger.update(1u64);
 
             i += 1;
         }
+        self.call_processor.borrow_mut().finalize()?;
     }
 
     fn preprocess_record(
@@ -792,7 +801,9 @@ pub(crate) struct HaplotypeResult {
     sample_info: Vec<Option<SampleInfo>>,
 }
 
-struct WorkItem {
+#[derive(Getters)]
+#[getset(get = "pub(crate)")]
+pub(crate) struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
@@ -809,8 +820,12 @@ struct WorkItem {
 }
 
 pub(crate) trait CallProcessor: Sized {
-    fn setup<Pr: bayesian::model::Prior>(&mut self, caller: &Caller<Pr, Self>) -> Result<()>;
+    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+        &mut self,
+        caller: &Caller<Pr, Self, CF>,
+    ) -> Result<()>;
     fn process_call(&mut self, call: Call) -> Result<()>;
+    fn finalize(&mut self) -> Result<()>;
 }
 
 #[derive(Debug, new)]
@@ -820,7 +835,10 @@ pub(crate) struct CallWriter {
 }
 
 impl CallProcessor for CallWriter {
-    fn setup<Pr: bayesian::model::Prior>(&mut self, caller: &Caller<Pr, Self>) -> Result<()> {
+    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+        &mut self,
+        caller: &Caller<Pr, Self, CF>,
+    ) -> Result<()> {
         self.bcf_writer = Some(caller.writer()?);
 
         Ok(())
@@ -828,5 +846,197 @@ impl CallProcessor for CallWriter {
 
     fn process_call(&mut self, call: Call) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
+    }
+
+    fn finalize(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub(crate) trait CandidateFilter {
+    // Return true if work_item shall be processed, otherwise false.
+    fn filter(&self, work_item: &WorkItem) -> bool;
+}
+
+pub(crate) struct DefaultCandidateFilter;
+
+impl CandidateFilter for DefaultCandidateFilter {
+    fn filter(&self, work_item: &WorkItem) -> bool {
+        true
+    }
+}
+
+pub(crate) fn call_generic(
+    scenario: grammar::Scenario,
+    observations: PathMap,
+    omit_strand_bias: bool,
+    omit_read_orientation_bias: bool,
+    omit_read_position_bias: bool,
+    omit_softclip_bias: bool,
+    omit_homopolymer_artifact_detection: bool,
+    omit_alt_locus_bias: bool,
+    output: Option<PathBuf>,
+    log_each_record: bool,
+) -> Result<()> {
+    let sample_infos = SampleInfos::try_from(&scenario)?;
+
+    // record observation paths
+    let mut sample_observations = scenario.sample_info();
+    for (sample_name, _) in scenario.samples().iter() {
+        if let Some(obs) = observations.get(sample_name) {
+            sample_observations = sample_observations.push(sample_name, Some(obs.to_owned()));
+        } else {
+            sample_observations = sample_observations.push(sample_name, None);
+        }
+    }
+    let sample_observations = sample_observations.build();
+
+    for obs_sample_name in observations.keys() {
+        if !sample_infos.names.as_slice().contains(obs_sample_name) {
+            return Err(errors::Error::InvalidObservationSampleName {
+                name: obs_sample_name.to_owned(),
+            }
+            .into());
+        }
+    }
+
+    let haplotype_feature_index =
+        HaplotypeFeatureIndex::new(sample_observations.first_not_none()?)?;
+
+    let prior = Prior::builder()
+        .ploidies(None)
+        .universe(None)
+        .uniform(sample_infos.uniform_prior)
+        .germline_mutation_rate(sample_infos.germline_mutation_rates)
+        .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
+        .inheritance(sample_infos.inheritance)
+        .heterozygosity(
+            scenario
+                .species()
+                .as_ref()
+                .and_then(|species| species.heterozygosity().map(|het| LogProb::from(Prob(het)))),
+        )
+        .variant_type_fractions(scenario.variant_type_fractions())
+        .build();
+
+    // setup caller
+    let caller = CallerBuilder::default()
+        .samplenames(sample_infos.names)
+        .observations(sample_observations)
+        .omit_strand_bias(omit_strand_bias)
+        .omit_read_orientation_bias(omit_read_orientation_bias)
+        .omit_read_position_bias(omit_read_position_bias)
+        .omit_softclip_bias(omit_softclip_bias)
+        .omit_homopolymer_artifact_detection(omit_homopolymer_artifact_detection)
+        .omit_alt_locus_bias(omit_alt_locus_bias)
+        .scenario(scenario)
+        .prior(prior)
+        .contaminations(sample_infos.contaminations)
+        .resolutions(sample_infos.resolutions)
+        .haplotype_feature_index(haplotype_feature_index)
+        .outbcf(output)
+        .log_each_record(log_each_record)
+        .call_processor(RefCell::new(CallWriter::new()))
+        .build()
+        .unwrap();
+
+    // call
+    caller.call()?;
+
+    Ok(())
+}
+
+pub(crate) struct SampleInfos {
+    uniform_prior: grammar::SampleInfo<bool>,
+    contaminations: grammar::SampleInfo<Option<Contamination>>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
+    germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
+    somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
+    inheritance: grammar::SampleInfo<Option<Inheritance>>,
+    names: grammar::SampleInfo<String>,
+}
+
+impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
+    type Error = anyhow::Error;
+
+    fn try_from(scenario: &grammar::Scenario) -> Result<Self> {
+        let mut contaminations = scenario.sample_info();
+        let mut resolutions = scenario.sample_info();
+        let mut sample_names = scenario.sample_info();
+        let mut germline_mutation_rates = scenario.sample_info();
+        let mut somatic_effective_mutation_rates = scenario.sample_info();
+        let mut inheritance = scenario.sample_info();
+        let mut uniform_prior = scenario.sample_info();
+
+        for (sample_name, sample) in scenario.samples().iter() {
+            let contamination = if let Some(contamination) = sample.contamination() {
+                let contaminant = scenario.idx(contamination.by()).ok_or(
+                    errors::Error::InvalidContaminationSampleName {
+                        name: sample_name.to_owned(),
+                    },
+                )?;
+                Some(Contamination {
+                    by: contaminant,
+                    fraction: *contamination.fraction(),
+                })
+            } else {
+                None
+            };
+            uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
+            contaminations = contaminations.push(sample_name, contamination);
+            resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
+            sample_names = sample_names.push(sample_name, sample_name.to_owned());
+            germline_mutation_rates = germline_mutation_rates.push(
+                sample_name,
+                sample.germline_mutation_rate(scenario.species()),
+            );
+            somatic_effective_mutation_rates = somatic_effective_mutation_rates.push(
+                sample_name,
+                sample.somatic_effective_mutation_rate(scenario.species()),
+            );
+            inheritance = inheritance.push(
+                sample_name,
+                if let Some(inheritance) = sample.inheritance() {
+                    let parent_idx = |parent| {
+                        scenario
+                            .idx(parent)
+                            .ok_or(errors::Error::InvalidInheritanceSampleName {
+                                name: sample_name.to_owned(),
+                            })
+                    };
+                    Some(match inheritance {
+                        grammar::Inheritance::Mendelian { from: parents } => {
+                            Inheritance::Mendelian {
+                                from: (parent_idx(&parents.0)?, parent_idx(&parents.1)?),
+                            }
+                        }
+                        grammar::Inheritance::Clonal {
+                            from: parent,
+                            somatic,
+                        } => Inheritance::Clonal {
+                            from: parent_idx(parent)?,
+                            somatic: *somatic,
+                        },
+                        grammar::Inheritance::Subclonal { from: parent } => {
+                            Inheritance::Subclonal {
+                                from: parent_idx(parent)?,
+                            }
+                        }
+                    })
+                } else {
+                    None
+                },
+            );
+        }
+
+        Ok(SampleInfos {
+            uniform_prior: uniform_prior.build(),
+            contaminations: contaminations.build(),
+            resolutions: resolutions.build(),
+            germline_mutation_rates: germline_mutation_rates.build(),
+            somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),
+            inheritance: inheritance.build(),
+            names: sample_names.build(),
+        })
     }
 }

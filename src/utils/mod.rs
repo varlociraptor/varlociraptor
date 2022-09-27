@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::{AddAssign, Deref};
+use std::path::PathBuf;
 use std::str;
 
 use anyhow::Result;
@@ -36,6 +37,8 @@ pub(crate) mod variant_buffer;
 pub(crate) use collect_variants::collect_variants;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
+
+pub(crate) type PathMap = HashMap<String, PathBuf>;
 
 lazy_static! {
     pub(crate) static ref PROB_05: LogProb = LogProb::from(Prob(0.5f64));

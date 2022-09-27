@@ -556,11 +556,12 @@ impl VariantBuilder {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
+#[derive(Debug, Clone, Builder, Getters)]
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     pileup: Rc<Pileup>,
     artifacts: Artifacts,
+    #[getset(get = "pub(crate)")]
     vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
 }
 
