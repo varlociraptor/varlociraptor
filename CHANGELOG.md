@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.3.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.0...v5.3.1) (2022-09-27)
+
+### Fixes
+* Use number specifications from VCF 4.3 spec for SVTYPE, SVLEN, END, EVENT, and MATEID (#293).
+
 ## [5.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.2.0...v5.3.0) (2022-07-19)
 
 
