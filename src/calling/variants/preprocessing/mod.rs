@@ -82,24 +82,24 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         // register tags
         header.push_record(
-            b"##INFO=<ID=SVLEN,Number=A,Type=Integer,\
+            b"##INFO=<ID=SVLEN,Number=.,Type=Integer,\
               Description=\"Difference in length between REF and ALT alleles\">",
         );
         header.push_record(
-            b"##INFO=<ID=END,Number=A,Type=Integer,\
+            b"##INFO=<ID=END,Number=1,Type=Integer,\
               Description=\"End position of structural variant (inclusive, 1-based).\">",
         );
         header.push_record(
-            b"##INFO=<ID=SVTYPE,Number=A,Type=String,\
-              Description=\"Structural variant type\">",
+            b"##INFO=<ID=SVTYPE,Number=1,Type=String,\
+              Description=\"Type of structural variant\">",
         );
         header.push_record(
-            b"##INFO=<ID=EVENT,Number=A,Type=String,\
+            b"##INFO=<ID=EVENT,Number=1,Type=String,\
               Description=\"ID of event associated to breakend\">",
         );
         header.push_record(
-            b"##INFO=<ID=MATEID,Number=1,Type=String,\
-              Description=\"ID of mate breakend\">",
+            b"##INFO=<ID=MATEID,Number=.,Type=String,\
+              Description=\"ID of mate breakends\">",
         );
 
         // register sequences
