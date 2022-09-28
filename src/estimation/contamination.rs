@@ -152,7 +152,7 @@ pub(crate) fn estimate_contamination(
         resolution: 0.01
         universe: "[0.0,1.0]"
       contaminant:
-        resolution: 0.1
+        resolution: 0.01
         universe: "[0.0,1.0]"
     events:
       present:  "sample:]0.0,1.0] & contaminant:]0.0,1.0]"
