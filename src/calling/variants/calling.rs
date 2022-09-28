@@ -858,6 +858,7 @@ pub(crate) trait CandidateFilter {
     fn filter(&self, work_item: &WorkItem) -> bool;
 }
 
+#[derive(new)]
 pub(crate) struct DefaultCandidateFilter;
 
 impl CandidateFilter for DefaultCandidateFilter {
@@ -866,7 +867,7 @@ impl CandidateFilter for DefaultCandidateFilter {
     }
 }
 
-pub(crate) fn call_generic(
+pub(crate) fn call_generic<CP, CF>(
     scenario: grammar::Scenario,
     observations: PathMap,
     omit_strand_bias: bool,
@@ -877,7 +878,13 @@ pub(crate) fn call_generic(
     omit_alt_locus_bias: bool,
     output: Option<PathBuf>,
     log_each_record: bool,
-) -> Result<()> {
+    call_processor: CP,
+    candidate_filter: CF,
+) -> Result<()>
+where
+    CP: CallProcessor,
+    CF: CandidateFilter,
+{
     let sample_infos = SampleInfos::try_from(&scenario)?;
 
     // record observation paths
@@ -936,7 +943,8 @@ pub(crate) fn call_generic(
         .haplotype_feature_index(haplotype_feature_index)
         .outbcf(output)
         .log_each_record(log_each_record)
-        .call_processor(RefCell::new(CallWriter::new()))
+        .call_processor(RefCell::new(call_processor))
+        .candidate_filter(candidate_filter)
         .build()
         .unwrap();
 
@@ -946,6 +954,8 @@ pub(crate) fn call_generic(
     Ok(())
 }
 
+#[derive(Getters)]
+#[getset(get = "pub(crate)")]
 pub(crate) struct SampleInfos {
     uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,

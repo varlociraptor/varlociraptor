@@ -19,7 +19,9 @@ use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
 use crate::calling;
-use crate::calling::variants::calling::{call_generic, CallWriter, SampleInfos};
+use crate::calling::variants::calling::{
+    call_generic, CallWriter, DefaultCandidateFilter, SampleInfos,
+};
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::conversion;
 use crate::errors;
@@ -381,6 +383,11 @@ pub enum EstimateKind {
         sample: PathBuf,
         #[structopt(long = "contaminant", help = "Presumably contaminating sample.")]
         contaminant: PathBuf,
+        #[structopt(
+            long = "output",
+            help = "Output file; if not specified, output is printed to STDOUT."
+        )]
+        output: Option<PathBuf>,
     },
     #[structopt(
         name = "mutational-burden",
@@ -899,6 +906,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     omit_alt_locus_bias,
                                     output,
                                     log_each_record,
+                                    CallWriter::new(),
+                                    DefaultCandidateFilter::new(),
                                 )?;
                             } else {
                                 return Err(errors::Error::InvalidObservationsSpec.into());
@@ -980,6 +989,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 omit_alt_locus_bias,
                                 output,
                                 log_each_record,
+                                CallWriter::new(),
+                                DefaultCandidateFilter::new(),
                             )?;
                         }
                     }
@@ -1066,8 +1077,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             EstimateKind::Contamination {
                 sample,
                 contaminant,
+                output,
             } => {
-                estimation::contamination::estimate_contamination(sample, contaminant)?;
+                estimation::contamination::estimate_contamination(sample, contaminant, output)?;
             }
             EstimateKind::MutationalBurden {
                 events,
@@ -1128,10 +1140,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .variant_type_fractions(scenario.variant_type_fractions())
                     .ploidies(Some(ploidies))
                     .universe(Some(universes))
-                    .uniform(sample_infos.uniform_prior)
-                    .germline_mutation_rate(sample_infos.germline_mutation_rates)
-                    .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
-                    .inheritance(sample_infos.inheritance)
+                    .uniform(sample_infos.uniform_prior().clone())
+                    .germline_mutation_rate(sample_infos.germline_mutation_rates().clone())
+                    .somatic_effective_mutation_rate(
+                        sample_infos.somatic_effective_mutation_rates().clone(),
+                    )
+                    .inheritance(sample_infos.inheritance().clone())
                     .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
@@ -1139,7 +1153,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .build();
                 prior.check()?;
 
-                prior.plot(&sample, &sample_infos.names)?;
+                prior.plot(&sample, sample_infos.names())?;
             }
             PlotKind::Scatter { sample_x, sample_y } => {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?

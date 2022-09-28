@@ -1,4 +1,5 @@
 use std::{
+    convert::TryFrom,
     io::{stdout, Write},
     path::PathBuf,
 };
@@ -7,6 +8,7 @@ use anyhow::Result;
 use bio::stats::{bayesian, LogProb, PHREDProb};
 use csv::WriterBuilder;
 use itertools::Itertools;
+use itertools_num::linspace;
 use ordered_float::NotNan;
 
 use crate::{
@@ -26,6 +28,15 @@ pub(crate) struct ContaminationEstimator {
 }
 
 impl ContaminationEstimator {
+    pub(crate) fn new(output: Option<PathBuf>) -> Self {
+        let contaminations = linspace(0.0, 1.0, 100).collect();
+        ContaminationEstimator {
+            likelihoods: vec![LogProb::ln_zero(); 100],
+            contaminations,
+            output,
+        }
+    }
+
     fn write_posterior<W: Write>(&self, mut writer: csv::Writer<W>) -> Result<()> {
         // calculate marginal probability
         let marginal = LogProb::ln_trapezoidal_integrate_grid_exp(
@@ -125,12 +136,13 @@ impl CallProcessor for ContaminationEstimator {
     }
 }
 
+#[derive(new)]
 struct ContaminationCandidateFilter;
 
 impl CandidateFilter for ContaminationCandidateFilter {
     fn filter(&self, work_item: &WorkItem) -> bool {
         // only keep variants where all reads of the contaminant are REF and that are SNVs
-        let contaminant_pileup = work_item.pileups().as_ref().unwrap()[0];
+        let contaminant_pileup = &work_item.pileups().as_ref().unwrap()[0];
         work_item.snv().is_some()
             && contaminant_pileup.read_observations().len() >= 10
             && contaminant_pileup
@@ -157,9 +169,10 @@ pub(crate) fn estimate_contamination(
     events:
       present:  "sample:]0.0,1.0] & contaminant:]0.0,1.0]"
     "#,
-    );
+    )
+    .unwrap();
 
-    let observations = PathMap::default();
+    let mut observations = PathMap::default();
     observations.insert("sample".to_owned(), sample);
     observations.insert("contaminant".to_owned(), contaminant);
 
@@ -172,7 +185,9 @@ pub(crate) fn estimate_contamination(
         false,
         false,
         false,
-        output,
+        None,
         false,
+        ContaminationEstimator::new(output),
+        ContaminationCandidateFilter::new(),
     )
 }
