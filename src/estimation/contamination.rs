@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use bio::stats::{bayesian, LogProb, PHREDProb};
+use bio::stats::{bayesian, LogProb, Prob};
 use csv::WriterBuilder;
 use itertools::Itertools;
 use itertools_num::linspace;
@@ -31,7 +31,7 @@ impl ContaminationEstimator {
     pub(crate) fn new(output: Option<PathBuf>) -> Self {
         let contaminations = linspace(0.0, 1.0, 100).collect();
         ContaminationEstimator {
-            likelihoods: vec![LogProb::ln_zero(); 100],
+            likelihoods: vec![LogProb::ln_one(); 100],
             contaminations,
             output,
         }
@@ -60,12 +60,12 @@ impl ContaminationEstimator {
             .collect_vec();
 
         // write into table
-        writer.write_record(&["contamination", "posterior_prob"])?;
+        writer.write_record(&["contamination", "posterior density"])?;
         for (contamination, likelihood) in contaminations.iter().zip(likelihoods.iter()) {
             let posterior = *likelihood - marginal;
             writer.write_record(&[
                 format!("{}", contamination),
-                format!("{}", *PHREDProb::from(posterior)),
+                format!("{}", *Prob::from(posterior)),
             ])?;
         }
         Ok(())
@@ -80,14 +80,27 @@ impl CallProcessor for ContaminationEstimator {
         Ok(())
     }
 
-    fn process_call(&mut self, call: Call) -> Result<()> {
-        let sample_info = call.variant().as_ref().unwrap().sample_info()[0]
+    fn process_call(&mut self, call: Call, sample_names: &grammar::SampleInfo<String>) -> Result<()> {
+        let sample_info = call.variant().as_ref().unwrap().sample_info()[sample_names.iter().position(|s| *s == "sample").unwrap()]
             .as_ref()
             .unwrap();
+        let prob_denovo = call.variant().as_ref().unwrap().event_probs().as_ref().unwrap().get("denovo").unwrap();
+        let prob_not_denovo = prob_denovo.ln_one_minus_exp();
 
-        let mut vaf_dist = sample_info.vaf_dist().as_ref().unwrap().clone();
+        if sample_info.vaf_dist().is_none() {
+            // variant is most likely an artifact, skip
+            return Ok(());
+        }
+
+        if prob_denovo.exp() >= 0.95 {
+            //dbg!((call.chrom(), call.pos(), sample_info.allelefreq_estimate(), call.variant().as_ref().unwrap().event_probs()));
+            println!("{}: {}", call.pos(), sample_info.allelefreq_estimate());
+        } else {
+            return Ok(());
+        }
 
         for (contamination, factor) in self.contaminations.iter().zip(self.likelihoods.iter_mut()) {
+            let mut vaf_dist = sample_info.vaf_dist().as_ref().unwrap().clone();
             // calculate likelihood factor for this variant:
             // the probability that the VAF is <=(1-contamination)=purity
             let purity = AlleleFreq(1.0 - *contamination);
@@ -99,29 +112,36 @@ impl CallProcessor for ContaminationEstimator {
                     // i is the position where purity has to be inserted, i.e. the supremum
                     let mut grid_points: Vec<_> = vafs[..i].iter().map(|vaf| **vaf).collect();
                     grid_points.push(*purity);
-                    grid_points.push(*vafs[i]);
+                    if vafs.len() > i && i > 0 {
+                        grid_points.push(*vafs[i]);
+                        let infimum = vafs[i - 1];
+                        let supremum = vafs[i];
 
-                    let infimum = vafs[i - 1];
-                    let supremum = vafs[i];
-
-                    // interpolate and insert into vaf_dist
-                    let factor = (purity - infimum) / (purity - supremum);
-                    let interpolated_prob = LogProb(
-                        factor.ln()
-                            + (vaf_dist.get(&supremum).unwrap().exp()
-                                - vaf_dist.get(&infimum).unwrap().exp())
-                            .ln(),
-                    );
-                    vaf_dist.insert(purity, interpolated_prob);
+                        // interpolate and insert into vaf_dist
+                        let factor = (purity - infimum) / (purity - supremum);
+                        let interpolated_prob = LogProb(
+                            factor.ln()
+                                + (vaf_dist.get(&supremum).unwrap().exp()
+                                    - vaf_dist.get(&infimum).unwrap().exp())
+                                .ln(),
+                        );
+                        vaf_dist.insert(purity, interpolated_prob);
+                    } else if i > 0 {
+                        // nothing to interpolate, just repeat the infimum prob
+                        vaf_dist.insert(purity, *vaf_dist.get(&vafs[i - 1]).unwrap());
+                    } else {
+                        // purity comes at the beginning, repeat supremum prob
+                        vaf_dist.insert(purity, *vaf_dist.get(&vafs[0]).unwrap());
+                    }
 
                     grid_points
                 }
             };
 
-            *factor += LogProb::ln_trapezoidal_integrate_grid_exp(
+            *factor += (LogProb::ln_trapezoidal_integrate_grid_exp(
                 |_, vaf| vaf_dist.get(&AlleleFreq(vaf)).cloned().unwrap(),
                 &grid_points,
-            );
+            ) + prob_denovo).ln_add_exp(prob_not_denovo);
         }
 
         Ok(())
@@ -140,15 +160,15 @@ impl CallProcessor for ContaminationEstimator {
 struct ContaminationCandidateFilter;
 
 impl CandidateFilter for ContaminationCandidateFilter {
-    fn filter(&self, work_item: &WorkItem) -> bool {
+    fn filter(&self, work_item: &WorkItem, sample_names: &grammar::SampleInfo<String>) -> bool {
         // only keep variants where all reads of the contaminant are REF and that are SNVs
-        let contaminant_pileup = &work_item.pileups().as_ref().unwrap()[0];
+        let contaminant_pileup = &work_item.pileups().as_ref().unwrap()[sample_names.iter().position(|s| *s == "contaminant").unwrap()];
         work_item.snv().is_some()
-            && contaminant_pileup.read_observations().len() >= 10
-            && contaminant_pileup
+            && (contaminant_pileup.read_observations().len() <= 10
+            || contaminant_pileup
                 .read_observations()
                 .iter()
-                .all(|obs| obs.is_ref_support())
+                .all(|obs| obs.is_ref_support()))
     }
 }
 
@@ -167,7 +187,8 @@ pub(crate) fn estimate_contamination(
         resolution: 0.01
         universe: "[0.0,1.0]"
     events:
-      present:  "sample:]0.0,1.0] & contaminant:]0.0,1.0]"
+      denovo:  "sample:]0.0,1.0] & contaminant:0.0"
+      other: "sample:[0.0,1.0] & contaminant:]0.0,1.0]"
     "#,
     )
     .unwrap();

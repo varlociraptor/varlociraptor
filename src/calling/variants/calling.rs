@@ -316,6 +316,7 @@ where
             }
 
             if eof.iter().all(|v| *v) {
+                self.call_processor.borrow_mut().finalize()?;
                 progress_logger.stop();
                 return Ok(());
             } else if !eof.iter().all(|v| !v) {
@@ -353,7 +354,7 @@ where
 
             let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
 
-            if self.candidate_filter.filter(&work_item) {
+            if self.candidate_filter.filter(&work_item, &self.samplenames) {
                 // process work item
                 let contig = str::from_utf8(work_item.call.chrom()).unwrap();
                 let _last_rid;
@@ -391,13 +392,12 @@ where
 
                 self.call_processor
                     .borrow_mut()
-                    .process_call(work_item.call)?;
+                    .process_call(work_item.call, &self.samplenames)?;
             }
             progress_logger.update(1u64);
 
             i += 1;
         }
-        self.call_processor.borrow_mut().finalize()?;
     }
 
     fn preprocess_record(
@@ -824,7 +824,7 @@ pub(crate) trait CallProcessor: Sized {
         &mut self,
         caller: &Caller<Pr, Self, CF>,
     ) -> Result<()>;
-    fn process_call(&mut self, call: Call) -> Result<()>;
+    fn process_call(&mut self, call: Call, sample_names: &grammar::SampleInfo<String>) -> Result<()>;
     fn finalize(&mut self) -> Result<()>;
 }
 
@@ -844,7 +844,7 @@ impl CallProcessor for CallWriter {
         Ok(())
     }
 
-    fn process_call(&mut self, call: Call) -> Result<()> {
+    fn process_call(&mut self, call: Call, sample_names: &grammar::SampleInfo<String>) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
     }
 
@@ -855,14 +855,14 @@ impl CallProcessor for CallWriter {
 
 pub(crate) trait CandidateFilter {
     // Return true if work_item shall be processed, otherwise false.
-    fn filter(&self, work_item: &WorkItem) -> bool;
+    fn filter(&self, work_item: &WorkItem, sample_names: &grammar::SampleInfo<String>) -> bool;
 }
 
 #[derive(new)]
 pub(crate) struct DefaultCandidateFilter;
 
 impl CandidateFilter for DefaultCandidateFilter {
-    fn filter(&self, work_item: &WorkItem) -> bool {
+    fn filter(&self, work_item: &WorkItem, sample_names: &grammar::SampleInfo<String>) -> bool {
         true
     }
 }
@@ -1038,6 +1038,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
                 },
             );
         }
+        dbg!(&sample_names);
 
         Ok(SampleInfos {
             uniform_prior: uniform_prior.build(),
