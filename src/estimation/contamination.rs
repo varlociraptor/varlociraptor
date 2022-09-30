@@ -15,6 +15,7 @@ use ordered_float::NotNan;
 use statrs::distribution::Empirical;
 use serde_json::json;
 use serde_json;
+use rgsl::randist::binomial::binomial_pdf;
 
 use crate::{
     calling::variants::{
@@ -30,6 +31,7 @@ struct VariantObservation {
     prob_denovo: LogProb,
     vaf_dist: BTreeMap<AlleleFreq, LogProb>,
     max_posterior_vaf: AlleleFreq,
+    expected_depth: f64,
 }
 
 impl VariantObservation {
@@ -49,7 +51,8 @@ impl VariantObservation {
         Some(VariantObservation {
             vaf_dist,
             prob_denovo,
-            max_posterior_vaf: sample_info.allelefreq_estimate()
+            max_posterior_vaf: sample_info.allelefreq_estimate(),
+            expected_depth: sample_info.expected_depth(),
         })
     }
 
@@ -85,93 +88,82 @@ impl VariantObservation {
     }
 }
 
-#[derive(Serialize)]
-struct EmpiricalVAFDistSpecEntry {
-    vaf: f64,
-    count: usize,
+#[derive(new)]
+struct VAFPrior {
+    somatic_mutation_rate: f64,
+    heterozygosity: f64,
+    ploidy: u32,
+    genome_size: f64,
+}
+
+impl VAFPrior {
+    fn pdf(&self, vaf: AlleleFreq, depth: f64, contamination: AlleleFreq) -> LogProb {
+        let purity = AlleleFreq(1.0) - contamination;
+        if *purity == 0.0 {
+            if *vaf > 0.0 {
+                LogProb::ln_zero()
+            } else {
+                LogProb::ln_one()
+            }
+        } else {
+            let adjusted_vaf = vaf / purity;
+            let depth = depth.round() as u32;
+            self.prob_somatic_clonal(adjusted_vaf, depth).ln_add_exp(self.prob_somatic_subclonal(adjusted_vaf, depth))
+        }
+    }
+
+    fn prob_somatic_clonal(&self, vaf: AlleleFreq, depth: u32) -> LogProb {
+        LogProb::ln_sum_exp(&(1..=self.ploidy).map(|m| {
+            let p = self.heterozygosity / m as f64;
+            let k = (depth as f64 * vaf).round() as u32;
+            binomial_pdf(k, p, depth).ln()
+        }).collect_vec())
+    }
+
+    /// Calculate somatic prior as described by Williams et al.
+    fn prob_somatic_subclonal(&self, vaf: AlleleFreq, depth: u32) -> LogProb {
+        let density = |vaf| {
+            let p = (self.somatic_effective_mutation_rate.ln()
+                    - (2.0 * vaf.ln() + self.genome_size.ln())).exp();
+            let k = (depth as f64 * vaf).round() as u32;
+            binomial_pdf(k, p, depth).ln()
+        };
+        LogProb::ln_simpsons_integrate_exp(
+            density,
+            0.0,
+            1.0
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
-struct EmpiricalVAFDist {
-    inner: BTreeMap<AlleleFreq, usize>,
+struct VAFDist {
+    histogram: BTreeMap<AlleleFreq, usize>,
     total: usize,
-    outliers: Vec<AlleleFreq>,
-    bin_width: AlleleFreq,
 }
 
-impl EmpiricalVAFDist {
+impl VAFDist {
     fn new(variant_observations: &[VariantObservation]) -> Self {
-        let mut inner = BTreeMap::default();
+        let mut histogram = BTreeMap::default();
         let mut total = 0;
         for obs in variant_observations {
             let bin = AlleleFreq((*obs.max_posterior_vaf * 100.0).floor() / 100.0);
-            *inner.entry(bin).or_insert(0) += 1;
+            *histogram.entry(bin).or_insert(0) += 1;
             total += 1;
         }
-        let dist = EmpiricalVAFDist {
-            inner,
+        let dist = VAFDist {
+            histogram,
             total,
-            outliers: Vec::new(),
-            bin_width: AlleleFreq(0.1),
         };
-
-        dist.strip_outliers()
     }
 
     fn as_json(&self) -> serde_json::Value {
-        serde_json::Value::Array(self.inner.iter().map(|(vaf, count)| {
+        serde_json::Value::Array(self.histogram.iter().map(|(vaf, count)| {
             json!({
                 "vaf": *vaf,
                 "count": *count
             })
         }).collect_vec())
-    }
-
-    fn bins<'a>(&'a self) -> impl Iterator<Item=f64> + 'a {
-        self.inner.keys().map(|vaf| **vaf)
-    }
-
-    fn max_value(&self) -> AlleleFreq {
-        self.inner.keys().last().cloned().unwrap_or(AlleleFreq(0.0))
-    }
-
-    fn strip_outliers(&self) -> Self {
-        let mut stripped = self.clone();
-        let mut outliers = stripped.outliers.clone();
-        stripped.inner.retain(|vaf, count| {
-            if *count < 2 {
-                outliers.push(*vaf);
-                false
-            } else {
-                *count -= 1;
-                true
-            }
-        });
-
-        stripped.outliers = outliers;
-
-        stripped
-    }
-
-    fn scale_to(&self, max_value: AlleleFreq) -> Self {
-        if *self.max_value() == 0.0 {
-            // distribution is already empty
-            return self.clone();
-        }
-        let factor = max_value / self.max_value();
-
-        EmpiricalVAFDist {
-            inner: self.inner.iter().map(|(vaf, count)| (*vaf * factor, *count)).collect(),
-            outliers: self.outliers.iter().map(|vaf| *vaf * factor).collect(),
-            total: self.total,
-            bin_width: self.bin_width * factor,
-        }
-    }
-
-    fn pdf(&self, vaf: AlleleFreq) -> LogProb {
-        let denominator = self.total as f64;
-        let count = self.inner.get(&vaf).expect("bug: unexpected vaf query");
-        LogProb::from(Prob::from(*count as f64 / denominator))
     }
 }
 
@@ -190,23 +182,26 @@ impl ContaminationEstimator {
         }
     }
 
-    fn likelihood_single_obs(&self, variant_observation: &VariantObservation, contamination_expected_dist: &EmpiricalVAFDist) -> LogProb {
+    fn likelihood_single_obs(&self, variant_observation: &VariantObservation, vaf_prior: &VAFPrior, contamination: AlleleFreq) -> LogProb {
+        let purity = AlleleFreq(1.0) - contamination;
+        let mut grid = variant_observation.vaf_dist.range(..purity).map(|(vaf, _)| *vaf).collect_vec();
+        grid.push(purity);
+        
         LogProb::ln_trapezoidal_integrate_grid_exp(
             |_, vaf| {
-                variant_observation.pdf(AlleleFreq(vaf)) + contamination_expected_dist.pdf(AlleleFreq(vaf))
+                variant_observation.pdf(AlleleFreq(vaf)) + vaf_prior.pdf(AlleleFreq(vaf), contamination)
             },
-            &contamination_expected_dist.bins().collect_vec()
+            &grid
         )
     }
 
-    fn likelihood(&self, contamination: AlleleFreq, empirical_vaf_dist: &EmpiricalVAFDist) -> LogProb {
-        let contamination_expected_dist = empirical_vaf_dist.scale_to(AlleleFreq(1.0) - contamination);
-
-        self.variant_observations.iter().map(|obs| self.likelihood_single_obs(obs, &contamination_expected_dist)).sum()
+    fn likelihood(&self, contamination: AlleleFreq, vaf_prior: &VAFPrior) -> LogProb {
+        self.variant_observations.iter().map(|obs| self.likelihood_single_obs(obs, vaf_prior, contamination)).sum()
     }
 
     fn calc_posterior<W: Write>(&self, mut writer: csv::Writer<W>) -> Result<()> {
-        let empirical_vaf_dist = EmpiricalVAFDist::new(&self.variant_observations);
+        let vaf_dist = VAFDist::new(&self.variant_observations);
+        let vaf_prior = VAFPrior::new(1e-6, 0.001, 2, 3.5e9);
         let contaminations = linspace(0.0, 1.0, 100).collect_vec();
         let likelihoods = contaminations.iter().map(|contamination| self.likelihood(AlleleFreq(*contamination), &empirical_vaf_dist)).collect_vec();
 
