@@ -1,0 +1,68 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+    "description": "Estimation of sample contamination.",
+    "datasets": {
+        "empirical_vaf_dist": [],
+        "posterior_density": [],
+        "prior_density": []
+    },
+    "layer": [
+        {
+            "data": {
+                "name": "empirical_vaf_dist"
+            },
+            "encoding": {
+                "x": {
+                    "field": "vaf",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [
+                            0.0,
+                            1.0
+                        ]
+                    }
+                },
+                "y": {
+                    "field": "count",
+                    "scale": {
+                        "type": "linear"
+                    }
+                },
+                "color": {
+                    "value": "lightgrey"
+                }
+            },
+            "mark": {
+                "type": "bar",
+                "align": "left"
+            }
+        },
+        {
+            "data": {
+                "name": "posterior_density"
+            },
+            "encoding": {
+                "x": {
+                    "field": "purity",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [
+                            0.0,
+                            1.0
+                        ]
+                    }
+                },
+                "y": {
+                    "field": "density",
+                    "scale": {
+                        "type": "linear"
+                    }
+                },
+                "color": {
+                    "field": "ploidy"
+                }
+            },
+            "mark": "line"
+        }
+    ]
+}
