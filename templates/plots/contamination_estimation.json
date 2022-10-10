@@ -1,68 +1,109 @@
 {
-    "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
     "description": "Estimation of sample contamination.",
     "datasets": {
         "empirical_vaf_dist": [],
-        "posterior_density": [],
-        "prior_density": []
+        "densities": []
     },
     "layer": [
         {
             "data": {
                 "name": "empirical_vaf_dist"
             },
+            "transform": [
+                {
+                    "calculate": "'hist'",
+                    "as": "hist"
+                }
+            ],
             "encoding": {
+                "color": {
+                    "field": "hist",
+                    "scale": {
+                        "domain": [
+                            "hist"
+                        ],
+                        "range": [
+                            "lightgrey"
+                        ]
+                    },
+                    "legend": {
+                        "title": "",
+                        "labelExpr": "'observed VAFs'"
+                    }
+                },
                 "x": {
                     "field": "vaf",
                     "scale": {
-                        "type": "linear",
                         "domain": [
                             0.0,
                             1.0
-                        ]
+                        ],
+                        "type": "linear"
+                    },
+                    "axis": {
+                        "title": null
                     }
                 },
                 "y": {
                     "field": "count",
                     "scale": {
                         "type": "linear"
+                    },
+                    "axis": {
+                        "title": null
                     }
-                },
-                "color": {
-                    "value": "lightgrey"
                 }
             },
             "mark": {
+                "align": "left",
                 "type": "bar",
-                "align": "left"
+                "tooltip": true
             }
         },
         {
             "data": {
-                "name": "posterior_density"
+                "name": "densities"
             },
             "encoding": {
+                "color": {
+                    "field": "type",
+                    "legend": {
+                        "title": "",
+                        "labelExpr": "datum.label + ' purity'"
+                    }
+                },
                 "x": {
                     "field": "purity",
+                    "axis": {
+                        "grid": false
+                    },
                     "scale": {
-                        "type": "linear",
                         "domain": [
                             0.0,
                             1.0
-                        ]
+                        ],
+                        "type": "linear"
                     }
                 },
                 "y": {
                     "field": "density",
+                    "axis": {
+                        "labels": false,
+                        "title": "log density"
+                    },
                     "scale": {
-                        "type": "linear"
+                        "type": "symlog"
                     }
-                },
-                "color": {
-                    "field": "ploidy"
                 }
             },
             "mark": "line"
         }
-    ]
+    ],
+    "resolve": {
+        "scale": {
+            "y": "independent",
+            "color": "independent"
+        }
+    }
 }

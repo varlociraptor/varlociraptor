@@ -31,7 +31,6 @@ use crate::{
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 struct Event {
     contamination: AlleleFreq,
-    ploidy: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -94,26 +93,39 @@ impl VariantObservation {
     }
 }
 
-#[derive(new)]
+#[derive(new, Clone, Debug)]
 struct Prior {
     histology_contamination: AlleleFreq,
-    considered_cells: u64,
+    considered_cells: u32,
+}
+
+impl Prior {
+    fn as_json(&self) -> serde_json::Value {
+        use bayesian::model::Prior;
+        serde_json::Value::Array(linspace(0.0, 1.0, 101).map(|contamination| {
+            json!({
+                "purity": 1.0 - contamination,
+                "density": self.compute(&Event { contamination: AlleleFreq(contamination) }).exp(),
+                "distribution": "prior",
+            })
+        }).collect_vec())
+    }
 }
 
 impl bio::stats::bayesian::model::Prior  for Prior {
     type Event = Event;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        // TODO: add pathology based prior
-        LogProb::ln_one()
+        let n = self.considered_cells;
+        let k = (self.histology_contamination * n as f64).round() as u32;
+        let p = *event.contamination;
+        LogProb::from(Prob(binomial_pdf(k, p, n)))
     }
 }
 
 #[derive(new)]
 struct Likelihood {
-    somatic_mutation_rate: f64,
-    heterozygosity: f64,
-    genome_size: f64,
+    vaf_dist: VAFDist,
 }
 
 impl bio::stats::bayesian::model::Likelihood for Likelihood {
@@ -133,27 +145,8 @@ impl bio::stats::bayesian::model::Likelihood for Likelihood {
                 return obs.prob_denovo.ln_one_minus_exp();
             }
 
-            // clonal somatic mutations
-            let prob_clonal = LogProb::ln_sum_exp(&(1..=event.ploidy).map(|m| {
-                let prior = LogProb::from(Prob(self.heterozygosity / m as f64));
-                let expected_vaf = AlleleFreq(m as f64 / event.ploidy as f64) * purity;
-                obs.pdf(expected_vaf) + prior
-            }).collect_vec());
-
-
-            // subclonal somatic mutations
-            let density = |_, vaf: f64| {
-                let prior = LogProb((self.somatic_mutation_rate.ln()
-                        - (2.0 * vaf.ln() + self.genome_size.ln())));
-                let expected_vaf = AlleleFreq(vaf) * purity;
-                obs.pdf(expected_vaf) + prior
-            };
-            let prob_subclonal = LogProb::ln_trapezoidal_integrate_grid_exp(
-                density,
-                &obs.vaf_dist.keys().filter_map(|vaf| if **vaf > 0.0 { Some(**vaf) } else { None }).collect_vec()
-            );
-
-            prob_clonal.ln_add_exp(prob_subclonal)
+            let expected_vaf = self.vaf_dist.get_expected_vaf(purity, obs.max_posterior_vaf);
+            obs.pdf(expected_vaf)
         }).sum()
     }
 }
@@ -189,19 +182,15 @@ impl bio::stats::bayesian::model::Marginal for Marginal {
         data: &Self::Data,
         joint_prob: &mut F
     ) -> LogProb {
-        LogProb::ln_sum_exp(
-            &(1..8).map(|ploidy| {
-                let density = |_, contamination| {
-                    let event = Event { ploidy, contamination: AlleleFreq(contamination) };
-                    joint_prob(&event, data)
-                };
-                LogProb::ln_simpsons_integrate_exp(
-                    density,
-                    0.0,
-                    1.0,
-                    51,
-                )
-            }).collect_vec()
+        let density = |_, contamination| {
+            let event = Event { contamination: AlleleFreq(contamination) };
+            joint_prob(&event, data)
+        };
+        LogProb::ln_simpsons_integrate_exp(
+            density,
+            0.0,
+            1.0,
+            101,
         )
     }
 }
@@ -211,21 +200,33 @@ impl bio::stats::bayesian::model::Marginal for Marginal {
 struct VAFDist {
     histogram: BTreeMap<AlleleFreq, usize>,
     total: usize,
+    max_vaf: AlleleFreq,
 }
 
 impl VAFDist {
     fn new(variant_observations: &[VariantObservation]) -> Self {
         let mut histogram = BTreeMap::default();
         let mut total = 0;
+        let mut max_vaf = AlleleFreq(0.0);
         for obs in variant_observations {
             let bin = AlleleFreq((*obs.max_posterior_vaf * 100.0).floor() / 100.0);
             *histogram.entry(bin).or_insert(0) += 1;
             total += 1;
+            if obs.max_posterior_vaf > max_vaf {
+                max_vaf = obs.max_posterior_vaf;
+            }
         }
         VAFDist {
             histogram,
             total,
+            max_vaf,
         }
+    }
+
+    fn get_expected_vaf(&self, purity: AlleleFreq, max_posterior_vaf: AlleleFreq) -> AlleleFreq {
+        let quantile = max_posterior_vaf / self.max_vaf;
+        let scale_factor = purity / self.max_vaf;
+        self.max_vaf * scale_factor * quantile
     }
 
     fn as_json(&self) -> serde_json::Value {
@@ -256,22 +257,24 @@ impl ContaminationEstimator {
     fn calc_posterior<W: Write>(&self, mut writer: csv::Writer<W>) -> Result<()> {
         let vaf_dist = VAFDist::new(&self.variant_observations);
 
-        let prior = Prior::new(AlleleFreq(0.9), 100); // TODO parse from CLI
-        let likelihood = Likelihood::new(1e-6, 0.001, 3.5e9);
-        let model = bio::stats::bayesian::Model::new(likelihood, prior, Posterior::new());
+        let prior = Prior::new(AlleleFreq(0.1), 100); // TODO parse from CLI
+        let likelihood = Likelihood::new(vaf_dist.clone());
+        let model = bio::stats::bayesian::Model::new(likelihood, prior.clone(), Posterior::new());
 
         let model_instance = model.compute_from_marginal(&Marginal::new(), &self.variant_observations);
 
         let mut spec = serde_json::from_str(include_str!("../../templates/plots/contamination_estimation.json"))?;
+        let mut densities = prior.as_json();
+        densities.as_array_mut().unwrap().extend(model_instance.event_posteriors().map(|(event, density)| {
+            json!({
+                "purity": 1.0 - *event.contamination,
+                "density": *Prob::from(density),
+                "distribution": "posterior"
+            })
+        }));
         if let serde_json::Value::Object(ref mut spec) = spec {
             spec["datasets"]["empirical_vaf_dist"] = vaf_dist.as_json();
-            spec["datasets"]["posterior_density"] = serde_json::Value::Array(model_instance.event_posteriors().map(|(event, density)| {
-                json!({
-                    "purity": 1.0 - *event.contamination,
-                    "ploidy": event.ploidy,
-                    "density": *Prob::from(density),
-                })
-            }).collect_vec());
+            spec["datasets"]["densities"] = densities;
 
             let mut outfile = File::create(&self.output_plot)?;
             serde_json::to_writer_pretty(outfile, &spec)?;
@@ -280,10 +283,9 @@ impl ContaminationEstimator {
         }
 
         // write into table
-        writer.write_record(&["ploidy", "contamination", "posterior density"])?;
+        writer.write_record(&["contamination", "posterior density"])?;
         for (event, density) in model_instance.event_posteriors() {
             writer.write_record(&[
-                format!("{}", event.ploidy),
                 format!("{}", *event.contamination),
                 format!("{}", *Prob::from(density)),
             ])?;
