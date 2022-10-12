@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.3.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.1...v5.3.2) (2022-10-12)
+
+
+### Bug Fixes
+
+* do not skip haplotype determination if SVTYPE tag is not present in VCF ([#295](https://www.github.com/varlociraptor/varlociraptor/issues/295)) ([1c22f70](https://www.github.com/varlociraptor/varlociraptor/commit/1c22f7015c1ed2311c6961235b83c6824cd64834))
+
 ## [5.3.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.0...v5.3.1) (2022-09-27)
 
 ### Fixes
