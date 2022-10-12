@@ -53,10 +53,10 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
     }
 }
 
-pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
+pub(crate) fn is_haplotype_bcf(reader: &bcf::Reader) -> bool {
     for rec in reader.header().header_records() {
         if let bcf::header::HeaderRecord::Info { values, .. } = rec {
-            if values.get("ID").map_or(false, |id| id == "SVTYPE") {
+            if values.get("ID").map_or(false, |id| id == "EVENT") {
                 return true;
             }
         }
