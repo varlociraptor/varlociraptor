@@ -67,10 +67,9 @@
             },
             "encoding": {
                 "color": {
-                    "field": "type",
+                    "field": "category",
                     "legend": {
-                        "title": "",
-                        "labelExpr": "datum.label + ' purity'"
+                        "title": ""
                     }
                 },
                 "x": {
@@ -97,7 +96,10 @@
                     }
                 }
             },
-            "mark": "line"
+            "mark": {
+                "type": "line",
+                "interpolate": "monotone"
+            }
         }
     ],
     "resolve": {

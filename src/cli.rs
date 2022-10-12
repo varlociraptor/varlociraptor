@@ -384,10 +384,27 @@ pub enum EstimateKind {
         #[structopt(long = "contaminant", help = "Presumably contaminating sample.")]
         contaminant: PathBuf,
         #[structopt(
+            long = "prior-estimate",
+            help = "Prior estimate of the contamination (1-purity), e.g. \
+            obtained by counting tumor cells in a histology sample. Has to be used \
+            together with the number of cells considered for the estimate (--prior-considered-cells)."
+        )]
+        prior_estimate: Option<f64>,
+        #[structopt(
+            long = "prior-considered-cells",
+            help = "Number of cells considered for the prior estimate (see --prior-estimate)."
+        )]
+        prior_considered_cells: Option<u32>,
+        #[structopt(
             long = "output",
             help = "Output file; if not specified, output is printed to STDOUT."
         )]
         output: Option<PathBuf>,
+        #[structopt(
+            long = "output-plot",
+            help = "Path to store vega-lite plot of contamination/purity."
+        )]
+        output_plot: Option<PathBuf>,
     },
     #[structopt(
         name = "mutational-burden",
@@ -1077,9 +1094,28 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             EstimateKind::Contamination {
                 sample,
                 contaminant,
+                prior_estimate,
+                prior_considered_cells,
                 output,
+                output_plot,
             } => {
-                estimation::contamination::estimate_contamination(sample, contaminant, output)?;
+                let prior_estimate = match (prior_estimate, prior_considered_cells) {
+                    (Some(p), Some(n)) if n > 0 => {
+                        Some(estimation::contamination::PriorEstimate::new(
+                            AlleleFreq(prior_estimate),
+                            prior_considered_cells,
+                        ))
+                    }
+                    (None, None) => None,
+                    _ => bail!(errors::Error::InvalidPriorContaminationEstimate),
+                };
+                estimation::contamination::estimate_contamination(
+                    sample,
+                    contaminant,
+                    output,
+                    output_plot,
+                    prior_estimate,
+                )?;
             }
             EstimateKind::MutationalBurden {
                 events,

@@ -76,6 +76,8 @@ pub(crate) enum Error {
     // InvalidPhaseSet,
     #[error("haplotype block consisting of normal variants in combination with breakends: this is currently unsupported")]
     HaplotypeBlockWithBreakend,
+    #[error("invalid prior contamination estimate. Both --prior-estiate and --prior-considered-cells have to be specified. The latter has to be >0.")]
+    InvalidPriorContaminationEstimate,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {
