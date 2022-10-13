@@ -10,7 +10,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -38,7 +38,7 @@ use crate::variants::evidence::realignment;
 
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
-use crate::variants::model::{Contamination, VariantType};
+use crate::variants::model::{AlleleFreq, Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::SimpleEvent;
 
@@ -1100,12 +1100,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 output_plot,
             } => {
                 let prior_estimate = match (prior_estimate, prior_considered_cells) {
-                    (Some(p), Some(n)) if n > 0 => {
-                        Some(estimation::contamination::PriorEstimate::new(
-                            AlleleFreq(prior_estimate),
-                            prior_considered_cells,
-                        ))
-                    }
+                    (Some(p), Some(n)) if n > 0 => Some(
+                        estimation::contamination::PriorEstimate::new(AlleleFreq(p), n),
+                    ),
                     (None, None) => None,
                     _ => bail!(errors::Error::InvalidPriorContaminationEstimate),
                 };

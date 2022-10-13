@@ -119,7 +119,6 @@ struct Prior {
 
 impl Prior {
     fn as_json(&self) -> serde_json::Value {
-        use bayesian::model::Prior;
         serde_json::Value::Array(
             linspace(0.0, 1.0, 101)
                 .map(|contamination| {
@@ -139,6 +138,8 @@ impl Prior {
             let k = (prior_estimate.contamination * n as f64).round() as u32;
             let p = *contamination;
             LogProb::from(Prob(binomial_pdf(k, p, n)))
+        } else {
+            LogProb::ln_one()
         }
     }
 }
