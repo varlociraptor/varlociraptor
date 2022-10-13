@@ -188,7 +188,7 @@ checksum = "c2307d7c36baf9fb41fd1fef3a3d32ee1592822f07ef6144b86bfedda96517d4"
 dependencies = [
  "anyhow",
  "approx",
- "bio-types 0.13.0",
+ "bio-types",
  "bit-set",
  "bv",
  "bytecount",
@@ -221,20 +221,6 @@ dependencies = [
 
 [[package]]
 name = "bio-types"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13bc4296477f37f54e4fd21efaf48a7fa40fbb289bfbf338af5fbbe42797acb6"
-dependencies = [
- "derive-new",
- "lazy_static",
- "regex",
- "serde",
- "strum_macros 0.23.1",
- "thiserror",
-]
-
-[[package]]
-name = "bio-types"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa990f40a28735fa598dc3dd58d73e62e6b41458959d623903b927ba7b04c80"
@@ -242,6 +228,7 @@ dependencies = [
  "derive-new",
  "lazy_static",
  "regex",
+ "serde",
  "strum_macros 0.24.3",
  "thiserror",
 ]
@@ -431,9 +418,9 @@ checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
 name = "counter"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48388d8711a360319610960332b6a6f9fc2b5a63bba9fd10f1b7aa50677d956f"
+checksum = "2d458e66999348f56fd3ffcfbb7f7951542075ca8359687c703de6500c1ddccd"
 dependencies = [
  "num-traits",
 ]
@@ -1003,9 +990,9 @@ dependencies = [
 
 [[package]]
 name = "hts-sys"
-version = "2.0.2"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72c443906f4bac8b8cfe67e4e9d9ca83a454b70a092e1764133d19d5c5c7c1e2"
+checksum = "0dba4fc406d3686926c84f98fd53026b625319d119e6056a40313862a6e3c4eb"
 dependencies = [
  "bzip2-sys",
  "cc",
@@ -1846,11 +1833,11 @@ dependencies = [
 
 [[package]]
 name = "rust-htslib"
-version = "0.38.2"
+version = "0.40.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2aca6626496389f6e015e25433b85e2895ad3644b44de91167d847bf2d8c1a1c"
+checksum = "0b73defe4e69f22d0208eaeb004fc563e968588d13fe2aafc1aa6f19cb4808d4"
 dependencies = [
- "bio-types 0.13.0",
+ "bio-types",
  "byteorder",
  "custom_derive",
  "derive-new",
@@ -2323,7 +2310,7 @@ dependencies = [
 
 [[package]]
 name = "varlociraptor"
-version = "5.3.0"
+version = "5.3.3"
 dependencies = [
  "GSL",
  "anyhow",
@@ -2332,7 +2319,7 @@ dependencies = [
  "auto_ops",
  "bincode",
  "bio",
- "bio-types 0.12.1",
+ "bio-types",
  "boolean_expression",
  "bv",
  "byteorder",

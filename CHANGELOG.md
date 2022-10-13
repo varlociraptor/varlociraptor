@@ -2,6 +2,25 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.3.3](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.2...v5.3.3) (2022-10-13)
+
+
+### Performance Improvements
+
+* use rust-htslib 0.40.2 ([#297](https://www.github.com/varlociraptor/varlociraptor/issues/297)) ([6424cd4](https://www.github.com/varlociraptor/varlociraptor/commit/6424cd4fec63a697ece3341d8365ecc6500a5b72))
+
+### [5.3.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.1...v5.3.2) (2022-10-12)
+
+
+### Bug Fixes
+
+* do not skip haplotype determination if SVTYPE tag is not present in VCF ([#295](https://www.github.com/varlociraptor/varlociraptor/issues/295)) ([1c22f70](https://www.github.com/varlociraptor/varlociraptor/commit/1c22f7015c1ed2311c6961235b83c6824cd64834))
+
+## [5.3.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.0...v5.3.1) (2022-09-27)
+
+### Fixes
+* Use number specifications from VCF 4.3 spec for SVTYPE, SVLEN, END, EVENT, and MATEID (#293).
+
 ## [5.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.2.0...v5.3.0) (2022-07-19)
 
 

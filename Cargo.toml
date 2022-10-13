@@ -1,6 +1,6 @@
 [package]
 name = "varlociraptor"
-version = "5.3.0"
+version = "5.3.3"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
 repository = "https://github.com/varlociraptor/varlociraptor"
@@ -11,8 +11,8 @@ edition = "2018"
 
 [dependencies]
 bio = "0.40.0"
-bio-types = { version = "0.12", features = ["serde"] }
-rust-htslib = "0.38"
+bio-types = { version = ">=0.12", features = ["serde"] }
+rust-htslib = "0.40.2"
 log = "0.4"
 GSL = "6.0"
 itertools = "0.10"

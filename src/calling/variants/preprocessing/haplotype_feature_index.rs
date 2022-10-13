@@ -14,7 +14,7 @@ pub(crate) struct HaplotypeFeatureIndex {
 impl HaplotypeFeatureIndex {
     pub(crate) fn new<P: AsRef<Path>>(inbcf: P) -> Result<Self> {
         let mut bcf_reader = bcf::Reader::from_path(inbcf)?;
-        if !utils::is_sv_bcf(&bcf_reader) {
+        if !utils::is_haplotype_bcf(&bcf_reader) {
             return Ok(HaplotypeFeatureIndex::default());
         }
 
