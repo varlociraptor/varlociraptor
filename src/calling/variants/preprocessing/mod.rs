@@ -132,7 +132,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "ALT_LOCUS",
         ] {
             header.push_record(
-                format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\"", name).as_bytes()
+                format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\">", name).as_bytes()
             );
         }
 
