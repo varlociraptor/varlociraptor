@@ -824,7 +824,11 @@ pub(crate) trait CallProcessor: Sized {
         &mut self,
         caller: &Caller<Pr, Self, CF>,
     ) -> Result<()>;
-    fn process_call(&mut self, call: Call, sample_names: &grammar::SampleInfo<String>) -> Result<()>;
+    fn process_call(
+        &mut self,
+        call: Call,
+        sample_names: &grammar::SampleInfo<String>,
+    ) -> Result<()>;
     fn finalize(&mut self) -> Result<()>;
 }
 
@@ -844,7 +848,11 @@ impl CallProcessor for CallWriter {
         Ok(())
     }
 
-    fn process_call(&mut self, call: Call, sample_names: &grammar::SampleInfo<String>) -> Result<()> {
+    fn process_call(
+        &mut self,
+        call: Call,
+        sample_names: &grammar::SampleInfo<String>,
+    ) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
     }
 
@@ -1038,7 +1046,6 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
                 },
             );
         }
-        dbg!(&sample_names);
 
         Ok(SampleInfos {
             uniform_prior: uniform_prior.build(),
