@@ -167,7 +167,7 @@ where
         header.push_record(
             b"##FORMAT=<ID=RPB,Number=A,Type=String,\
               Description=\"Read position bias estimate: ^ indicates that ALT allele is associated with \
-              the most found read position, . indicates that there is no read position bias.
+              the most found read position, . indicates that there is no read position bias. \
               Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
               Probability for read position bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
@@ -175,7 +175,7 @@ where
         header.push_record(
             b"##FORMAT=<ID=SCB,Number=A,Type=String,\
               Description=\"Softclip bias estimate: $ indicates that ALT allele is associated with \
-              with softclips in the same alignment, . indicates that there is no softclip bias.
+              with softclips in the same alignment, . indicates that there is no softclip bias. \
               Softclip bias is indicative of systematic alignment errors, cause by a part of the read \
               that does not properly align to the reference (and is thus soft clipped). Note that \
               softclips can also be caused by structural variants. However, structural variants on the \
@@ -187,7 +187,7 @@ where
         header.push_record(
             b"##FORMAT=<ID=HE,Number=A,Type=String,\
               Description=\"Homopolymer error estimate: * indicates that ALT allele is associated with \
-              with homopolymer indel operations of varying length, . indicates that there is no homopolymer error.
+              with homopolymer indel operations of varying length, . indicates that there is no homopolymer error. \
               Homopolymer error is indicative of systematic PCR amplification errors. \
               Probability for such homopolymer artifacts is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
