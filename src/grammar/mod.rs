@@ -664,6 +664,8 @@ pub(crate) enum Sex {
     Male,
     #[serde(rename = "female")]
     Female,
+    #[serde(untagged)]
+    Other(String),
 }
 
 #[derive(Deserialize, Debug)]
