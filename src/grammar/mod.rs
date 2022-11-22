@@ -659,11 +659,9 @@ pub(crate) enum Inheritance {
     Eq,
     Hash,
 )]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "lowercase")]
 pub(crate) enum Sex {
-    #[serde(rename = "male")]
     Male,
-    #[serde(rename = "female")]
     Female,
     Other(String),
 }
