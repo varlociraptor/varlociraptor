@@ -4,14 +4,14 @@ use std::str;
 use serde_json;
 use yaml_rust::Yaml;
 
-use crate::common::Testcase;
-use varlociraptor::cli::{PreprocessKind, Varlociraptor};
-use varlociraptor::testcase::Mode;
+use crate::cli::{PreprocessKind, Varlociraptor};
+use crate::testcase::runner::common::Mode;
+use crate::testcase::runner::common::Testcase;
 
 #[derive(Debug)]
-pub(crate) struct TestcaseVersion0 {
-    pub(crate) inner: Vec<Yaml>,
-    pub(crate) path: PathBuf,
+pub struct TestcaseVersion0 {
+    pub inner: Vec<Yaml>,
+    pub path: PathBuf,
 }
 
 impl TestcaseVersion0 {
@@ -113,7 +113,7 @@ impl Testcase for TestcaseVersion0 {
 }
 
 // old cli
-pub(crate) mod cli {
+pub mod cli {
     use std::path::PathBuf;
 
     use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -121,8 +121,8 @@ pub(crate) mod cli {
     use serde::{Deserialize, Serialize};
     use structopt::StructOpt;
 
-    use varlociraptor::variants::model::VariantType;
-    use varlociraptor::variants::sample::ProtocolStrandedness;
+    use crate::variants::model::VariantType;
+    use crate::variants::sample::ProtocolStrandedness;
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
     #[structopt(
@@ -130,7 +130,7 @@ pub(crate) mod cli {
         about = "A caller for SNVs and indels in tumor-normal pairs.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    pub(crate) enum Varlociraptor {
+    pub enum Varlociraptor {
         #[structopt(
             name = "call",
             about = "Call variants.",
@@ -172,7 +172,7 @@ pub(crate) mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub(crate) enum EstimateKind {
+    pub enum EstimateKind {
         #[structopt(
             name = "tmb",
             about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
@@ -205,7 +205,7 @@ pub(crate) mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub(crate) enum CallKind {
+    pub enum CallKind {
         #[structopt(
             name = "variants",
             about = "Call variants.",
@@ -346,7 +346,7 @@ pub(crate) mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub(crate) enum VariantCallMode {
+    pub enum VariantCallMode {
         #[structopt(
             name = "tumor-normal",
             about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
@@ -402,7 +402,7 @@ pub(crate) mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub(crate) enum FilterMethod {
+    pub enum FilterMethod {
         #[structopt(
             name = "control-fdr",
             about = "Filter variant calls by controlling FDR. Filtered calls are printed to STDOUT.",

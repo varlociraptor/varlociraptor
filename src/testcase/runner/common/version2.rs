@@ -4,15 +4,15 @@ use anyhow::Result;
 use serde_json::json;
 use yaml_rust::Yaml;
 
-use crate::common::Testcase;
+use crate::testcase::runner::common::Testcase;
 
 #[derive(Debug)]
-pub(crate) struct TestcaseVersion3 {
-    pub(crate) inner: Vec<Yaml>,
-    pub(crate) path: PathBuf,
+pub struct TestcaseVersion2 {
+    pub inner: Vec<Yaml>,
+    pub path: PathBuf,
 }
 
-impl Testcase for TestcaseVersion3 {
+impl Testcase for TestcaseVersion2 {
     fn inner(&self) -> &[Yaml] {
         &self.inner
     }
@@ -28,6 +28,17 @@ impl Testcase for TestcaseVersion3 {
         Ok(Box::new(reference_path.to_owned()))
     }
 
+    fn sample_alignment_properties(&self, sample_name: &str) -> String {
+        let mut props: serde_json::Value =
+            serde_json::from_str(self.sample(sample_name)["properties"].as_str().unwrap()).unwrap();
+        props.as_object_mut().unwrap().insert(
+            "max_read_len".to_owned(),
+            serde_json::Value::Number(serde_json::Number::from(100)),
+        );
+
+        props.to_string()
+    }
+
     fn preprocess_options(&self, sample_name: &str) -> String {
         let mut options: serde_json::Value = serde_json::from_str(
             self.yaml()["samples"][sample_name]["options"]
@@ -37,6 +48,7 @@ impl Testcase for TestcaseVersion3 {
         .unwrap();
 
         let variants = options["Preprocess"]["kind"].get_mut("Variants").unwrap();
+        variants["realignment_window"] = variants["indel_window"].clone();
         variants["candidates"] = json!("dummy.bcf");
         variants.as_object_mut().unwrap().remove("omit_snvs");
         variants.as_object_mut().unwrap().remove("omit_indels");
@@ -45,7 +57,7 @@ impl Testcase for TestcaseVersion3 {
     }
 }
 
-impl TestcaseVersion3 {
+impl TestcaseVersion2 {
     fn reference_path(&self) -> &Path {
         self.yaml()["reference"]["path"].as_str().unwrap().as_ref()
     }

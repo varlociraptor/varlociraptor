@@ -1,89 +1,15 @@
-use std::fs;
-use std::path::Path;
-use std::str;
+#[macro_use]
+extern crate paste;
+#[macro_use]
+extern crate lazy_static;
+
 use std::sync::Mutex;
+use std::{fs, path::Path};
 
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use lazy_static::lazy_static;
-use paste::paste;
-use rust_htslib::bcf;
-use rust_htslib::bcf::Read as BCFRead;
-
-mod common;
-
-use common::load_testcase;
-
-macro_rules! testcase {
-    ($name:ident, $($pairhmm_mode:ident),+) => {
-        paste! {
-            lazy_static! {
-                static ref [<$name:upper _MUTEX>]: Mutex<()> = Mutex::new(());
-            }
-
-            $(
-                #[test]
-                fn [<$name _ $pairhmm_mode _mode>]() {
-                    // Poison error can be ignored here, because it just means that the other test failed
-                    // and we are safe to go on.
-                    let _guard = [<$name:upper _MUTEX>].lock();
-                    let name = stringify!($name);
-                    let testcase = load_testcase(
-                        &Path::new(file!())
-                            .parent()
-                            .unwrap()
-                            .join("resources/testcases")
-                            .join(name),
-                    )
-                    .unwrap();
-                    let mode = stringify!($pairhmm_mode);
-
-                    // setup logger
-                    // fern::Dispatch::new()
-                    // .level(log::LevelFilter::Info)
-                    // .chain(std::io::stderr())
-                    // .apply()
-                    // .unwrap();
-
-                    testcase.run(mode).unwrap();
-                    testcase.check();
-                }
-            )*
-        }
-    };
-}
-
-macro_rules! testcase_should_panic {
-    ($name:ident, $($pairhmm_mode:ident),+) => {
-        paste! {
-            lazy_static! {
-                static ref [<$name:upper _MUTEX>]: Mutex<()> = Mutex::new(());
-            }
-
-            $(
-                #[should_panic]
-                #[test]
-                fn [<$name _ $pairhmm_mode _mode>]() {
-                    // Poison error can be ignored here, because it just means that the other test failed
-                    // and we are safe to go on.
-                    let _guard = [<$name:upper _MUTEX>].lock();
-                    let name = stringify!($name);
-                    let testcase = load_testcase(
-                        &Path::new(file!())
-                            .parent()
-                            .unwrap()
-                            .join("resources/testcases")
-                            .join(name),
-                    )
-                    .unwrap();
-                    let mode = stringify!($pairhmm_mode);
-                    testcase.run(mode).unwrap();
-                    testcase.check();
-                }
-            )*
-        }
-    };
-}
+use rust_htslib::bcf::{self, Read};
+use varlociraptor::{testcase, testcase_should_panic};
 
 testcase!(test01, exact, fast);
 testcase!(test02, exact, fast);

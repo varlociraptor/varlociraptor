@@ -30,6 +30,7 @@ extern crate shrinkwraprs;
 extern crate derefable;
 #[macro_use]
 extern crate typed_builder;
+extern crate paste;
 
 pub mod calling;
 pub mod cli;
