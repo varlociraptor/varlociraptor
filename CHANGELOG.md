@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.3...v5.4.0) (2022-11-23)
+
+
+### Features
+
+* allow definition of sexes other than female or male ([#307](https://www.github.com/varlociraptor/varlociraptor/issues/307)) ([817e1d7](https://www.github.com/varlociraptor/varlociraptor/commit/817e1d7af60ad83dcc2700877c27e6072f7ff660))
+* expose testcase API in library ([#308](https://www.github.com/varlociraptor/varlociraptor/issues/308)) ([4a2e122](https://www.github.com/varlociraptor/varlociraptor/commit/4a2e12295a288e48b427693bf094b7733bc6552f))
+
 ### [5.3.3](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.2...v5.3.3) (2022-10-13)
 
 
