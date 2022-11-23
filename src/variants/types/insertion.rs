@@ -4,10 +4,10 @@
 // except according to those terms.
 
 use std::cell::RefCell;
+use std::cmp;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::{cmp, iter};
 
 use anyhow::Result;
 
