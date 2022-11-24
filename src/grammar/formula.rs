@@ -632,7 +632,22 @@ impl Formula {
                     vafset => new_atom(vafset.clone()),
                 })
             }
-            other => Ok(other.clone()),
+            Formula::Terminal(terminal) => Ok(Formula::Terminal(terminal.clone())),
+            Formula::Disjunction { operands } => Ok(Formula::Disjunction {
+                operands: operands
+                    .iter()
+                    .map(|operand| operand.split_by_universe(scenario, contig))
+                    .collect::<Result<Vec<_>>>()?,
+            }),
+            Formula::Conjunction { operands } => Ok(Formula::Conjunction {
+                operands: operands
+                    .iter()
+                    .map(|operand| operand.split_by_universe(scenario, contig))
+                    .collect::<Result<Vec<_>>>()?,
+            }),
+            Formula::Negation { operand } => Ok(Formula::Negation {
+                operand: Box::new(operand.split_by_universe(scenario, contig)?),
+            }),
         }
     }
 
