@@ -257,6 +257,10 @@ impl VAFDist {
         }
     }
 
+    fn quantiles(&self) -> Vec<AlleleFreq> {
+        vec![self.max_vaf]
+    }
+
     fn get_expected_vaf(
         &self,
         purity: AlleleFreq,
@@ -267,7 +271,7 @@ impl VAFDist {
         expected_max_somatic_vaf * purity * quantile
     }
 
-    fn as_json(&self) -> serde_json::Value {
+    fn hist_as_json(&self) -> serde_json::Value {
         serde_json::Value::Array(
             self.histogram
                 .iter()
@@ -277,6 +281,15 @@ impl VAFDist {
                         "count": *count
                     })
                 })
+                .collect_vec(),
+        )
+    }
+
+    fn quantiles_as_json(&self) -> serde_json::Value {
+        serde_json::Value::Array(
+            self.quantiles()
+                .iter()
+                .map(|vaf| json!({"vaf": *vaf}))
                 .collect_vec(),
         )
     }
@@ -336,7 +349,8 @@ impl ContaminationEstimator {
                 })
             }));
             if let serde_json::Value::Object(ref mut spec) = spec {
-                spec["datasets"]["empirical_vaf_dist"] = vaf_dist.as_json();
+                spec["datasets"]["empirical_vaf_dist"] = vaf_dist.hist_as_json();
+                spec["datasets"]["vaf_dist_quantiles"] = vaf_dist.quantiles_as_json();
                 spec["datasets"]["densities"] = densities;
 
                 let mut outfile = File::create(outpath)?;
