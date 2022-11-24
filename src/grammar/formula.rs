@@ -463,6 +463,7 @@ impl Formula {
             .apply_negations(scenario, contig)?
             .simplify()
             .merge_atoms()
+            .split_by_universe(scenario, contig)?
             .simplify();
         simplified.strip_false();
         simplified.sort();
@@ -559,6 +560,79 @@ impl Formula {
                 sample_b: sample_b.into(),
                 predicate: *predicate,
             },
+        }
+    }
+
+    fn split_by_universe(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
+        match self {
+            Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
+                if vafs.is_empty() {
+                    // METHOD: empty vaf ranges can be immediately translated into False
+                    return Ok(Formula::Terminal(FormulaTerminal::False));
+                }
+
+                let universe = scenario
+                    .samples()
+                    .get(sample)
+                    .ok_or_else(|| errors::Error::InvalidSampleName {
+                        name: sample.to_owned(),
+                    })?
+                    .contig_universe(contig, scenario.species())?;
+                let mut discrete_vafs = universe
+                    .iter()
+                    .filter_map(|vafs| match vafs {
+                        VAFSpectrum::Set(vafs) => Some(vafs.into_iter()),
+                        VAFSpectrum::Range(_) => None,
+                    })
+                    .flatten()
+                    .collect_vec();
+                discrete_vafs.sort();
+
+                let new_atom = |vafs| {
+                    Formula::Terminal(FormulaTerminal::Atom {
+                        sample: sample.clone(),
+                        vafs: vafs,
+                    })
+                };
+
+                Ok(match vafs {
+                    VAFSpectrum::Range(vafrange) => {
+                        let mut vafrange = Some(VAFSpectrum::Range(vafrange.clone()));
+                        let mut splitted = Vec::new();
+                        for vaf in discrete_vafs {
+                            if let Some(VAFSpectrum::Range(ref _vafrange)) = vafrange {
+                                if _vafrange.contains(*vaf) {
+                                    let (left, right) = _vafrange.split_at(*vaf);
+                                    if let Some(left) = left {
+                                        splitted.push(new_atom(left));
+                                    }
+                                    splitted.push(new_atom(VAFSpectrum::singleton(*vaf)));
+                                    vafrange = right;
+                                }
+                            } else {
+                                // remaining range is empty or discrete, stop
+                                break;
+                            }
+                        }
+                        if splitted.is_empty() {
+                            if let Some(vafrange) = vafrange {
+                                new_atom(vafrange)
+                            } else {
+                                unreachable!(
+                                    "bug: vaf range may not be empty after splitting by universe"
+                                );
+                            }
+                        } else {
+                            if let Some(vafrange) = vafrange {
+                                splitted.push(new_atom(vafrange));
+                            }
+                            Formula::Disjunction { operands: splitted }
+                        }
+                    }
+                    vafset => new_atom(vafset.clone()),
+                })
+            }
+            other => Ok(other.clone()),
         }
     }
 
@@ -1033,6 +1107,13 @@ impl VAFSpectrum {
         match self {
             VAFSpectrum::Set(set) => set.is_empty(),
             VAFSpectrum::Range(range) => range.is_empty(),
+        }
+    }
+
+    pub(crate) fn is_discrete(&self) -> bool {
+        match self {
+            VAFSpectrum::Set(_) => true,
+            VAFSpectrum::Range(_) => false,
         }
     }
 }
