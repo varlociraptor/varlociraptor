@@ -9,7 +9,7 @@ use bio::stats::{bayesian, LogProb};
 use bio_types::genome;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
-use itertools::Itertools;
+use itertools::{Itertools, MinMaxResult};
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
@@ -730,36 +730,22 @@ where
 
                     // METHOD: Collect VAF dist for sample by looking at all alternative VAFs with the same VAFs for the other samples as the MAP.
                     sample_builder.vaf_dist(if !estimate.is_artifact() {
-                        Some(
-                            model_instance
-                                .event_posteriors()
-                                .filter_map(|(estimate, prob)| {
-                                    let event = estimate.events().get(sample).unwrap();
-                                    let others_equal_map = || {
-                                        map_estimates.events().iter().all(
-                                            |(other_sample, map_event)| {
-                                                if other_sample != sample {
-                                                    // check if other event is the same as the map event
-                                                    let other_event = estimate
-                                                        .events()
-                                                        .get(other_sample)
-                                                        .unwrap();
-                                                    other_event == map_event
-                                                } else {
-                                                    // don't do that for our current sample
-                                                    true
-                                                }
-                                            },
-                                        )
-                                    };
-                                    if !event.is_artifact() && others_equal_map() {
-                                        Some((event.allele_freq, prob))
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect(),
-                        )
+                        // TODO this does not work, as it creates many very similar VAFs for which probs jump around
+                        // (because the model does not always use exactly the same grid due to adaptive integration).
+                        // Example (rounded vafs): 0.44=140.19,0.45=15.47,0.45=-13.82,0.45=1.84,0.45=-13.84,0.45=140.09
+                        // Certain VAFs are simply not evaluated for the MAP.
+                        let mut vafs = HashMap::new();
+                        for (estimate, prob) in model_instance.event_posteriors() {
+                            let event = estimate.events().get(sample).unwrap();
+                            if !event.is_artifact() {
+                                let max_prob =
+                                    vafs.entry(event.allele_freq).or_insert(LogProb::ln_zero());
+                                if *max_prob < prob {
+                                    *max_prob = prob;
+                                }
+                            }
+                        }
+                        Some(vafs.into_iter().collect())
                     } else {
                         None
                     });
