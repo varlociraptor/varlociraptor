@@ -5,7 +5,8 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
-use crate::utils::log2_fold_change::Log2FoldChangePredicate;
+use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
+use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -36,6 +37,10 @@ impl VAFTree {
         VAFTree {
             inner: vec![absent(0, n_samples)],
         }
+    }
+
+    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
+        self.inner.iter().any(|node| node.contains(operands))
     }
 }
 
@@ -98,6 +103,26 @@ impl Node {
 
     pub(crate) fn is_branching(&self) -> bool {
         self.children.len() > 1
+    }
+
+    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
+        let contained = match &self.kind {
+            NodeKind::Sample { sample, vafs } => {
+                vafs.contains(operands.events().get(*sample).unwrap().allele_freq)
+            }
+            NodeKind::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            } => {
+                let vaf_a = operands.events().get(*sample_a).unwrap().allele_freq;
+                let vaf_b = operands.events().get(*sample_b).unwrap().allele_freq;
+                predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b))
+            }
+            NodeKind::False => false,
+            NodeKind::Variant { .. } => true,
+        };
+        contained && self.children.iter().any(|node| node.contains(operands))
     }
 }
 

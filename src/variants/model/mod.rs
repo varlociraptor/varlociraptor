@@ -16,6 +16,8 @@ use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 use crate::grammar;
 use crate::variants::model::bias::Artifacts;
 
+use self::modes::generic::LikelihoodOperands;
+
 pub(crate) mod bias;
 pub(crate) mod likelihood;
 pub(crate) mod modes;
@@ -41,6 +43,10 @@ impl Event {
                 || self.biases.iter().all(|biases| !biases.is_artifact())
         );
         self.biases.iter().any(|biases| biases.is_artifact())
+    }
+
+    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
+        self.vafs.contains(operands)
     }
 }
 
