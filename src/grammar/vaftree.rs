@@ -122,7 +122,9 @@ impl Node {
             NodeKind::False => false,
             NodeKind::Variant { .. } => true,
         };
-        contained && self.children.iter().any(|node| node.contains(operands))
+        contained
+            && (self.children.is_empty()
+                || self.children.iter().any(|node| node.contains(operands)))
     }
 }
 
