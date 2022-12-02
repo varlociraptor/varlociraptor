@@ -9,7 +9,8 @@ use bio::stats::{bayesian, LogProb};
 use bio_types::genome;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
-use itertools::Itertools;
+use itertools::{Itertools, MinMaxResult};
+use ordered_float::NotNan;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
@@ -29,7 +30,7 @@ use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
-use crate::variants::model::{self};
+use crate::variants::model::{self, Event};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
@@ -618,6 +619,15 @@ where
             // Compute probabilities for given events.
             let m = model.compute(event_universe.iter().cloned(), &data);
 
+            let best_event = if let MinMaxResult::MinMax(_, best_event) = event_universe
+                .iter()
+                .minmax_by_key(|event| m.posterior(event).unwrap())
+            {
+                best_event
+            } else {
+                unreachable!()
+            };
+
             // add calling results
             let mut event_probs: HashMap<String, LogProb> = event_universe
                 .iter()
@@ -655,9 +665,12 @@ where
             work_item.variant_builder.event_probs(Some(event_probs));
 
             // add sample specific information
-            work_item
-                .variant_builder
-                .sample_info(self.sample_infos(&m, is_artifact, data));
+            work_item.variant_builder.sample_info(self.sample_infos(
+                &m,
+                is_artifact,
+                data,
+                best_event,
+            ));
         } else {
             unreachable!();
         }
@@ -693,6 +706,7 @@ where
         model_instance: &bayesian::model::ModelInstance<AlleleFreqCombination, model::Event>,
         is_artifact: bool,
         data: model::modes::generic::Data,
+        best_event: &Event,
     ) -> Vec<Option<SampleInfo>> {
         for (map_estimates, _) in model_instance.event_posteriors() {
             if map_estimates
@@ -704,6 +718,11 @@ where
                 // This ensures consistency between the events and the per sample MAPs.
                 continue;
             }
+            // METHOD: skip MAP if it is not contained in the strongest event
+            if !best_event.contains(map_estimates) {
+                continue;
+            }
+
             // This is the MAP estimate we want to report, build sample information with it.
             return data
                 .into_pileups()
