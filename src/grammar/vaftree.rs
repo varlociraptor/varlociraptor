@@ -115,8 +115,8 @@ impl Node {
                 sample_b,
                 predicate,
             } => {
-                let vaf_a = operands.events().get(*sample_a).unwrap().allele_freq;
-                let vaf_b = operands.events().get(*sample_b).unwrap().allele_freq;
+                let vaf_a = operands.events()[*sample_a].allele_freq;
+                let vaf_b = operands.events()[*sample_b].allele_freq;
                 predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b))
             }
             NodeKind::False => false,
