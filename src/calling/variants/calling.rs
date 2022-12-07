@@ -753,6 +753,10 @@ where
                             model_instance
                                 .event_posteriors()
                                 .filter_map(|(estimate, prob)| {
+                                    if !best_event.contains(estimate) {
+                                        // estimate must be compatible with best event
+                                        return None;
+                                    }
                                     let event = estimate.events().get(sample).unwrap();
                                     let others_equal_map = || {
                                         map_estimates.events().iter().all(

@@ -6,7 +6,7 @@ use itertools::Itertools;
 use crate::errors;
 use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
-use crate::variants::model::modes::generic::LikelihoodOperands;
+use crate::variants::model::modes::generic::{LikelihoodOperands, VafLfc};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -40,7 +40,10 @@ impl VAFTree {
     }
 
     pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
-        self.inner.iter().any(|node| node.contains(operands))
+        self.inner.iter().any(|node| {
+            let mut lfcs = operands.lfcs().iter().collect();
+            node.contains(operands, &mut lfcs)
+        })
     }
 }
 
@@ -105,7 +108,7 @@ impl Node {
         self.children.len() > 1
     }
 
-    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
+    pub(crate) fn contains(&self, operands: &LikelihoodOperands, lfcs: &mut Vec<&VafLfc>) -> bool {
         let contained = match &self.kind {
             NodeKind::Sample { sample, vafs } => {
                 vafs.contains(operands.events().get(*sample).unwrap().allele_freq)
@@ -115,16 +118,33 @@ impl Node {
                 sample_b,
                 predicate,
             } => {
-                let vaf_a = operands.events()[*sample_a].allele_freq;
-                let vaf_b = operands.events()[*sample_b].allele_freq;
-                predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b))
+                let mut lfc_found = false;
+                lfcs.retain(|lfc| {
+                    let found = lfc.sample_a() == sample_a
+                        && lfc.sample_b() == sample_b
+                        && lfc.predicate() == predicate;
+                    lfc_found |= found;
+                    !found
+                });
+                lfc_found
             }
             NodeKind::False => false,
             NodeKind::Variant { .. } => true,
         };
-        contained
-            && (self.children.is_empty()
-                || self.children.iter().any(|node| node.contains(operands)))
+        if self.children.is_empty() {
+            // leaf, hence all given lfcs have to be already visited, otherwise they aren't contained in the path
+            contained && lfcs.is_empty()
+        } else {
+            contained
+                && self.children.iter().any(|node| {
+                    if self.children.len() == 1 {
+                        node.contains(operands, lfcs)
+                    } else {
+                        let mut lfcs = lfcs.clone();
+                        node.contains(operands, &mut lfcs)
+                    }
+                })
+        }
     }
 }
 
