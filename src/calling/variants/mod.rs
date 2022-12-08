@@ -22,6 +22,7 @@ use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
+use crate::utils::signif;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::evidence::observations::read_observation::AltLocus;
@@ -422,7 +423,7 @@ impl Call {
                             dist.iter()
                                 .sorted_by_key(|(vaf, _)| *vaf)
                                 .map(|(vaf, prob)| {
-                                    format!("{:.2}={:.2}", *vaf, *PHREDProb::from(*prob))
+                                    format!("{:.3}={:.2}", **vaf, *PHREDProb::from(*prob))
                                 })
                                 .join(",")
                                 .into_bytes()
