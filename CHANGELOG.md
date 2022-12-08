@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.4.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.4.0...v5.4.1) (2022-12-08)
+
+
+### Bug Fixes
+
+* constrain MAP estimates of AF to the most probable event ([#311](https://www.github.com/varlociraptor/varlociraptor/issues/311)) ([f52860b](https://www.github.com/varlociraptor/varlociraptor/commit/f52860b29b1ae1a8a3138da011d9ab0ca8c5de30))
+
 ## [5.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.3...v5.4.0) (2022-11-23)
 
 
