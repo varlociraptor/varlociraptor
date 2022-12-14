@@ -76,6 +76,8 @@ pub(crate) enum Error {
     // InvalidPhaseSet,
     #[error("haplotype block consisting of normal variants in combination with breakends: this is currently unsupported")]
     HaplotypeBlockWithBreakend,
+    #[error("breakend with MATEID found that does not have its own ID set: this is currently unsupported, as there is no way to uniquely identify the pair")]
+    BreakendMateidWithoutRecid,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {

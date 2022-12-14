@@ -8,11 +8,12 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use ordered_float::NotNan;
 use rust_htslib::bcf;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
+use crate::errors::Error;
 use crate::grammar;
 use crate::variants::model::bias::Artifacts;
 
@@ -145,6 +146,7 @@ impl Deref for ContinuousAlleleFreqs {
 #[derive(Hash, Debug, Eq, PartialEq, Clone)]
 pub(crate) enum HaplotypeIdentifier {
     Event(Vec<u8>),
+    BreakendMates(Vec<u8>, Vec<u8>),
     //PhaseSet { phase_set: u32, genotype: Genotype },
 }
 
@@ -153,6 +155,18 @@ impl HaplotypeIdentifier {
         if let Ok(Some(event)) = record.info(b"EVENT").string() {
             let event = event[0];
             return Ok(Some(HaplotypeIdentifier::Event(event.to_owned())));
+        }
+
+        if let Ok(Some(mateid)) = record.info(b"MATEID").string() {
+            let recid = record.id();
+            if recid != b"." {
+                return Ok(Some(HaplotypeIdentifier::BreakendMates(
+                    recid,
+                    mateid[0].to_owned(),
+                )));
+            } else {
+                bail!(Error::BreakendMateidWithoutRecid);
+            }
         }
 
         // TODO support phase sets in the future
