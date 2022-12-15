@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.5.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.4.1...v5.5.0) (2022-12-15)
+
+
+### Features
+
+* add MATEID based recognition of connected breakends ([#313](https://www.github.com/varlociraptor/varlociraptor/issues/313)) ([d3b881c](https://www.github.com/varlociraptor/varlociraptor/commit/d3b881cac51ac0555a446307af2bf5c881a5d160))
+
 ### [5.4.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.4.0...v5.4.1) (2022-12-08)
 
 
