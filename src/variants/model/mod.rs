@@ -6,7 +6,7 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
-use std::str;
+use std::{mem, str};
 
 use anyhow::{bail, Result};
 use ordered_float::NotNan;
@@ -146,7 +146,6 @@ impl Deref for ContinuousAlleleFreqs {
 #[derive(Hash, Debug, Eq, PartialEq, Clone)]
 pub(crate) enum HaplotypeIdentifier {
     Event(Vec<u8>),
-    BreakendMates(Vec<u8>, Vec<u8>),
     //PhaseSet { phase_set: u32, genotype: Genotype },
 }
 
@@ -160,10 +159,11 @@ impl HaplotypeIdentifier {
         if let Ok(Some(mateid)) = record.info(b"MATEID").string() {
             let recid = record.id();
             if recid != b"." {
-                return Ok(Some(HaplotypeIdentifier::BreakendMates(
-                    recid,
-                    mateid[0].to_owned(),
-                )));
+                let mateid = mateid[0].to_owned();
+                let mut ids = [recid.as_slice(), mateid.as_slice()];
+                ids.sort();
+                let event: Vec<u8> = ids.join(b"-".as_slice()).into();
+                return Ok(Some(HaplotypeIdentifier::Event(event)));
             } else {
                 bail!(Error::BreakendMateidWithoutRecid);
             }
