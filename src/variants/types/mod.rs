@@ -393,6 +393,18 @@ impl AsRef<SingleLocus> for SingleLocus {
     }
 }
 
+impl std::fmt::Display for SingleLocus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let start = self.interval.range().start + 1;
+        let end = self.interval.range().end;
+        if end > start {
+            write!(f, "{}:{}-{}", self.interval.contig(), start, end)
+        } else {
+            write!(f, "{}:{}", self.interval.contig(), start)
+        }
+    }
+}
+
 impl SingleLocus {
     pub(crate) fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
         let mut pos = record.pos() as u64;

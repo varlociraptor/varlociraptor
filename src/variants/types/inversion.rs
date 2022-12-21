@@ -88,7 +88,7 @@ impl<R: Realigner> Inversion<R> {
         ));
 
         Inversion {
-            breakends: breakend_group_builder.build(),
+            breakends: breakend_group_builder.build().unwrap(),
             len: interval.range().end - interval.range().start,
         }
     }

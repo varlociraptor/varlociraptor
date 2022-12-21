@@ -1,0 +1,20 @@
+species:
+  genome-size: 3.5e9
+  germline-mutation-rate: 1.2e-8
+  heterozygosity: 0.001
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+
+samples:
+  test:
+    sex: male
+
+events:
+  present: "test:0.5 | test:1.0"

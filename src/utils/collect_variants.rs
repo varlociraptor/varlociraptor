@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use anyhow::Result;
 use bio_types::genome::AbstractLocus;
 use itertools::Itertools;
@@ -5,7 +7,7 @@ use rust_htslib::{bcf, bcf::record::Numeric};
 
 use crate::errors;
 use crate::utils::SimpleCounter;
-use crate::variants::model::{self, HaplotypeIdentifier};
+use crate::variants::model::{self, HaplotypeIdentifier, VariantPrecision};
 
 #[derive(
     Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, EnumVariantNames, Display, Debug,
@@ -45,11 +47,6 @@ pub(crate) fn collect_variants(
             skips.incr(reason);
         }
     };
-
-    if skip_imprecise && imprecise {
-        skip_incr(SkipReason::Imprecise);
-        return Ok(Vec::with_capacity(1));
-    }
 
     let pos = record.pos() as u64;
     let svlens = match record.info(b"SVLEN").integer() {
@@ -105,6 +102,11 @@ pub(crate) fn collect_variants(
         })
     };
 
+    if skip_imprecise && imprecise && svtype.as_ref().map_or(false, |svtype| svtype != b"BND") {
+        skip_incr(SkipReason::Imprecise);
+        return Ok(Vec::with_capacity(1));
+    }
+
     if let Some(svtype) = svtype {
         if svtype == b"INV" {
             let alleles = record.alleles();
@@ -130,9 +132,16 @@ pub(crate) fn collect_variants(
             let alleles = record.alleles();
             if haplotype.is_some() {
                 for spec in &alleles[1..] {
+                    let rec: &bcf::Record = &*record;
+                    dbg!((
+                        record.contig(),
+                        record.pos(),
+                        VariantPrecision::try_from(rec)?
+                    ));
                     push_variant(model::Variant::Breakend {
                         ref_allele: alleles[0].to_owned(),
                         spec: spec.to_vec(),
+                        precision: VariantPrecision::try_from(rec)?,
                     })
                 }
             } else {

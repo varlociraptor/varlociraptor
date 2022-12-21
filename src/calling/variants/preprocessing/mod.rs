@@ -101,6 +101,15 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             b"##INFO=<ID=MATEID,Number=.,Type=String,\
               Description=\"ID of mate breakends\">",
         );
+        header.push_record(
+            b"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS for imprecise variants\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END for imprecise variants\">"
+        );
 
         // register sequences
         for sequence in self.reference_buffer.sequences() {
@@ -303,6 +312,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                                     breakend.locus().pos() as usize,
                                                     None,
                                                 )
+                                                .precision(breakend.precision().to_owned())
                                                 .pileup(Some(Rc::clone(&pileup)))
                                                 .build()
                                                 .unwrap(),
@@ -561,7 +571,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         Ok(Some(
             if let Some(haplotype) = variants.variant_of_interest().haplotype() {
                 match variants.variant_of_interest().variant() {
-                    model::Variant::Breakend { ref_allele, spec } => {
+                    model::Variant::Breakend {
+                        ref_allele,
+                        spec,
+                        precision,
+                    } => {
                         if let HaplotypeIdentifier::Event(event) = haplotype {
                             {
                                 if !self
@@ -590,6 +604,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     spec,
                                     variants.record_info().id(),
                                     variants.record_info().mateid().clone(),
+                                    precision.clone(),
                                 )? {
                                     group.push_breakend(breakend);
 
@@ -601,22 +616,27 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                         == variants.record_info().index()
                                     {
                                         // METHOD: last record of the breakend event. Hence, we can extract observations.
-                                        let breakend_group = Mutex::new(group.build());
-                                        self.breakend_groups
-                                            .write()
-                                            .unwrap()
-                                            .insert(event.to_owned(), breakend_group);
-                                        sample.extract_observations(
-                                            &*self
-                                                .breakend_groups
-                                                .read()
+                                        if let Some(group) = group.build() {
+                                            let breakend_group = Mutex::new(group);
+                                            self.breakend_groups
+                                                .write()
                                                 .unwrap()
-                                                .get(event)
-                                                .unwrap()
-                                                .lock()
-                                                .unwrap(),
-                                            &Vec::new(), // Do not consider alt variants in case of breakends
-                                        )?
+                                                .insert(event.to_owned(), breakend_group);
+                                            sample.extract_observations(
+                                                &*self
+                                                    .breakend_groups
+                                                    .read()
+                                                    .unwrap()
+                                                    .get(event)
+                                                    .unwrap()
+                                                    .lock()
+                                                    .unwrap(),
+                                                &Vec::new(), // Do not consider alt variants in case of breakends
+                                            )?
+                                        } else {
+                                            // skipped with message in the builder
+                                            return Ok(None);
+                                        }
                                     } else {
                                         // Not yet the last one, skip.
                                         return Ok(None);
