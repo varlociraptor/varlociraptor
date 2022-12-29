@@ -587,9 +587,9 @@ impl Sample {
         if let Some(ploidy) = &self.ploidy {
             Ok(Some(ploidy.contig_ploidy(contig)?))
         } else {
-            species
-                .as_ref()
-                .map_or(Ok(None), |species| species.contig_ploidy(contig, self.sex))
+            species.as_ref().map_or(Ok(None), |species| {
+                species.contig_ploidy(contig, self.sex.clone())
+            })
         }
     }
 
@@ -650,7 +650,6 @@ pub(crate) enum Inheritance {
     Display,
     Debug,
     Clone,
-    Copy,
     Serialize,
     Deserialize,
     IntoStaticStr,
@@ -659,11 +658,11 @@ pub(crate) enum Inheritance {
     Eq,
     Hash,
 )]
+#[serde(untagged, rename_all = "lowercase")]
 pub(crate) enum Sex {
-    #[serde(rename = "male")]
     Male,
-    #[serde(rename = "female")]
     Female,
+    Other(String),
 }
 
 #[derive(Deserialize, Debug)]

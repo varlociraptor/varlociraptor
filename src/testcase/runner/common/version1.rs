@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use serde_json::json;
 use yaml_rust::Yaml;
 
-use crate::common::Testcase;
+use crate::testcase::runner::common::Testcase;
 
 #[derive(Debug)]
-pub(crate) struct TestcaseVersion1 {
-    pub(crate) inner: Vec<Yaml>,
-    pub(crate) path: PathBuf,
+pub struct TestcaseVersion1 {
+    pub inner: Vec<Yaml>,
+    pub path: PathBuf,
 }
 
 impl Testcase for TestcaseVersion1 {
