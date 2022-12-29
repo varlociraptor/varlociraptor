@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.5.0...v5.6.0) (2022-12-29)
+
+
+### Features
+
+* add experimental support for the estimation of contaminations ([#319](https://www.github.com/varlociraptor/varlociraptor/issues/319)) ([c8c607c](https://www.github.com/varlociraptor/varlociraptor/commit/c8c607c3171138aa3470c861ffaa65186fd2fad6))
+
 ## [5.5.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.4.1...v5.5.0) (2022-12-15)
 
 
