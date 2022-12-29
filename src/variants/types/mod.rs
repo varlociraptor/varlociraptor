@@ -339,6 +339,7 @@ where
                     right: Rc::clone(right),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    dbg!(&evidence);
                     push_evidence(evidence, idx);
                 }
             } else {

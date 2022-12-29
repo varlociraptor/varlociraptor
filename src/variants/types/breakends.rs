@@ -275,12 +275,21 @@ impl<R: Realigner> BreakendGroup<R> {
                 assert_eq!(self.breakends.len(), 2);
                 for bnds in self.breakends.values().permutations(2) {
                     let (bnd, other_bnd) = (bnds[0], bnds[1]);
+                    dbg!((
+                        bnd.is_left_to_right,
+                        is_match(bnd, left),
+                        is_match(other_bnd, right),
+                        is_match(bnd, right),
+                        is_match(other_bnd, left)
+                    ));
                     if bnd.is_left_to_right() {
                         if is_match(bnd, left) {
                             // METHOD: left record matches, let's see what the right record does.
                             if is_match(other_bnd, right) {
+                                dbg!("supporting");
                                 return Some(ImpreciseEvidence::Supporting);
                             } else {
+                                dbg!("not supporting");
                                 return Some(ImpreciseEvidence::NotSupporting);
                             }
                         }
@@ -288,13 +297,16 @@ impl<R: Realigner> BreakendGroup<R> {
                         if is_match(bnd, right) {
                             // METHOD: right record matches, let's see what the left record does.
                             if is_match(other_bnd, left) {
+                                dbg!("supporting");
                                 return Some(ImpreciseEvidence::Supporting);
                             } else {
+                                dbg!("not supporting");
                                 return Some(ImpreciseEvidence::NotSupporting);
                             }
                         }
                     }
                 }
+                dbg!("no match");
                 None
             }
             PairedEndEvidence::SingleEnd(_) => None,
@@ -311,14 +323,16 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         evidence: &Self::Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        dbg!("check validity");
         if self.imprecise {
             // METHOD: imprecise (for now) means that we have a breakend pair.
             // We only support paired end evidence, and just check whether the pair starts
             // either left of the left or right of the right breakend.
-            if let Some(ImpreciseEvidence::Supporting) = self.classify_imprecise_evidence(evidence)
-            {
+            if let Some(_) = self.classify_imprecise_evidence(evidence) {
+                dbg!("valid");
                 Some((0..2).into_iter().collect_vec())
             } else {
+                dbg!("invalid");
                 None
             }
         } else {
@@ -402,6 +416,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     ) -> Result<Option<AlleleSupport>> {
         if self.imprecise {
             if let Some(classification) = self.classify_imprecise_evidence(evidence) {
+                dbg!("match");
                 match classification {
                     ImpreciseEvidence::Supporting => Ok(Some(
                         AlleleSupportBuilder::default()
