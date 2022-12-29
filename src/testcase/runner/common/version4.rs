@@ -3,12 +3,12 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use yaml_rust::Yaml;
 
-use crate::common::Testcase;
+use crate::testcase::runner::common::Testcase;
 
 #[derive(Debug)]
-pub(crate) struct TestcaseVersion4 {
-    pub(crate) inner: Vec<Yaml>,
-    pub(crate) path: PathBuf,
+pub struct TestcaseVersion4 {
+    pub inner: Vec<Yaml>,
+    pub path: PathBuf,
 }
 
 impl Testcase for TestcaseVersion4 {

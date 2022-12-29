@@ -2,6 +2,28 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.5.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.4.1...v5.5.0) (2022-12-15)
+
+
+### Features
+
+* add MATEID based recognition of connected breakends ([#313](https://www.github.com/varlociraptor/varlociraptor/issues/313)) ([d3b881c](https://www.github.com/varlociraptor/varlociraptor/commit/d3b881cac51ac0555a446307af2bf5c881a5d160))
+
+### [5.4.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.4.0...v5.4.1) (2022-12-08)
+
+
+### Bug Fixes
+
+* constrain MAP estimates of AF to the most probable event ([#311](https://www.github.com/varlociraptor/varlociraptor/issues/311)) ([f52860b](https://www.github.com/varlociraptor/varlociraptor/commit/f52860b29b1ae1a8a3138da011d9ab0ca8c5de30))
+
+## [5.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.3...v5.4.0) (2022-11-23)
+
+
+### Features
+
+* allow definition of sexes other than female or male ([#307](https://www.github.com/varlociraptor/varlociraptor/issues/307)) ([817e1d7](https://www.github.com/varlociraptor/varlociraptor/commit/817e1d7af60ad83dcc2700877c27e6072f7ff660))
+* expose testcase API in library ([#308](https://www.github.com/varlociraptor/varlociraptor/issues/308)) ([4a2e122](https://www.github.com/varlociraptor/varlociraptor/commit/4a2e12295a288e48b427693bf094b7733bc6552f))
+
 ### [5.3.3](https://www.github.com/varlociraptor/varlociraptor/compare/v5.3.2...v5.3.3) (2022-10-13)
 
 

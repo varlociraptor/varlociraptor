@@ -105,7 +105,8 @@ where
     }
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Getters)]
+#[getset(get = "pub(crate)")]
 pub(crate) struct VafLfc {
     sample_a: usize,
     sample_b: usize,

@@ -1,14 +1,14 @@
-pub(crate) mod version0;
-pub(crate) mod version1;
-pub(crate) mod version2;
-pub(crate) mod version3;
-pub(crate) mod version4;
+pub mod version0;
+pub mod version1;
+pub mod version2;
+pub mod version3;
+pub mod version4;
 
-pub(crate) use version0::TestcaseVersion0;
-pub(crate) use version1::TestcaseVersion1;
-pub(crate) use version2::TestcaseVersion2;
-pub(crate) use version3::TestcaseVersion3;
-pub(crate) use version4::TestcaseVersion4;
+pub use crate::testcase::runner::common::version0::TestcaseVersion0;
+pub use crate::testcase::runner::common::version1::TestcaseVersion1;
+pub use crate::testcase::runner::common::version2::TestcaseVersion2;
+pub use crate::testcase::runner::common::version3::TestcaseVersion3;
+pub use crate::testcase::runner::common::version4::TestcaseVersion4;
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -26,11 +26,11 @@ use serde_json;
 use tempfile::{self, NamedTempFile};
 use yaml_rust::{Yaml, YamlLoader};
 
-use varlociraptor::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
-use varlociraptor::testcase::Mode;
-use varlociraptor::utils;
+use crate::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
+use crate::testcase::builder::Mode;
+use crate::utils;
 
-pub(crate) fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
+pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
     let mut reader = File::open(path.as_ref().join("testcase.yaml"))?;
     let mut content2 = String::new();
     reader.read_to_string(&mut content2)?;
@@ -60,7 +60,7 @@ pub(crate) fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>>
     })
 }
 
-pub(crate) trait Testcase {
+pub trait Testcase {
     fn inner(&self) -> &[Yaml];
 
     fn path(&self) -> &PathBuf;

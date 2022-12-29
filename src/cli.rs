@@ -861,7 +861,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         if let Some(testcase_prefix) = testcase_prefix {
                             // TODO obtain sample information from input bcfs?
                             Some(
-                                testcase::TestcaseBuilder::default()
+                                testcase::builder::TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
                                     .anonymize(testcase_anonymous)
                                     .locus(&testcase_locus)?,
@@ -904,7 +904,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                                     let mut testcase = testcase_builder
                                         .scenario(Some(scenario))
-                                        .mode(testcase::Mode::Generic)
+                                        .mode(testcase::builder::Mode::Generic)
                                         .build()
                                         .unwrap();
                                     info!("Writing testcase.");
@@ -960,7 +960,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         normal_options,
                                     )?
                                     .scenario(None)
-                                    .mode(testcase::Mode::TumorNormal)
+                                    .mode(testcase::builder::Mode::TumorNormal)
                                     .purity(Some(purity))
                                     .build()
                                     .unwrap();

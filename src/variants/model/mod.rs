@@ -6,15 +6,18 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
-use std::str;
+use std::{mem, str};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use ordered_float::NotNan;
 use rust_htslib::bcf;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
+use crate::errors::Error;
 use crate::grammar;
 use crate::variants::model::bias::Artifacts;
+
+use self::modes::generic::LikelihoodOperands;
 
 pub(crate) mod bias;
 pub(crate) mod likelihood;
@@ -41,6 +44,10 @@ impl Event {
                 || self.biases.iter().all(|biases| !biases.is_artifact())
         );
         self.biases.iter().any(|biases| biases.is_artifact())
+    }
+
+    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
+        self.vafs.contains(operands)
     }
 }
 
@@ -147,6 +154,19 @@ impl HaplotypeIdentifier {
         if let Ok(Some(event)) = record.info(b"EVENT").string() {
             let event = event[0];
             return Ok(Some(HaplotypeIdentifier::Event(event.to_owned())));
+        }
+
+        if let Ok(Some(mateid)) = record.info(b"MATEID").string() {
+            let recid = record.id();
+            if recid != b"." {
+                let mateid = mateid[0].to_owned();
+                let mut ids = [recid.as_slice(), mateid.as_slice()];
+                ids.sort();
+                let event: Vec<u8> = ids.join(b"-".as_slice()).into();
+                return Ok(Some(HaplotypeIdentifier::Event(event)));
+            } else {
+                bail!(Error::BreakendMateidWithoutRecid);
+            }
         }
 
         // TODO support phase sets in the future
