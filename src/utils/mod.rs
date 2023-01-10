@@ -56,10 +56,16 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
     }
 }
 
+/// Checks whether the given BCF contains fields required for evaluating haplotypes.
+/// Currently, this means that the EVENT or the MATEID field has to be defined in the
+/// header.
 pub(crate) fn is_haplotype_bcf(reader: &bcf::Reader) -> bool {
     for rec in reader.header().header_records() {
         if let bcf::header::HeaderRecord::Info { values, .. } = rec {
-            if values.get("ID").map_or(false, |id| id == "EVENT") {
+            if values
+                .get("ID")
+                .map_or(false, |id| id == "EVENT" || id == "MATEID")
+            {
                 return true;
             }
         }
