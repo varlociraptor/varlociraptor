@@ -7,7 +7,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Bug Fixes
 
-* preprocessing breakend records fails ([#322](https://www.github.com/varlociraptor/varlociraptor/issues/322)) ([e7e0a86](https://www.github.com/varlociraptor/varlociraptor/commit/e7e0a86622dd16f6fc04fc65bd831fa191235c46))
+* fix handling of mateids for detection of breakend groups ([#322](https://www.github.com/varlociraptor/varlociraptor/issues/322)) ([e7e0a86](https://www.github.com/varlociraptor/varlociraptor/commit/e7e0a86622dd16f6fc04fc65bd831fa191235c46))
 
 ## [5.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.5.0...v5.6.0) (2022-12-29)
 
