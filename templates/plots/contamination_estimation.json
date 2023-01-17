@@ -1,0 +1,129 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "Estimation of sample contamination.",
+    "datasets": {
+        "empirical_vaf_dist": [],
+        "densities": [],
+        "vaf_dist_quantiles": []
+    },
+    "layer": [
+        {
+            "data": {
+                "name": "empirical_vaf_dist"
+            },
+            "transform": [
+                {
+                    "calculate": "'hist'",
+                    "as": "hist"
+                }
+            ],
+            "encoding": {
+                "color": {
+                    "field": "hist",
+                    "scale": {
+                        "domain": [
+                            "hist"
+                        ],
+                        "range": [
+                            "lightgrey"
+                        ]
+                    },
+                    "legend": {
+                        "title": "",
+                        "labelExpr": "'observed VAFs'"
+                    }
+                },
+                "x": {
+                    "field": "vaf",
+                    "scale": {
+                        "domain": [
+                            0.0,
+                            1.0
+                        ],
+                        "type": "linear"
+                    },
+                    "axis": {
+                        "title": null
+                    }
+                },
+                "y": {
+                    "field": "count",
+                    "scale": {
+                        "type": "linear"
+                    },
+                    "axis": {
+                        "title": null
+                    }
+                }
+            },
+            "mark": {
+                "align": "left",
+                "type": "bar",
+                "tooltip": true
+            }
+        },
+        {
+            "data": {
+                "name": "vaf_dist_quantiles"
+            },
+            "encoding": {
+                "color": {
+                    "value": "black"
+                },
+                "x": {
+                    "field": "quantile"
+                },
+                "y": {
+                    "field": "vaf"
+                }
+            },
+            "mark": "tick"
+        },
+        {
+            "data": {
+                "name": "densities"
+            },
+            "encoding": {
+                "color": {
+                    "field": "category",
+                    "legend": {
+                        "title": ""
+                    }
+                },
+                "x": {
+                    "field": "purity",
+                    "axis": {
+                        "grid": false
+                    },
+                    "scale": {
+                        "domain": [
+                            0.0,
+                            1.0
+                        ],
+                        "type": "linear"
+                    }
+                },
+                "y": {
+                    "field": "density",
+                    "axis": {
+                        "labels": false,
+                        "title": "log density"
+                    },
+                    "scale": {
+                        "type": "symlog"
+                    }
+                }
+            },
+            "mark": {
+                "type": "line",
+                "interpolate": "monotone"
+            }
+        }
+    ],
+    "resolve": {
+        "scale": {
+            "y": "independent",
+            "color": "independent"
+        }
+    }
+}

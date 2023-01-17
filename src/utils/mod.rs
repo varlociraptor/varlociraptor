@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::{AddAssign, Deref};
+use std::path::PathBuf;
 use std::str;
 
 use anyhow::Result;
@@ -37,6 +38,8 @@ pub(crate) use collect_variants::collect_variants;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
+pub(crate) type PathMap = HashMap<String, PathBuf>;
+
 lazy_static! {
     pub(crate) static ref PROB_05: LogProb = LogProb::from(Prob(0.5f64));
     pub(crate) static ref PROB_033: LogProb = LogProb::from(Prob(1.0 / 3.0));
@@ -53,10 +56,16 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
     }
 }
 
+/// Checks whether the given BCF contains fields required for evaluating haplotypes.
+/// Currently, this means that the EVENT or the MATEID field has to be defined in the
+/// header.
 pub(crate) fn is_haplotype_bcf(reader: &bcf::Reader) -> bool {
     for rec in reader.header().header_records() {
         if let bcf::header::HeaderRecord::Info { values, .. } = rec {
-            if values.get("ID").map_or(false, |id| id == "EVENT") {
+            if values
+                .get("ID")
+                .map_or(false, |id| id == "EVENT" || id == "MATEID")
+            {
                 return true;
             }
         }

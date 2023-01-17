@@ -76,6 +76,8 @@ pub(crate) enum Error {
     // InvalidPhaseSet,
     #[error("haplotype block consisting of normal variants in combination with breakends: this is currently unsupported")]
     HaplotypeBlockWithBreakend,
+    #[error("invalid prior contamination estimate. Both --prior-estiate and --prior-considered-cells have to be specified. The latter has to be >0.")]
+    InvalidPriorContaminationEstimate,
     #[error("breakend with MATEID found that does not have its own ID set: this is currently unsupported, as there is no way to uniquely identify the pair")]
     BreakendMateidWithoutRecid,
 }
