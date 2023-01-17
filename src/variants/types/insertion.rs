@@ -125,6 +125,10 @@ impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
     fn homopolymer_indel_len(&self) -> Option<i8> {
         if self.homopolymer.is_some() {
             Some(self.ins_seq.len() as i8)

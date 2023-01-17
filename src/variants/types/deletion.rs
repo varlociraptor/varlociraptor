@@ -185,6 +185,10 @@ impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
     fn homopolymer_indel_len(&self) -> Option<i8> {
         // METHOD: enable HomopolymerArtifact to detect e.g. homopolymer errors due to PCR
         if self.homopolymer.is_some() {

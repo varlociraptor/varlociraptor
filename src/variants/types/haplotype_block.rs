@@ -140,6 +140,10 @@ impl Variant for HaplotypeBlock {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
     fn is_valid_evidence(
         &self,
         evidence: &Self::Evidence,

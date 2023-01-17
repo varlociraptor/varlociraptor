@@ -145,6 +145,10 @@ impl<R: Realigner> Variant for Replacement<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
     fn homopolymer_indel_len(&self) -> Option<i8> {
         self.homopolymer_indel_len
     }

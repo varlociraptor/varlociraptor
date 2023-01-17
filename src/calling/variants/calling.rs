@@ -34,7 +34,7 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::prior::{Inheritance, Prior};
-use crate::variants::model::{self, Event};
+use crate::variants::model::{self, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
@@ -459,7 +459,11 @@ where
 
         let mut variant_builder = VariantBuilder::default();
         variant_builder.record(records.first_not_none_mut()?)?;
+        let is_precise =
+            VariantPrecision::try_from(records.first_not_none()?)? == VariantPrecision::Precise;
+        dbg!(is_precise);
 
+        // METHOD: for imprecise variants, we can skip various meaninless biases below
         let mut work_item = WorkItem {
             rid,
             call,
@@ -468,10 +472,12 @@ where
             haplotype,
             variant_builder,
             index,
-            check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
-            check_strand_bias: !self.omit_strand_bias,
-            check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
-            check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
+            check_read_orientation_bias: is_snv_or_mnv
+                && !self.omit_read_orientation_bias
+                && is_precise,
+            check_strand_bias: !self.omit_strand_bias && is_precise,
+            check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias && is_precise,
+            check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias && is_precise,
             check_homopolymer_artifact_detection: false,
             check_alt_locus_bias: !self.omit_alt_locus_bias,
         };

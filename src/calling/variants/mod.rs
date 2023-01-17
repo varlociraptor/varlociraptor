@@ -248,7 +248,7 @@ impl Call {
                                     Strand::Both => '*',
                                     Strand::Reverse => '-',
                                     Strand::Forward => '+',
-                                    _ => panic!("bug: unknown strandedness"),
+                                    Strand::None => '.',
                                 },
                                 match obs.read_orientation {
                                     SequenceReadPairOrientation::F1R2 => '>',

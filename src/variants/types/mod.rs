@@ -118,6 +118,8 @@ pub(crate) trait Variant {
     type Evidence: Evidence;
     type Loci: Loci;
 
+    fn is_imprecise(&self) -> bool;
+
     /// Determine whether the evidence is suitable to assessing probabilities
     /// (i.e. overlaps the variant in the right way).
     ///

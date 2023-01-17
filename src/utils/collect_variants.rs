@@ -133,11 +133,6 @@ pub(crate) fn collect_variants(
             if haplotype.is_some() {
                 for spec in &alleles[1..] {
                     let rec: &bcf::Record = &*record;
-                    dbg!((
-                        record.contig(),
-                        record.pos(),
-                        VariantPrecision::try_from(rec)?
-                    ));
                     push_variant(model::Variant::Breakend {
                         ref_allele: alleles[0].to_owned(),
                         spec: spec.to_vec(),
