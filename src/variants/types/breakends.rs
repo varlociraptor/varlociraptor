@@ -30,11 +30,13 @@ use crate::variants::evidence::realignment::pairhmm::{
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model::{self, VariantPrecision};
-use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
+use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus,
     SingleLocusBuilder, Variant,
 };
+
+use super::IsizeObservable;
 
 const MIN_REF_BASES: u64 = 10;
 
@@ -419,28 +421,45 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     fn allele_support(
         &self,
         evidence: &Self::Evidence,
-        _: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if self.imprecise {
             if let Some(classification) = self.classify_imprecise_evidence(evidence) {
-                match classification {
-                    ImpreciseEvidence::Supporting => Ok(Some(
-                        AlleleSupportBuilder::default()
-                            .prob_ref_allele(LogProb::ln_zero())
-                            .prob_alt_allele(LogProb::ln_one())
-                            .strand(Strand::None)
-                            .build()
-                            .unwrap(),
-                    )),
-                    ImpreciseEvidence::NotSupporting => Ok(Some(
-                        AlleleSupportBuilder::default()
-                            .prob_ref_allele(LogProb::ln_one())
-                            .prob_alt_allele(LogProb::ln_zero())
-                            .strand(Strand::None)
-                            .build()
-                            .unwrap(),
-                    )),
+                if self.is_deletion() {
+                    match evidence {
+                        PairedEndEvidence::PairedEnd { left, right } => {
+                            // TODO sum over confidence intervals
+                            Ok(Some(self.allele_support_isize(
+                                left,
+                                right,
+                                alignment_properties,
+                            )?))
+                        }
+                        PairedEndEvidence::SingleEnd(_) => unreachable!(
+                            "bug: single end reads cannot be used as evidence for \
+                             imprecise breakend groups"
+                        ),
+                    }
+                } else {
+                    match classification {
+                        ImpreciseEvidence::Supporting => Ok(Some(
+                            AlleleSupportBuilder::default()
+                                .prob_ref_allele(LogProb::ln_zero())
+                                .prob_alt_allele(LogProb::ln_one())
+                                .strand(Strand::None)
+                                .build()
+                                .unwrap(),
+                        )),
+                        ImpreciseEvidence::NotSupporting => Ok(Some(
+                            AlleleSupportBuilder::default()
+                                .prob_ref_allele(LogProb::ln_one())
+                                .prob_alt_allele(LogProb::ln_zero())
+                                .strand(Strand::None)
+                                .build()
+                                .unwrap(),
+                        )),
+                    }
                 }
             } else {
                 unreachable!(
@@ -488,20 +507,42 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        match evidence {
-            PairedEndEvidence::PairedEnd { left, right } => {
-                // METHOD: we do not require the fragment to enclose the breakend group.
-                // Hence, we treat both reads independently.
-                (self
-                    .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
-                    .ln_one_minus_exp()
-                    + self
-                        .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
-                        .ln_one_minus_exp())
-                .ln_one_minus_exp()
+        if self.imprecise {
+            if self.is_deletion() && alignment_properties.insert_size.is_some() {
+                // METHOD: Less fragments from alt allele, analogous to normal deletion.
+                // TODO sum over confidence intervals
+                match evidence {
+                    PairedEndEvidence::PairedEnd { left, right } => self.prob_sample_alt_fragment(
+                        left.seq().len() as u64,
+                        right.seq().len() as u64,
+                        alignment_properties,
+                    ),
+                    PairedEndEvidence::SingleEnd(_) => unreachable!(
+                        "bug: single end reads cannot be used as evidence for \
+                         imprecise breakend groups"
+                    ),
+                }
+            } else {
+                // METHOD: no overlap and fragment size does not play a role
+                // (breakend pair spans more than one contig), hence no sampling bias.
+                LogProb::ln_one()
             }
-            PairedEndEvidence::SingleEnd(read) => {
-                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+        } else {
+            match evidence {
+                PairedEndEvidence::PairedEnd { left, right } => {
+                    // METHOD: we do not require the fragment to enclose the breakend group.
+                    // Hence, we treat both reads independently.
+                    (self
+                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                        .ln_one_minus_exp()
+                        + self
+                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                            .ln_one_minus_exp())
+                    .ln_one_minus_exp()
+                }
+                PairedEndEvidence::SingleEnd(read) => {
+                    self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+                }
             }
         }
     }
@@ -513,35 +554,49 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
         read_len: u64,
         alignment_properties: &AlignmentProperties,
     ) -> Option<u64> {
-        let enclosable = |max_op_len| {
-            if let Some(len) = self.enclosable_len() {
-                if let Some(maxlen) = max_op_len {
-                    if len <= (maxlen as u64) {
-                        return Some(read_len);
+        if self.imprecise {
+            Some(0)
+        } else {
+            let enclosable = |max_op_len| {
+                if let Some(len) = self.enclosable_len() {
+                    if let Some(maxlen) = max_op_len {
+                        if len <= (maxlen as u64) {
+                            return Some(read_len);
+                        }
                     }
                 }
-            }
-            None
-        };
+                None
+            };
 
-        if self.is_deletion() {
-            if let Some(_feasible) = enclosable(alignment_properties.max_del_cigar_len) {
-                return Some(read_len);
+            if self.is_deletion() {
+                if let Some(_feasible) = enclosable(alignment_properties.max_del_cigar_len) {
+                    return Some(read_len);
+                }
+            } else if self.is_insertion() {
+                if let Some(_feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
+                    return Some(read_len);
+                }
             }
-        } else if self.is_insertion() {
-            if let Some(_feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
-                return Some(read_len);
-            }
+            alignment_properties
+                .frac_max_softclip
+                .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
         }
-        alignment_properties
-            .frac_max_softclip
-            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {
         if self.is_deletion() {
             if let Some((left, right)) = self.breakend_pair() {
-                return Some(right.locus.pos() - left.locus.pos());
+                // METHOD: if the deletion is imprecise, we take the minimum len derived from the
+                // confidence intervals.
+                let left_add = match left.precision() {
+                    VariantPrecision::Imprecise { cistart, .. } => *cistart.end(),
+                    _ => 0,
+                };
+                let right_sub = match right.precision() {
+                    VariantPrecision::Imprecise { cistart, .. } => *cistart.start(),
+                    _ => 0,
+                };
+                return Some((right.locus.pos() - right_sub) - (left.locus.pos() + left_add));
             }
         } else if self.is_insertion() {
             return Some(self.breakends.values().next().unwrap().replacement.len() as u64 - 1);
@@ -551,6 +606,10 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
 }
 
 impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
+
+impl<R: Realigner> FragmentSamplingBias for BreakendGroup<R> {}
+
+impl<R: Realigner> IsizeObservable for BreakendGroup<R> {}
 
 impl<R: Realigner> Realignable for BreakendGroup<R> {
     fn maybe_revcomp(&self) -> bool {
