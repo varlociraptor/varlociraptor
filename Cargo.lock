@@ -165,9 +165,9 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f79bbf2b7be78b1de7795a0d7ae6e324078d8053b49d5d804b9f62c5202b358"
+checksum = "e07645dcc036557a09cf078268b4666f0ce737bd797b0ee554de29ea81981ab2"
 dependencies = [
  "anyhow",
  "approx",
