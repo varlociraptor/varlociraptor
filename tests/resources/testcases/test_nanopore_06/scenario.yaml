@@ -1,8 +1,0 @@
-samples:
-  normal:
-    resolution: 0.1
-    universe: "[0.0, 1.0]"
-
-events:
-  germline_hom: "normal:1.0"
-  germline_het: "normal:0.5"

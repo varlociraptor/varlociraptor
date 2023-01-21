@@ -1,7 +1,6 @@
 samples:
   normal:
-    resolution: 0.1
-    universe: "[0.0, 1.0]"
+    universe: "0.0 | 0.5 | 1.0"
 
 events:
   germline_hom: "normal:1.0"
