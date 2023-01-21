@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.6.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.1...v5.6.2) (2023-01-21)
+
+
+### Bug Fixes
+
+* temporarily disable performance optimization in realignment because it can lead to underestimated likelihoods for alleles with a distance of zero to the read, thereby destroying the proper ratio between the likelihoods ([#324](https://www.github.com/varlociraptor/varlociraptor/issues/324)) ([07f69c1](https://www.github.com/varlociraptor/varlociraptor/commit/07f69c19bfc52e82430b24e14f9275616e76da1e))
+
 ### [5.6.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.0...v5.6.1) (2023-01-10)
 
 
