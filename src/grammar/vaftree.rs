@@ -39,10 +39,14 @@ impl VAFTree {
         }
     }
 
-    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
+    pub(crate) fn contains(
+        &self,
+        operands: &LikelihoodOperands,
+        exclude_sample: Option<usize>,
+    ) -> bool {
         self.inner.iter().any(|node| {
             let mut lfcs = operands.lfcs().iter().collect();
-            node.contains(operands, &mut lfcs)
+            node.contains(operands, &mut lfcs, exclude_sample)
         })
     }
 }
@@ -108,9 +112,19 @@ impl Node {
         self.children.len() > 1
     }
 
-    pub(crate) fn contains(&self, operands: &LikelihoodOperands, lfcs: &mut Vec<&VafLfc>) -> bool {
+    pub(crate) fn contains(
+        &self,
+        operands: &LikelihoodOperands,
+        lfcs: &mut Vec<&VafLfc>,
+        exclude_sample: Option<usize>,
+    ) -> bool {
         let contained = match &self.kind {
             NodeKind::Sample { sample, vafs } => {
+                if exclude_sample.map_or(false, |s| s == *sample) {
+                    // if sample is excluded, always return true since it may not
+                    // influence the containment check
+                    return true;
+                }
                 vafs.contains(operands.events().get(*sample).unwrap().allele_freq)
             }
             NodeKind::Log2FoldChange {
@@ -138,10 +152,10 @@ impl Node {
             contained
                 && self.children.iter().any(|node| {
                     if self.children.len() == 1 {
-                        node.contains(operands, lfcs)
+                        node.contains(operands, lfcs, exclude_sample)
                     } else {
                         let mut lfcs = lfcs.clone();
-                        node.contains(operands, &mut lfcs)
+                        node.contains(operands, &mut lfcs, exclude_sample)
                     }
                 })
         }

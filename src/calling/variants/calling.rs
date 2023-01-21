@@ -740,7 +740,7 @@ where
                 continue;
             }
             // METHOD: skip MAP if it is not contained in the strongest event
-            if !best_event.contains(map_estimates) {
+            if !best_event.contains(map_estimates, None) {
                 continue;
             }
 
@@ -774,7 +774,7 @@ where
                             model_instance
                                 .event_posteriors()
                                 .filter_map(|(estimate, prob)| {
-                                    if !best_event.contains(estimate) {
+                                    if !best_event.contains(estimate, Some(sample)) {
                                         // estimate must be compatible with best event
                                         return None;
                                     }

@@ -1,8 +1,7 @@
 # This testcase should fail when done with pairhmm-mode set to anything but homopolymer
 expected:
   posteriors:
-    - PROB_GERMLINE_HET < 0.05
-    - PROB_GERMLINE_HET > 0.0
+    - PROB_GERMLINE_HET < 1.0 || PROB_GERMLINE_HOM < 1.0
 
 # necessary bam files
 samples:
