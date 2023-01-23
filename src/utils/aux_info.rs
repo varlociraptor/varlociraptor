@@ -86,10 +86,11 @@ impl AuxInfoCollector {
         for record in &self.records {
             header.push_record(
                 format!(
-                    "##INFO=<ID={id},Number={number},Type=Integer,Description=\"{desc}\">",
+                    "##INFO=<ID={id},Number={number},Type={_type},Description={desc}>",
                     id = record.get("ID").unwrap(),
                     number = record.get("Number").unwrap(),
                     desc = record.get("Description").unwrap(),
+                    _type = record.get("Type").unwrap(),
                 )
                 .as_bytes(),
             );

@@ -227,7 +227,8 @@ pub enum PreprocessKind {
         output: Option<PathBuf>,
         #[structopt(
             long = "propagate-info-fields",
-            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF."
+            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF \
+            (not supported for variants connected via EVENT tags except breakends)."
         )]
         propagate_info_fields: Vec<String>,
         #[structopt(

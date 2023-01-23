@@ -298,14 +298,16 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                         .unwrap()
                                         .breakends()
                                     {
-                                        let mut call = call_builder(
+                                        let mut call_builder = call_builder(
                                             breakend.locus().contig().as_bytes().to_owned(),
                                             breakend.locus().pos(),
                                             breakend.id().to_owned(),
-                                        )
-                                        .mateid(breakend.mateid().to_owned())
-                                        .build()
-                                        .unwrap();
+                                        );
+                                        call_builder.mateid(breakend.mateid().to_owned());
+                                        if let Some(ref aux_info) = breakend.aux_info() {
+                                            call_builder.aux_info(aux_info.clone());
+                                        }
+                                        let mut call = call_builder.build().unwrap();
 
                                         // add variant information
                                         call.variant = Some(
@@ -603,6 +605,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     spec,
                                     variants.record_info().id(),
                                     variants.record_info().mateid().clone(),
+                                    variants.record_info().aux_info().clone(),
                                 )? {
                                     group.push_breakend(breakend);
 
