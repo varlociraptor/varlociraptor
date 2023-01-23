@@ -6,7 +6,10 @@ use vec_map::VecMap;
 
 use crate::{errors, utils};
 
-use super::collect_variants::VariantInfo;
+use super::{
+    aux_info::{AuxInfo, AuxInfoCollector},
+    collect_variants::VariantInfo,
+};
 
 pub(crate) struct VariantBuffer {
     reader: bcf::Reader,
@@ -20,6 +23,7 @@ pub(crate) struct VariantBuffer {
     log_each_record: bool,
     record_index: isize,
     state: State,
+    aux_info_collector: AuxInfoCollector,
 }
 
 impl VariantBuffer {
@@ -27,6 +31,7 @@ impl VariantBuffer {
         reader: bcf::Reader,
         progress_logger: ProgressLogger,
         log_each_record: bool,
+        aux_info_collector: AuxInfoCollector,
     ) -> Self {
         VariantBuffer {
             reader,
@@ -40,6 +45,7 @@ impl VariantBuffer {
             log_each_record,
             record_index: -1,
             state: State::Init,
+            aux_info_collector,
         }
     }
 
@@ -156,6 +162,7 @@ impl VariantBuffer {
             self.record_index as usize,
             record.id(),
             utils::info_tag_mateid(record).unwrap_or(None),
+            self.aux_info_collector.collect(record)?,
         );
         for index in self.variants.len()..self.variants.len() + variants.len() {
             self.record_infos.insert(index, record_info.clone());
@@ -209,6 +216,8 @@ pub(crate) struct RecordInfo {
     id: Vec<u8>,
     #[getset(get = "pub(crate)")]
     mateid: Option<Vec<u8>>,
+    #[getset(get = "pub(crate)")]
+    aux_info: AuxInfo,
 }
 
 #[derive(Debug, Clone, Copy)]

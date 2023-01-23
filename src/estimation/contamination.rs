@@ -24,7 +24,7 @@ use crate::{
     },
     grammar,
     utils::PathMap,
-    utils::NUMERICAL_EPSILON,
+    utils::{aux_info::AuxInfoCollector, NUMERICAL_EPSILON},
     variants::model::AlleleFreq,
 };
 
@@ -377,8 +377,8 @@ impl CallProcessor for ContaminationEstimator {
     fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
-    ) -> Result<()> {
-        Ok(())
+    ) -> Result<Option<AuxInfoCollector>> {
+        Ok(None)
     }
 
     fn process_call(
@@ -469,5 +469,6 @@ pub(crate) fn estimate_contamination(
         false,
         ContaminationEstimator::new(output, output_plot, prior_estimate),
         ContaminationCandidateFilter::new(),
+        Vec::new(),
     )
 }

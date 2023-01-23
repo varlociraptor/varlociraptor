@@ -269,6 +269,7 @@ pub trait Testcase {
                             .omit_homopolymer_artifact_detection(),
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
+                        propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
                             sample_observations: self
@@ -308,6 +309,7 @@ pub trait Testcase {
                             .omit_homopolymer_artifact_detection(),
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
+                        propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
                                 .sample_preprocessed_path("tumor", &temp_preprocess),

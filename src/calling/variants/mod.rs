@@ -7,6 +7,7 @@ pub(crate) mod calling;
 pub mod preprocessing;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::str;
 use std::u8;
@@ -22,6 +23,7 @@ use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
+use crate::utils::aux_info::AuxInfo;
 use crate::utils::signif;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
@@ -37,6 +39,16 @@ use crate::variants::model::{
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
+lazy_static! {
+    static ref OMIT_AUX_INFO: HashSet<Vec<u8>> = HashSet::from([
+        b"MATEID".to_vec(),
+        b"EVENT".to_vec(),
+        b"SVLEN".to_vec(),
+        b"SVTYPE".to_vec(),
+        b"END".to_vec(),
+    ]);
+}
+
 #[derive(Default, Clone, Debug, Builder, Getters)]
 #[getset(get = "pub(crate)")]
 pub(crate) struct Call {
@@ -46,6 +58,9 @@ pub(crate) struct Call {
     id: Option<Vec<u8>>,
     #[builder(default = "None")]
     mateid: Option<Vec<u8>>,
+    #[builder(default)]
+    aux_info: AuxInfo,
+    //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
     variant: Option<Variant>,
 }
@@ -89,6 +104,8 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+
+        self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
 
         // set qual
         record.set_qual(f32::missing());
@@ -326,6 +343,8 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+
+        self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
 
         // set qual
         record.set_qual(f32::missing());

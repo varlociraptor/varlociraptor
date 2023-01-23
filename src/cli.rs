@@ -226,6 +226,11 @@ pub enum PreprocessKind {
         )]
         output: Option<PathBuf>,
         #[structopt(
+            long = "propagate-info-fields",
+            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF."
+        )]
+        propagate_info_fields: Vec<String>,
+        #[structopt(
             long = "strandedness",
             default_value = "opposite",
             possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
@@ -456,6 +461,11 @@ pub enum CallKind {
     Variants {
         #[structopt(subcommand)]
         mode: VariantCallMode,
+        #[structopt(
+            long = "propagate-info-fields",
+            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF."
+        )]
+        propagate_info_fields: Vec<String>,
         #[structopt(
             long = "omit-strand-bias",
             help = "Do not consider strand bias when calculating the probability of an artifact.\
@@ -716,6 +726,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     report_fragment_ids,
                     alignment_properties,
                     output,
+                    propagate_info_fields,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
@@ -755,6 +766,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let log_each_record = log_mode == "each-record";
 
+                    let propagate_info_fields = propagate_info_fields
+                        .iter()
+                        .map(|s| s.as_bytes().to_owned())
+                        .collect();
+
                     match pairhmm_mode.as_ref() {
                         "homopolymer" => {
                             let hop_params = alignment_properties.hop_params.clone();
@@ -771,6 +787,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &candidates,
                                     )?)
                                     .inbcf(candidates)
+                                    .aux_info_fields(propagate_info_fields)
                                     .options(opt_clone)
                                     .outbcf(output)
                                     .raw_observation_output(output_raw_observations)
@@ -798,6 +815,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &candidates,
                                     )?)
                                     .inbcf(candidates)
+                                    .aux_info_fields(propagate_info_fields)
                                     .options(opt_clone)
                                     .outbcf(output)
                                     .raw_observation_output(output_raw_observations)
@@ -824,6 +842,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &candidates,
                                     )?)
                                     .inbcf(candidates)
+                                    .aux_info_fields(propagate_info_fields)
                                     .options(opt_clone)
                                     .outbcf(output)
                                     .raw_observation_output(output_raw_observations)
@@ -856,6 +875,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_anonymous,
                     output,
                     log_mode,
+                    propagate_info_fields,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -927,6 +947,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     log_each_record,
                                     CallWriter::new(),
                                     DefaultCandidateFilter::new(),
+                                    propagate_info_fields,
                                 )?;
                             } else {
                                 return Err(errors::Error::InvalidObservationsSpec.into());
@@ -1010,6 +1031,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 log_each_record,
                                 CallWriter::new(),
                                 DefaultCandidateFilter::new(),
+                                propagate_info_fields,
                             )?;
                         }
                     }

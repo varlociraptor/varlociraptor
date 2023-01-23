@@ -2300,6 +2300,7 @@ dependencies = [
  "itertools-num",
  "jemallocator",
  "lazy_static",
+ "linear-map",
  "log",
  "lru",
  "lru_time_cache",
