@@ -26,6 +26,7 @@ use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
+use crate::utils::aux_info::AuxInfoCollector;
 use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
@@ -55,6 +56,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     inbcf: PathBuf,
     outbcf: Option<PathBuf>,
     inbam: PathBuf,
+    aux_info_fields: Vec<Vec<u8>>,
     min_bam_refetch_distance: u64,
     options: cli::Varlociraptor,
     haplotype_feature_index: HaplotypeFeatureIndex,
@@ -77,7 +79,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     ObservationProcessor<R>
 {
-    fn writer(&self) -> Result<bcf::Writer> {
+    fn writer(&self, aux_info_collector: &AuxInfoCollector) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
 
         // register tags
@@ -154,6 +156,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .as_bytes(),
         );
 
+        aux_info_collector.write_header_info(&mut header);
+
         Ok(if let Some(ref path) = self.outbcf {
             bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
@@ -166,15 +170,23 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     pub(crate) fn process(&mut self) -> Result<()> {
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
         bcf_reader.set_threads(1)?;
+
         let progress_logger = ProgressLogger::builder()
             .with_items_name("records")
             .with_frequency(std::time::Duration::from_secs(20))
             .start();
 
-        let mut variant_buffer =
-            VariantBuffer::new(bcf_reader, progress_logger, self.log_each_record);
-        let mut bcf_writer = self.writer()?;
+        let aux_info_collector = AuxInfoCollector::new(&self.aux_info_fields, &bcf_reader)?;
+
+        let mut bcf_writer = self.writer(&aux_info_collector)?;
         bcf_writer.set_threads(1)?;
+
+        let mut variant_buffer = VariantBuffer::new(
+            bcf_reader,
+            progress_logger,
+            self.log_each_record,
+            aux_info_collector,
+        );
 
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
@@ -225,6 +237,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     variants.locus().pos(),
                     variants.record_info().id().clone(),
                 )
+                .aux_info(variants.record_info().aux_info().clone())
                 .build()
                 .unwrap();
 
@@ -285,14 +298,16 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                         .unwrap()
                                         .breakends()
                                     {
-                                        let mut call = call_builder(
+                                        let mut call_builder = call_builder(
                                             breakend.locus().contig().as_bytes().to_owned(),
                                             breakend.locus().pos(),
                                             breakend.id().to_owned(),
-                                        )
-                                        .mateid(breakend.mateid().to_owned())
-                                        .build()
-                                        .unwrap();
+                                        );
+                                        call_builder.mateid(breakend.mateid().to_owned());
+                                        if let Some(ref aux_info) = breakend.aux_info() {
+                                            call_builder.aux_info(aux_info.clone());
+                                        }
+                                        let mut call = call_builder.build().unwrap();
 
                                         // add variant information
                                         call.variant = Some(
@@ -590,6 +605,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     spec,
                                     variants.record_info().id(),
                                     variants.record_info().mateid().clone(),
+                                    variants.record_info().aux_info().clone(),
                                 )? {
                                     group.push_breakend(breakend);
 

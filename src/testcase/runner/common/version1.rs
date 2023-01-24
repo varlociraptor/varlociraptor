@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use serde_json::json;
+use serde_yaml::Value;
 use yaml_rust::Yaml;
 
 use crate::testcase::runner::common::Testcase;
@@ -44,6 +45,7 @@ impl Testcase for TestcaseVersion1 {
         variants["candidates"] = json!("dummy.bcf");
         variants.as_object_mut().unwrap().remove("omit_snvs");
         variants.as_object_mut().unwrap().remove("omit_indels");
+        variants["propagate_info_fields"] = json!([]);
 
         options.to_string()
     }

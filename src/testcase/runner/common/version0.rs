@@ -96,6 +96,7 @@ impl Testcase for TestcaseVersion0 {
                         report_fragment_ids: true,
                         candidates: self.candidates(),
                         output: None,
+                        propagate_info_fields: Vec::new(),
                         omit_insert_size: false,
                         reference_buffer_size: 10,
                         min_bam_refetch_distance: 1,
