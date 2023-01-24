@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.7.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.2...v5.7.0) (2023-01-24)
+
+
+### Features
+
+* ability to propagate any INFO fields that are present on candidate records (--propagate-info-fields) ([#329](https://www.github.com/varlociraptor/varlociraptor/issues/329)) ([70dcfba](https://www.github.com/varlociraptor/varlociraptor/commit/70dcfbad97740afbfad7ee788cc8f7f54e82c1fe))
+
 ### [5.6.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.1...v5.6.2) (2023-01-21)
 
 
