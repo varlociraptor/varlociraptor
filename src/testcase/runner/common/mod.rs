@@ -216,7 +216,11 @@ pub trait Testcase {
 
         // Step 1: preprocess all samples
         for sample_name in &self.samples() {
-            let mut options = serde_json::from_str(&self.preprocess_options(sample_name))?;
+            dbg!("run");
+            let options = self.preprocess_options(sample_name);
+            dbg!(&options);
+            let mut options = serde_json::from_str(&options)?;
+            dbg!("done");
             match &mut options {
                 Varlociraptor::Preprocess {
                     kind:

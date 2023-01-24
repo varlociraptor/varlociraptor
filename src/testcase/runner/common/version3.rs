@@ -40,6 +40,7 @@ impl Testcase for TestcaseVersion3 {
         variants["candidates"] = json!("dummy.bcf");
         variants.as_object_mut().unwrap().remove("omit_snvs");
         variants.as_object_mut().unwrap().remove("omit_indels");
+        variants["propagate_info_fields"] = json!([]);
 
         options.to_string()
     }
