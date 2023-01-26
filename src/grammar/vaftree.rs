@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
-use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
+use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::modes::generic::{LikelihoodOperands, VafLfc};
 use crate::variants::model::AlleleFreq;
 

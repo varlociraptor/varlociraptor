@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use serde_json::json;
-use serde_yaml::Value;
 use yaml_rust::Yaml;
 
 use crate::testcase::runner::common::Testcase;

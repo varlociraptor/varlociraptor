@@ -11,11 +11,9 @@ use bio::stats::{bayesian, LogProb, Prob};
 use csv::WriterBuilder;
 use itertools::Itertools;
 use itertools_num::linspace;
-use ordered_float::NotNan;
 use rgsl::randist::binomial::binomial_pdf;
 use serde_json;
 use serde_json::json;
-use statrs::distribution::Empirical;
 
 use crate::{
     calling::variants::{
@@ -23,8 +21,8 @@ use crate::{
         Call,
     },
     grammar,
+    utils::aux_info::AuxInfoCollector,
     utils::PathMap,
-    utils::{aux_info::AuxInfoCollector, NUMERICAL_EPSILON},
     variants::model::AlleleFreq,
 };
 

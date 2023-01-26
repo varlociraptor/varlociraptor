@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
@@ -37,8 +36,8 @@ use crate::utils::PathMap;
 use crate::variants::evidence::realignment;
 
 use crate::variants::model::prior::CheckablePrior;
-use crate::variants::model::prior::{Inheritance, Prior};
-use crate::variants::model::{AlleleFreq, Contamination, VariantType};
+use crate::variants::model::prior::Prior;
+use crate::variants::model::{AlleleFreq, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::SimpleEvent;
 
