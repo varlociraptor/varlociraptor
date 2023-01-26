@@ -13,7 +13,6 @@ use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
-use ordered_float::NotNan;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
@@ -159,6 +158,12 @@ where
               probability for correct mapping of fragment does not correspond to the maximum reported value by the mapper \
               (for bwa, this is usually 60 in PHRED scale)). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
+              Description=\"Number of omitted observations. \
+              For SNVs and MNVs, read pairs are omitted if they have a non-standard read orientation (neither F1R2 nor F2R1) as \
+              those can frequently lead to alignment artifacts.\">",
         );
         header.push_record(
             b"##FORMAT=<ID=SB,Number=A,Type=String,\

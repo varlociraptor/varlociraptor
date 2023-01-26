@@ -6,7 +6,7 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
-use std::{mem, str};
+use std::str;
 
 use anyhow::{bail, Result};
 use ordered_float::NotNan;

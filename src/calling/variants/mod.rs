@@ -24,7 +24,6 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::utils::aux_info::AuxInfo;
-use crate::utils::signif;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::evidence::observations::read_observation::AltLocus;
@@ -36,8 +35,6 @@ use crate::variants::model::{
     bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
-
-pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
 lazy_static! {
     static ref OMIT_AUX_INFO: HashSet<Vec<u8>> = HashSet::from([
@@ -138,6 +135,7 @@ impl Call {
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
         let mut simple_observations = VecMap::new();
+        let mut omitted_observations = VecMap::new();
         let mut vaf_densities = VecMap::new();
         let mut obs_counts = VecMap::new();
         let mut strand_bias = VecMap::new();
@@ -217,7 +215,6 @@ impl Call {
                 );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
-
                 obs_counts.insert(
                     i,
                     expected_depth(sample_info.pileup.read_observations()) as i32,
@@ -304,6 +301,8 @@ impl Call {
                         },
                     ),
                 );
+
+                omitted_observations.insert(i, sample_info.pileup.n_filtered_out_observations());
 
                 vaf_densities.insert(i, sample_info.vaf_dist.clone());
             }
@@ -409,6 +408,12 @@ impl Call {
                 .collect_vec();
             record.push_format_string(b"OBS", &obs)?;
 
+            let oobs = omitted_observations
+                .values()
+                .map(|n| **n as i32)
+                .collect_vec();
+            record.push_format_integer(b"OOBS", &oobs);
+
             let sb = strand_bias.values().map(|sb| vec![*sb]).collect_vec();
             record.push_format_string(b"SB", &sb)?;
 
@@ -456,6 +461,8 @@ impl Call {
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record
+                .push_format_integer(b"OOBS", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
