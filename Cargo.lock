@@ -196,7 +196,7 @@ dependencies = [
  "serde_derive",
  "statrs",
  "strum",
- "strum_macros 0.24.3",
+ "strum_macros",
  "thiserror",
  "triple_accel",
  "vec_map",
@@ -212,7 +212,7 @@ dependencies = [
  "lazy_static",
  "regex",
  "serde",
- "strum_macros 0.24.3",
+ "strum_macros",
  "thiserror",
 ]
 
@@ -1987,19 +1987,6 @@ checksum = "cae14b91c7d11c9a851d3fbc80a963198998c2a64eec840477fa92d8ce9b70bb"
 
 [[package]]
 name = "strum_macros"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bb0dc7ee9c15cea6199cde9a127fa16a4c5819af85395457ad72d68edc85a38"
-dependencies = [
- "heck 0.3.3",
- "proc-macro2 1.0.47",
- "quote 1.0.21",
- "rustversion",
- "syn 1.0.105",
-]
-
-[[package]]
-name = "strum_macros"
 version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e385be0d24f186b4ce2f9982191e7101bb737312ad61c1f2f984f34bcf85d59"
@@ -2326,7 +2313,7 @@ dependencies = [
  "statrs",
  "structopt",
  "strum",
- "strum_macros 0.23.1",
+ "strum_macros",
  "tempfile",
  "thiserror",
  "time",
