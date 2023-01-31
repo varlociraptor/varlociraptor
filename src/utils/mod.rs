@@ -59,8 +59,11 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
 
 pub(crate) fn aux_tag_is_entire_fragment(record: &bam::Record) -> bool {
     match record.aux(b"EF") {
+        Ok(bam::record::Aux::U8(entire_fragment)) => entire_fragment == 1,
         Ok(bam::record::Aux::I8(entire_fragment)) => entire_fragment == 1,
+        Ok(bam::record::Aux::U16(entire_fragment)) => entire_fragment == 1,
         Ok(bam::record::Aux::I16(entire_fragment)) => entire_fragment == 1,
+        Ok(bam::record::Aux::U32(entire_fragment)) => entire_fragment == 1,
         Ok(bam::record::Aux::I32(entire_fragment)) => entire_fragment == 1,
         _ => false,
     }
