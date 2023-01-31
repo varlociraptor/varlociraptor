@@ -57,6 +57,16 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
     }
 }
 
+pub(crate) fn aux_tag_is_entire_fragment(record: &bam::Record) -> bool {
+    match record.aux(b"EF") {
+        Ok(bam::record::Aux::I8(entire_fragment)) => entire_fragment == 1,
+        Ok(bam::record::Aux::I16(entire_fragment)) => entire_fragment == 1,
+        Ok(bam::record::Aux::I32(entire_fragment)) => entire_fragment == 1,
+        Ok(bam::record::Aux::I64(entire_fragment)) => entire_fragment == 1,
+        _ => false,
+    }
+}
+
 /// Checks whether the given BCF contains fields required for evaluating haplotypes.
 /// Currently, this means that the EVENT or the MATEID field has to be defined in the
 /// header.
