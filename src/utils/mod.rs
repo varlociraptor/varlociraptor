@@ -62,7 +62,6 @@ pub(crate) fn aux_tag_is_entire_fragment(record: &bam::Record) -> bool {
         Ok(bam::record::Aux::I8(entire_fragment)) => entire_fragment == 1,
         Ok(bam::record::Aux::I16(entire_fragment)) => entire_fragment == 1,
         Ok(bam::record::Aux::I32(entire_fragment)) => entire_fragment == 1,
-        Ok(bam::record::Aux::I64(entire_fragment)) => entire_fragment == 1,
         _ => false,
     }
 }
