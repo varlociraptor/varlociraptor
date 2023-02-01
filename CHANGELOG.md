@@ -2,6 +2,20 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.8.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.7.0...v5.8.0) (2023-02-01)
+
+
+### Features
+
+* if present, parse EF tag and consider single end reads marked to entirely cover the originating fragment for insert size statistics. ([#336](https://www.github.com/varlociraptor/varlociraptor/issues/336)) ([76a0912](https://www.github.com/varlociraptor/varlociraptor/commit/76a0912b4e4e7b095df94bea715ff52a9daedead))
+* report number of omitted observations ([#331](https://www.github.com/varlociraptor/varlociraptor/issues/331)) ([fe0a4b7](https://www.github.com/varlociraptor/varlociraptor/commit/fe0a4b7eac75a644e197110ccff10a3481b6b1b6))
+
+
+### Bug Fixes
+
+* add default value for propagate_info_fields in order to fix deserialization during testcase generation ([7669f92](https://www.github.com/varlociraptor/varlociraptor/commit/7669f92a6b03c8b37d6c43022c78ead27f9702b5))
+* match EF-tag ([#337](https://www.github.com/varlociraptor/varlociraptor/issues/337)) ([6d006a3](https://www.github.com/varlociraptor/varlociraptor/commit/6d006a36afee8f75f008e9ab7c79714c858390fc))
+
 ## [5.7.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.2...v5.7.0) (2023-01-24)
 
 
