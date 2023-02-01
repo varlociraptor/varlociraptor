@@ -229,6 +229,7 @@ pub enum PreprocessKind {
             help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF \
             (not supported for variants connected via EVENT tags except breakends)."
         )]
+        #[serde(default)]
         propagate_info_fields: Vec<String>,
         #[structopt(
             long = "strandedness",
