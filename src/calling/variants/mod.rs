@@ -8,6 +8,8 @@ pub mod preprocessing;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::convert::TryFrom;
+use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::str;
 use std::u8;
@@ -31,6 +33,7 @@ use crate::variants::evidence::observations::read_observation::{ReadPosition, St
 use crate::variants::model;
 use crate::variants::model::bias::AltLocusBias;
 use crate::variants::model::HaplotypeIdentifier;
+use crate::variants::model::VariantPrecision;
 use crate::variants::model::{
     bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
@@ -101,6 +104,7 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+        self.write_record_aux_info(variant, &mut record)?;
 
         self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
 
@@ -114,6 +118,22 @@ impl Call {
 
         bcf_writer.write(&record)?;
 
+        Ok(())
+    }
+
+    fn write_record_aux_info(&self, variant: &Variant, record: &mut bcf::Record) -> Result<()> {
+        if let VariantPrecision::Imprecise {
+            ref cistart,
+            ref ciend,
+        } = variant.precision
+        {
+            record.push_info_flag(b"IMPRECISE")?;
+            let get_data = |ci: &RangeInclusive<u64>| [*ci.start() as i32, *ci.end() as i32];
+            record.push_info_integer(b"CIPOS", &get_data(cistart))?;
+            if let Some(ciend) = ciend {
+                record.push_info_integer(b"CIEND", &get_data(ciend))?;
+            }
+        }
         Ok(())
     }
 
@@ -242,7 +262,7 @@ impl Call {
                                     Strand::Both => '*',
                                     Strand::Reverse => '-',
                                     Strand::Forward => '+',
-                                    _ => panic!("bug: unknown strandedness"),
+                                    Strand::None => '.',
                                 },
                                 match obs.read_orientation {
                                     SequenceReadPairOrientation::F1R2 => '>',
@@ -338,6 +358,7 @@ impl Call {
         if !ends.is_empty() {
             record.push_info_integer(b"END", &ends)?;
         }
+        self.write_record_aux_info(variant, &mut record)?;
 
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
@@ -488,6 +509,8 @@ pub(crate) struct Variant {
     event: Option<Vec<u8>>,
     #[builder(private, default = "None")]
     end: Option<u64>,
+    #[builder(private, default)]
+    precision: VariantPrecision,
     #[builder(private, default = "None")]
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
@@ -508,7 +531,8 @@ impl VariantBuilder {
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
             .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
             .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec()))
-            .end(record.info(b"END").integer()?.map(|v| v[0] as u64)))
+            .end(record.info(b"END").integer()?.map(|v| v[0] as u64))
+            .precision(VariantPrecision::try_from(&*record)?))
     }
 
     pub(crate) fn variant(
@@ -556,10 +580,15 @@ impl VariantBuilder {
             model::Variant::Mnv(bases) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + bases.len()].to_ascii_uppercase())
                 .alt_allele(bases.to_ascii_uppercase()),
-            model::Variant::Breakend { ref_allele, spec } => self
+            model::Variant::Breakend {
+                ref_allele,
+                spec,
+                precision,
+            } => self
                 .ref_allele(ref_allele.to_ascii_uppercase())
                 .alt_allele(spec.to_vec())
-                .svtype(Some(b"BND".to_vec())),
+                .svtype(Some(b"BND".to_vec()))
+                .precision(precision.clone()),
             model::Variant::Inversion(len) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<INV>".to_vec())

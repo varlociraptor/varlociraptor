@@ -13,10 +13,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bio::alphabets::dna;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use itertools::Itertools;
 use regex::Regex;
-use rust_htslib::bam;
+use rust_htslib::{bam, bcf};
 use vec_map::VecMap;
 
 use crate::default_ref_base_emission;
@@ -24,15 +25,20 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::aux_info::AuxInfo;
+use crate::variants::evidence::insert_size::estimate_insert_size;
+use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
-use crate::variants::model;
-use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
+use crate::variants::model::{self, VariantPrecision};
+use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
+    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus,
+    SingleLocusBuilder, Variant,
 };
+
+use super::IsizeObservable;
 
 const MIN_REF_BASES: u64 = 10;
 
@@ -43,6 +49,7 @@ pub(crate) struct BreakendGroup<R: Realigner> {
     breakends: BTreeMap<genome::Locus, Breakend>,
     alt_alleles: RefCell<VecMap<Vec<Arc<AltAllele>>>>,
     realigner: RefCell<R>,
+    imprecise: bool,
 }
 
 impl<R: Realigner> fmt::Debug for BreakendGroup<R> {
@@ -97,7 +104,7 @@ impl<R: Realigner> BreakendGroupBuilder<R> {
         self
     }
 
-    pub(crate) fn build(&mut self) -> BreakendGroup<R> {
+    pub(crate) fn build(&mut self) -> Option<BreakendGroup<R>> {
         // Calculate enclosable reference interval.
         let first = self.breakends.as_ref().unwrap().keys().next().unwrap();
         if self
@@ -123,8 +130,39 @@ impl<R: Realigner> BreakendGroupBuilder<R> {
             };
             self.enclosable_ref_interval = Some(interval);
         }
-
-        BreakendGroup {
+        let imprecise = !self
+            .breakends
+            .as_ref()
+            .unwrap()
+            .values()
+            .all(|bnd| *bnd.precision() == VariantPrecision::Precise);
+        if imprecise {
+            if self.breakends.as_ref().unwrap().len() != 2 {
+                warn!(
+                    "Skipping breakend group with imprecise breakends at locus {}: \
+                    only supported for pairs of breakends.",
+                    self.loci.as_ref().unwrap()[0]
+                );
+                return None;
+            }
+            if self
+                .breakends
+                .as_ref()
+                .unwrap()
+                .values()
+                .any(|bnd| bnd.emits_revcomp() || bnd.replacement() != bnd.ref_allele())
+            {
+                warn!(
+                    "Skipping breakend group with imprecise breakends at locus {}: \
+                    at least one of the breakends defines an sequence differing from \
+                    the reference. This can currently not be properly evaluated for \
+                    imprecise breakends.",
+                    self.loci.as_ref().unwrap()[0]
+                );
+                return None;
+            }
+        }
+        Some(BreakendGroup {
             loci: self.loci.take().unwrap(),
             enclosable_ref_interval: self.enclosable_ref_interval.clone(),
             breakends: self.breakends.take().unwrap(),
@@ -134,7 +172,8 @@ impl<R: Realigner> BreakendGroupBuilder<R> {
                     .take()
                     .expect("bug: realigner() needs to be called before build()"),
             ),
-        }
+            imprecise,
+        })
     }
 }
 
@@ -213,78 +252,155 @@ impl<R: Realigner> BreakendGroup<R> {
         }
         false
     }
+
+    fn deletion_len(&self) -> Option<u64> {
+        if self.is_deletion() {
+            let (left, right) = self.breakend_pair().unwrap();
+            Some(right.locus.pos() - left.locus.pos() - 1)
+        } else {
+            None
+        }
+    }
+
+    fn classify_imprecise_evidence(
+        &self,
+        evidence: &PairedEndEvidence,
+    ) -> Option<ImpreciseEvidence> {
+        // METHOD: imprecise (for now) means that we have a breakend pair.
+        // We only support paired end evidence, and just check whether the pair starts
+        // either left of the left or right of the right breakend.
+
+        let is_match = |bnd: &Breakend, record: &bam::Record| {
+            if bnd.locus().contig() != record.contig() {
+                // not on the same contig, does not match
+                false
+            } else if bnd.is_left_to_right() {
+                // record must align left of the breakend
+                (record.cigar_cached().unwrap().end_pos() as u64) < bnd.max_pos()
+            } else {
+                // record must align right of the breakend
+                (record.pos() as u64) > bnd.min_pos()
+            }
+        };
+
+        match evidence {
+            PairedEndEvidence::PairedEnd { left, right } => {
+                assert_eq!(self.breakends.len(), 2);
+                for bnds in self.breakends.values().permutations(2) {
+                    let (bnd, other_bnd) = (bnds[0], bnds[1]);
+                    if bnd.is_left_to_right() {
+                        if is_match(bnd, left) {
+                            // METHOD: left record matches, let's see what the right record does.
+                            if is_match(other_bnd, right) {
+                                return Some(ImpreciseEvidence::Supporting);
+                            } else {
+                                return Some(ImpreciseEvidence::NotSupporting);
+                            }
+                        }
+                    } else {
+                        if is_match(bnd, right) {
+                            // METHOD: right record matches, let's see what the left record does.
+                            if is_match(other_bnd, left) {
+                                return Some(ImpreciseEvidence::Supporting);
+                            } else {
+                                return Some(ImpreciseEvidence::NotSupporting);
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            PairedEndEvidence::SingleEnd(_) => None,
+        }
+    }
 }
 
 impl<R: Realigner> Variant for BreakendGroup<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn is_imprecise(&self) -> bool {
+        self.imprecise
+    }
+
     fn is_valid_evidence(
         &self,
         evidence: &Self::Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        let is_valid_overlap = |locus: &SingleLocus, read| !locus.overlap(read, true).is_none();
-
-        let is_valid_ref_bases = |read: &bam::Record| {
-            if let Some(ref interval) = self.enclosable_ref_interval {
-                // METHOD: we try to ensure that at least MIN_REF_BASES bases are on the reference
-                // By that, we avoid that a read is entirely inside the breakend. Such reads are
-                // complicated to map against the alt allele (because e.g. with revcomp that might
-                // at a completely different position on the genome). And further, they do not help
-                // anyway, because they tend to map equally well to ref like to alt (e.g. as revcomp).
-                cmp::max(
-                    interval.range().start.saturating_sub(read.pos() as u64),
-                    read.cigar_cached()
-                        .unwrap()
-                        .end_pos()
-                        .saturating_sub(interval.range().end as i64) as u64,
-                ) > MIN_REF_BASES
+        if self.imprecise {
+            // METHOD: imprecise (for now) means that we have a breakend pair.
+            // We only support paired end evidence, and just check whether the pair starts
+            // either left of the left or right of the right breakend.
+            if let Some(_) = self.classify_imprecise_evidence(evidence) {
+                Some((0..2).into_iter().collect_vec())
             } else {
-                true
+                None
             }
-        };
-
-        let overlapping: Vec<_> = match evidence {
-            PairedEndEvidence::SingleEnd(read) => {
-                if !is_valid_ref_bases(read) {
-                    return None;
-                }
-                self.loci
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, locus)| {
-                        if is_valid_overlap(locus, read) {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            }
-            PairedEndEvidence::PairedEnd { left, right } => {
-                if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
-                    return None;
-                }
-
-                self.loci
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, locus)| {
-                        if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            }
-        };
-
-        if overlapping.is_empty() {
-            None
         } else {
-            Some(overlapping)
+            let is_valid_overlap = |locus: &SingleLocus, read| !locus.overlap(read, true).is_none();
+
+            let is_valid_ref_bases = |read: &bam::Record| {
+                if let Some(ref interval) = self.enclosable_ref_interval {
+                    // METHOD: we try to ensure that at least MIN_REF_BASES bases are on the reference
+                    // By that, we avoid that a read is entirely inside the breakend. Such reads are
+                    // complicated to map against the alt allele (because e.g. with revcomp that might
+                    // at a completely different position on the genome). And further, they do not help
+                    // anyway, because they tend to map equally well to ref like to alt (e.g. as revcomp).
+                    cmp::max(
+                        interval.range().start.saturating_sub(read.pos() as u64),
+                        read.cigar_cached()
+                            .unwrap()
+                            .end_pos()
+                            .saturating_sub(interval.range().end as i64)
+                            as u64,
+                    ) > MIN_REF_BASES
+                } else {
+                    true
+                }
+            };
+
+            let overlapping: Vec<_> = match evidence {
+                PairedEndEvidence::SingleEnd(read) => {
+                    if !is_valid_ref_bases(read) {
+                        return None;
+                    }
+                    self.loci
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, locus)| {
+                            if is_valid_overlap(locus, read) {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                }
+                PairedEndEvidence::PairedEnd { left, right } => {
+                    if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
+                        return None;
+                    }
+
+                    self.loci
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, locus)| {
+                            if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                }
+            };
+
+            if overlapping.is_empty() {
+                None
+            } else {
+                Some(overlapping)
+            }
         }
     }
 
@@ -297,37 +413,121 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     fn allele_support(
         &self,
         evidence: &Self::Evidence,
-        _: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        match evidence {
-            PairedEndEvidence::SingleEnd(record) => {
-                Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record,
-                    self.loci.iter(),
-                    self,
-                    alt_variants,
-                )?))
+        if self.imprecise {
+            if let Some(classification) = self.classify_imprecise_evidence(evidence) {
+                if self.is_deletion() {
+                    match evidence {
+                        PairedEndEvidence::PairedEnd { left, right } => {
+                            if let Some((left_bnd, right_bnd)) = self.breakend_pair() {
+                                // METHOD: we consider all possible lengths of the deletion,
+                                // use a uniform prior and sum up the joint probabilities for the alt allele.
+                                let support = (left_bnd.min_pos()..=left_bnd.max_pos())
+                                    .cartesian_product(right_bnd.min_pos()..=right_bnd.max_pos())
+                                    .filter_map(|(left_pos, right_pos)| {
+                                        if left_pos < right_pos {
+                                            Some(self.allele_support_isize(
+                                                left,
+                                                right,
+                                                alignment_properties,
+                                                right_pos - left_pos,
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect::<Result<Vec<AlleleSupport>>>()?;
+                                // uniform prior
+                                let prior = LogProb::from(Prob(1.0 / support.len() as f64));
+                                let prob_ref = support.first().unwrap().prob_ref_allele();
+                                let prob_alt = LogProb::ln_sum_exp(
+                                    &support
+                                        .iter()
+                                        .map(|s| s.prob_alt_allele() + prior)
+                                        .collect_vec(),
+                                );
+                                if prob_ref != prob_alt {
+                                    return Ok(Some(
+                                        AlleleSupportBuilder::default()
+                                            .prob_ref_allele(prob_ref)
+                                            .prob_alt_allele(prob_alt)
+                                            .strand(Strand::None)
+                                            .build()
+                                            .unwrap(),
+                                    ));
+                                }
+                            } else {
+                                unreachable!(
+                                    "bug: self.breakend_pair() has returned None for deletion variant"
+                                )
+                            }
+                        }
+                        PairedEndEvidence::SingleEnd(_) => unreachable!(
+                            "bug: single end reads cannot be used as evidence for \
+                             imprecise breakend groups"
+                        ),
+                    }
+                }
+
+                // METHOD: non-deletion, or isize is not informative.
+                // Use binary information about support.
+
+                match classification {
+                    ImpreciseEvidence::Supporting => Ok(Some(
+                        AlleleSupportBuilder::default()
+                            .prob_ref_allele(LogProb::ln_zero())
+                            .prob_alt_allele(LogProb::ln_one())
+                            .strand(Strand::None)
+                            .build()
+                            .unwrap(),
+                    )),
+                    ImpreciseEvidence::NotSupporting => Ok(Some(
+                        AlleleSupportBuilder::default()
+                            .prob_ref_allele(LogProb::ln_one())
+                            .prob_alt_allele(LogProb::ln_zero())
+                            .strand(Strand::None)
+                            .build()
+                            .unwrap(),
+                    )),
+                }
+            } else {
+                unreachable!(
+                    "bug: single end reads cannot be used as evidence for \
+                    imprecise breakends and are to be filtered out via is_valid_evidence"
+                );
             }
-            PairedEndEvidence::PairedEnd { left, right } => {
-                let left_support = self.realigner.borrow_mut().allele_support(
-                    left,
-                    self.loci.iter(),
-                    self,
-                    alt_variants,
-                )?;
-                let right_support = self.realigner.borrow_mut().allele_support(
-                    right,
-                    self.loci.iter(),
-                    self,
-                    alt_variants,
-                )?;
+        } else {
+            match evidence {
+                PairedEndEvidence::SingleEnd(record) => {
+                    Ok(Some(self.realigner.borrow_mut().allele_support(
+                        record,
+                        self.loci.iter(),
+                        self,
+                        alt_variants,
+                    )?))
+                }
+                PairedEndEvidence::PairedEnd { left, right } => {
+                    let left_support = self.realigner.borrow_mut().allele_support(
+                        left,
+                        self.loci.iter(),
+                        self,
+                        alt_variants,
+                    )?;
+                    let right_support = self.realigner.borrow_mut().allele_support(
+                        right,
+                        self.loci.iter(),
+                        self,
+                        alt_variants,
+                    )?;
 
-                let mut support = left_support;
+                    let mut support = left_support;
 
-                support.merge(&right_support);
+                    support.merge(&right_support);
 
-                Ok(Some(support))
+                    Ok(Some(support))
+                }
             }
         }
     }
@@ -338,20 +538,26 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        match evidence {
-            PairedEndEvidence::PairedEnd { left, right } => {
-                // METHOD: we do not require the fragment to enclose the breakend group.
-                // Hence, we treat both reads independently.
-                (self
-                    .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+        if self.imprecise {
+            // METHOD: no overlap of reads and breakends, hence, it is not harder to map the reads
+            // to the alt than to the reference allele at all.
+            LogProb::ln_one()
+        } else {
+            match evidence {
+                PairedEndEvidence::PairedEnd { left, right } => {
+                    // METHOD: we do not require the fragment to enclose the breakend group.
+                    // Hence, we treat both reads independently.
+                    (self
+                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                        .ln_one_minus_exp()
+                        + self
+                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                            .ln_one_minus_exp())
                     .ln_one_minus_exp()
-                    + self
-                        .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
-                        .ln_one_minus_exp())
-                .ln_one_minus_exp()
-            }
-            PairedEndEvidence::SingleEnd(read) => {
-                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+                }
+                PairedEndEvidence::SingleEnd(read) => {
+                    self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+                }
             }
         }
     }
@@ -363,35 +569,49 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
         read_len: u64,
         alignment_properties: &AlignmentProperties,
     ) -> Option<u64> {
-        let enclosable = |max_op_len| {
-            if let Some(len) = self.enclosable_len() {
-                if let Some(maxlen) = max_op_len {
-                    if len <= (maxlen as u64) {
-                        return Some(read_len);
+        if self.imprecise {
+            Some(0)
+        } else {
+            let enclosable = |max_op_len| {
+                if let Some(len) = self.enclosable_len() {
+                    if let Some(maxlen) = max_op_len {
+                        if len <= (maxlen as u64) {
+                            return Some(read_len);
+                        }
                     }
                 }
-            }
-            None
-        };
+                None
+            };
 
-        if self.is_deletion() {
-            if let Some(_feasible) = enclosable(alignment_properties.max_del_cigar_len) {
-                return Some(read_len);
+            if self.is_deletion() {
+                if let Some(_feasible) = enclosable(alignment_properties.max_del_cigar_len) {
+                    return Some(read_len);
+                }
+            } else if self.is_insertion() {
+                if let Some(_feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
+                    return Some(read_len);
+                }
             }
-        } else if self.is_insertion() {
-            if let Some(_feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
-                return Some(read_len);
-            }
+            alignment_properties
+                .frac_max_softclip
+                .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
         }
-        alignment_properties
-            .frac_max_softclip
-            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {
         if self.is_deletion() {
             if let Some((left, right)) = self.breakend_pair() {
-                return Some(right.locus.pos() - left.locus.pos());
+                // METHOD: if the deletion is imprecise, we take the minimum len derived from the
+                // confidence intervals.
+                let left_add = match left.precision() {
+                    VariantPrecision::Imprecise { cistart, .. } => *cistart.end(),
+                    _ => 0,
+                };
+                let right_sub = match right.precision() {
+                    VariantPrecision::Imprecise { cistart, .. } => *cistart.start(),
+                    _ => 0,
+                };
+                return Some((right.locus.pos() - right_sub) - (left.locus.pos() + left_add));
             }
         } else if self.is_insertion() {
             return Some(self.breakends.values().next().unwrap().replacement.len() as u64 - 1);
@@ -401,6 +621,10 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
 }
 
 impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
+
+impl<R: Realigner> FragmentSamplingBias for BreakendGroup<R> {}
+
+impl<R: Realigner> IsizeObservable for BreakendGroup<R> {}
 
 impl<R: Realigner> Realignable for BreakendGroup<R> {
     fn maybe_revcomp(&self) -> bool {
@@ -699,6 +923,8 @@ pub(crate) struct Breakend {
     #[getset(get = "pub(crate)")]
     mateid: Option<Vec<u8>>,
     #[getset(get = "pub(crate)")]
+    precision: VariantPrecision,
+    #[getset(get = "pub(crate)")]
     aux_info: Option<AuxInfo>,
 }
 
@@ -709,6 +935,7 @@ impl Breakend {
         spec: &[u8],
         id: &[u8],
         mateid: Option<Vec<u8>>,
+        precision: VariantPrecision,
         aux_info: AuxInfo,
     ) -> Result<Option<Self>> {
         lazy_static! {
@@ -743,6 +970,7 @@ impl Breakend {
                 is_left_to_right,
                 id: id.to_owned(),
                 mateid: None,
+                precision,
                 aux_info: Some(aux_info),
             }))
         } else {
@@ -831,6 +1059,7 @@ impl Breakend {
                 is_left_to_right,
                 id: id.to_owned(),
                 mateid,
+                precision,
                 aux_info: Some(aux_info),
             }))
         }
@@ -853,6 +1082,7 @@ impl Breakend {
             is_left_to_right,
             id: id.to_owned(),
             mateid: Some(mateid.to_owned()),
+            precision: VariantPrecision::Precise,
             aux_info: None,
         }
     }
@@ -921,6 +1151,27 @@ impl Breakend {
         model::Variant::Breakend {
             ref_allele: self.ref_allele.clone(),
             spec: self.spec(),
+            precision: self.precision.clone(),
+        }
+    }
+
+    /// Maximum start position, also considering CIPOS from imprecise records.
+    fn max_pos(&self) -> u64 {
+        let pos = self.locus.pos();
+        if let VariantPrecision::Imprecise { ref cistart, .. } = self.precision {
+            pos + cistart.end()
+        } else {
+            pos
+        }
+    }
+
+    /// Minimum start position, also considering CIPOS from imprecise records.
+    fn min_pos(&self) -> u64 {
+        let pos = self.locus.pos();
+        if let VariantPrecision::Imprecise { ref cistart, .. } = self.precision {
+            pos.saturating_sub(*cistart.start())
+        } else {
+            pos
         }
     }
 }
@@ -975,4 +1226,10 @@ impl<'a> AbstractLocus for LocusMinusOne<'a> {
     fn pos(&self) -> u64 {
         self.0.pos() - 1
     }
+}
+
+#[derive(Debug, Clone)]
+enum ImpreciseEvidence {
+    Supporting,
+    NotSupporting,
 }

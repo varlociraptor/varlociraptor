@@ -40,6 +40,10 @@ impl Variant for None {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
     fn is_valid_evidence(
         &self,
         evidence: &SingleEndEvidence,

@@ -173,6 +173,9 @@ testcase!(test_alt_locus_bias_01, exact);
 testcase!(test_alt_locus_bias_02, exact);
 testcase!(test_uzuner_fn_mnv, exact);
 
+testcase!(test_imprecise_fusion, exact);
+testcase!(test_imprecise_fusion_absent, exact);
+
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }

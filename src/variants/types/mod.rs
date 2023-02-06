@@ -41,9 +41,11 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
+use super::evidence::insert_size::estimate_insert_size;
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::realignment::Realignable;
 use super::model;
+use super::sampling_bias::FragmentSamplingBias;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
@@ -118,6 +120,8 @@ pub(crate) trait Variant {
     type Evidence: Evidence;
     type Loci: Loci;
 
+    fn is_imprecise(&self) -> bool;
+
     /// Determine whether the evidence is suitable to assessing probabilities
     /// (i.e. overlaps the variant in the right way).
     ///
@@ -155,6 +159,50 @@ pub(crate) trait Variant {
 
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer_indel_len().is_some()
+    }
+}
+
+pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
+    fn allele_support_isize(
+        &self,
+        left_record: &bam::Record,
+        right_record: &bam::Record,
+        alignment_properties: &AlignmentProperties,
+        alt_del_len: u64,
+    ) -> Result<AlleleSupport> {
+        let insert_size = estimate_insert_size(left_record, right_record)?;
+
+        // TODO: sum over all possible lens if there are multiple ones and use some reasonable prior
+        // or take the best p_alt.
+        let p_ref = self.isize_pmf(insert_size, 0.0, alignment_properties);
+        let p_alt = self.isize_pmf(insert_size, alt_del_len as f64, alignment_properties);
+
+        if (p_ref == LogProb::ln_zero()
+            && !self.is_within_sd(insert_size, alt_del_len as f64, alignment_properties))
+            || (p_alt == LogProb::ln_zero()
+                && !self.is_within_sd(insert_size, 0.0, alignment_properties))
+        {
+            // METHOD: We cannot consider insert size as a reliable estimate here, because it is
+            // outside of the numerical resolution for one of the alleles, and not within a
+            // standard deviation away from the mean for the other allele.
+            Ok(AlleleSupportBuilder::default()
+                .prob_ref_allele(LogProb::ln_one())
+                .prob_alt_allele(LogProb::ln_one())
+                .strand(Strand::None)
+                .build()
+                .unwrap())
+        } else {
+            Ok(AlleleSupportBuilder::default()
+                .prob_ref_allele(p_ref)
+                .prob_alt_allele(p_alt)
+                .strand(Strand::None)
+                .build()
+                .unwrap())
+        }
+    }
+
+    fn len(&self) -> u64 {
+        self.enclosable_len().unwrap()
     }
 }
 
@@ -390,6 +438,18 @@ pub(crate) struct SingleLocus {
 impl AsRef<SingleLocus> for SingleLocus {
     fn as_ref(&self) -> &SingleLocus {
         self
+    }
+}
+
+impl std::fmt::Display for SingleLocus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let start = self.interval.range().start + 1;
+        let end = self.interval.range().end;
+        if end > start {
+            write!(f, "{}:{}-{}", self.interval.contig(), start, end)
+        } else {
+            write!(f, "{}:{}", self.interval.contig(), start)
+        }
     }
 }
 

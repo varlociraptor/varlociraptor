@@ -31,7 +31,7 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };
 
-use super::ToVariantRepresentation;
+use super::{IsizeObservable, ToVariantRepresentation};
 
 #[derive(Debug)]
 pub(crate) struct Deletion<R: Realigner> {
@@ -92,46 +92,9 @@ impl<R: Realigner> Deletion<R> {
     pub(crate) fn centerpoint(&self) -> u64 {
         self.fetch_loci[1].range().start
     }
-
-    pub(crate) fn allele_support_isize(
-        &self,
-        left_record: &bam::Record,
-        right_record: &bam::Record,
-        alignment_properties: &AlignmentProperties,
-    ) -> Result<AlleleSupport> {
-        let insert_size = estimate_insert_size(left_record, right_record)?;
-
-        let p_ref = self.isize_pmf(insert_size, 0.0, alignment_properties);
-        let p_alt = self.isize_pmf(insert_size, self.len() as f64, alignment_properties);
-
-        if (p_ref == LogProb::ln_zero()
-            && !self.is_within_sd(insert_size, self.len() as f64, alignment_properties))
-            || (p_alt == LogProb::ln_zero()
-                && !self.is_within_sd(insert_size, 0.0, alignment_properties))
-        {
-            // METHOD: We cannot consider insert size as a reliable estimate here, because it is
-            // outside of the numerical resolution for one of the alleles, and not within a
-            // standard deviation away from the mean for the other allele.
-            Ok(AlleleSupportBuilder::default()
-                .prob_ref_allele(LogProb::ln_one())
-                .prob_alt_allele(LogProb::ln_one())
-                .strand(Strand::None)
-                .build()
-                .unwrap())
-        } else {
-            Ok(AlleleSupportBuilder::default()
-                .prob_ref_allele(p_ref)
-                .prob_alt_allele(p_alt)
-                .strand(Strand::None)
-                .build()
-                .unwrap())
-        }
-    }
-
-    pub fn len(&self) -> u64 {
-        self.enclosable_len().unwrap()
-    }
 }
+
+impl<R: Realigner> IsizeObservable for Deletion<R> {}
 
 impl<R: Realigner> SamplingBias for Deletion<R> {
     fn feasible_bases(
@@ -184,6 +147,10 @@ impl<R: Realigner> Realignable for Deletion<R> {
 impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn is_imprecise(&self) -> bool {
+        false
+    }
 
     fn homopolymer_indel_len(&self) -> Option<i8> {
         // METHOD: enable HomopolymerArtifact to detect e.g. homopolymer errors due to PCR
@@ -288,7 +255,7 @@ impl<R: Realigner> Variant for Deletion<R> {
 
                 if alignment_properties.insert_size.is_some() {
                     let isize_support =
-                        self.allele_support_isize(left, right, alignment_properties)?;
+                        self.allele_support_isize(left, right, alignment_properties, self.len())?;
                     support.merge(&isize_support);
                 }
 

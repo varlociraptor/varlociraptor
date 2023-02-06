@@ -4,16 +4,18 @@
 // except according to those terms.
 
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 use std::fmt::Debug;
-use std::ops::{Deref, Range};
-use std::str;
+use std::ops::{Deref, Range, RangeInclusive};
+use std::{mem, str};
 
 use anyhow::{bail, Result};
+use bio_types::genome::AbstractLocus;
 use ordered_float::NotNan;
 use rust_htslib::bcf;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::errors::Error;
+use crate::errors::{self, Error};
 use crate::grammar;
 use crate::variants::model::bias::Artifacts;
 
@@ -235,6 +237,74 @@ pub enum VariantType {
     None, // site with no suggested alternative allele
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub(crate) enum VariantPrecision {
+    #[default]
+    Precise,
+    Imprecise {
+        cistart: RangeInclusive<u64>,
+        ciend: Option<RangeInclusive<u64>>,
+    },
+}
+
+impl<'a> TryFrom<&'a bcf::Record> for VariantPrecision {
+    type Error = errors::Error;
+
+    fn try_from(record: &bcf::Record) -> Result<Self, Self::Error> {
+        let err = |msg| errors::Error::InvalidBCFRecord {
+            chrom: record.contig().to_owned(),
+            pos: record.pos() + 1,
+            msg,
+        };
+        let get_ci = |cifield: &[i32]| {
+            if cifield.len() != 2 {
+                Err(err(
+                    "CIPOS or CIEND field does not contain two integers".to_owned()
+                ))
+            } else {
+                Ok(cifield[0] as u64..=cifield[1] as u64)
+            }
+        };
+
+        let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
+        if imprecise {
+            match record.info(b"CIPOS").integer() {
+                Err(_) | Ok(None) => Err(err(
+                    "record marked as IMPRECISE but not CI (confidence interval) defined"
+                        .to_owned(),
+                )),
+                Ok(Some(ci)) => {
+                    let cistart = get_ci(*ci)?;
+                    match record.info(b"CIEND").integer() {
+                        Err(rust_htslib::errors::Error::BcfUnexpectedType { .. }) => {
+                            Err(err("CIEND field does not contain integers".to_owned()))
+                        }
+                        Ok(None) | Err(rust_htslib::errors::Error::BcfUndefinedTag { .. }) => {
+                            Ok(VariantPrecision::Imprecise {
+                                cistart,
+                                ciend: None,
+                            })
+                        }
+                        Ok(Some(ci)) => {
+                            let ciend = get_ci(*ci)?;
+                            Ok(VariantPrecision::Imprecise {
+                                cistart,
+                                ciend: Some(ciend),
+                            })
+                        }
+                        Err(e) => unreachable!(
+                            "bug: unexpected error thrown by rust_htslib when reading CIEND: {:?}",
+                            e
+                        ),
+                    }
+                }
+            }
+        } else {
+            Ok(VariantPrecision::Precise)
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum Variant {
     Deletion(u64),
@@ -244,6 +314,7 @@ pub(crate) enum Variant {
     Breakend {
         ref_allele: Vec<u8>,
         spec: Vec<u8>,
+        precision: VariantPrecision,
     },
     Inversion(u64),
     Duplication(u64),

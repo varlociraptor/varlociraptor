@@ -92,7 +92,7 @@ impl<R: Realigner> Duplication<R> {
         ));
 
         Duplication {
-            breakends: breakend_group_builder.build(),
+            breakends: breakend_group_builder.build().unwrap(),
             len: interval.range().end - interval.range().start,
         }
     }
@@ -101,6 +101,10 @@ impl<R: Realigner> Duplication<R> {
 impl<R: Realigner> Variant for Duplication<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn is_imprecise(&self) -> bool {
+        false
+    }
 
     fn is_valid_evidence(
         &self,

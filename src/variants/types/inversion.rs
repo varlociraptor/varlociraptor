@@ -88,7 +88,7 @@ impl<R: Realigner> Inversion<R> {
         ));
 
         Inversion {
-            breakends: breakend_group_builder.build(),
+            breakends: breakend_group_builder.build().unwrap(),
             len: interval.range().end - interval.range().start,
         }
     }
@@ -97,6 +97,10 @@ impl<R: Realigner> Inversion<R> {
 impl<R: Realigner> Variant for Inversion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn is_imprecise(&self) -> bool {
+        false
+    }
 
     fn is_valid_evidence(
         &self,

@@ -1,0 +1,17 @@
+##fileformat=VCFv4.1
+##FILTER=<ID=PASS,Description="All filters passed">
+##source=concatenate-vcf-files.py
+##contig=<ID=chr1>
+##INFO=<ID=END,Number=A,Type=Integer,Description="Variant end">
+##INFO=<ID=HOMLEN,Number=A,Type=Integer,Description="">
+##INFO=<ID=HOMSEQ,Number=A,Type=String,Description="">
+##INFO=<ID=NTLEN,Number=A,Type=Integer,Description="">
+##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="Variant length">
+##INFO=<ID=SVTYPE,Number=A,Type=String,Description="Variant type">
+##INFO=<ID=MATEID,Number=1,Type=String,Description="Breakend mate">
+##INFO=<ID=EVENT,Number=A,Type=String,Description="Breakend event">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=CIPOS,Number=2,Type=Integer,Description="Confidence interval around POS for imprecise variants">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+chr1	30	foo	T	T[chr1:78[	.	.	SVTYPE=BND;IMPRECISE;MATEID=bar;CIPOS=5,5
+chr1	78	bar	T	]chr1:30]T	.	.	SVTYPE=BND;IMPRECISE;MATEID=foo;CIPOS=5,5

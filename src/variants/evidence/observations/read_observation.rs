@@ -527,10 +527,13 @@ where
 
         Ok(
             match self.allele_support(evidence, alignment_properties, alt_variants)? {
-                // METHOD: only consider allele support if it comes either from forward or reverse strand.
+                // METHOD: for precise variants,
+                // only consider allele support if it comes either from forward or reverse strand.
                 // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
                 // any information (e.g. no overlap).
-                Some(allele_support) if allele_support.strand() != Strand::None => {
+                Some(allele_support)
+                    if allele_support.strand() != Strand::None || self.is_imprecise() =>
+                {
                     let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                     let mut obs = ReadObservationBuilder::default();
