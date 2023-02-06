@@ -7,7 +7,6 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::ops::{Deref, Range, RangeInclusive};
-use std::str;
 use std::{mem, str};
 
 use anyhow::{bail, Result};

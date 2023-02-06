@@ -924,6 +924,7 @@ pub(crate) struct Breakend {
     mateid: Option<Vec<u8>>,
     #[getset(get = "pub(crate)")]
     precision: VariantPrecision,
+    #[getset(get = "pub(crate)")]
     aux_info: Option<AuxInfo>,
 }
 
