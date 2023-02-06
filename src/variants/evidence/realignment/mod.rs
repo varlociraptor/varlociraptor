@@ -284,7 +284,7 @@ pub(crate) trait Realigner {
             }
 
             // ref allele (or one of the alt variants)
-            let (mut prob_ref, _) = self.prob_allele(&mut ref_emissions, &mut edit_dist);
+            let (mut prob_ref, _) = self.prob_allele(&mut ref_emissions, &mut edit_dist, false);
 
             let (mut prob_alt, alt_hit) = self.prob_allele(
                 &mut variant
@@ -302,6 +302,7 @@ pub(crate) trait Realigner {
                     })
                     .collect_vec(),
                 &mut edit_dist,
+                false,
             );
 
             assert!(!prob_ref.is_nan());
@@ -378,6 +379,7 @@ pub(crate) trait Realigner {
         &mut self,
         candidate_allele_params: &mut [ReadVsAlleleEmission],
         edit_dist: &mut edit_distance::EditDistanceCalculation,
+        _debug: bool,
     ) -> (LogProb, EditDistanceHit) {
         let mut hits = Vec::new();
         let mut best_dist = None;
@@ -401,18 +403,19 @@ pub(crate) trait Realigner {
         let mut best_hit = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
         for (hit, allele_params) in hits {
-            if hit.dist() == 0 {
-                // METHOD: In case of a perfect match, we just take the base quality product.
-                // All alternative paths in the HMM will anyway be much worse.
-                prob = Some(allele_params.read_emission().certainty_est());
-                best_hit.replace(hit.clone());
-            } else {
-                let p = self.calculate_prob_allele(&hit, allele_params);
+            // TODO: for now, the short cut for dist==0 is disabled as it can underestimate the true probability.
+            // TODO revisit this with read VH00142:2:AAAVJCFHV:2:2502:19689:40396 from test_kilpert_01
+            // if hit.dist() == 0 {
+            //     // METHOD: In case of a perfect match, we just take the base quality product.
+            //     // All alternative paths in the HMM will anyway be much worse.
+            //     prob = Some(allele_params.read_emission().certainty_est());
+            //     best_hit.replace(hit.clone());
+            // } else {
+            let p = self.calculate_prob_allele(&hit, allele_params);
 
-                if prob.map_or(true, |prob| p > prob) {
-                    prob.replace(p);
-                    best_hit.replace(hit.clone());
-                }
+            if prob.map_or(true, |prob| p > prob) {
+                prob.replace(p);
+                best_hit.replace(hit.clone());
             }
         }
 

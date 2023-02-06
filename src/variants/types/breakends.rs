@@ -24,6 +24,7 @@ use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::utils::aux_info::AuxInfo;
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
@@ -923,6 +924,7 @@ pub(crate) struct Breakend {
     mateid: Option<Vec<u8>>,
     #[getset(get = "pub(crate)")]
     precision: VariantPrecision,
+    aux_info: Option<AuxInfo>,
 }
 
 impl Breakend {
@@ -933,6 +935,7 @@ impl Breakend {
         id: &[u8],
         mateid: Option<Vec<u8>>,
         precision: VariantPrecision,
+        aux_info: AuxInfo,
     ) -> Result<Option<Self>> {
         lazy_static! {
             static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[:>]+)(?P<anglebracket2>>)?(:(?P<pos>[0-9]+))?(?P<bracket2>[\\]\\[])))").unwrap();
@@ -967,6 +970,7 @@ impl Breakend {
                 id: id.to_owned(),
                 mateid: None,
                 precision,
+                aux_info: Some(aux_info),
             }))
         } else {
             // parse a normal breakend
@@ -1055,6 +1059,7 @@ impl Breakend {
                 id: id.to_owned(),
                 mateid,
                 precision,
+                aux_info: Some(aux_info),
             }))
         }
     }
@@ -1077,6 +1082,7 @@ impl Breakend {
             id: id.to_owned(),
             mateid: Some(mateid.to_owned()),
             precision: VariantPrecision::Precise,
+            aux_info: None,
         }
     }
 

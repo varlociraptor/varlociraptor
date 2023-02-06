@@ -13,7 +13,6 @@ use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
-use ordered_float::NotNan;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
@@ -26,6 +25,7 @@ use crate::calling::variants::{
 };
 use crate::errors;
 use crate::grammar;
+use crate::utils::aux_info::AuxInfoCollector;
 use crate::utils::{self, PathMap};
 use crate::variants::evidence::observations::pileup::Pileup;
 
@@ -64,6 +64,7 @@ where
     omit_alt_locus_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
+    aux_info_fields: Vec<Vec<u8>>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
@@ -85,10 +86,12 @@ where
         self.samplenames.len()
     }
 
-    pub(crate) fn header(&self) -> Result<bcf::Header> {
-        let mut header = bcf::Header::from_template(
-            bcf::Reader::from_path(self.observations.first_not_none().as_ref().unwrap())?.header(),
-        );
+    pub(crate) fn header(&self) -> Result<(bcf::Header, AuxInfoCollector)> {
+        let reader = bcf::Reader::from_path(self.observations.first_not_none().as_ref().unwrap())?;
+
+        let aux_info_collector = AuxInfoCollector::new(&self.aux_info_fields, &reader)?;
+
+        let mut header = bcf::Header::from_template(reader.header());
 
         remove_observation_header_entries(&mut header);
 
@@ -157,6 +160,12 @@ where
               a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
+            b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
+              Description=\"Number of omitted observations. \
+              For SNVs and MNVs, read pairs are omitted if they have a non-standard read orientation (neither F1R2 nor F2R1) as \
+              those can frequently lead to alignment artifacts.\">",
+        );
+        header.push_record(
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
               Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
               forward strand, - indicates that ALT allele is associated with reverse strand, \
@@ -216,20 +225,24 @@ where
               In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
               these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
         );
+        aux_info_collector.write_header_info(&mut header);
 
-        Ok(header)
+        Ok((header, aux_info_collector))
     }
 
-    pub(crate) fn writer(&self) -> Result<bcf::Writer> {
-        let header = self.header();
+    pub(crate) fn writer(&self) -> Result<(bcf::Writer, AuxInfoCollector)> {
+        let (header, aux_info_collector) = self.header()?;
 
-        Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::Bcf)
-                .context(format!("Unable to write BCF to {}.", path.display()))?
-        } else {
-            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::Bcf)
-                .context("Unable to write BCF to STDOUT.")?
-        })
+        Ok((
+            if let Some(ref path) = self.outbcf {
+                bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)
+                    .context(format!("Unable to write BCF to {}.", path.display()))?
+            } else {
+                bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)
+                    .context("Unable to write BCF to STDOUT.")?
+            },
+            aux_info_collector,
+        ))
     }
 }
 
@@ -269,7 +282,7 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
-        self.call_processor.borrow_mut().setup(self)?;
+        let mut aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
 
         // Check observation format.
         for obs_reader in observations.iter_not_none() {
@@ -353,7 +366,8 @@ where
             .variant()
             .to_type();
 
-            let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
+            let mut work_item =
+                self.preprocess_record(&mut records, i, &observations, &aux_info_collector)?;
 
             if self.candidate_filter.filter(&work_item, &self.samplenames) {
                 // process work item
@@ -406,6 +420,7 @@ where
         records: &mut grammar::SampleInfo<Option<bcf::Record>>,
         index: usize,
         observations: &grammar::SampleInfo<Option<bcf::Reader>>,
+        aux_info_collector: &Option<AuxInfoCollector>,
     ) -> Result<WorkItem> {
         let (call, snv, haplotype, rid, is_snv_or_mnv) = {
             let first_record = records.first_not_none_mut()?;
@@ -414,7 +429,8 @@ where
 
             let _locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
 
-            let call = CallBuilder::default()
+            let mut call_builder = CallBuilder::default();
+            call_builder
                 .chrom(chrom.to_owned())
                 .pos(start)
                 .id({
@@ -425,9 +441,12 @@ where
                         Some(id)
                     }
                 })
-                .record(first_record)?
-                .build()
-                .unwrap();
+                .record(first_record)?;
+            if let Some(ref aux_info_collector) = aux_info_collector {
+                call_builder.aux_info(aux_info_collector.collect(first_record)?);
+            }
+
+            let call = call_builder.build().unwrap();
 
             // store information about SNV for special handling in posterior computation (variant selection operations)
             let snv;
@@ -745,7 +764,7 @@ where
                 continue;
             }
             // METHOD: skip MAP if it is not contained in the strongest event
-            if !best_event.contains(map_estimates) {
+            if !best_event.contains(map_estimates, None) {
                 continue;
             }
 
@@ -779,7 +798,7 @@ where
                             model_instance
                                 .event_posteriors()
                                 .filter_map(|(estimate, prob)| {
-                                    if !best_event.contains(estimate) {
+                                    if !best_event.contains(estimate, Some(sample)) {
                                         // estimate must be compatible with best event
                                         return None;
                                     }
@@ -851,7 +870,8 @@ pub(crate) trait CallProcessor: Sized {
     fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
-    ) -> Result<()>;
+    ) -> Result<Option<AuxInfoCollector>>;
+
     fn process_call(
         &mut self,
         call: Call,
@@ -870,10 +890,11 @@ impl CallProcessor for CallWriter {
     fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
-    ) -> Result<()> {
-        self.bcf_writer = Some(caller.writer()?);
+    ) -> Result<Option<AuxInfoCollector>> {
+        let (writer, aux_info_collector) = caller.writer()?;
+        self.bcf_writer = Some(writer);
 
-        Ok(())
+        Ok(Some(aux_info_collector))
     }
 
     fn process_call(
@@ -916,6 +937,7 @@ pub(crate) fn call_generic<CP, CF>(
     log_each_record: bool,
     call_processor: CP,
     candidate_filter: CF,
+    propagate_info_fields: Vec<String>,
 ) -> Result<()>
 where
     CP: CallProcessor,
@@ -942,6 +964,11 @@ where
             .into());
         }
     }
+
+    let propagate_info_fields = propagate_info_fields
+        .iter()
+        .map(|s| s.as_bytes().to_owned())
+        .collect();
 
     let haplotype_feature_index =
         HaplotypeFeatureIndex::new(sample_observations.first_not_none()?)?;
@@ -978,6 +1005,7 @@ where
         .resolutions(sample_infos.resolutions)
         .haplotype_feature_index(haplotype_feature_index)
         .outbcf(output)
+        .aux_info_fields(propagate_info_fields)
         .log_each_record(log_each_record)
         .call_processor(RefCell::new(call_processor))
         .candidate_filter(candidate_filter)

@@ -21,6 +21,7 @@ use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
+use crate::utils::aux_tag_is_entire_fragment;
 use crate::utils::homopolymers::is_homopolymer_seq;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::SimpleCounter;
@@ -243,16 +244,26 @@ impl AlignmentProperties {
                     allow_hardclips,
                 );
 
-                let calc_insert_size = record.is_paired()
-                    && record.is_first_in_template()
-                    && record.tid() == record.mtid()
-                    && !record.is_mate_unmapped();
-                let insert_size =
-                    if !cigar_counts.is_not_regular && !omit_insert_size && calc_insert_size {
-                        Some(record.insert_size().abs() as f64)
+                let insert_size = {
+                    if !cigar_counts.is_not_regular && !omit_insert_size {
+                        if record.is_paired()
+                            && record.is_first_in_template()
+                            && record.tid() == record.mtid()
+                            && !record.is_mate_unmapped()
+                        {
+                            Some(record.insert_size().abs() as f64)
+                        } else if !record.is_paired() && aux_tag_is_entire_fragment(&record) {
+                            // METHOD: if the read is not paired, but the aux EF tag indicates that it covers the entire
+                            // fragment, we can use the length of the read as the insert size.
+                            Some((record.cigar_cached().unwrap().end_pos() - record.pos()) as f64)
+                        } else {
+                            None
+                        }
                     } else {
                         None
-                    };
+                    }
+                };
+
                 RecordStats {
                     mapq: record.mapq(),
                     read_len: record.seq().len() as u32,

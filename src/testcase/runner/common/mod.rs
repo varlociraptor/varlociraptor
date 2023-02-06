@@ -216,7 +216,8 @@ pub trait Testcase {
 
         // Step 1: preprocess all samples
         for sample_name in &self.samples() {
-            let mut options = serde_json::from_str(&self.preprocess_options(sample_name))?;
+            let options = self.preprocess_options(sample_name);
+            let mut options = serde_json::from_str(&options)?;
             match &mut options {
                 Varlociraptor::Preprocess {
                     kind:
@@ -269,6 +270,7 @@ pub trait Testcase {
                             .omit_homopolymer_artifact_detection(),
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
+                        propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
                             sample_observations: self
@@ -308,6 +310,7 @@ pub trait Testcase {
                             .omit_homopolymer_artifact_detection(),
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         output: Some(self.output()),
+                        propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
                                 .sample_preprocessed_path("tumor", &temp_preprocess),

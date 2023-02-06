@@ -2,6 +2,34 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.8.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.7.0...v5.8.0) (2023-02-01)
+
+
+### Features
+
+* if present, parse EF tag and consider single end reads marked to entirely cover the originating fragment for insert size statistics. ([#336](https://www.github.com/varlociraptor/varlociraptor/issues/336)) ([76a0912](https://www.github.com/varlociraptor/varlociraptor/commit/76a0912b4e4e7b095df94bea715ff52a9daedead))
+* report number of omitted observations ([#331](https://www.github.com/varlociraptor/varlociraptor/issues/331)) ([fe0a4b7](https://www.github.com/varlociraptor/varlociraptor/commit/fe0a4b7eac75a644e197110ccff10a3481b6b1b6))
+
+
+### Bug Fixes
+
+* add default value for propagate_info_fields in order to fix deserialization during testcase generation ([7669f92](https://www.github.com/varlociraptor/varlociraptor/commit/7669f92a6b03c8b37d6c43022c78ead27f9702b5))
+* match EF-tag ([#337](https://www.github.com/varlociraptor/varlociraptor/issues/337)) ([6d006a3](https://www.github.com/varlociraptor/varlociraptor/commit/6d006a36afee8f75f008e9ab7c79714c858390fc))
+
+## [5.7.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.2...v5.7.0) (2023-01-24)
+
+
+### Features
+
+* ability to propagate any INFO fields that are present on candidate records (--propagate-info-fields) ([#329](https://www.github.com/varlociraptor/varlociraptor/issues/329)) ([70dcfba](https://www.github.com/varlociraptor/varlociraptor/commit/70dcfbad97740afbfad7ee788cc8f7f54e82c1fe))
+
+### [5.6.2](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.1...v5.6.2) (2023-01-21)
+
+
+### Bug Fixes
+
+* temporarily disable performance optimization in realignment because it can lead to underestimated likelihoods for alleles with a distance of zero to the read, thereby destroying the proper ratio between the likelihoods ([#324](https://www.github.com/varlociraptor/varlociraptor/issues/324)) ([07f69c1](https://www.github.com/varlociraptor/varlociraptor/commit/07f69c19bfc52e82430b24e14f9275616e76da1e))
+
 ### [5.6.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.6.0...v5.6.1) (2023-01-10)
 
 

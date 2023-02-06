@@ -196,6 +196,7 @@ pub(crate) struct Sample {
     #[builder(default)]
     fragment_id_factory: FragmentIdFactory,
     report_fragment_ids: bool,
+    adjust_prob_mapping: bool,
 }
 
 impl SampleBuilder {
@@ -274,7 +275,9 @@ impl Sample {
             .iter()
             .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
             .collect();
-        ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        if self.adjust_prob_mapping {
+            ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        }
         Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
     }
 }

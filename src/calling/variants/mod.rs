@@ -7,6 +7,7 @@ pub(crate) mod calling;
 pub mod preprocessing;
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
@@ -24,7 +25,7 @@ use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
-use crate::utils::signif;
+use crate::utils::aux_info::AuxInfo;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::evidence::observations::read_observation::AltLocus;
@@ -38,7 +39,15 @@ use crate::variants::model::{
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
 
-pub(crate) use crate::calling::variants::calling::CallerBuilder;
+lazy_static! {
+    static ref OMIT_AUX_INFO: HashSet<Vec<u8>> = HashSet::from([
+        b"MATEID".to_vec(),
+        b"EVENT".to_vec(),
+        b"SVLEN".to_vec(),
+        b"SVTYPE".to_vec(),
+        b"END".to_vec(),
+    ]);
+}
 
 #[derive(Default, Clone, Debug, Builder, Getters)]
 #[getset(get = "pub(crate)")]
@@ -49,6 +58,9 @@ pub(crate) struct Call {
     id: Option<Vec<u8>>,
     #[builder(default = "None")]
     mateid: Option<Vec<u8>>,
+    #[builder(default)]
+    aux_info: AuxInfo,
+    //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
     variant: Option<Variant>,
 }
@@ -93,6 +105,8 @@ impl Call {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
         self.write_record_aux_info(variant, &mut record)?;
+
+        self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
 
         // set qual
         record.set_qual(f32::missing());
@@ -141,6 +155,7 @@ impl Call {
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
         let mut simple_observations = VecMap::new();
+        let mut omitted_observations = VecMap::new();
         let mut vaf_densities = VecMap::new();
         let mut obs_counts = VecMap::new();
         let mut strand_bias = VecMap::new();
@@ -220,7 +235,6 @@ impl Call {
                 );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
-
                 obs_counts.insert(
                     i,
                     expected_depth(sample_info.pileup.read_observations()) as i32,
@@ -308,6 +322,8 @@ impl Call {
                     ),
                 );
 
+                omitted_observations.insert(i, sample_info.pileup.n_filtered_out_observations());
+
                 vaf_densities.insert(i, sample_info.vaf_dist.clone());
             }
         }
@@ -347,6 +363,8 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+
+        self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
 
         // set qual
         record.set_qual(f32::missing());
@@ -411,6 +429,12 @@ impl Call {
                 .collect_vec();
             record.push_format_string(b"OBS", &obs)?;
 
+            let oobs = omitted_observations
+                .values()
+                .map(|n| **n as i32)
+                .collect_vec();
+            record.push_format_integer(b"OOBS", &oobs);
+
             let sb = strand_bias.values().map(|sb| vec![*sb]).collect_vec();
             record.push_format_string(b"SB", &sb)?;
 
@@ -458,6 +482,8 @@ impl Call {
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record
+                .push_format_integer(b"OOBS", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;

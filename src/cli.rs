@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
@@ -37,8 +36,8 @@ use crate::utils::PathMap;
 use crate::variants::evidence::realignment;
 
 use crate::variants::model::prior::CheckablePrior;
-use crate::variants::model::prior::{Inheritance, Prior};
-use crate::variants::model::{AlleleFreq, Contamination, VariantType};
+use crate::variants::model::prior::Prior;
+use crate::variants::model::{AlleleFreq, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::SimpleEvent;
 
@@ -192,6 +191,16 @@ pub enum PreprocessKind {
         #[serde(default)]
         report_fragment_ids: bool,
         #[structopt(
+            long,
+            help = "Do not adjust mapping quality (MAPQ). By default Varlociraptor will adjust mapping qualities \
+            in order to avoid false positive hits caused by inflated MAPQ values at ambiguous loci. \
+            This happens by conservatively averaging MAPQs of all reads that overlap a given locus. \
+            While this is usually a good idea and has been validated by extensive benchmarking, there can be cases \
+            where this is not desired, e.g. when solely evaluating known variants."
+        )]
+        #[serde(default)]
+        omit_mapq_adjustment: bool,
+        #[structopt(
             long = "reference-buffer-size",
             short = "b",
             default_value = "10",
@@ -225,6 +234,13 @@ pub enum PreprocessKind {
             help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
         )]
         output: Option<PathBuf>,
+        #[structopt(
+            long = "propagate-info-fields",
+            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF \
+            (not supported for variants connected via EVENT tags except breakends)."
+        )]
+        #[serde(default)]
+        propagate_info_fields: Vec<String>,
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
@@ -407,6 +423,11 @@ pub enum EstimateKind {
             help = "Path to store vega-lite plot of contamination/purity."
         )]
         output_plot: Option<PathBuf>,
+        #[structopt(
+            long = "output-max-vaf-variants",
+            help = "Path to store TSV of variant positions with maximum VAF in the contaminated sample (for QC)."
+        )]
+        output_max_vaf_variants: Option<PathBuf>,
     },
     #[structopt(
         name = "mutational-burden",
@@ -456,6 +477,11 @@ pub enum CallKind {
     Variants {
         #[structopt(subcommand)]
         mode: VariantCallMode,
+        #[structopt(
+            long = "propagate-info-fields",
+            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF."
+        )]
+        propagate_info_fields: Vec<String>,
         #[structopt(
             long = "omit-strand-bias",
             help = "Do not consider strand bias when calculating the probability of an artifact.\
@@ -714,8 +740,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     candidates,
                     bam,
                     report_fragment_ids,
+                    omit_mapq_adjustment,
                     alignment_properties,
                     output,
+                    propagate_info_fields,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
@@ -755,12 +783,18 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let log_each_record = log_mode == "each-record";
 
+                    let propagate_info_fields = propagate_info_fields
+                        .iter()
+                        .map(|s| s.as_bytes().to_owned())
+                        .collect();
+
                     match pairhmm_mode.as_ref() {
                         "homopolymer" => {
                             let hop_params = alignment_properties.hop_params.clone();
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
+                                    .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -771,6 +805,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &candidates,
                                     )?)
                                     .inbcf(candidates)
+                                    .aux_info_fields(propagate_info_fields)
                                     .options(opt_clone)
                                     .outbcf(output)
                                     .raw_observation_output(output_raw_observations)
@@ -788,6 +823,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
+                                    .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -798,6 +834,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &candidates,
                                     )?)
                                     .inbcf(candidates)
+                                    .aux_info_fields(propagate_info_fields)
                                     .options(opt_clone)
                                     .outbcf(output)
                                     .raw_observation_output(output_raw_observations)
@@ -814,6 +851,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
+                                    .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -824,6 +862,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &candidates,
                                     )?)
                                     .inbcf(candidates)
+                                    .aux_info_fields(propagate_info_fields)
                                     .options(opt_clone)
                                     .outbcf(output)
                                     .raw_observation_output(output_raw_observations)
@@ -856,6 +895,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_anonymous,
                     output,
                     log_mode,
+                    propagate_info_fields,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -927,6 +967,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     log_each_record,
                                     CallWriter::new(),
                                     DefaultCandidateFilter::new(),
+                                    propagate_info_fields,
                                 )?;
                             } else {
                                 return Err(errors::Error::InvalidObservationsSpec.into());
@@ -1010,6 +1051,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 log_each_record,
                                 CallWriter::new(),
                                 DefaultCandidateFilter::new(),
+                                propagate_info_fields,
                             )?;
                         }
                     }
@@ -1100,6 +1142,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 prior_considered_cells,
                 output,
                 output_plot,
+                output_max_vaf_variants,
             } => {
                 let prior_estimate = match (prior_estimate, prior_considered_cells) {
                     (Some(p), Some(n)) if n > 0 => Some(
@@ -1113,6 +1156,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     contaminant,
                     output,
                     output_plot,
+                    output_max_vaf_variants,
                     prior_estimate,
                 )?;
             }

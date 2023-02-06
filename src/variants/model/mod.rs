@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::ops::{Deref, Range, RangeInclusive};
+use std::str;
 use std::{mem, str};
 
 use anyhow::{bail, Result};
@@ -48,8 +49,13 @@ impl Event {
         self.biases.iter().any(|biases| biases.is_artifact())
     }
 
-    pub(crate) fn contains(&self, operands: &LikelihoodOperands) -> bool {
-        self.vafs.contains(operands)
+    pub(crate) fn contains(
+        &self,
+        operands: &LikelihoodOperands,
+        exclude_sample: Option<usize>,
+    ) -> bool {
+        // TODO exclude current sample
+        self.vafs.contains(operands, exclude_sample)
     }
 }
 
