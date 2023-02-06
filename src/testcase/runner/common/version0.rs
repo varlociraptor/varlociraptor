@@ -94,6 +94,7 @@ impl Testcase for TestcaseVersion0 {
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),
                         report_fragment_ids: true,
+                        omit_mapq_adjustment: false,
                         candidates: self.candidates(),
                         output: None,
                         propagate_info_fields: Vec::new(),

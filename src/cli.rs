@@ -191,6 +191,16 @@ pub enum PreprocessKind {
         #[serde(default)]
         report_fragment_ids: bool,
         #[structopt(
+            long,
+            help = "Do not adjust mapping quality (MAPQ). By default Varlociraptor will adjust mapping qualities \
+            in order to avoid false positive hits caused by inflated MAPQ values at ambiguous loci. \
+            This happens by conservatively averaging MAPQs of all reads that overlap a given locus. \
+            While this is usually a good idea and has been validated by extensive benchmarking, there can be cases \
+            where this is not desired, e.g. when solely evaluating known variants."
+        )]
+        #[serde(default)]
+        omit_mapq_adjustment: bool,
+        #[structopt(
             long = "reference-buffer-size",
             short = "b",
             default_value = "10",
@@ -725,6 +735,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     candidates,
                     bam,
                     report_fragment_ids,
+                    omit_mapq_adjustment,
                     alignment_properties,
                     output,
                     propagate_info_fields,
@@ -778,6 +789,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
+                                    .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -806,6 +818,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
+                                    .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
@@ -833,6 +846,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
+                                    .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
                                     .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
