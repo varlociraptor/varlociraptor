@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.9.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.8.0...v5.9.0) (2023-02-06)
+
+
+### Features
+
+* added ability to omit MAPQ adjustment for known variants (varlociraptor preprocess variants --omit-mapq-adjustment) ([#338](https://www.github.com/varlociraptor/varlociraptor/issues/338)) ([3bb637e](https://www.github.com/varlociraptor/varlociraptor/commit/3bb637e9d07962d0b161dfb268d47312d733cb90))
+* support for imprecise breakend pairs ([#318](https://www.github.com/varlociraptor/varlociraptor/issues/318)) ([c036729](https://www.github.com/varlociraptor/varlociraptor/commit/c0367291a7601b656a7dc23bb5116189b6f46796))
+
+
+### Bug Fixes
+
+* improved plotting for contamination estimation ([#339](https://www.github.com/varlociraptor/varlociraptor/issues/339)) ([f2b7a2c](https://www.github.com/varlociraptor/varlociraptor/commit/f2b7a2c007befd48c4f5fc8eaed75537fe492883))
+
 ## [5.8.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.7.0...v5.8.0) (2023-02-01)
 
 
