@@ -72,8 +72,8 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     >,
     log_each_record: bool,
     raw_observation_output: Option<PathBuf>,
-
     report_fragment_ids: bool,
+    adjust_prob_mapping: bool,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -196,6 +196,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .max_depth(self.max_depth)
             .protocol_strandedness(self.protocol_strandedness)
             .report_fragment_ids(self.report_fragment_ids)
+            .adjust_prob_mapping(self.adjust_prob_mapping)
             .alignments(
                 bam_reader,
                 self.alignment_properties.clone(),
