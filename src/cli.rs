@@ -413,6 +413,11 @@ pub enum EstimateKind {
             help = "Path to store vega-lite plot of contamination/purity."
         )]
         output_plot: Option<PathBuf>,
+        #[structopt(
+            long = "output-max-vaf-variants",
+            help = "Path to store TSV of variant positions with maximum VAF in the contaminated sample (for QC)."
+        )]
+        output_max_vaf_variants: Option<PathBuf>,
     },
     #[structopt(
         name = "mutational-burden",
@@ -1123,6 +1128,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 prior_considered_cells,
                 output,
                 output_plot,
+                output_max_vaf_variants,
             } => {
                 let prior_estimate = match (prior_estimate, prior_considered_cells) {
                     (Some(p), Some(n)) if n > 0 => Some(
@@ -1136,6 +1142,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     contaminant,
                     output,
                     output_plot,
+                    output_max_vaf_variants,
                     prior_estimate,
                 )?;
             }

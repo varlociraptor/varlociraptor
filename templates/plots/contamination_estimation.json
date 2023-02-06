@@ -3,15 +3,65 @@
     "description": "Estimation of sample contamination.",
     "datasets": {
         "empirical_vaf_dist": [],
-        "densities": [],
-        "vaf_dist_quantiles": []
+        "densities": []
     },
-    "vconcat": [
+    "layer": [
         {
-            "title": {
-                "text": "density",
-                "orient": "left"
+            "data": {
+                "name": "empirical_vaf_dist"
             },
+            "transform": [
+                {
+                    "calculate": "'hist'",
+                    "as": "hist"
+                }
+            ],
+            "encoding": {
+                "color": {
+                    "field": "hist",
+                    "scale": {
+                        "domain": [
+                            "hist"
+                        ],
+                        "range": [
+                            "lightgrey"
+                        ]
+                    },
+                    "legend": {
+                        "title": "",
+                        "labelExpr": "'observed VAFs'"
+                    }
+                },
+                "x": {
+                    "field": "vaf",
+                    "scale": {
+                        "domain": [
+                            0.0,
+                            1.0
+                        ],
+                        "type": "linear"
+                    },
+                    "axis": {
+                        "title": null
+                    }
+                },
+                "y": {
+                    "field": "count",
+                    "scale": {
+                        "type": "symlog"
+                    },
+                    "axis": {
+                        "title": null
+                    }
+                }
+            },
+            "mark": {
+                "align": "center",
+                "type": "bar",
+                "tooltip": true
+            }
+        },
+        {
             "data": {
                 "name": "densities"
             },
@@ -39,7 +89,7 @@
                     "field": "density",
                     "axis": {
                         "labels": false,
-                        "title": ""
+                        "title": "log density"
                     },
                     "scale": {
                         "type": "symlog"
@@ -50,87 +100,6 @@
                 "type": "line",
                 "interpolate": "monotone"
             }
-        },
-        {
-            "title": {
-                "text": "empirical VAF distribution",
-                "orient": "left"
-            },
-            "data": {
-                "name": "empirical_vaf_dist"
-            },
-            "transform": [
-                {
-                    "calculate": "'hist'",
-                    "as": "hist"
-                }
-            ],
-            "encoding": {
-                "color": {
-                    "field": "hist",
-                    "scale": {
-                        "domain": [
-                            "hist"
-                        ],
-                        "range": [
-                            "lightgrey"
-                        ]
-                    },
-                    "legend": null
-                },
-                "x": {
-                    "field": "vaf",
-                    "scale": {
-                        "domain": [
-                            0.0,
-                            1.0
-                        ],
-                        "type": "linear"
-                    },
-                    "axis": {
-                        "title": null
-                    }
-                },
-                "y": {
-                    "field": "count",
-                    "scale": {
-                        "type": "linear"
-                    },
-                    "axis": {
-                        "title": null
-                    }
-                }
-            },
-            "mark": {
-                "align": "left",
-                "type": "bar",
-                "tooltip": true
-            }
-        },
-        {
-            "title": {
-                "text": "quantiles",
-                "orient": "left"
-            },
-            "data": {
-                "name": "vaf_dist_quantiles"
-            },
-            "encoding": {
-                "x": {
-                    "field": "vaf",
-                    "axis": {
-                        "title": null
-                    },
-                    "scale": {
-                        "domain": [
-                            0.0,
-                            1.0
-                        ],
-                        "type": "linear"
-                    }
-                }
-            },
-            "mark": "tick"
         }
     ],
     "resolve": {

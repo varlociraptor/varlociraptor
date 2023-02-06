@@ -37,6 +37,8 @@ struct VariantObservation {
     prob_denovo: LogProb,
     vaf_dist: BTreeMap<AlleleFreq, LogProb>,
     max_posterior_vaf: AlleleFreq,
+    chrom: Vec<u8>,
+    pos: u64,
 }
 
 impl VariantObservation {
@@ -69,6 +71,8 @@ impl VariantObservation {
             .collect();
 
         Some(VariantObservation {
+            chrom: call.chrom().to_owned(),
+            pos: *call.pos(),
             vaf_dist,
             prob_denovo,
             max_posterior_vaf: sample_info.allelefreq_estimate(),
@@ -255,10 +259,6 @@ impl VAFDist {
         }
     }
 
-    fn quantiles(&self) -> Vec<AlleleFreq> {
-        vec![self.max_vaf]
-    }
-
     fn get_expected_vaf(
         &self,
         purity: AlleleFreq,
@@ -282,15 +282,6 @@ impl VAFDist {
                 .collect_vec(),
         )
     }
-
-    fn quantiles_as_json(&self) -> serde_json::Value {
-        serde_json::Value::Array(
-            self.quantiles()
-                .iter()
-                .map(|vaf| json!({"vaf": *vaf}))
-                .collect_vec(),
-        )
-    }
 }
 
 #[derive(Debug, Clone, Copy, new)]
@@ -305,12 +296,14 @@ pub(crate) struct ContaminationEstimator {
     variant_observations: Vec<VariantObservation>,
     output: Option<PathBuf>,
     output_plot: Option<PathBuf>,
+    output_max_vaf_variants: Option<PathBuf>,
 }
 
 impl ContaminationEstimator {
     pub(crate) fn new(
         output: Option<PathBuf>,
         output_plot: Option<PathBuf>,
+        output_max_vaf_variants: Option<PathBuf>,
         prior_estimate: Option<PriorEstimate>,
     ) -> Self {
         ContaminationEstimator {
@@ -318,6 +311,7 @@ impl ContaminationEstimator {
             output,
             output_plot,
             prior_estimate,
+            output_max_vaf_variants,
         }
     }
 
@@ -348,13 +342,25 @@ impl ContaminationEstimator {
             }));
             if let serde_json::Value::Object(ref mut spec) = spec {
                 spec["datasets"]["empirical_vaf_dist"] = vaf_dist.hist_as_json();
-                spec["datasets"]["vaf_dist_quantiles"] = vaf_dist.quantiles_as_json();
                 spec["datasets"]["densities"] = densities;
 
                 let mut outfile = File::create(outpath)?;
                 serde_json::to_writer_pretty(outfile, &spec)?;
             } else {
                 unreachable!();
+            }
+        }
+
+        if let Some(ref path) = self.output_max_vaf_variants {
+            let mut writer = csv::Writer::from_path(path)?;
+            writer.write_record(&["chrom", "pos"])?;
+            for obs in &self.variant_observations {
+                if obs.max_posterior_vaf == vaf_dist.max_vaf {
+                    writer.write_record(&[
+                        std::str::from_utf8(&obs.chrom).unwrap(),
+                        &format!("{pos}", pos = obs.pos),
+                    ])?;
+                }
             }
         }
 
@@ -432,6 +438,7 @@ pub(crate) fn estimate_contamination(
     contaminant: PathBuf,
     output: Option<PathBuf>,
     output_plot: Option<PathBuf>,
+    output_max_vaf_variants: Option<PathBuf>,
     prior_estimate: Option<PriorEstimate>,
 ) -> Result<()> {
     let scenario = grammar::Scenario::try_from(
@@ -465,7 +472,7 @@ pub(crate) fn estimate_contamination(
         false,
         None,
         false,
-        ContaminationEstimator::new(output, output_plot, prior_estimate),
+        ContaminationEstimator::new(output, output_plot, output_max_vaf_variants, prior_estimate),
         ContaminationCandidateFilter::new(),
         Vec::new(),
     )
