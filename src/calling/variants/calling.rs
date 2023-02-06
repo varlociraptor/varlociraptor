@@ -461,7 +461,6 @@ where
         variant_builder.record(records.first_not_none_mut()?)?;
         let is_precise =
             VariantPrecision::try_from(records.first_not_none()?)? == VariantPrecision::Precise;
-        dbg!(is_precise);
 
         // METHOD: for imprecise variants, we can skip various meaninless biases below
         let mut work_item = WorkItem {

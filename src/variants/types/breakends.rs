@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bio::alphabets::dna;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use itertools::Itertools;
 use regex::Regex;
@@ -24,6 +24,7 @@ use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
@@ -286,13 +287,6 @@ impl<R: Realigner> BreakendGroup<R> {
                 assert_eq!(self.breakends.len(), 2);
                 for bnds in self.breakends.values().permutations(2) {
                     let (bnd, other_bnd) = (bnds[0], bnds[1]);
-                    // dbg!((
-                    //     bnd.is_left_to_right,
-                    //     is_match(bnd, left),
-                    //     is_match(other_bnd, right),
-                    //     is_match(bnd, right),
-                    //     is_match(other_bnd, left)
-                    // ));
                     if bnd.is_left_to_right() {
                         if is_match(bnd, left) {
                             // METHOD: left record matches, let's see what the right record does.
@@ -333,16 +327,13 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         evidence: &Self::Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        dbg!("check validity");
         if self.imprecise {
             // METHOD: imprecise (for now) means that we have a breakend pair.
             // We only support paired end evidence, and just check whether the pair starts
             // either left of the left or right of the right breakend.
             if let Some(_) = self.classify_imprecise_evidence(evidence) {
-                dbg!("valid");
                 Some((0..2).into_iter().collect_vec())
             } else {
-                dbg!("invalid");
                 None
             }
         } else {
@@ -429,37 +420,76 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 if self.is_deletion() {
                     match evidence {
                         PairedEndEvidence::PairedEnd { left, right } => {
-                            // TODO sum over confidence intervals
-                            Ok(Some(self.allele_support_isize(
-                                left,
-                                right,
-                                alignment_properties,
-                            )?))
+                            if let Some((left_bnd, right_bnd)) = self.breakend_pair() {
+                                // METHOD: we consider all possible lengths of the deletion,
+                                // use a uniform prior and sum up the joint probabilities for the alt allele.
+                                let support = (left_bnd.min_pos()..=left_bnd.max_pos())
+                                    .cartesian_product(right_bnd.min_pos()..=right_bnd.max_pos())
+                                    .filter_map(|(left_pos, right_pos)| {
+                                        if left_pos < right_pos {
+                                            Some(self.allele_support_isize(
+                                                left,
+                                                right,
+                                                alignment_properties,
+                                                right_pos - left_pos,
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect::<Result<Vec<AlleleSupport>>>()?;
+                                // uniform prior
+                                let prior = LogProb::from(Prob(1.0 / support.len() as f64));
+                                let prob_ref = support.first().unwrap().prob_ref_allele();
+                                let prob_alt = LogProb::ln_sum_exp(
+                                    &support
+                                        .iter()
+                                        .map(|s| s.prob_alt_allele() + prior)
+                                        .collect_vec(),
+                                );
+                                if prob_ref != prob_alt {
+                                    return Ok(Some(
+                                        AlleleSupportBuilder::default()
+                                            .prob_ref_allele(prob_ref)
+                                            .prob_alt_allele(prob_alt)
+                                            .strand(Strand::None)
+                                            .build()
+                                            .unwrap(),
+                                    ));
+                                }
+                            } else {
+                                unreachable!(
+                                    "bug: self.breakend_pair() has returned None for deletion variant"
+                                )
+                            }
                         }
                         PairedEndEvidence::SingleEnd(_) => unreachable!(
                             "bug: single end reads cannot be used as evidence for \
                              imprecise breakend groups"
                         ),
                     }
-                } else {
-                    match classification {
-                        ImpreciseEvidence::Supporting => Ok(Some(
-                            AlleleSupportBuilder::default()
-                                .prob_ref_allele(LogProb::ln_zero())
-                                .prob_alt_allele(LogProb::ln_one())
-                                .strand(Strand::None)
-                                .build()
-                                .unwrap(),
-                        )),
-                        ImpreciseEvidence::NotSupporting => Ok(Some(
-                            AlleleSupportBuilder::default()
-                                .prob_ref_allele(LogProb::ln_one())
-                                .prob_alt_allele(LogProb::ln_zero())
-                                .strand(Strand::None)
-                                .build()
-                                .unwrap(),
-                        )),
-                    }
+                }
+
+                // METHOD: non-deletion, or isize is not informative.
+                // Use binary information about support.
+
+                match classification {
+                    ImpreciseEvidence::Supporting => Ok(Some(
+                        AlleleSupportBuilder::default()
+                            .prob_ref_allele(LogProb::ln_zero())
+                            .prob_alt_allele(LogProb::ln_one())
+                            .strand(Strand::None)
+                            .build()
+                            .unwrap(),
+                    )),
+                    ImpreciseEvidence::NotSupporting => Ok(Some(
+                        AlleleSupportBuilder::default()
+                            .prob_ref_allele(LogProb::ln_one())
+                            .prob_alt_allele(LogProb::ln_zero())
+                            .strand(Strand::None)
+                            .build()
+                            .unwrap(),
+                    )),
                 }
             } else {
                 unreachable!(
@@ -508,25 +538,9 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         if self.imprecise {
-            if self.is_deletion() && alignment_properties.insert_size.is_some() {
-                // METHOD: Less fragments from alt allele, analogous to normal deletion.
-                // TODO sum over confidence intervals
-                match evidence {
-                    PairedEndEvidence::PairedEnd { left, right } => self.prob_sample_alt_fragment(
-                        left.seq().len() as u64,
-                        right.seq().len() as u64,
-                        alignment_properties,
-                    ),
-                    PairedEndEvidence::SingleEnd(_) => unreachable!(
-                        "bug: single end reads cannot be used as evidence for \
-                         imprecise breakend groups"
-                    ),
-                }
-            } else {
-                // METHOD: no overlap and fragment size does not play a role
-                // (breakend pair spans more than one contig), hence no sampling bias.
-                LogProb::ln_one()
-            }
+            // METHOD: no overlap of reads and breakends, hence, it is not harder to map the reads
+            // to the alt than to the reference allele at all.
+            LogProb::ln_one()
         } else {
             match evidence {
                 PairedEndEvidence::PairedEnd { left, right } => {

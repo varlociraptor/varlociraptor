@@ -168,16 +168,17 @@ pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
         left_record: &bam::Record,
         right_record: &bam::Record,
         alignment_properties: &AlignmentProperties,
+        alt_del_len: u64,
     ) -> Result<AlleleSupport> {
         let insert_size = estimate_insert_size(left_record, right_record)?;
 
         // TODO: sum over all possible lens if there are multiple ones and use some reasonable prior
         // or take the best p_alt.
         let p_ref = self.isize_pmf(insert_size, 0.0, alignment_properties);
-        let p_alt = self.isize_pmf(insert_size, self.len() as f64, alignment_properties);
+        let p_alt = self.isize_pmf(insert_size, alt_del_len as f64, alignment_properties);
 
         if (p_ref == LogProb::ln_zero()
-            && !self.is_within_sd(insert_size, self.len() as f64, alignment_properties))
+            && !self.is_within_sd(insert_size, alt_del_len as f64, alignment_properties))
             || (p_alt == LogProb::ln_zero()
                 && !self.is_within_sd(insert_size, 0.0, alignment_properties))
         {
@@ -386,7 +387,6 @@ where
                     right: Rc::clone(right),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
-                    dbg!(&evidence);
                     push_evidence(evidence, idx);
                 }
             } else {
