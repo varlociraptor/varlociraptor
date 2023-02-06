@@ -3,8 +3,7 @@
     "description": "Estimation of sample contamination.",
     "datasets": {
         "empirical_vaf_dist": [],
-        "densities": [],
-        "vaf_dist_quantiles": []
+        "densities": []
     },
     "layer": [
         {
@@ -49,7 +48,7 @@
                 "y": {
                     "field": "count",
                     "scale": {
-                        "type": "linear"
+                        "type": "symlog"
                     },
                     "axis": {
                         "title": null
@@ -57,27 +56,10 @@
                 }
             },
             "mark": {
-                "align": "left",
+                "align": "center",
                 "type": "bar",
                 "tooltip": true
             }
-        },
-        {
-            "data": {
-                "name": "vaf_dist_quantiles"
-            },
-            "encoding": {
-                "color": {
-                    "value": "black"
-                },
-                "x": {
-                    "field": "quantile"
-                },
-                "y": {
-                    "field": "vaf"
-                }
-            },
-            "mark": "tick"
         },
         {
             "data": {
