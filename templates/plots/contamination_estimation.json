@@ -6,8 +6,56 @@
         "densities": [],
         "vaf_dist_quantiles": []
     },
-    "layer": [
+    "vconcat": [
         {
+            "title": {
+                "text": "density",
+                "orient": "left"
+            },
+            "data": {
+                "name": "densities"
+            },
+            "encoding": {
+                "color": {
+                    "field": "category",
+                    "legend": {
+                        "title": ""
+                    }
+                },
+                "x": {
+                    "field": "purity",
+                    "axis": {
+                        "grid": false
+                    },
+                    "scale": {
+                        "domain": [
+                            0.0,
+                            1.0
+                        ],
+                        "type": "linear"
+                    }
+                },
+                "y": {
+                    "field": "density",
+                    "axis": {
+                        "labels": false,
+                        "title": ""
+                    },
+                    "scale": {
+                        "type": "symlog"
+                    }
+                }
+            },
+            "mark": {
+                "type": "line",
+                "interpolate": "monotone"
+            }
+        },
+        {
+            "title": {
+                "text": "empirical VAF distribution",
+                "orient": "left"
+            },
             "data": {
                 "name": "empirical_vaf_dist"
             },
@@ -28,10 +76,7 @@
                             "lightgrey"
                         ]
                     },
-                    "legend": {
-                        "title": "",
-                        "labelExpr": "'observed VAFs'"
-                    }
+                    "legend": null
                 },
                 "x": {
                     "field": "vaf",
@@ -63,37 +108,18 @@
             }
         },
         {
+            "title": {
+                "text": "quantiles",
+                "orient": "left"
+            },
             "data": {
                 "name": "vaf_dist_quantiles"
             },
             "encoding": {
-                "color": {
-                    "value": "black"
-                },
                 "x": {
-                    "field": "quantile"
-                },
-                "y": {
-                    "field": "vaf"
-                }
-            },
-            "mark": "tick"
-        },
-        {
-            "data": {
-                "name": "densities"
-            },
-            "encoding": {
-                "color": {
-                    "field": "category",
-                    "legend": {
-                        "title": ""
-                    }
-                },
-                "x": {
-                    "field": "purity",
+                    "field": "vaf",
                     "axis": {
-                        "grid": false
+                        "title": null
                     },
                     "scale": {
                         "domain": [
@@ -102,22 +128,9 @@
                         ],
                         "type": "linear"
                     }
-                },
-                "y": {
-                    "field": "density",
-                    "axis": {
-                        "labels": false,
-                        "title": "log density"
-                    },
-                    "scale": {
-                        "type": "symlog"
-                    }
                 }
             },
-            "mark": {
-                "type": "line",
-                "interpolate": "monotone"
-            }
+            "mark": "tick"
         }
     ],
     "resolve": {
