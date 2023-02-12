@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [5.9.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.9.0...v5.9.1) (2023-02-12)
+
+
+### Performance Improvements
+
+* update strum to stay in sync with rust-bio ([#344](https://www.github.com/varlociraptor/varlociraptor/issues/344)) ([fa55360](https://www.github.com/varlociraptor/varlociraptor/commit/fa55360fd3db5ede95c60d4b0d76e54f4d2e4727))
+
 ## [5.9.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.8.0...v5.9.0) (2023-02-06)
 
 
