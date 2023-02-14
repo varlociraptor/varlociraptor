@@ -210,7 +210,15 @@ impl SampleBuilder {
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
     ) -> Self {
-        let single_read_window = alignment_properties.max_read_len as u64;
+        // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
+        // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
+        // estimated maximum deletion len.
+        let single_read_window = alignment_properties.max_read_len as u64
+            + alignment_properties
+                .max_del_cigar_len
+                .map_or(0, |l| l as u64)
+            + 10;
+
         let read_pair_window = match alignment_properties.insert_size {
             Some(isize) => (isize.mean + isize.sd * 6.0) as u64,
             None => single_read_window,
