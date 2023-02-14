@@ -2,7 +2,7 @@
 
 expected:
   posteriors:
-    - PROB_PRESENT > 2.0
+    - PROB_PRESENT > 1.9
 
 # necessary bam files
 samples:

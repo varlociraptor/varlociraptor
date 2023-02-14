@@ -453,7 +453,23 @@ pub(crate) fn major_read_position(
     if most_common.is_empty() {
         None
     } else {
-        Some(most_common[0].0)
+        let (most_common_pos, most_common_count) = most_common[0];
+        if most_common_count == 1 {
+            // all reads exhibit different positions
+            None
+        } else if most_common.len() == 1 {
+            // all the same
+            Some(most_common_pos)
+        } else {
+            let (second_most_common_pos, second_most_common_count) = most_common[1];
+            if most_common_count > second_most_common_count {
+                // clear winner
+                Some(most_common_pos)
+            } else {
+                // unclear, rather not consider this
+                None
+            }
+        }
     }
 }
 
