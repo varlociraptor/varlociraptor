@@ -445,52 +445,51 @@ impl ProcessedReadObservation {
     }
 }
 
-pub(crate) fn major_read_position(
-    pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
-) -> Option<u32> {
-    let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
+fn calc_major_feature<F, I>(feature: I) -> Option<F>
+where
+    I: Iterator<Item = F>,
+    F: Clone + Eq + Hash,
+{
+    let counter: Counter<_> = feature.collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {
         None
     } else {
-        let (most_common_pos, most_common_count) = most_common[0];
+        let (ref most_common_feature, most_common_count) = most_common[0];
         if most_common_count == 1 {
-            // all reads exhibit different positions
+            // all reads exhibit different features
             None
         } else if most_common.len() == 1 {
             // all the same
-            Some(most_common_pos)
+            Some(most_common_feature.clone())
         } else {
-            let (second_most_common_pos, second_most_common_count) = most_common[1];
+            let (ref _second_most_common_feature, second_most_common_count) = most_common[1];
             if most_common_count > second_most_common_count {
                 // clear winner
-                Some(most_common_pos)
+                Some(most_common_feature.clone())
             } else {
-                // unclear, rather not consider this
+                // tie
                 None
             }
         }
     }
 }
 
+pub(crate) fn major_read_position(
+    pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
+) -> Option<u32> {
+    calc_major_feature(pileup.iter().filter_map(|obs| obs.read_position))
+}
+
 pub(crate) fn major_alt_locus(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
     alignment_properties: &AlignmentProperties,
 ) -> Option<genome::Locus> {
-    let counter: Counter<_> = pileup
-        .iter()
-        .flat_map(|obs| {
-            obs.alt_locus
-                .iter()
-                .map(|locus| locus_to_bucket(locus, alignment_properties))
-        })
-        .collect();
-    let most_common = counter.most_common();
-    if most_common.is_empty() {
-        None
-    } else {
-        Some(most_common[0].0.clone())
-    }
+    calc_major_feature(pileup.iter().flat_map(|obs| {
+        obs.alt_locus
+            .iter()
+            .map(|locus| locus_to_bucket(locus, alignment_properties))
+    }))
 }
 
 pub(crate) fn locus_to_bucket(
