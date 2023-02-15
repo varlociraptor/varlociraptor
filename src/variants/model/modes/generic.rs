@@ -140,6 +140,10 @@ impl LikelihoodOperands {
     pub(crate) fn is_discrete(&self) -> bool {
         self.events.values().all(|evt| evt.is_discrete)
     }
+
+    pub(crate) fn is_absent(&self) -> bool {
+        self.events.values().all(|evt| evt.is_absent())
+    }
 }
 
 impl Index<usize> for LikelihoodOperands {

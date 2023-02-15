@@ -23,8 +23,20 @@ pub(crate) struct Event {
 }
 
 impl Event {
+    pub(crate) fn absent() -> Self {
+        Event {
+            allele_freq: AlleleFreq(0.0),
+            artifacts: Artifacts::none(),
+            is_discrete: true,
+        }
+    }
+
     pub(crate) fn is_artifact(&self) -> bool {
         self.artifacts.is_artifact()
+    }
+
+    pub(crate) fn is_absent(&self) -> bool {
+        *self.allele_freq == 0.0
     }
 }
 
