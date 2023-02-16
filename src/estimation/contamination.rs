@@ -475,5 +475,6 @@ pub(crate) fn estimate_contamination(
         ContaminationEstimator::new(output, output_plot, output_max_vaf_variants, prior_estimate),
         ContaminationCandidateFilter::new(),
         Vec::new(),
+        false,
     )
 }

@@ -938,6 +938,7 @@ pub(crate) fn call_generic<CP, CF>(
     call_processor: CP,
     candidate_filter: CF,
     propagate_info_fields: Vec<String>,
+    full_prior: bool,
 ) -> Result<()>
 where
     CP: CallProcessor,
@@ -987,6 +988,7 @@ where
                 .and_then(|species| species.heterozygosity().map(|het| LogProb::from(Prob(het)))),
         )
         .variant_type_fractions(scenario.variant_type_fractions())
+        .is_absent_only(!full_prior)
         .build();
 
     // setup caller

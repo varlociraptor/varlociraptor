@@ -18,6 +18,7 @@ use std::str;
 
 use anyhow::Result;
 use bio::io::fasta;
+use bio::stats::{PHREDProb, Prob};
 use eval::Expr;
 use itertools::Itertools;
 use rust_htslib::bcf::Read as BCFRead;
@@ -291,6 +292,7 @@ pub trait Testcase {
                                 .collect_vec(),
                         },
                         log_mode: "default".to_owned(),
+                        full_prior: false,
                     },
                 };
 
@@ -319,6 +321,7 @@ pub trait Testcase {
                             purity: self.purity().unwrap(),
                         },
                         log_mode: "default".to_owned(),
+                        full_prior: false,
                     },
                 };
 
@@ -367,7 +370,11 @@ pub trait Testcase {
                                 let id = values.get("ID").unwrap().clone();
                                 if id.starts_with("PROB_") {
                                     if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
-                                        expr = expr.value(id.clone(), values[0])
+                                        expr = expr.value(id.clone(), values[0]);
+                                        expr = expr.value(
+                                            format!("PLAIN_{id}"),
+                                            Prob::from(PHREDProb(values[0] as f64)),
+                                        );
                                     }
                                 }
                             }

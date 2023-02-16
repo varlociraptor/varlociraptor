@@ -529,6 +529,19 @@ pub enum CallKind {
         #[serde(default)]
         omit_alt_locus_bias: bool,
         #[structopt(
+            long = "full-prior",
+            help = "Compute the full prior distribution for any allele frequency combination. \
+                    This is in contrast to the default behavior, where the prior is only used to \
+                    distinguish between absence and presence of variants \
+                    (in essence we calculate the prior probability for the variant to be not present given all \
+                    provided mutation rates and the heterozygosity). \
+                    The advantage of this default behavior is that observations become in any case more important \
+                    than the prior to distinguish between different events, while the prior still effectively protects \
+                    from false positives."
+        )]
+        #[serde(default)]
+        full_prior: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -896,6 +909,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     output,
                     log_mode,
                     propagate_info_fields,
+                    full_prior,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -968,6 +982,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     CallWriter::new(),
                                     DefaultCandidateFilter::new(),
                                     propagate_info_fields,
+                                    full_prior,
                                 )?;
                             } else {
                                 return Err(errors::Error::InvalidObservationsSpec.into());
@@ -1052,6 +1067,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 CallWriter::new(),
                                 DefaultCandidateFilter::new(),
                                 propagate_info_fields,
+                                full_prior,
                             )?;
                         }
                     }
@@ -1229,6 +1245,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
                     .variant_type(Some(VariantType::Snv))
+                    .is_absent_only(false) // TODO make configurable with this as the default
                     .build();
                 prior.check()?;
 

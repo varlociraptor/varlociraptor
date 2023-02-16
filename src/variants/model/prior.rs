@@ -69,6 +69,7 @@ pub(crate) struct Prior {
     variant_type: Option<VariantType>,
     #[builder(default)]
     cache: RefCell<Cache>,
+    is_absent_only: bool,
 }
 
 impl Clone for Prior {
@@ -84,6 +85,7 @@ impl Clone for Prior {
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
             variant_type: self.variant_type.clone(),
+            is_absent_only: self.is_absent_only,
         }
     }
 }
@@ -91,6 +93,10 @@ impl Clone for Prior {
 impl Prior {
     fn n_samples(&self) -> usize {
         self.germline_mutation_rate.len()
+    }
+
+    fn is_all_uniform(&self) -> bool {
+        self.uniform.iter().all(|u| *u)
     }
 
     fn collect_events(&self, event: LikelihoodOperands, events: &mut Vec<LikelihoodOperands>) {
@@ -691,7 +697,7 @@ impl bayesian::model::Prior for Prior {
     type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        if event.is_discrete() {
+        let compute_with_cache = |event: &Self::Event| -> LogProb {
             let key: Vec<_> = event
                 .iter()
                 .map(|sample_event| sample_event.allele_freq)
@@ -704,9 +710,36 @@ impl bayesian::model::Prior for Prior {
             self.cache.borrow_mut().put(key, prob);
 
             prob
+        };
+
+        // If requested, don't use full prior but only check for prior belief of absence of variant.
+        // This only works when we don't have an all uniform prior, because for that case every event
+        // will get 1.0 as prior belief.
+        if self.is_absent_only && !self.is_all_uniform() {
+            if !event.is_absent() {
+                // check whether full prior is zero because VAF combination is impossible
+                let full_prior_prob = compute_with_cache(event);
+                if full_prior_prob == LogProb::ln_zero() {
+                    full_prior_prob
+                } else {
+                    // Otherwise: compute prior belief of absence of variant and take the complement.
+                    let n = event.len();
+                    let mut event = LikelihoodOperands::new();
+                    for _ in 0..n {
+                        event.push(likelihood::Event::absent());
+                    }
+                    compute_with_cache(&event).ln_one_minus_exp()
+                }
+            } else {
+                compute_with_cache(event)
+            }
         } else {
-            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
-            self.calc_prob(event, Vec::with_capacity(event.len()))
+            if event.is_discrete() {
+                compute_with_cache(event)
+            } else {
+                // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+                self.calc_prob(event, Vec::with_capacity(event.len()))
+            }
         }
     }
 }
