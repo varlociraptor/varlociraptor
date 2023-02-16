@@ -7,7 +7,7 @@ license = "GPL-3.0"
 name = "varlociraptor"
 readme = "README.md"
 repository = "https://github.com/varlociraptor/varlociraptor"
-version = "5.9.1"
+version = "5.10.0"
 
 [dependencies]
 GSL = "6.0"

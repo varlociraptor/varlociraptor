@@ -2,6 +2,20 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [5.10.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.9.1...v5.10.0) (2023-02-16)
+
+
+### Features
+
+* by default, use prior to guard absence or presence of variant but weight all decisions about other events just by the observations ([#349](https://www.github.com/varlociraptor/varlociraptor/issues/349)) ([b45728a](https://www.github.com/varlociraptor/varlociraptor/commit/b45728a0180aed2137f45555dd32d8692474f6ef))
+
+
+### Bug Fixes
+
+* smarter handling of ties when calculating alternative locus bias ([1247a11](https://www.github.com/varlociraptor/varlociraptor/commit/1247a11fa492ce069dcd4e170504f0f4b203e4c5))
+* smarter window size for fetching reads over variants, thereby improving consistency ([efe9bbc](https://www.github.com/varlociraptor/varlociraptor/commit/efe9bbc248ed5b3c2fbeb0d5776a89831a65b207))
+* tie handling for smarter determination of read position bias ([f7c76d0](https://www.github.com/varlociraptor/varlociraptor/commit/f7c76d066353ef7b09f5a7ae14af66f6f5de13e6))
+
 ### [5.9.1](https://www.github.com/varlociraptor/varlociraptor/compare/v5.9.0...v5.9.1) (2023-02-12)
 
 
