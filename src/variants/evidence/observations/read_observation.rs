@@ -27,8 +27,8 @@ use itertools::Itertools;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
-use crate::utils::PROB_095;
 use crate::utils::{self, PROB_05};
+use crate::utils::{bayes_factor_to_letter, PROB_095};
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
@@ -348,9 +348,43 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
     }
 }
 
+pub(crate) enum MaxBayesFactor {
+    Alt(BayesFactor),
+    Ref(BayesFactor),
+    Equal,
+}
+
+impl MaxBayesFactor {
+    pub(crate) fn to_string(&self) -> String {
+        match self {
+            MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
+            MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
+            MaxBayesFactor::Equal => "E".to_string(),
+        }
+    }
+}
+
 impl<P: Clone, A: Clone> ReadObservation<P, A> {
+    // Represent evidence as bayes factor, returning either the one for ref against alt
+    // or alt against ref, depending on which is higher
+    pub(crate) fn max_bayes_factor(&self) -> MaxBayesFactor {
+        let bf_alt = self.bayes_factor_alt();
+        let bf_ref = self.bayes_factor_ref();
+        if bf_alt > bf_ref {
+            MaxBayesFactor::Alt(bf_alt)
+        } else if bf_ref > bf_alt {
+            MaxBayesFactor::Ref(bf_ref)
+        } else {
+            MaxBayesFactor::Equal
+        }
+    }
+
     pub fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
+    }
+
+    pub fn bayes_factor_ref(&self) -> BayesFactor {
+        BayesFactor::new(self.prob_ref, self.prob_alt)
     }
 
     pub fn prob_mapping_orig(&self) -> LogProb {
