@@ -76,10 +76,18 @@ impl Event for ComplementEvent {
 }
 
 /// A simple event that just has a name.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SimpleEvent {
     /// event name
     pub name: String,
+}
+
+impl SimpleEvent {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+        }
+    }
 }
 
 impl Event for SimpleEvent {

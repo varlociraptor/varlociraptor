@@ -275,16 +275,20 @@ where
 /// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
 /// * `vartype` - the variant type to consider (if None, use all types)
+/// * `smart` - if true, use a smart thresholding strategy that just filters based on presence with the threshold
+///             and then keeps records whether the sum of the event probabilities exceeds 50%.
 pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
     out: &mut bcf::Writer,
     events: &[E],
     vartype: Option<&model::VariantType>,
+    smart: bool,
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let absent_and_artifact_tags = ["PROB_ABSENT".to_owned(), "PROB_ARTIFACT".to_owned()];
     let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
         let bnd_event = info_tag_event(record).ok().flatten();
         let keep = if let Some(event) = bnd_event.as_ref() {
@@ -293,21 +297,34 @@ pub(crate) fn filter_by_threshold<E: Event>(
             None
         };
 
-        let probs = tags_prob_sum(record, &tags, vartype)?;
+        let probs_events = tags_prob_sum(record, &tags, vartype)?;
+        let probs_absent_or_artifact = if smart {
+            tags_prob_sum(record, &absent_and_artifact_tags, vartype)?
+        } else {
+            vec![None; probs_events.len()]
+        };
 
         assert!(
-            bnd_event.is_none() || probs.len() == 1,
+            bnd_event.is_none() || probs_events.len() == 1,
             "breakend events may only occur in single variant records"
         );
 
-        Ok(probs
+        Ok(probs_events
             .into_iter()
-            .map(|p| {
+            .zip(probs_absent_or_artifact.into_iter())
+            .map(|(prob_events, prob_absent_or_artifact)| {
                 if let Some(keep) = keep {
                     // already know decision from previous breakend
                     keep
                 } else {
-                    let keep = match (p, threshold) {
+                    let p = if smart {
+                        // METHOD: in smart mode, the record is kept if the probability for presence exceeds the threshold
+                        prob_absent_or_artifact.map(|p| p.ln_one_minus_exp())
+                    } else {
+                        prob_events
+                    };
+
+                    let mut keep = match (p, threshold) {
                         // we allow some numerical instability in case of equality
                         (Some(p), Some(threshold))
                             if p > threshold || relative_eq!(*p, *threshold) =>
@@ -317,6 +334,13 @@ pub(crate) fn filter_by_threshold<E: Event>(
                         (Some(_), None) => true,
                         _ => false,
                     };
+
+                    if smart {
+                        // METHOD: in smart mode, we only keep the record if the sum of the event probabilities
+                        // exceeds 50%.
+                        keep &= prob_events.map(|p| p > *PROB_05).unwrap_or(false);
+                    }
+
                     if let Some(event) = bnd_event.as_ref() {
                         breakend_event_decisions.insert(event.to_owned(), keep);
                     }

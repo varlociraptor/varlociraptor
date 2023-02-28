@@ -13,13 +13,14 @@ use std::path::Path;
 use anyhow::Result;
 use bio::stats::{bayesian, LogProb};
 use itertools::Itertools;
+use ordered_float::NotNan;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
-use crate::utils;
 use crate::utils::is_phred_scaled;
 use crate::variants::model;
 use crate::Event;
+use crate::{utils, SimpleEvent};
 
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///
@@ -32,13 +33,14 @@ use crate::Event;
 /// * `events` - the set of events to control (sum of the probabilities of the individual events at a site)
 /// * `vartype` - the variant type to consider
 /// * `alpha` - the FDR threshold to control for
-pub fn control_fdr<E: Event, R, W>(
+pub fn control_fdr<R, W>(
     inbcf: R,
     outbcf: Option<W>,
-    events: &[E],
+    events: &[SimpleEvent],
     vartype: Option<&model::VariantType>,
     alpha: LogProb,
     local: bool,
+    smart: bool,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -63,14 +65,26 @@ where
     if local {
         threshold = Some(alpha.ln_one_minus_exp());
     } else if alpha != LogProb::ln_one() {
+        let dist_events = if smart {
+            vec![SimpleEvent::new("ABSENT"), SimpleEvent::new("ARTIFACT")]
+        } else {
+            events.to_vec()
+        };
+
         // do not filter by FDR if alpha is 1.0
         // TODO: remove hits where another event has a higher probability
         // Otherwise, if there are just enough calls, events like PROB_SOMATIC=8, PROB_ABSENT=2
         // can end up in the filtered results.
-        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?
+        let convert_prob = if smart {
+            |p: NotNan<f64>| LogProb(*p).ln_one_minus_exp()
+        } else {
+            |p: NotNan<f64>| LogProb(*p)
+        };
+
+        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, &dist_events, vartype)?
             .into_iter()
             .rev()
-            .map(|p| LogProb(*p))
+            .map(convert_prob)
             .collect_vec();
 
         // estimate FDR
@@ -93,11 +107,19 @@ where
                 }
             }
         }
+
+        // second pass on bcf file
+        inbcf_reader = bcf::Reader::from_path(&inbcf)?;
     }
 
-    // second pass on bcf file
-    let mut inbcf_reader = bcf::Reader::from_path(&inbcf)?;
-    utils::filter_by_threshold(&mut inbcf_reader, threshold, &mut outbcf, events, vartype)?;
+    utils::filter_by_threshold(
+        &mut inbcf_reader,
+        threshold,
+        &mut outbcf,
+        events,
+        vartype,
+        smart,
+    )?;
 
     Ok(())
 }

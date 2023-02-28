@@ -670,6 +670,31 @@ pub enum VariantCallMode {
     },
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, EnumString, Display)]
+#[strum(serialize_all = "kebab_case")]
+pub enum ControlFDRMode {
+    LocalSmart,
+    LocalStrict,
+    GlobalSmart,
+    GlobalStrict,
+}
+
+impl ControlFDRMode {
+    pub fn is_local(&self) -> bool {
+        match self {
+            ControlFDRMode::LocalSmart | ControlFDRMode::LocalStrict => true,
+            ControlFDRMode::GlobalSmart | ControlFDRMode::GlobalStrict => false,
+        }
+    }
+
+    pub fn is_smart(&self) -> bool {
+        match self {
+            ControlFDRMode::LocalSmart | ControlFDRMode::GlobalSmart => true,
+            ControlFDRMode::LocalStrict | ControlFDRMode::GlobalStrict => false,
+        }
+    }
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum FilterMethod {
     #[structopt(
@@ -693,11 +718,18 @@ pub enum FilterMethod {
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
         #[structopt(
-            long = "local",
-            help = "Control local FDR instead of global FDR. This means that for each record, the posterior \
-            of the selected events has to be at least 1-fdr."
+            long = "mode",
+            help = "Mode of FDR control (recommended: local-smart). Choose between local or global and strict or smart, combined via a hyphen (e.g. local-smart). \
+            Local means that for each record, the posterior of the selected events has to be at least 1-fdr. Global means that the \
+            posterior FDR of all selected records may not exceed the given fdr threshold. Strict means that the given events \
+            are directly used for above calculations. Smart means that FDR is controlled just by the probability of variants \
+            to be not absent or artifacts, and the given events are used to further filter out those where the summed probability \
+            of the particular events is <50%. Smart mode is recommended, as the strict mode can lead to unexpected behavior. \
+            For example: if want to control for somatic variants, but there is a degree of ambiguity between the somatic and some other event, \
+            strict mode will filter such variants, while smart mode will keep them and you will see the ambiguity in the record. \
+            The former behavior is much more intuitive than loosing such variants entirely."
         )]
-        local: bool,
+        mode: ControlFDRMode,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
@@ -1103,14 +1135,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 calls,
                 events,
                 fdr,
-                local,
+                mode,
                 vartype,
                 minlen,
                 maxlen,
             } => {
                 let events = events
-                    .into_iter()
-                    .map(|event| SimpleEvent { name: event })
+                    .iter()
+                    .map(|event| SimpleEvent::new(event))
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
                     (Some(VariantType::Insertion(None)), Some(minlen), Some(maxlen)) => {
@@ -1122,13 +1154,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     (vartype, _, _) => vartype,
                 };
 
-                filtration::fdr::control_fdr::<_, &PathBuf, &str>(
+                let local = mode.is_local();
+                let smart = mode.is_smart();
+
+                filtration::fdr::control_fdr::<&PathBuf, &str>(
                     &calls,
                     None,
                     &events,
                     vartype.as_ref(),
                     LogProb::from(Prob::checked(fdr)?),
                     local,
+                    smart,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
