@@ -209,6 +209,7 @@ fn control_fdr(
         vartype,
         LogProb::from(Prob(alpha)),
         local,
+        false,
     )
     .unwrap();
 }
