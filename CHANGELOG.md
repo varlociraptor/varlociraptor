@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [6.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.10.0...v6.0.0) (2023-02-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* new FDR control modes. The recommended local-smart ensures more intuitive results. The fdr-control subcommand now requires --mode to be specified. (#353)
+
+### Features
+
+* new FDR control modes. The recommended local-smart ensures more intuitive results. The fdr-control subcommand now requires --mode to be specified. ([#353](https://www.github.com/varlociraptor/varlociraptor/issues/353)) ([dcb0ef0](https://www.github.com/varlociraptor/varlociraptor/commit/dcb0ef0ffd05bb1b49e3e9c15ff31dde555f027f))
+
 ## [5.10.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.9.1...v5.10.0) (2023-02-16)
 
 
