@@ -135,16 +135,17 @@ where
         header.push_record(
             b"##FORMAT=<ID=SOBS,Number=A,Type=String,\
               Description=\"Summary of simplified observations. Each entry is encoded as CB, with C being a count, \
-              B being the posterior odds for the alt allele. \
-              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
-              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              B being the posterior odds for the alt allele or the reference allele. \
+              The latter are given as a two letter code. The first letter (`A` or `R`) \
+              defines whether the odds favor the alt allele (`A`) or any other allele including the reference allele `R`. \
+              The second letter denotes an extended Kass Raftery score: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
               Description=\"Summary of observations. Each entry is encoded as CBTASOPXI, with C being a count, \
-              B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
+              B being the posterior odds for the alt or the reference allele (see SOBS), T being the type of alignment, encoded \
               as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus \
               (# = most found alternative locus, * = other locus, . = no locus), \
               S being the strand that supports the observation (+, -, or * for both), \
@@ -152,12 +153,7 @@ where
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
               I denoting indel operations in the respective alignments against the alt allele \
-              (* = some indel, . = no indel or information irrelevant for variant type). \
-              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
-              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment does not correspond to the maximum reported value by the mapper \
-              (for bwa, this is usually 60 in PHRED scale)). Note that we extend Kass Raftery scores with \
-              a term for equality between the evidence of the two alleles (E=equal).\">",
+              (* = some indel, . = no indel or information irrelevant for variant type).\">",
         );
         header.push_record(
             b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
