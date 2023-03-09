@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [7.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v6.0.0...v7.0.0) (2023-03-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* when reporting observations, provide ref and alt support as kass raftery scores (RV=very strong ref support, AV=very strong alt support, RP=positive ref support, AP=positive alt support). This is a breaking change, as any parsing of SOBS and OBS will have to be adapted to these new two letter scores. (#355)
+
+### Features
+
+* when reporting observations, provide ref and alt support as kass raftery scores (RV=very strong ref support, AV=very strong alt support, RP=positive ref support, AP=positive alt support). This is a breaking change, as any parsing of SOBS and OBS will have to be adapted to these new two letter scores. ([#355](https://www.github.com/varlociraptor/varlociraptor/issues/355)) ([d57d497](https://www.github.com/varlociraptor/varlociraptor/commit/d57d49750b1089b35c6d5f63dd343419aa7bd8f7))
+
 ## [6.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v5.10.0...v6.0.0) (2023-02-28)
 
 
