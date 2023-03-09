@@ -244,7 +244,7 @@ impl Call {
                     i,
                     utils::generalized_cigar(
                         sample_info.pileup.read_observations().iter().map(|obs| {
-                            let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
+                            let score = obs.max_bayes_factor().to_string();
                             format!(
                                 "{}{}{}{}{}{}{}{}",
                                 if obs.is_max_mapq {
@@ -299,7 +299,7 @@ impl Call {
                     i,
                     utils::generalized_cigar(
                         sample_info.pileup.read_observations().iter().map(|obs| {
-                            let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
+                            let score = obs.max_bayes_factor().to_string();
                             format!(
                                 "{}",
                                 if obs.is_max_mapq {
