@@ -338,11 +338,17 @@ pub(crate) enum Variant {
 
 impl fmt::Display for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fmt_allele = |mut allele: &[u8]| {
+            if allele.len() > 10 {
+                allele = &allele[..10];
+            }
+            String::from_utf8_lossy(allele).into_owned()
+        };
         match self {
-            Variant::Snv(alt) => write!(f, "snv_{}", String::from_utf8_lossy(&[*alt])),
+            Variant::Snv(alt) => write!(f, "snv_{}", fmt_allele(&[*alt])),
             Variant::Deletion(len) => write!(f, "del_{}", len),
-            Variant::Insertion(seq) => write!(f, "ins_{}", String::from_utf8_lossy(seq)),
-            Variant::Mnv(seq) => write!(f, "mnv_{}", String::from_utf8_lossy(seq)),
+            Variant::Insertion(seq) => write!(f, "ins_{}", fmt_allele(seq)),
+            Variant::Mnv(seq) => write!(f, "mnv_{}", fmt_allele(seq)),
             Variant::Inversion(len) => write!(f, "inv_{}", len),
             Variant::Duplication(len) => write!(f, "dup_{}", len),
             Variant::Replacement {
@@ -351,8 +357,8 @@ impl fmt::Display for Variant {
             } => write!(
                 f,
                 "rep_{}_{}",
-                String::from_utf8_lossy(ref_allele),
-                String::from_utf8_lossy(alt_allele)
+                fmt_allele(ref_allele),
+                fmt_allele(alt_allele)
             ),
             Variant::Breakend {
                 ref_allele,
@@ -361,8 +367,8 @@ impl fmt::Display for Variant {
             } => write!(
                 f,
                 "bnd_{}_{}_{}",
-                String::from_utf8_lossy(ref_allele),
-                String::from_utf8_lossy(spec),
+                fmt_allele(ref_allele),
+                fmt_allele(spec),
                 precision
             ),
             Variant::None => write!(f, "ref"),
