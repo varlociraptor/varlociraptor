@@ -300,8 +300,8 @@ pub enum PreprocessKind {
         #[structopt(
             parse(from_os_str),
             long = "output-raw-observations",
-            help = "Output raw observations to the given TSV file path. Attention, only use this for debugging when processing \
-            a single variant. Otherwise it will cause a huge file and significant performance hits."
+            help = "Output raw observations as TSV files at the given prefix. Attention, only use this for debugging when processing \
+            a single variant. Otherwise it will cause a lots of files and a significant performance hit."
         )]
         #[serde(default)]
         output_raw_observations: Option<PathBuf>,

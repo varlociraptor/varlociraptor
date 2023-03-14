@@ -224,6 +224,37 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         Ok(())
     }
 
+    fn write_observations(&self, pileup: &Pileup, variants: &Variants) -> Result<()> {
+        if let Some(prefix) = &self.raw_observation_output {
+            let path = prefix.join(format!(
+                "{}_{}_{}.tsv",
+                variants.locus().contig(),
+                variants.locus().pos(),
+                variants.variant_of_interest().variant()
+            ));
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!(
+                        "Failed to create directories for writing observations to {}",
+                        parent.to_string_lossy()
+                    )
+                })?;
+            }
+            let mut wrt = csv::WriterBuilder::new()
+                .delimiter(b'\t')
+                .from_path(&path)
+                .with_context(|| {
+                    format!("failed to write observations to {}", path.to_string_lossy())
+                })?;
+
+            for obs in pileup.read_observations().iter() {
+                wrt.serialize(obs)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn process_variant(&self, variants: Variants, sample: &mut Sample) -> Result<Vec<Call>> {
         let call_builder = |chrom, start, id| {
             let mut builder = CallBuilder::default();
@@ -254,12 +285,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 let chrom_seq = self.reference_buffer.seq(variants.locus().contig())?;
                 let pileup = self.process_pileup(&variants, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
-                if let Some(path) = &self.raw_observation_output {
-                    let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
-                    for obs in pileup.read_observations() {
-                        wrt.serialize(obs)?;
-                    }
-                }
+                self.write_observations(&pileup, &variants)?;
 
                 // add variant information
                 call.variant = Some(
@@ -287,14 +313,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         match haplotype {
                             HaplotypeIdentifier::Event(event) => {
                                 if let Some(pileup) = self.process_pileup(&variants, sample)? {
-                                    if let Some(path) = &self.raw_observation_output {
-                                        let mut wrt = csv::WriterBuilder::new()
-                                            .delimiter(b'\t')
-                                            .from_path(path)?;
-                                        for obs in pileup.read_observations() {
-                                            wrt.serialize(obs)?;
-                                        }
-                                    }
+                                    self.write_observations(&pileup, &variants)?;
 
                                     let pileup = Rc::new(pileup);
                                     for breakend in self
@@ -345,13 +364,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         // process haplotype block
                         // if this is the last variant in the block
                         if let Some(pileup) = self.process_pileup(&variants, sample)? {
-                            if let Some(path) = &self.raw_observation_output {
-                                let mut wrt =
-                                    csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
-                                for obs in pileup.read_observations() {
-                                    wrt.serialize(obs)?;
-                                }
-                            }
+                            self.write_observations(&pileup, &variants)?;
 
                             let pileup = Rc::new(pileup);
                             {

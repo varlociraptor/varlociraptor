@@ -5,7 +5,7 @@
 
 use std::cmp::Ordering;
 use std::convert::TryFrom;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::ops::{Deref, Range, RangeInclusive};
 use std::{mem, str};
 
@@ -247,6 +247,17 @@ pub(crate) enum VariantPrecision {
     },
 }
 
+impl fmt::Display for VariantPrecision {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            VariantPrecision::Precise => write!(f, "precise"),
+            VariantPrecision::Imprecise { .. } => {
+                write!(f, "imprecise")
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<&'a bcf::Record> for VariantPrecision {
     type Error = errors::Error;
 
@@ -323,6 +334,40 @@ pub(crate) enum Variant {
         alt_allele: Vec<u8>,
     },
     None,
+}
+
+impl fmt::Display for Variant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Variant::Snv(alt) => write!(f, "snv_{}", String::from_utf8_lossy(&[*alt])),
+            Variant::Deletion(len) => write!(f, "del_{}", len),
+            Variant::Insertion(seq) => write!(f, "ins_{}", String::from_utf8_lossy(seq)),
+            Variant::Mnv(seq) => write!(f, "mnv_{}", String::from_utf8_lossy(seq)),
+            Variant::Inversion(len) => write!(f, "inv_{}", len),
+            Variant::Duplication(len) => write!(f, "dup_{}", len),
+            Variant::Replacement {
+                ref_allele,
+                alt_allele,
+            } => write!(
+                f,
+                "rep_{}_{}",
+                String::from_utf8_lossy(ref_allele),
+                String::from_utf8_lossy(alt_allele)
+            ),
+            Variant::Breakend {
+                ref_allele,
+                spec,
+                precision,
+            } => write!(
+                f,
+                "bnd_{}_{}_{}",
+                String::from_utf8_lossy(ref_allele),
+                String::from_utf8_lossy(spec),
+                precision
+            ),
+            Variant::None => write!(f, "ref"),
+        }
+    }
 }
 
 impl Variant {

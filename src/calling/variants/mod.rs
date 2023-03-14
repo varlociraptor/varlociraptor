@@ -311,9 +311,9 @@ impl Call {
                         }),
                         false,
                         |(item, _count)| {
-                            if item.starts_with('N') {
+                            if item.starts_with('R') {
                                 2
-                            } else if item.starts_with('E') {
+                            } else if item.ends_with('E') {
                                 1
                             } else {
                                 0
