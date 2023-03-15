@@ -506,6 +506,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         self.loci.iter(),
                         self,
                         alt_variants,
+                        alignment_properties,
                     )?))
                 }
                 PairedEndEvidence::PairedEnd { left, right } => {
@@ -514,12 +515,14 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         self.loci.iter(),
                         self,
                         alt_variants,
+                        alignment_properties,
                     )?;
                     let right_support = self.realigner.borrow_mut().allele_support(
                         right,
                         self.loci.iter(),
                         self,
                         alt_variants,
+                        alignment_properties,
                     )?;
 
                     let mut support = left_support;
@@ -888,6 +891,10 @@ impl RefBaseEmission for BreakendEmissionParams {
     }
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
         None
     }
 

@@ -164,7 +164,7 @@ impl<R: Realigner> Variant for Insertion<R> {
     fn allele_support(
         &self,
         evidence: &Self::Evidence,
-        _alignment_properties: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
@@ -174,6 +174,7 @@ impl<R: Realigner> Variant for Insertion<R> {
                     self.locus.iter(),
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?))
             }
             PairedEndEvidence::PairedEnd { left, right } => {
@@ -182,12 +183,14 @@ impl<R: Realigner> Variant for Insertion<R> {
                     self.locus.iter(),
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
                     right,
                     self.locus.iter(),
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
 
                 let mut support = left_support;
@@ -256,6 +259,10 @@ impl RefBaseEmission for InsertionEmissionParams {
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         self.homopolymer.clone()
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some(self.ins_start as u64..self.ins_end as u64)
     }
 
     #[inline]

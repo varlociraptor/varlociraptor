@@ -102,7 +102,7 @@ impl<R: Realigner> Variant for Snv<R> {
     fn allele_support(
         &self,
         read: &SingleEndEvidence,
-        _: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if utils::contains_indel_op(&**read) {
@@ -114,6 +114,7 @@ impl<R: Realigner> Variant for Snv<R> {
                 [&self.locus].iter(),
                 self,
                 alt_variants,
+                alignment_properties,
             )?))
         } else if let Some(qpos) = read
             .cigar_cached()
@@ -200,6 +201,10 @@ impl RefBaseEmission for SnvEmissionParams {
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some(self.alt_start as u64..self.alt_start as u64 + 1)
     }
 
     #[inline]

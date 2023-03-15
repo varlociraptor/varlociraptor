@@ -220,6 +220,7 @@ impl<R: Realigner> Variant for Deletion<R> {
                     &[&self.locus],
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?))
             }
             PairedEndEvidence::PairedEnd { left, right } => {
@@ -242,12 +243,14 @@ impl<R: Realigner> Variant for Deletion<R> {
                     &[&self.locus],
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
                     right,
                     &[&self.locus],
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
 
                 let mut support = left_support;
@@ -325,6 +328,10 @@ impl RefBaseEmission for DeletionEmissionParams {
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         self.homopolymer.clone()
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some(self.del_start as u64..(self.del_start as u64 + self.del_len as u64))
     }
 
     #[inline]

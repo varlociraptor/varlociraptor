@@ -109,7 +109,7 @@ impl<R: Realigner> Variant for Mnv<R> {
     fn allele_support(
         &self,
         read: &SingleEndEvidence,
-        _: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if utils::contains_indel_op(&**read) || !alt_variants.is_empty() {
@@ -123,6 +123,7 @@ impl<R: Realigner> Variant for Mnv<R> {
                 [&self.locus].iter(),
                 self,
                 alt_variants,
+                alignment_properties,
             )?))
         } else {
             let mut prob_ref = LogProb::ln_one();
@@ -242,6 +243,10 @@ impl RefBaseEmission for MnvEmissionParams {
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some((self.alt_start as u64)..(self.alt_end as u64))
     }
 
     #[inline]

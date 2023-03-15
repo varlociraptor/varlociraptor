@@ -35,9 +35,12 @@ pub(crate) trait RefBaseEmission {
 
     fn set_ref_end(&mut self, value: usize);
 
-    /// Reference area that is altered by the variant.
+    /// Homopolymer reference area that is altered by the variant.
     /// Can return None if not applicable (default).
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>>;
+
+    /// Reference area that is altered by the variant, if applicable.
+    fn variant_ref_range(&self) -> Option<Range<u64>>;
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
@@ -290,6 +293,11 @@ impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
     }
 
     #[inline]
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        self.allele_emission.variant_ref_range()
+    }
+
+    #[inline]
     fn len_x(&self) -> usize {
         self.allele_emission.len_x()
     }
@@ -344,14 +352,20 @@ impl<'a> bio::stats::pairhmm::Emission for ReadVsAlleleEmission<'a> {
     }
 }
 
-#[derive(Getters)]
-#[getset(get = "pub")]
+#[derive(Getters, CopyGetters)]
 pub(crate) struct ReadEmission<'a> {
+    #[getset(get = "pub(crate)")]
     pub(crate) read_seq: bam::record::Seq<'a>,
+    #[getset(get = "pub(crate)")]
     any_miscall: Vec<LogProb>,
+    #[getset(get = "pub(crate)")]
     no_miscall: Vec<LogProb>,
+    #[getset(get = "pub(crate)")]
     read_offset: usize,
+    #[getset(get = "pub(crate)")]
     read_end: usize,
+    #[getset(get_copy = "pub(crate)")]
+    error_rate: LogProb,
 }
 
 impl<'a> ReadEmission<'a> {
@@ -368,12 +382,14 @@ impl<'a> ReadEmission<'a> {
             any_miscall[j] = prob_miscall;
             no_miscall[j] = prob_miscall.ln_one_minus_exp();
         }
+        let error_rate = LogProb(*LogProb::ln_sum_exp(&any_miscall) - (qual.len() as f64).ln());
         ReadEmission {
             read_seq,
             any_miscall,
             no_miscall,
             read_offset,
             read_end,
+            error_rate,
         }
     }
 
@@ -422,6 +438,10 @@ impl RefBaseEmission for ReferenceEmissionParams {
     }
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
         None
     }
 

@@ -21,6 +21,7 @@ use itertools::Itertools;
 use rust_htslib::bam;
 
 use crate::errors::Error;
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::observations::read_observation::Strand;
@@ -170,6 +171,7 @@ pub(crate) trait Realigner {
         loci: L,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
+        alignment_properties: &AlignmentProperties,
     ) -> Result<AlleleSupport>
     where
         V: Realignable,
@@ -284,7 +286,12 @@ pub(crate) trait Realigner {
             }
 
             // ref allele (or one of the alt variants)
-            let (mut prob_ref, _) = self.prob_allele(&mut ref_emissions, &mut edit_dist, false);
+            let (mut prob_ref, _) = self.prob_allele(
+                &mut ref_emissions,
+                &mut edit_dist,
+                alignment_properties,
+                false,
+            );
 
             let (mut prob_alt, alt_hit) = self.prob_allele(
                 &mut variant
@@ -302,6 +309,7 @@ pub(crate) trait Realigner {
                     })
                     .collect_vec(),
                 &mut edit_dist,
+                alignment_properties,
                 false,
             );
 
@@ -379,12 +387,13 @@ pub(crate) trait Realigner {
         &mut self,
         candidate_allele_params: &mut [ReadVsAlleleEmission],
         edit_dist: &mut edit_distance::EditDistanceCalculation,
+        alignment_properties: &AlignmentProperties,
         _debug: bool,
     ) -> (LogProb, EditDistanceHit) {
         let mut hits = Vec::new();
         let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
-            if let Some(hit) = edit_dist.calc_best_hit(params, None) {
+            if let Some(hit) = edit_dist.calc_best_hit(params, None, alignment_properties) {
                 match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
                     Ordering::Less => {
                         hits.clear();

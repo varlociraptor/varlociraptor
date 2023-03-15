@@ -9,11 +9,70 @@ use std::fmt::Debug;
 
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
+use bio::stats::LogProb;
 
+use crate::estimation::alignment_properties::{self, AlignmentProperties};
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
 use super::pairhmm::{ReadVsAlleleEmission, VariantEmission};
+
+#[derive(Debug, Clone, CopyGetters, PartialEq, Ord, Eq, Hash)]
+#[get_copy = "pub(crate)"]
+pub(crate) struct EditOperationCounts {
+    substitutions: usize,
+    insertions: usize,
+    deletions: usize,
+    is_explainable_by_error_rates: bool,
+    alignment_idx: usize,
+}
+
+impl EditOperationCounts {
+    pub(crate) fn new(
+        n_subs: usize,
+        n_ins: usize,
+        n_del: usize,
+        alignment_len: usize,
+        alignment_properties: &AlignmentProperties,
+        read_error_rate: LogProb,
+        alignment_idx: usize,
+    ) -> Self {
+        let expected_count = |prob: LogProb| (alignment_len as f64) * prob.exp();
+        let expected_n_subs = expected_count(read_error_rate);
+        let expected_n_ins =
+            expected_count(alignment_properties.gap_params.prob_insertion_artifact);
+        let expected_n_del = expected_count(alignment_properties.gap_params.prob_deletion_artifact);
+
+        let is_explainable_by_error_rates = n_subs as f64 <= expected_n_subs
+            && n_ins as f64 <= expected_n_ins
+            || n_del as f64 <= expected_n_del;
+
+        EditOperationCounts {
+            substitutions: n_subs,
+            insertions: n_ins,
+            deletions: n_del,
+            is_explainable_by_error_rates,
+            alignment_idx,
+        }
+    }
+}
+
+impl PartialOrd for EditOperationCounts {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.is_explainable_by_error_rates && !other.is_explainable_by_error_rates {
+            return Some(Ordering::Less);
+        } else if !self.is_explainable_by_error_rates && other.is_explainable_by_error_rates {
+            return Some(Ordering::Greater);
+        } else {
+            Some(
+                self.substitutions
+                    .cmp(&other.substitutions)
+                    .then(self.insertions.cmp(&other.insertions))
+                    .then(self.deletions.cmp(&other.deletions)),
+            )
+        }
+    }
+}
 
 enum Myers {
     #[cfg(has_u128)]
@@ -63,6 +122,7 @@ impl EditDistanceCalculation {
         &mut self,
         emission_params: &ReadVsAlleleEmission,
         max_dist: Option<usize>,
+        alignment_properties: &AlignmentProperties,
     ) -> Option<EditDistanceHit> {
         let ref_seq = || {
             (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase())
@@ -134,6 +194,66 @@ impl EditDistanceCalculation {
                 emission_params.len_x(),
             );
 
+            // METHOD: obtain edit operations within the alt allele
+            let edit_operation_counts = if let Some(ref_range) = emission_params.variant_ref_range()
+            {
+                Some(
+                    alignments
+                        .iter()
+                        .enumerate()
+                        .map(|(i, alignment)| {
+                            let mut n_subst = 0;
+                            let mut n_del = 0;
+                            let mut n_ins = 0;
+                            let mut pos = emission_params.ref_offset() + alignment.start;
+                            let pos_start = pos;
+                            let is_in_range = |pos| ref_range.contains(&(pos as u64));
+                            for op in alignment.operations() {
+                                match op {
+                                    AlignmentOperation::Subst => {
+                                        if is_in_range(pos) {
+                                            n_subst += 1;
+                                        }
+                                        pos += 1;
+                                    }
+                                    AlignmentOperation::Del => {
+                                        if is_in_range(pos) {
+                                            n_del += 1;
+                                        }
+                                        pos += 1;
+                                    }
+                                    AlignmentOperation::Ins => {
+                                        if is_in_range(pos) {
+                                            n_ins += 1;
+                                        }
+                                    }
+                                    AlignmentOperation::Match => {
+                                        pos += 1;
+                                    }
+                                    AlignmentOperation::Xclip(l) => {
+                                        pos += l;
+                                    }
+                                    AlignmentOperation::Yclip(l) => (),
+                                }
+                            }
+
+                            EditOperationCounts::new(
+                                n_subst,
+                                n_del,
+                                n_ins,
+                                pos - pos_start,
+                                alignment_properties,
+                                emission_params.read_emission().error_rate(),
+                                i,
+                            )
+                        })
+                        .min()
+                        .unwrap(),
+                )
+            } else {
+                None
+            };
+
             // METHOD: obtain indel operations for homopolymer error model
             let homopolymer_indel_len = if emission_params.is_homopolymer_indel() {
                 alignments
@@ -181,6 +301,7 @@ impl EditDistanceCalculation {
                 dist: best_dist,
                 alignments,
                 homopolymer_indel_len,
+                edit_operation_counts,
             })
         }
     }
@@ -206,10 +327,21 @@ pub(crate) struct EditDistanceHit {
     alignments: Vec<Alignment>,
     #[getset(get_copy = "pub(crate)")]
     homopolymer_indel_len: Option<i8>,
+    #[getset(get = "pub(crate)")]
+    edit_operation_counts: Option<EditOperationCounts>,
 }
 
 impl EditDistanceHit {
     pub(crate) fn dist_upper_bound(&self) -> usize {
         self.dist as usize + EDIT_BAND
+    }
+
+    /// Return the best alignment or any one if this cannot be decided.
+    pub(crate) fn some_alignment(&self) -> &Alignment {
+        if let Some(edit_operation_counts) = &self.edit_operation_counts {
+            &self.alignments[edit_operation_counts.alignment_idx()]
+        } else {
+            &self.alignments[0]
+        }
     }
 }
