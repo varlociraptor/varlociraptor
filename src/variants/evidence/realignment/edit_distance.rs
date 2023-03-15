@@ -6,6 +6,7 @@
 use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::ops::Range;
 
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
@@ -226,7 +227,7 @@ impl EditDistanceCalculation {
                             let mut n_subst = 0;
                             let mut n_del = 0;
                             let mut n_ins = 0;
-                            let mut pos = emission_params.ref_offset() + alignment.start;
+                            let mut pos = (emission_params.ref_offset() + alignment.start) as u64;
                             let pos_start = pos;
                             let mut in_range_alignment = Vec::new();
                             for op in alignment.operations() {
@@ -264,8 +265,8 @@ impl EditDistanceCalculation {
                                 n_subst,
                                 n_del,
                                 n_ins,
-                                pos_start,
-                                pos,
+                                pos_start as usize,
+                                pos as usize,
                                 in_range_alignment,
                                 alignment_properties,
                                 emission_params.read_emission().error_rate(),
@@ -338,6 +339,7 @@ impl EditDistanceCalculation {
     ) -> Option<ReadVsAlleleEmission> {
         if edit_distance_hit
             .edit_operation_counts()
+            .as_ref()
             .map_or(false, |opcounts| !opcounts.is_explainable_by_error_rates())
         {
             // METHOD: there are more errors than the error rates could explain
@@ -356,9 +358,14 @@ impl EditDistanceCalculation {
             let mut pos_read = 0; // semiglobal alignment
 
             let mut allele = Vec::new();
-            for op in edit_distance_hit.edit_operation_counts().alignment() {
-                let is_in_range =
-                    emission_params.is_in_variant_ref_range(pos_ref + emission_params.ref_offset());
+            for op in edit_distance_hit
+                .edit_operation_counts()
+                .as_ref()
+                .unwrap()
+                .alignment()
+            {
+                let is_in_range = emission_params
+                    .is_in_variant_ref_range(pos_ref as u64 + emission_params.ref_offset() as u64);
                 match op {
                     AlignmentOperation::Match => {
                         allele.push(emission_params.ref_base(pos_ref));
@@ -403,7 +410,8 @@ impl EditDistanceCalculation {
             Some(ReadVsAlleleEmission::new(
                 emission_params.read_emission(),
                 Box::new(PatchedAlleleEmission {
-                    allele_emission: emission_params.allele_emission(),
+                    ref_offset: emission_params.allele_emission().ref_offset(),
+                    ref_end: emission_params.allele_emission().ref_end(),
                     patched_seq: allele,
                 }),
             ))
@@ -453,7 +461,8 @@ impl EditDistanceHit {
 }
 
 pub(crate) struct PatchedAlleleEmission {
-    allele_emission: Box<dyn RefBaseVariantEmission>,
+    ref_offset: usize,
+    ref_end: usize,
     patched_seq: Vec<u8>,
 }
 
@@ -462,13 +471,23 @@ impl RefBaseEmission for PatchedAlleleEmission {
         self.patched_seq[pos]
     }
 
-    fn ref_offset(&self) -> usize {
-        self.allele_emission.ref_offset()
-    }
-
-    fn ref_end(&self) -> usize {
-        self.allele_emission.ref_end()
-    }
-
     default_ref_base_emission!();
+
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
+    }
+
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset
+    }
+}
+
+impl VariantEmission for PatchedAlleleEmission {
+    fn is_homopolymer_indel(&self) -> bool {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
+    }
 }
