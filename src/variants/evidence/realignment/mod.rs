@@ -320,7 +320,8 @@ pub(crate) trait Realigner {
 
             if prob_alt > prob_ref {
                 // METHOD: If the read has so many edits that it is not plausible that it comes from the
-                // alt allele and also not plausible that it comes from the ref allele, calculate the probability
+                // alt allele (more edits than expected by the sequencing error rates) and also not plausible that
+                // it comes from the ref allele, calculate the probability
                 // that it comes from an allele that is inferred from the read sequence itself, and use that as a
                 // contrast to the alt allele instead of prob_ref.
                 let prob_read_inferred = if let Some(read_inferred_allele) =
