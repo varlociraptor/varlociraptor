@@ -286,14 +286,15 @@ pub(crate) trait Realigner {
             }
 
             // ref allele (or one of the alt variants)
-            let (mut prob_ref, _) = self.prob_allele(
+            let (mut prob_ref, _, _) = self.prob_allele(
                 &mut ref_emissions,
                 &mut edit_dist,
                 alignment_properties,
                 false,
+                false,
             );
 
-            let (mut prob_alt, alt_hit) = self.prob_allele(
+            let (mut prob_alt, alt_hit, alt_params) = self.prob_allele(
                 &mut variant
                     .alt_emission_params(
                         Arc::clone(self.ref_buffer()),
@@ -310,11 +311,33 @@ pub(crate) trait Realigner {
                     .collect_vec(),
                 &mut edit_dist,
                 alignment_properties,
+                true,
                 false,
             );
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
+
+            if prob_alt > prob_ref {
+                // METHOD: If the read has so many edits that it is not plausible that it comes from the
+                // alt allele and also not plausible that it comes from the ref allele, calculate the probability
+                // that it comes from an allele that is inferred from the read sequence itself, and use that as a
+                // contrast to the alt allele instead of prob_ref.
+                let prob_read_inferred = if let Some(read_inferred_allele) =
+                    edit_dist.derive_allele_from_read(alt_params, alt_hit)
+                {
+                    let p = self.calculate_prob_allele(alt_hit, read_inferred_allele);
+                    Some(p)
+                } else {
+                    None
+                };
+
+                if let Some(prob_read_inferred) = prob_read_inferred {
+                    if prob_read_inferred > prob_ref {
+                        prob_ref = prob_read_inferred;
+                    }
+                }
+            }
 
             // METHOD: Normalize probabilities. By this, we avoid biases due to proximal variants that are in
             // cis with the considered one. They are normalized away since they affect both ref and alt.
@@ -410,6 +433,7 @@ pub(crate) trait Realigner {
 
         let mut prob = None;
         let mut best_hit = None;
+        let mut best_params = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
         for (hit, allele_params) in hits {
             // TODO: for now, the short cut for dist==0 is disabled as it can underestimate the true probability.
@@ -425,11 +449,16 @@ pub(crate) trait Realigner {
             if prob.map_or(true, |prob| p > prob) {
                 prob.replace(p);
                 best_hit.replace(hit.clone());
+                best_params.replace(allele_params.clone())
             }
         }
 
         // This is safe, as there will be always one probability at least.
-        (prob.unwrap(), best_hit.unwrap())
+        let prob = prob.unwrap();
+        let best_hit = best_hit.as_ref().unwrap();
+        let best_params = best_params.as_ref().unwrap();
+
+        (prob, best_hit, best_params)
     }
 
     fn calculate_prob_allele(

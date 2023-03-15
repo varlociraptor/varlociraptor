@@ -9,6 +9,7 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
+use bio::alignment::AlignmentOperation;
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
@@ -25,10 +26,13 @@ lazy_static! {
 }
 
 pub(crate) trait RefBaseEmission {
+    /// Return ref base with coordinate i relative to ref_offset.
     fn ref_base(&self, i: usize) -> u8;
 
+    // Start on reference sequence, inclusive.
     fn ref_offset(&self) -> usize;
 
+    // End on reference sequence, exclusive.
     fn ref_end(&self) -> usize;
 
     fn set_ref_offset(&mut self, value: usize);
@@ -41,6 +45,14 @@ pub(crate) trait RefBaseEmission {
 
     /// Reference area that is altered by the variant, if applicable.
     fn variant_ref_range(&self) -> Option<Range<u64>>;
+
+    fn is_in_variant_ref_range(&self, pos: u64) -> bool {
+        if let Some(range) = self.variant_ref_range() {
+            range.contains(&pos)
+        } else {
+            false
+        }
+    }
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
@@ -258,6 +270,7 @@ impl pairhmm::BaseSpecificHopParameters for HopParams {
 pub(crate) struct ReadVsAlleleEmission<'a> {
     #[getset(get = "pub(crate)")]
     read_emission: &'a ReadEmission<'a>,
+    #[getset(get = "pub(crate)")]
     allele_emission: Box<dyn RefBaseVariantEmission>,
 }
 
