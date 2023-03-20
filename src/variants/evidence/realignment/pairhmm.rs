@@ -35,9 +35,9 @@ pub(crate) trait RefBaseEmission {
     // End on reference sequence, exclusive.
     fn ref_end(&self) -> usize;
 
-    fn set_ref_offset(&mut self, value: usize);
+    fn set_ref_offset_override(&mut self, value: usize);
 
-    fn set_ref_end(&mut self, value: usize);
+    fn set_ref_end_override(&mut self, value: usize);
 
     /// Homopolymer reference area that is altered by the variant.
     /// Can return None if not applicable (default).
@@ -55,11 +55,11 @@ pub(crate) trait RefBaseEmission {
     }
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
-        self.set_ref_end(cmp::min(
+        self.set_ref_end_override(cmp::min(
             self.ref_offset() + hit.end() + EDIT_BAND,
             self.ref_end(),
         ));
-        self.set_ref_offset(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
+        self.set_ref_offset_override(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
     }
 
     fn len_x(&self) -> usize;
@@ -73,19 +73,19 @@ pub(crate) trait VariantEmission {
 macro_rules! default_ref_base_emission {
     () => {
         fn ref_offset(&self) -> usize {
-            self.ref_offset
+            self.ref_offset_override.unwrap_or(self.ref_offset)
         }
 
         fn ref_end(&self) -> usize {
-            self.ref_end
+            self.ref_end_override.unwrap_or(self.ref_end)
         }
 
-        fn set_ref_offset(&mut self, value: usize) {
-            self.ref_offset = value;
+        fn set_ref_offset_override(&mut self, value: usize) {
+            self.ref_offset_override = Some(value);
         }
 
-        fn set_ref_end(&mut self, value: usize) {
-            self.ref_end = value;
+        fn set_ref_end_override(&mut self, value: usize) {
+            self.ref_end_override = Some(value);
         }
     };
 }
@@ -291,13 +291,13 @@ impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
     }
 
     #[inline]
-    fn set_ref_offset(&mut self, value: usize) {
-        self.allele_emission.set_ref_offset(value)
+    fn set_ref_offset_override(&mut self, value: usize) {
+        self.allele_emission.set_ref_offset_override(value)
     }
 
     #[inline]
-    fn set_ref_end(&mut self, value: usize) {
-        self.allele_emission.set_ref_end(value)
+    fn set_ref_end_override(&mut self, value: usize) {
+        self.allele_emission.set_ref_end_override(value)
     }
 
     #[inline]
@@ -442,6 +442,8 @@ pub(crate) struct ReferenceEmissionParams {
     pub(crate) ref_seq: Arc<Vec<u8>>,
     pub(crate) ref_offset: usize,
     pub(crate) ref_end: usize,
+    pub(crate) ref_offset_override: Option<usize>,
+    pub(crate) ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for ReferenceEmissionParams {

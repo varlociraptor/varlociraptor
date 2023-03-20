@@ -133,6 +133,20 @@ impl<R: Realigner> Realignable for Deletion<R> {
         let end = self.locus.range().end as usize;
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
+        dbg!((
+            start.saturating_sub(ref_window),
+            cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
+            start,
+            ref_window,
+            ref_seq.len(),
+            self.len()
+        ));
+        assert_eq!(start.saturating_sub(ref_window), 1103);
+        assert_eq!(
+            cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
+            1295
+        );
+
         Ok(vec![Box::new(DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
@@ -140,6 +154,8 @@ impl<R: Realigner> Realignable for Deletion<R> {
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             homopolymer: self.homopolymer.clone(),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -313,6 +329,8 @@ pub(crate) struct DeletionEmissionParams {
     del_start: usize,
     del_len: usize,
     homopolymer: Option<Range<u64>>,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for DeletionEmissionParams {

@@ -31,7 +31,7 @@ pub(crate) struct EditOperationCounts {
     is_explainable_by_error_rates: bool,
     #[get_copy = "pub(crate)"]
     alignment_idx: usize,
-    #[get_copy = "pub(crate)"]
+    #[get = "pub(crate)"]
     ref_range: Range<usize>,
     #[get = "pub(crate)"]
     alignment: Vec<AlignmentOperation>,
@@ -332,11 +332,11 @@ impl EditDistanceCalculation {
         }
     }
 
-    pub(crate) fn derive_allele_from_read(
+    pub(crate) fn derive_allele_from_read<'a>(
         &self,
-        emission_params: &ReadVsAlleleEmission,
+        emission_params: &'a ReadVsAlleleEmission,
         edit_distance_hit: &EditDistanceHit,
-    ) -> Option<ReadVsAlleleEmission> {
+    ) -> Option<ReadVsAlleleEmission<'a>> {
         if edit_distance_hit
             .edit_operation_counts()
             .as_ref()
@@ -358,12 +358,14 @@ impl EditDistanceCalculation {
             let mut pos_read = 0; // semiglobal alignment
 
             let mut allele = Vec::new();
-            for op in edit_distance_hit
-                .edit_operation_counts()
-                .as_ref()
-                .unwrap()
-                .alignment()
-            {
+            let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
+            // add part before the alignment
+            allele.extend(
+                (0..edit_distance_hit.alignments()[opcounts.alignment_idx].start)
+                    .map(|i| emission_params.ref_base(i)),
+            );
+
+            for op in opcounts.alignment() {
                 let is_in_range = emission_params
                     .is_in_variant_ref_range(pos_ref as u64 + emission_params.ref_offset() as u64);
                 match op {
@@ -413,6 +415,8 @@ impl EditDistanceCalculation {
                     ref_offset: emission_params.allele_emission().ref_offset(),
                     ref_end: emission_params.allele_emission().ref_end(),
                     patched_seq: allele,
+                    ref_offset_override: None,
+                    ref_end_override: None,
                 }),
             ))
         } else {
@@ -463,6 +467,8 @@ impl EditDistanceHit {
 pub(crate) struct PatchedAlleleEmission {
     ref_offset: usize,
     ref_end: usize,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
     patched_seq: Vec<u8>,
 }
 
@@ -482,6 +488,7 @@ impl RefBaseEmission for PatchedAlleleEmission {
     }
 
     fn len_x(&self) -> usize {
+        dbg!((self.ref_end, self.ref_offset));
         self.ref_end - self.ref_offset
     }
 }

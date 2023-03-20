@@ -78,6 +78,8 @@ impl<R: Realigner> Realignable for Mnv<R> {
             alt_start: start,
             alt_end: self.locus.range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -227,6 +229,8 @@ pub(crate) struct MnvEmissionParams {
     alt_start: usize,
     alt_end: usize, // exclusive end
     alt_seq: Rc<Vec<u8>>,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for MnvEmissionParams {

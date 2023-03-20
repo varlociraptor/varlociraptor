@@ -265,6 +265,8 @@ pub(crate) trait Realigner {
                     ref_seq: Arc::clone(&ref_seq),
                     ref_offset: region.ref_interval.start,
                     ref_end: region.ref_interval.end,
+                    ref_offset_override: None,
+                    ref_end_override: None,
                 }),
             )];
             for variant in alt_variants {

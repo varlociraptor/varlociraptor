@@ -92,6 +92,8 @@ impl<R: Realigner> Realignable for Insertion<R> {
             ins_end: start + l,
             ins_seq: Rc::clone(&self.ins_seq),
             homopolymer: self.homopolymer.clone(),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -242,6 +244,8 @@ pub(crate) struct InsertionEmissionParams {
     ins_len: usize,
     ins_seq: Rc<Vec<u8>>,
     homopolymer: Option<Range<u64>>,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for InsertionEmissionParams {

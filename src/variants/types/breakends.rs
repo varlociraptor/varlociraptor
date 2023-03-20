@@ -843,6 +843,8 @@ impl<R: Realigner> Realignable for BreakendGroup<R> {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
+                    ref_offset_override: None,
+                    ref_end_override: None,
                 }));
             }
         }
@@ -882,6 +884,8 @@ pub(crate) struct BreakendEmissionParams {
     alt_allele: Arc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for BreakendEmissionParams {

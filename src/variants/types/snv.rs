@@ -71,6 +71,8 @@ impl<R: Realigner> Realignable for Snv<R> {
             ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
             alt_start: start,
             alt_base: self.alt_base,
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -185,6 +187,8 @@ pub(crate) struct SnvEmissionParams {
     ref_end: usize,
     alt_start: usize,
     alt_base: u8,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for SnvEmissionParams {

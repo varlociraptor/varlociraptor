@@ -97,6 +97,8 @@ impl<R: Realigner> Realignable for Replacement<R> {
             repl_ref_len,
             repl_seq: Rc::clone(&self.replacement),
             is_homopolymer_indel: self.homopolymer_indel_len.is_some(),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -262,6 +264,8 @@ pub(crate) struct ReplacementEmissionParams {
     repl_ref_len: usize,
     repl_seq: Rc<Vec<u8>>,
     is_homopolymer_indel: bool,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for ReplacementEmissionParams {
