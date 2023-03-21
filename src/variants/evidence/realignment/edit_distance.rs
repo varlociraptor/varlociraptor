@@ -406,9 +406,10 @@ impl EditDistanceCalculation {
             }
             // add the remaining sequence
             allele.extend(
-                (pos_ref..emission_params.ref_end() - emission_params.ref_offset())
+                (pos_ref..emission_params.ref_end() - emission_params.ref_offset() + 1)
                     .map(|i| emission_params.ref_base(i)),
             );
+
             Some(ReadVsAlleleEmission::new(
                 emission_params.read_emission(),
                 Box::new(PatchedAlleleEmission {
@@ -488,7 +489,6 @@ impl RefBaseEmission for PatchedAlleleEmission {
     }
 
     fn len_x(&self) -> usize {
-        dbg!((self.ref_end, self.ref_offset));
         self.ref_end - self.ref_offset
     }
 }
