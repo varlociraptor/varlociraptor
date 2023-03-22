@@ -5,7 +5,7 @@
 
 use std::cmp::Ordering;
 use std::convert::TryFrom;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::ops::{Deref, Range, RangeInclusive};
 use std::{mem, str};
 
@@ -247,6 +247,17 @@ pub(crate) enum VariantPrecision {
     },
 }
 
+impl fmt::Display for VariantPrecision {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            VariantPrecision::Precise => write!(f, "precise"),
+            VariantPrecision::Imprecise { .. } => {
+                write!(f, "imprecise")
+            }
+        }
+    }
+}
+
 impl<'a> TryFrom<&'a bcf::Record> for VariantPrecision {
     type Error = errors::Error;
 
@@ -323,6 +334,46 @@ pub(crate) enum Variant {
         alt_allele: Vec<u8>,
     },
     None,
+}
+
+impl fmt::Display for Variant {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fmt_allele = |mut allele: &[u8]| {
+            if allele.len() > 10 {
+                allele = &allele[..10];
+            }
+            String::from_utf8_lossy(allele).into_owned()
+        };
+        match self {
+            Variant::Snv(alt) => write!(f, "snv_{}", fmt_allele(&[*alt])),
+            Variant::Deletion(len) => write!(f, "del_{}", len),
+            Variant::Insertion(seq) => write!(f, "ins_{}", fmt_allele(seq)),
+            Variant::Mnv(seq) => write!(f, "mnv_{}", fmt_allele(seq)),
+            Variant::Inversion(len) => write!(f, "inv_{}", len),
+            Variant::Duplication(len) => write!(f, "dup_{}", len),
+            Variant::Replacement {
+                ref_allele,
+                alt_allele,
+            } => write!(
+                f,
+                "rep_{}_{}",
+                fmt_allele(ref_allele),
+                fmt_allele(alt_allele)
+            ),
+            Variant::Breakend {
+                ref_allele,
+                spec,
+                precision,
+            } => write!(
+                f,
+                "bnd_{}_{}_{}",
+                fmt_allele(ref_allele),
+                fmt_allele(spec),
+                precision
+            ),
+            Variant::None => write!(f, "ref"),
+        }
+    }
 }
 
 impl Variant {
