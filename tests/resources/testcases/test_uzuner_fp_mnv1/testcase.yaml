@@ -1,11 +1,9 @@
+# A false positive MNV that should be recognized as such since all the reads map to a different MNV.
+# This testcase serves as check for the derive_allele_from_read feature.
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - sample == 0.0
 
 # necessary bam files
 samples:
