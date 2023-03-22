@@ -920,7 +920,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         Vec::with_capacity(read_observations.len());
     let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(read_observations.len());
     let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
-    let mut alt_locus = Vec::with_capacity(read_observations.len());
+    let mut alt_locus = vec();
 
     let encode_logprob = utils::MiniLogProb::new;
     for obs in read_observations {

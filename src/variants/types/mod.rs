@@ -43,6 +43,7 @@ pub(crate) use snv::Snv;
 
 use super::evidence::insert_size::estimate_insert_size;
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
+use super::evidence::realignment::edit_distance::EditDistance;
 use super::evidence::realignment::Realignable;
 use super::model;
 use super::sampling_bias::FragmentSamplingBias;
@@ -59,6 +60,8 @@ pub(crate) struct AlleleSupport {
     #[builder(default)]
     #[getset(get_copy = "pub")]
     homopolymer_indel_len: Option<i8>,
+    #[getset(get_copy = "pub")]
+    alt_edit_dist: Option<EditDistance>,
 }
 
 impl AlleleSupport {

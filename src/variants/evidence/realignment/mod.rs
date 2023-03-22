@@ -35,6 +35,7 @@ pub(crate) mod pairhmm;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 use bio::stats::pairhmm::HomopolyPairHMM;
 
+use self::edit_distance::EditDistance;
 use self::pairhmm::RefBaseEmission;
 use self::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission};
 
@@ -231,6 +232,7 @@ pub(crate) trait Realigner {
         // Calculate independent probabilities over all merged regions.
         let mut prob_ref_all = LogProb::ln_one();
         let mut prob_alt_all = LogProb::ln_one();
+        let mut alt_edit_dist: Option<EditDistance> = None;
 
         let ref_seq = self.ref_buffer().seq(record.contig())?;
         let read_seq: bam::record::Seq<'a> = record.seq();
@@ -248,7 +250,7 @@ pub(crate) trait Realigner {
                 region.read_interval.start,
                 region.read_interval.end,
             );
-            let mut edit_dist =
+            let mut edit_dist_calc =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // Prepare reference alleles (the actual reference and any alt variants).
@@ -290,7 +292,7 @@ pub(crate) trait Realigner {
             // ref allele (or one of the alt variants)
             let (mut prob_ref, _, _) = self.prob_allele(
                 &mut ref_emissions,
-                &mut edit_dist,
+                &mut edit_dist_calc,
                 alignment_properties,
                 false,
             );
@@ -310,7 +312,7 @@ pub(crate) trait Realigner {
 
             let (mut prob_alt, alt_hit, alt_params_idx) = self.prob_allele(
                 &mut alt_emission_params,
-                &mut edit_dist,
+                &mut edit_dist_calc,
                 alignment_properties,
                 false,
             );
@@ -324,7 +326,7 @@ pub(crate) trait Realigner {
                 // it comes from the ref allele, calculate the probability
                 // that it comes from an allele that is inferred from the read sequence itself, and use that as a
                 // contrast to the alt allele instead of prob_ref.
-                if let Some(mut read_inferred_allele) = edit_dist
+                if let Some(mut read_inferred_allele) = edit_dist_calc
                     .derive_allele_from_read(&alt_emission_params[alt_params_idx], &alt_hit)
                 {
                     let prob_read_inferred =
@@ -381,6 +383,14 @@ pub(crate) trait Realigner {
                 }
             }
 
+            if let Some(ref mut alt_edit_dist) = alt_edit_dist {
+                if let Some(ref hit_dist) = alt_hit.edit_distance() {
+                    alt_edit_dist.update(hit_dist);
+                }
+            } else {
+                alt_edit_dist = alt_hit.edit_distance();
+            }
+
             // METHOD: probabilities of independent regions are combined here.
             prob_ref_all += prob_ref;
             prob_alt_all += prob_alt;
@@ -397,6 +407,7 @@ pub(crate) trait Realigner {
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
+            .alt_edit_dist(alt_edit_dist)
             .build()
             .unwrap())
     }

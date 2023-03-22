@@ -19,6 +19,15 @@ use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND
 
 use super::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission, VariantEmission};
 
+#[derive(Debug, Clone, Copy, Derefable, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+pub(crate) struct EditDistance(#[deref] u32);
+
+impl EditDistance {
+    pub(crate) fn update(&mut self, other_dist: &EditDistance) {
+        self.0 += **other_dist;
+    }
+}
+
 #[derive(Debug, Clone, CopyGetters, Getters, PartialEq, Eq, Hash)]
 pub(crate) struct EditOperationCounts {
     #[get_copy = "pub(crate)"]
@@ -70,6 +79,10 @@ impl EditOperationCounts {
             is_explainable_by_error_rates,
             alignment_idx,
         }
+    }
+
+    pub(crate) fn edit_distance(&self) -> EditDistance {
+        EditDistance((self.substitutions + self.insertions + self.deletions) as u32)
     }
 }
 
@@ -464,6 +477,12 @@ impl EditDistanceHit {
         } else {
             &self.alignments[0]
         }
+    }
+
+    pub(crate) fn edit_distance(&self) -> Option<EditDistance> {
+        self.edit_operation_counts()
+            .as_ref()
+            .map(|opcounts| opcounts.edit_distance())
     }
 }
 
