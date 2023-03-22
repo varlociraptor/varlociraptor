@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [7.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v7.0.0...v7.0.1) (2023-03-22)
+
+
+### Bug Fixes
+
+* improved debug and observation output ([#361](https://www.github.com/varlociraptor/varlociraptor/issues/361)) ([ae76607](https://www.github.com/varlociraptor/varlociraptor/commit/ae766078594e054039bcc3388b35b5d22d818c3e))
+
 ## [7.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v6.0.0...v7.0.0) (2023-03-09)
 
 
