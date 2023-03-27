@@ -29,15 +29,25 @@ pub(crate) trait RefBaseEmission {
     /// Return ref base with coordinate i relative to ref_offset.
     fn ref_base(&self, i: usize) -> u8;
 
-    // Start on reference sequence, inclusive.
+    /// Start on reference sequence, inclusive.
     fn ref_offset(&self) -> usize;
 
-    // End on reference sequence, exclusive.
+    /// End on reference sequence, exclusive.
     fn ref_end(&self) -> usize;
+
+    /// Start on reference sequence, inclusive, ignoring override.
+    fn ref_offset_orig(&self) -> usize;
+
+    /// End on reference sequence, exclusive, ignoring override.
+    fn ref_end_orig(&self) -> usize;
 
     fn set_ref_offset_override(&mut self, value: usize);
 
     fn set_ref_end_override(&mut self, value: usize);
+
+    fn clear_ref_offset_override(&mut self);
+
+    fn clear_ref_end_override(&mut self);
 
     /// Homopolymer reference area that is altered by the variant.
     /// Can return None if not applicable (default).
@@ -80,12 +90,28 @@ macro_rules! default_ref_base_emission {
             self.ref_end_override.unwrap_or(self.ref_end)
         }
 
+        fn ref_offset_orig(&self) -> usize {
+            self.ref_offset
+        }
+
+        fn ref_end_orig(&self) -> usize {
+            self.ref_end
+        }
+
         fn set_ref_offset_override(&mut self, value: usize) {
             self.ref_offset_override = Some(value);
         }
 
         fn set_ref_end_override(&mut self, value: usize) {
             self.ref_end_override = Some(value);
+        }
+
+        fn clear_ref_offset_override(&mut self) {
+            self.ref_offset_override = None;
+        }
+
+        fn clear_ref_end_override(&mut self) {
+            self.ref_end_override = None;
         }
     };
 }
@@ -291,6 +317,16 @@ impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
     }
 
     #[inline]
+    fn ref_offset_orig(&self) -> usize {
+        self.allele_emission.ref_offset_orig()
+    }
+
+    #[inline]
+    fn ref_end_orig(&self) -> usize {
+        self.allele_emission.ref_end_orig()
+    }
+
+    #[inline]
     fn set_ref_offset_override(&mut self, value: usize) {
         self.allele_emission.set_ref_offset_override(value)
     }
@@ -298,6 +334,16 @@ impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
     #[inline]
     fn set_ref_end_override(&mut self, value: usize) {
         self.allele_emission.set_ref_end_override(value)
+    }
+
+    #[inline]
+    fn clear_ref_offset_override(&mut self) {
+        self.allele_emission.clear_ref_offset_override()
+    }
+
+    #[inline]
+    fn clear_ref_end_override(&mut self) {
+        self.allele_emission.clear_ref_end_override()
     }
 
     #[inline]
@@ -385,9 +431,11 @@ impl<'a> ReadEmission<'a> {
     pub(crate) fn new(
         read_seq: bam::record::Seq<'a>,
         qual: &[u8],
-        read_offset: usize,
-        read_end: usize,
+        read_offset: Option<usize>,
+        read_end: Option<usize>,
     ) -> Self {
+        let read_offset = read_offset.unwrap_or(0);
+        let read_end = read_end.unwrap_or(qual.len());
         let mut any_miscall = vec![LogProb::ln_zero(); read_end - read_offset];
         let mut no_miscall = any_miscall.clone();
         for (j, j_) in (read_offset..read_end).enumerate() {

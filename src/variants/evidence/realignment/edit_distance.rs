@@ -13,19 +13,37 @@ use bio::pattern_matching::myers::{self, long};
 use bio::stats::LogProb;
 
 use crate::default_ref_base_emission;
-use crate::estimation::alignment_properties::{self, AlignmentProperties};
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
-use super::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission, VariantEmission};
+use super::pairhmm::{ReadVsAlleleEmission, VariantEmission};
 
 #[derive(Debug, Clone, Copy, Derefable, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
-pub(crate) struct EditDistance(#[deref] u32);
+pub(crate) struct EditDistance(#[deref] pub(crate) u32);
 
 impl EditDistance {
     pub(crate) fn update(&mut self, other_dist: &EditDistance) {
         self.0 += **other_dist;
     }
+}
+
+pub(crate) fn is_explainable_by_error_rates(
+    n_subs: usize,
+    n_ins: usize,
+    n_del: usize,
+    alignment_len: usize,
+    alignment_properties: &AlignmentProperties,
+    read_error_rate: LogProb,
+) -> bool {
+    let expected_count = |prob: LogProb| (alignment_len as f64) * prob.exp();
+    let expected_n_subs = expected_count(read_error_rate);
+    let expected_n_ins = expected_count(alignment_properties.gap_params.prob_insertion_artifact);
+    let expected_n_del = expected_count(alignment_properties.gap_params.prob_deletion_artifact);
+
+    n_subs as f64 <= expected_n_subs
+        && n_ins as f64 <= expected_n_ins
+        && n_del as f64 <= expected_n_del
 }
 
 #[derive(Debug, Clone, CopyGetters, Getters, PartialEq, Eq, Hash)]
@@ -60,15 +78,14 @@ impl EditOperationCounts {
     ) -> Self {
         assert!(start < end);
         let alignment_len = end - start;
-        let expected_count = |prob: LogProb| (alignment_len as f64) * prob.exp();
-        let expected_n_subs = expected_count(read_error_rate);
-        let expected_n_ins =
-            expected_count(alignment_properties.gap_params.prob_insertion_artifact);
-        let expected_n_del = expected_count(alignment_properties.gap_params.prob_deletion_artifact);
-
-        let is_explainable_by_error_rates = n_subs as f64 <= expected_n_subs
-            && n_ins as f64 <= expected_n_ins
-            || n_del as f64 <= expected_n_del;
+        let explainable = is_explainable_by_error_rates(
+            n_subs,
+            n_ins,
+            n_del,
+            alignment_len,
+            alignment_properties,
+            read_error_rate,
+        );
 
         EditOperationCounts {
             substitutions: n_subs,
@@ -76,7 +93,7 @@ impl EditOperationCounts {
             deletions: n_del,
             ref_range: start..end,
             in_range_alignment: alignment,
-            is_explainable_by_error_rates,
+            is_explainable_by_error_rates: explainable,
             alignment_idx,
         }
     }
@@ -230,8 +247,7 @@ impl EditDistanceCalculation {
             );
 
             // METHOD: obtain edit operations within the alt allele
-            let edit_operation_counts = if let Some(ref_range) = emission_params.variant_ref_range()
-            {
+            let edit_operation_counts = if emission_params.variant_ref_range().is_some() {
                 Some(
                     alignments
                         .iter()
@@ -241,6 +257,7 @@ impl EditDistanceCalculation {
                             let mut n_del = 0;
                             let mut n_ins = 0;
                             let mut pos = (emission_params.ref_offset() + alignment.start) as u64;
+                            dbg!((alignment.start, emission_params.ref_offset()));
                             let pos_start = pos;
                             let mut in_range_alignment = Vec::new();
                             for op in alignment.operations() {
@@ -350,6 +367,14 @@ impl EditDistanceCalculation {
         emission_params: &'a ReadVsAlleleEmission,
         edit_distance_hit: &EditDistanceHit,
     ) -> Option<ReadVsAlleleEmission<'a>> {
+        // Ensure that the given emission params are not shrunken, because the edit distance hit
+        // is against the not shrunken parameters.
+        assert_eq!(
+            emission_params.ref_offset_orig(),
+            emission_params.ref_offset()
+        );
+        assert_eq!(emission_params.ref_end_orig(), emission_params.ref_end());
+
         if edit_distance_hit
             .edit_operation_counts()
             .as_ref()
@@ -375,6 +400,7 @@ impl EditDistanceCalculation {
             let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
+            dbg!((pos_ref, emission_params.ref_offset_orig()));
 
             for op in alignment.operations() {
                 let is_in_range = emission_params

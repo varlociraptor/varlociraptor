@@ -247,8 +247,8 @@ pub(crate) trait Realigner {
             let read_emission = ReadEmission::new(
                 read_seq,
                 read_qual,
-                region.read_interval.start,
-                region.read_interval.end,
+                Some(region.read_interval.start),
+                Some(region.read_interval.end),
             );
             let mut edit_dist_calc =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
@@ -326,11 +326,25 @@ pub(crate) trait Realigner {
                 // it comes from the ref allele, calculate the probability
                 // that it comes from an allele that is inferred from the read sequence itself, and use that as a
                 // contrast to the alt allele instead of prob_ref.
-                if let Some(mut read_inferred_allele) = edit_dist_calc
-                    .derive_allele_from_read(&alt_emission_params[alt_params_idx], &alt_hit)
+                if record.qname() == b"HLA:HLA00318-978" {
+                    dbg!(&alt_hit);
+                }
+
+                // Take emission params and undo any shrinkage that has been applied before, because
+                // our alignments are relative to the not shrunken parameters.
+                // TODO: think about a way to ensure this in a typing based approach.
+                let alt_params = &mut alt_emission_params[alt_params_idx];
+                alt_params.clear_ref_offset_override();
+                alt_params.clear_ref_end_override();
+
+                if let Some(mut read_inferred_allele) =
+                    edit_dist_calc.derive_allele_from_read(&alt_params, &alt_hit)
                 {
                     let prob_read_inferred =
                         self.calculate_prob_allele(&alt_hit, &mut read_inferred_allele);
+                    if record.qname() == b"HLA:HLA00318-978" {
+                        dbg!((prob_read_inferred, prob_ref));
+                    }
                     if prob_read_inferred > prob_ref {
                         prob_ref = prob_read_inferred;
                     }
