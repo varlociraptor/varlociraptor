@@ -201,6 +201,7 @@ pub(crate) trait Realigner {
                 .prob_ref_allele(p)
                 .prob_alt_allele(p)
                 .strand(Strand::None)
+                .alt_edit_dist(None)
                 .build()
                 .unwrap());
         }

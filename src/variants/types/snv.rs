@@ -158,6 +158,7 @@ impl<R: Realigner> Variant for Snv<R> {
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
                     .read_position(Some(qpos))
+                    .alt_edit_dist(None)
                     .build()
                     .unwrap(),
             ))

@@ -199,6 +199,7 @@ pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
                 .prob_ref_allele(p_ref)
                 .prob_alt_allele(p_alt)
                 .strand(Strand::None)
+                .alt_edit_dist(None)
                 .build()
                 .unwrap())
         }
