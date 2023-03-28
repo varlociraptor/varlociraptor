@@ -275,6 +275,7 @@ where
     pub homopolymer_indel_len: Option<i8>,
     pub is_max_mapq: bool,
     pub alt_locus: A,
+    pub alt_edit_dist: Option<u32>,
 }
 
 pub type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
@@ -344,6 +345,7 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
             } else {
                 AltLocus::None
             },
+            alt_edit_dist: self.alt_edit_dist,
         }
     }
 }
@@ -605,7 +607,8 @@ where
                         .paired(evidence.is_paired())
                         .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
                         .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
-                        .alt_locus(evidence.alt_loci());
+                        .alt_locus(evidence.alt_loci())
+                        .alt_edit_dist(allele_support.alt_edit_dist().map(|d| *d));
 
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
                         let ref_indel_len =
