@@ -257,7 +257,6 @@ impl EditDistanceCalculation {
                             let mut n_del = 0;
                             let mut n_ins = 0;
                             let mut pos = (emission_params.ref_offset() + alignment.start) as u64;
-                            dbg!((alignment.start, emission_params.ref_offset()));
                             let pos_start = pos;
                             let mut in_range_alignment = Vec::new();
                             for op in alignment.operations() {
@@ -400,7 +399,6 @@ impl EditDistanceCalculation {
             let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
-            dbg!((pos_ref, emission_params.ref_offset_orig()));
 
             for op in alignment.operations() {
                 let is_in_range = emission_params
@@ -455,7 +453,7 @@ impl EditDistanceCalculation {
                 emission_params.read_emission(),
                 Box::new(PatchedAlleleEmission {
                     ref_offset: emission_params.allele_emission().ref_offset(),
-                    ref_end: emission_params.allele_emission().ref_end() - end_reduce,
+                    ref_end: emission_params.allele_emission().ref_end(),
                     patched_seq: allele,
                     ref_offset_override: None,
                     ref_end_override: None,
@@ -536,7 +534,7 @@ impl RefBaseEmission for PatchedAlleleEmission {
     }
 
     fn len_x(&self) -> usize {
-        self.ref_end - self.ref_offset
+        self.patched_seq.len()
     }
 }
 

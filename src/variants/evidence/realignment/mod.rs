@@ -326,9 +326,6 @@ pub(crate) trait Realigner {
                 // it comes from the ref allele, calculate the probability
                 // that it comes from an allele that is inferred from the read sequence itself, and use that as a
                 // contrast to the alt allele instead of prob_ref.
-                if record.qname() == b"HLA:HLA00318-978" {
-                    dbg!(&alt_hit);
-                }
 
                 // Take emission params and undo any shrinkage that has been applied before, because
                 // our alignments are relative to the not shrunken parameters.
@@ -342,9 +339,6 @@ pub(crate) trait Realigner {
                 {
                     let prob_read_inferred =
                         self.calculate_prob_allele(&alt_hit, &mut read_inferred_allele);
-                    if record.qname() == b"HLA:HLA00318-978" {
-                        dbg!((prob_read_inferred, prob_ref));
-                    }
                     if prob_read_inferred > prob_ref {
                         prob_ref = prob_read_inferred;
                     }
