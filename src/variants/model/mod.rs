@@ -418,6 +418,7 @@ mod tests {
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .is_max_mapq(true)
             .alt_locus(AltLocus::None)
+            .third_allele_evidence(None)
             .build()
             .unwrap()
     }

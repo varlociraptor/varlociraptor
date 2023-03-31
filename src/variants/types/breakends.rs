@@ -454,6 +454,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                                             .prob_ref_allele(prob_ref)
                                             .prob_alt_allele(prob_alt)
                                             .strand(Strand::None)
+                                            .third_allele_evidence(None)
                                             .build()
                                             .unwrap(),
                                     ));
@@ -480,6 +481,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                             .prob_ref_allele(LogProb::ln_zero())
                             .prob_alt_allele(LogProb::ln_one())
                             .strand(Strand::None)
+                            .third_allele_evidence(None)
                             .build()
                             .unwrap(),
                     )),
@@ -488,6 +490,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                             .prob_ref_allele(LogProb::ln_one())
                             .prob_alt_allele(LogProb::ln_zero())
                             .strand(Strand::None)
+                            .third_allele_evidence(None)
                             .build()
                             .unwrap(),
                     )),
