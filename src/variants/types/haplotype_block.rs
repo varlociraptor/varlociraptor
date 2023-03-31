@@ -316,7 +316,7 @@ fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
         .map(|support| support.prob_alt_allele)
         .sum();
 
-    let mut third_allele_evidence = None;
+    let mut third_allele_evidence: Option<EditDistance> = None;
     for variant_support in variant_supports {
         if let Some(ref other_dist) = variant_support.third_allele_evidence {
             if let Some(ref mut dist) = third_allele_evidence {
