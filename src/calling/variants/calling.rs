@@ -133,19 +133,35 @@ where
               Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=SOBS,Number=A,Type=String,\
-              Description=\"Summary of simplified observations. Each entry is encoded as CB, with C being a count, \
-              B being the posterior odds for the alt allele or the reference allele. \
+            b"##FORMAT=<ID=SAOBS,Number=A,Type=String,\
+              Description=\"Summary of simplified observations favoring the ALT allele (has to be considered together with SROBS). Each entry is encoded as CB, with C being a count, \
+              B being the posterior odds for the alt allele. \
+              The provided letter denotes an extended Kass Raftery score: B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
+              a term for equality between the evidence of the two alleles (E=equal). \
+              Further note that there is no N=none score, as such observations occur with an opposite direction \
+              score (odds for the reference or a third allele) in the SROBS field.\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=SROBS,Number=A,Type=String,\
+              Description=\"Summary of simplified observations favoring the reference or a third allele (has to be considered together with SAOBS). Each entry is encoded as CB, with C being a count, \
+              B being the posterior odds for the reference or a third allele. \
+              The letter denotes an extended Kass Raftery score: E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=OBS,Number=A,Type=String,\
+              Description=\"Summary of observations. Each entry is encoded as CBDTASOPXI, with C being a count, \
+              and B being the posterior odds for the alt or the reference allele. \
               The latter are given as a two letter code. The first letter (`A` or `R`) \
               defines whether the odds favor the alt allele (`A`) or any other allele including the reference allele `R`. \
               The second letter denotes an extended Kass Raftery score: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
-              a term for equality between the evidence of the two alleles (E=equal).\">",
-        );
-        header.push_record(
-            b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTASOPXI, with C being a count, \
-              B being the posterior odds for the alt or the reference allele (see SOBS), T being the type of alignment, encoded \
+              a term for equality between the evidence of the two alleles (E=equal). \
+              D denotes the edit distance to the ALT allele in case it is higher than what could be expected from sequencing errors \
+              (in that case, Varlociraptor derives a third allele from the read sequence and considers that as an alternative \
+              to the alt allele, instead of the reference allele), \
+              T being the type of alignment, encoded \
               as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus \
               (# = most found alternative locus, * = other locus, . = no locus), \
               S being the strand that supports the observation (+, -, or * for both), \

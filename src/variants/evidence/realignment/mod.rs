@@ -201,7 +201,7 @@ pub(crate) trait Realigner {
                 .prob_ref_allele(p)
                 .prob_alt_allele(p)
                 .strand(Strand::None)
-                .alt_edit_dist(None)
+                .third_allele_evidence(None)
                 .build()
                 .unwrap());
         }
@@ -234,6 +234,7 @@ pub(crate) trait Realigner {
         let mut prob_ref_all = LogProb::ln_one();
         let mut prob_alt_all = LogProb::ln_one();
         let mut alt_edit_dist: Option<EditDistance> = None;
+        let mut is_third_allele = false;
 
         let ref_seq = self.ref_buffer().seq(record.contig())?;
         let read_seq: bam::record::Seq<'a> = record.seq();
@@ -342,6 +343,7 @@ pub(crate) trait Realigner {
                         self.calculate_prob_allele(&alt_hit, &mut read_inferred_allele);
                     if prob_read_inferred > prob_ref {
                         prob_ref = prob_read_inferred;
+                        is_third_allele = true;
                     }
                 }
             }
@@ -416,7 +418,7 @@ pub(crate) trait Realigner {
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
-            .alt_edit_dist(alt_edit_dist)
+            .third_allele_evidence(if is_third_allele { alt_edit_dist } else { None })
             .build()
             .unwrap())
     }

@@ -144,6 +144,7 @@ impl<R: Realigner> Variant for Mnv<R> {
             let mut read_position = None;
             let mut alt_edit_dist = 0_u32;
             let read_emission = ReadEmission::new(read.seq(), read.qual(), None, None);
+            let mut is_third_allele = false;
 
             for ((alt_base, ref_base), pos) in self
                 .alt_bases
@@ -209,6 +210,7 @@ impl<R: Realigner> Variant for Mnv<R> {
                     // the read stems from an artificial third allele derived from its own sequence.
                     // This is a pragmatic, conservative approach to avoid false positives.
                     prob_ref = prob_third;
+                    is_third_allele = true;
                 }
             }
 
@@ -225,7 +227,11 @@ impl<R: Realigner> Variant for Mnv<R> {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .read_position(read_position)
-                    .alt_edit_dist(Some(EditDistance(alt_edit_dist)))
+                    .third_allele_evidence(if is_third_allele {
+                        Some(EditDistance(alt_edit_dist))
+                    } else {
+                        None
+                    })
                     .build()
                     .unwrap(),
             ))

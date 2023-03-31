@@ -20,6 +20,7 @@ use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::pairhmm::VariantEmission;
@@ -127,6 +128,7 @@ impl<R: Realigner> Variant for Snv<R> {
             let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
+            let mut is_third_allele = false;
 
             // METHOD: instead of considering the actual REF base, we assume that REF is whatever
             // base the read has at this position (if not the ALT base). This way, we avoid biased
@@ -138,6 +140,7 @@ impl<R: Realigner> Variant for Snv<R> {
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
             let non_alt_base = if read_base != self.alt_base {
+                is_third_allele = read_base != self.ref_base;
                 read_base
             } else {
                 self.ref_base
@@ -158,7 +161,11 @@ impl<R: Realigner> Variant for Snv<R> {
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
                     .read_position(Some(qpos))
-                    .alt_edit_dist(None)
+                    .third_allele_evidence(if is_third_allele {
+                        Some(EditDistance(1))
+                    } else {
+                        None
+                    })
                     .build()
                     .unwrap(),
             ))
