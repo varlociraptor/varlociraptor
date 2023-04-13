@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::ops::{AddAssign, Deref};
 use std::path::PathBuf;
@@ -22,6 +22,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bam::record::Cigar, bcf};
+use serde::Serializer;
 
 use crate::variants::model;
 use crate::Event;
@@ -581,16 +582,28 @@ mod tests {
 #[derive(CopyGetters, Debug, Serialize, Deserialize, Clone)]
 pub(crate) struct SimpleCounter<T>
 where
-    T: Eq + Hash,
+    T: Eq + Hash + Debug,
 {
+    #[serde(serialize_with = "serialize_tuple_keys")]
     inner: HashMap<T, usize>,
     #[getset(get_copy = "pub(crate)")]
     total_count: usize,
 }
 
+
+fn serialize_tuple_keys<T: Eq + Hash + Debug, S>(
+    map: &HashMap<T, usize>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.collect_map(map.iter().map(|(k, v)| (format!("{:?}", &k), v)))
+}
+
 impl<T> SimpleCounter<T>
 where
-    T: Eq + Hash,
+    T: Eq + Hash + Debug,
 {
     pub(crate) fn incr(&mut self, event: T) {
         self.total_count += 1;
@@ -600,7 +613,7 @@ where
 
 impl<T> Default for SimpleCounter<T>
 where
-    T: Eq + Hash,
+    T: Eq + Hash + Debug,
 {
     fn default() -> Self {
         SimpleCounter {
@@ -612,7 +625,7 @@ where
 
 impl<T> Deref for SimpleCounter<T>
 where
-    T: Eq + Hash,
+    T: Eq + Hash + Debug,
 {
     type Target = HashMap<T, usize>;
 
@@ -623,7 +636,7 @@ where
 
 impl<T> AddAssign for SimpleCounter<T>
 where
-    T: Eq + Hash,
+    T: Eq + Hash + Debug,
 {
     fn add_assign(&mut self, rhs: Self) {
         self.total_count += rhs.total_count;

@@ -11,7 +11,9 @@ use std::ops::AddAssign;
 use std::str;
 use std::u32;
 
+use crate::estimation::alignment_properties::State::HopAX;
 use anyhow::{anyhow, Result};
+use bio::stats::pairhmm::HomopolyPairHMM;
 use bio::stats::{LogProb, Prob};
 use counter::Counter;
 use itertools::Itertools;
@@ -62,8 +64,10 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_read_len: u32,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
-    #[serde(skip, default)]
+    #[serde(default)]
     pub(crate) cigar_counts: Option<CigarStats>,
+    #[serde(default)]
+    pub(crate) transition_counts: Option<TransitionCounts>,
     #[serde(default)]
     pub(crate) gap_params: GapParams,
     #[serde(default)]
@@ -153,6 +157,7 @@ impl AlignmentProperties {
             max_read_len: 0,
             max_mapq: 0,
             cigar_counts: Default::default(),
+            transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
             gap_params: Default::default(),
@@ -186,6 +191,7 @@ impl AlignmentProperties {
             mapq: u8,
             read_len: u32,
             cigar_counts: CigarStats,
+            transition_counts: TransitionCounts,
             insert_size: Option<f64>,
         }
 
@@ -200,6 +206,7 @@ impl AlignmentProperties {
             max_del: Option<u32>,
             max_ins: Option<u32>,
             cigar_counts: CigarStats,
+            transition_counts: TransitionCounts,
             tlens: Vec<f64>,
         }
 
@@ -243,6 +250,11 @@ impl AlignmentProperties {
                     &reference_buffer.seq(chrom).unwrap(),
                     allow_hardclips,
                 );
+                let transition_counts = transition_stats(
+                    &record,
+                    &reference_buffer.seq(chrom).unwrap(),
+                    allow_hardclips,
+                );
 
                 let insert_size = {
                     if !cigar_counts.is_not_regular && !omit_insert_size {
@@ -268,6 +280,7 @@ impl AlignmentProperties {
                     mapq: record.mapq(),
                     read_len: record.seq().len() as u32,
                     cigar_counts,
+                    transition_counts,
                     insert_size,
                 }
             })
@@ -282,18 +295,45 @@ impl AlignmentProperties {
                 acc.max_ins = OptionMax::max(acc.max_ins, rs.cigar_counts.max_ins);
                 acc.max_del = OptionMax::max(acc.max_del, rs.cigar_counts.max_del);
                 acc.cigar_counts += rs.cigar_counts;
+                acc.transition_counts += rs.transition_counts;
                 if let Some(insert_size) = rs.insert_size {
                     acc.tlens.push(insert_size);
                 }
                 acc
             });
 
+        for i in 0..16 {
+            for j in 0..16 {
+                eprint!("{}\t", all_stats.transition_counts.inner[(i, j)]);
+            }
+            eprintln!();
+        }
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
 
         properties.wildtype_homopolymer_error_model = properties.wildtype_homopolymer_error_model();
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
+        #[derive(Serialize)]
+        struct Props {
+            gap_counts: Vec<(isize, usize)>,
+            hop_counts: Vec<(u8, Vec<((usize, usize), usize)>)>,
+            transition_counts: TransitionCounts,
+        }
+        let g_counts = properties.cigar_counts.as_ref().unwrap().gap_counts.clone();
+        let h_counts = properties.cigar_counts.as_ref().unwrap().hop_counts.clone();
+        serde_json::to_writer_pretty(
+            &mut std::io::stdout(),
+            &Props {
+                gap_counts: g_counts.iter().map(|(x, y)| (*x, *y)).collect(),
+                hop_counts: h_counts
+                    .into_iter()
+                    .map(|(b, v)| (b, v.iter().map(|(x, y)| (*x, *y)).collect::<Vec<_>>()))
+                    .collect(),
+                transition_counts: all_stats.transition_counts,
+            },
+        )?;
+        std::process::exit(0);
 
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
@@ -388,6 +428,217 @@ impl AlignmentProperties {
             Ok(properties)
         }
     }
+}
+
+#[repr(usize)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
+pub enum State {
+    MatchA = 0,
+    MatchC = 1,
+    MatchG = 2,
+    MatchT = 3,
+    GapX = 4,
+    GapY = 5,
+    HopAX = 6,
+    HopAY = 7,
+    HopCX = 8,
+    HopCY = 9,
+    HopGX = 10,
+    HopGY = 11,
+    HopTX = 12,
+    HopTY = 13,
+    Other = 14,
+    Start = 15,
+}
+
+impl State {
+    fn supports(&self, c: u8) -> bool {
+        use State::*;
+        match self {
+            MatchA | HopAX | HopAY if c.eq_ignore_ascii_case(&b'A') => true,
+            MatchC | HopCX | HopCY if c.eq_ignore_ascii_case(&b'C') => true,
+            MatchG | HopGX | HopGY if c.eq_ignore_ascii_case(&b'G') => true,
+            MatchT | HopTX | HopTY if c.eq_ignore_ascii_case(&b'T') => true,
+            _ => false,
+        }
+    }
+
+    fn is_match(&self) -> bool {
+        use State::*;
+        match self {
+            MatchA | MatchC | MatchG | MatchT => true,
+            _ => false,
+        }
+    }
+
+    fn is_hop(&self) -> bool {
+        use State::*;
+        match self {
+            HopAX | HopAY | HopCX | HopCY | HopGX | HopGY | HopTX | HopTY => true,
+            _ => false,
+        }
+    }
+
+    fn is_gap(&self) -> bool {
+        use State::*;
+        match self {
+            GapX | GapY => true,
+            _ => false,
+        }
+    }
+
+    fn match_(c: u8) -> Self {
+        use State::*;
+        match c.to_ascii_uppercase() {
+            b'A' => MatchA,
+            b'C' => MatchC,
+            b'G' => MatchG,
+            b'T' => MatchT,
+            _ => Other,
+        }
+    }
+
+    fn hop_x(c: u8) -> Self {
+        use State::*;
+        match c.to_ascii_uppercase() {
+            b'A' => HopAX,
+            b'C' => HopCX,
+            b'G' => HopGX,
+            b'T' => HopTX,
+            _ => Other,
+        }
+    }
+
+    fn hop_y(c: u8) -> Self {
+        use State::*;
+        match c.to_ascii_uppercase() {
+            b'A' => HopAY,
+            b'C' => HopCY,
+            b'G' => HopGY,
+            b'T' => HopTY,
+            _ => Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TransitionCounts {
+    inner: ndarray::Array2<usize>, // enum State num members/variants == 14, + 1 for start state?
+}
+
+impl Default for TransitionCounts {
+    fn default() -> Self {
+        Self {
+            inner: ndarray::Array2::default((16, 16)),
+        }
+    }
+}
+
+impl AddAssign for TransitionCounts {
+    fn add_assign(&mut self, rhs: Self) {
+        self.inner += &rhs.inner;
+    }
+}
+
+impl TransitionCounts {
+    pub(crate) fn increment(&mut self, from: State, to: State) {
+        self.increment_by(from, to, 1);
+    }
+
+    pub(crate) fn increment_by(&mut self, from: State, to: State, value: usize) {
+        self.inner[(from as usize, to as usize)] += value;
+    }
+}
+
+fn advance_positions(c: Cigar, rpos: &mut usize, qpos: &mut usize) {
+    match c {
+        Cigar::Match(n) | Cigar::Equal(n) | Cigar::Diff(n) => {
+            *rpos += n as usize;
+            *qpos += n as usize;
+        }
+        Cigar::Ins(n) => {
+            *qpos += n as usize;
+        }
+        Cigar::Del(n) => {
+            *rpos += n as usize;
+        }
+        Cigar::RefSkip(n) => {
+            *rpos += n as usize;
+        }
+        Cigar::SoftClip(n) => {
+            *qpos += n as usize;
+        }
+        Cigar::HardClip(_) => {}
+        Cigar::Pad(_) => {}
+    }
+}
+
+fn transition_stats(record: &bam::Record, rseq: &[u8], allow_hardclips: bool) -> TransitionCounts {
+    let mut transition_stats = TransitionCounts::default();
+    let qseq = record.seq();
+    let mut qpos = 0usize;
+    let mut rpos = record.pos() as usize;
+    let iter = iter_cigar(record);
+    let mut prev_state = State::Start;
+    for (r1, q1) in iter
+        .flat_map(|c| {
+            advance_positions(c, &mut rpos, &mut qpos);
+            match c {
+                Cigar::Match(n) | Cigar::Equal(n) | Cigar::Diff(n) => {
+                    let n = n as usize;
+                    (0..n)
+                        .map(|i| (rseq[rpos + i - n], qseq[qpos + i - n]))
+                        .collect_vec()
+                }
+                Cigar::Ins(n) => {
+                    let n = n as usize;
+                    (0..n).map(|i| (b'-', qseq[qpos + i - n])).collect_vec()
+                }
+                Cigar::Del(n) => {
+                    let n = n as usize;
+                    (0..n).map(|i| (rseq[rpos + i - n], b'-')).collect_vec()
+                }
+                _ => {
+                    vec![(b'-', b'-')]
+                }
+            }
+        })
+    {
+        use State::*;
+        match (r1, q1) {
+            (b'-', b'-') => {
+                prev_state = Start;
+            }
+            (b'-', q) => match prev_state {
+                s if s.supports(q) && (s.is_hop() || s.is_match()) => {
+                    prev_state = State::hop_x(q);
+                    transition_stats.increment(s, prev_state)
+                }
+                s => {
+                    prev_state = GapX;
+                    transition_stats.increment(s, prev_state);
+                }
+            },
+            (r, b'-') => match prev_state {
+                s if s.supports(r) && (s.is_hop() || s.is_match()) => {
+                    prev_state = State::hop_y(r);
+                    transition_stats.increment(s, prev_state)
+                }
+                s => {
+                    prev_state = GapY;
+                    transition_stats.increment(s, prev_state);
+                }
+            },
+            (r, _q) => {
+                let s = prev_state.clone();
+                prev_state = State::match_(r);
+                transition_stats.increment(s, prev_state);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    transition_stats
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
