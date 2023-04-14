@@ -146,7 +146,7 @@ where
             b"##FORMAT=<ID=SROBS,Number=A,Type=String,\
               Description=\"Summary of simplified observations favoring the reference or a third allele (has to be considered together with SAOBS). Each entry is encoded as CB, with C being a count, \
               B being the posterior odds for the reference or a third allele. \
-              The letter denotes an extended Kass Raftery score: E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              The latter denotes an extended Kass Raftery score: E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%).\">",
         );
         header.push_record(
