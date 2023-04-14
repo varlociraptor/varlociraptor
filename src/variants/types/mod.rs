@@ -43,6 +43,7 @@ pub(crate) use snv::Snv;
 
 use super::evidence::insert_size::estimate_insert_size;
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
+use super::evidence::realignment::edit_distance::EditDistance;
 use super::evidence::realignment::Realignable;
 use super::model;
 use super::sampling_bias::FragmentSamplingBias;
@@ -59,6 +60,8 @@ pub(crate) struct AlleleSupport {
     #[builder(default)]
     #[getset(get_copy = "pub")]
     homopolymer_indel_len: Option<i8>,
+    #[getset(get_copy = "pub")]
+    third_allele_evidence: Option<EditDistance>,
 }
 
 impl AlleleSupport {
@@ -110,6 +113,16 @@ impl AlleleSupport {
                     (None, Some(indel_len)) => Some(indel_len),
                     (None, None) => None,
                 }
+        }
+
+        match (
+            &mut self.third_allele_evidence,
+            &other.third_allele_evidence,
+        ) {
+            (Some(edit_dist), Some(other_edit_dist)) => edit_dist.update(other_edit_dist),
+            (None, Some(other_edit_dist)) => self.third_allele_evidence = Some(*other_edit_dist),
+            (Some(_), None) => (),
+            (None, None) => (),
         }
 
         self
@@ -189,6 +202,7 @@ pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
                 .prob_ref_allele(LogProb::ln_one())
                 .prob_alt_allele(LogProb::ln_one())
                 .strand(Strand::None)
+                .third_allele_evidence(None)
                 .build()
                 .unwrap())
         } else {
@@ -196,6 +210,7 @@ pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
                 .prob_ref_allele(p_ref)
                 .prob_alt_allele(p_alt)
                 .strand(Strand::None)
+                .third_allele_evidence(None)
                 .build()
                 .unwrap())
         }

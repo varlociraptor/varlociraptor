@@ -140,6 +140,8 @@ impl<R: Realigner> Realignable for Deletion<R> {
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             homopolymer: self.homopolymer.clone(),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -220,6 +222,7 @@ impl<R: Realigner> Variant for Deletion<R> {
                     &[&self.locus],
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?))
             }
             PairedEndEvidence::PairedEnd { left, right } => {
@@ -242,12 +245,14 @@ impl<R: Realigner> Variant for Deletion<R> {
                     &[&self.locus],
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
                     right,
                     &[&self.locus],
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
 
                 let mut support = left_support;
@@ -310,6 +315,8 @@ pub(crate) struct DeletionEmissionParams {
     del_start: usize,
     del_len: usize,
     homopolymer: Option<Range<u64>>,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for DeletionEmissionParams {
@@ -325,6 +332,10 @@ impl RefBaseEmission for DeletionEmissionParams {
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         self.homopolymer.clone()
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some(self.del_start as u64..(self.del_start as u64 + self.del_len as u64))
     }
 
     #[inline]

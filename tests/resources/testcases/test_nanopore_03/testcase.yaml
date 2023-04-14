@@ -1,9 +1,6 @@
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - normal < 0.1
-  posteriors:
-    - PROB_ARTIFACT < 0.05
+    - normal == 0.0
 
 # necessary bam files
 samples:

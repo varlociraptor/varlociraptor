@@ -1,10 +1,7 @@
+# Homo- or heterozygous variant
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - normal > 0.8
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_GERMLINE_HOM < 0.05
+    - normal > 0.0
 
 # necessary bam files
 samples:

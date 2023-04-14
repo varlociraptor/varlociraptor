@@ -454,6 +454,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                                             .prob_ref_allele(prob_ref)
                                             .prob_alt_allele(prob_alt)
                                             .strand(Strand::None)
+                                            .third_allele_evidence(None)
                                             .build()
                                             .unwrap(),
                                     ));
@@ -480,6 +481,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                             .prob_ref_allele(LogProb::ln_zero())
                             .prob_alt_allele(LogProb::ln_one())
                             .strand(Strand::None)
+                            .third_allele_evidence(None)
                             .build()
                             .unwrap(),
                     )),
@@ -488,6 +490,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                             .prob_ref_allele(LogProb::ln_one())
                             .prob_alt_allele(LogProb::ln_zero())
                             .strand(Strand::None)
+                            .third_allele_evidence(None)
                             .build()
                             .unwrap(),
                     )),
@@ -506,6 +509,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         self.loci.iter(),
                         self,
                         alt_variants,
+                        alignment_properties,
                     )?))
                 }
                 PairedEndEvidence::PairedEnd { left, right } => {
@@ -514,12 +518,14 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         self.loci.iter(),
                         self,
                         alt_variants,
+                        alignment_properties,
                     )?;
                     let right_support = self.realigner.borrow_mut().allele_support(
                         right,
                         self.loci.iter(),
                         self,
                         alt_variants,
+                        alignment_properties,
                     )?;
 
                     let mut support = left_support;
@@ -840,6 +846,8 @@ impl<R: Realigner> Realignable for BreakendGroup<R> {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
+                    ref_offset_override: None,
+                    ref_end_override: None,
                 }));
             }
         }
@@ -879,6 +887,8 @@ pub(crate) struct BreakendEmissionParams {
     alt_allele: Arc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for BreakendEmissionParams {
@@ -888,6 +898,10 @@ impl RefBaseEmission for BreakendEmissionParams {
     }
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
         None
     }
 

@@ -275,6 +275,9 @@ where
     pub homopolymer_indel_len: Option<i8>,
     pub is_max_mapq: bool,
     pub alt_locus: A,
+    /// Edit distance of the read against the alt allele. Only recorded if it is higher than
+    /// the expected number of sequencing errors of each type.
+    pub third_allele_evidence: Option<u32>,
 }
 
 pub type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
@@ -344,6 +347,7 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
             } else {
                 AltLocus::None
             },
+            third_allele_evidence: self.third_allele_evidence,
         }
     }
 }
@@ -605,7 +609,8 @@ where
                         .paired(evidence.is_paired())
                         .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
                         .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
-                        .alt_locus(evidence.alt_loci());
+                        .alt_locus(evidence.alt_loci())
+                        .third_allele_evidence(allele_support.third_allele_evidence().map(|d| *d));
 
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
                         let ref_indel_len =
