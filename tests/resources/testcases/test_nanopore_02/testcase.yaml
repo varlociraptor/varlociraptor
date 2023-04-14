@@ -1,8 +1,7 @@
+# Homo- or heterozygous variant
 expected:
   allelefreqs:
     - normal > 0.0
-  posteriors:
-    - PROB_GERMLINE_HOM < 0.05
 
 # necessary bam files
 samples:
