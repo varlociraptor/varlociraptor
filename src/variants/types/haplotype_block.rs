@@ -293,9 +293,6 @@ impl Variant for HaplotypeBlock {
         if support.is_empty() {
             Ok(None)
         } else {
-            // if evidence.name() == b"simulated.105" {
-            //     dbg!(haplotype_support(&support, true));
-            // }
             Ok(Some(haplotype_support(&support)))
         }
     }
