@@ -10,16 +10,16 @@
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bio::stats::{bayesian, LogProb};
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
-use crate::utils::is_phred_scaled;
+use crate::utils::{event_to_tag, events_to_tags, is_phred_scaled};
 use crate::variants::model;
-use crate::Event;
+use crate::{errors, Event};
 use crate::{utils, SimpleEvent};
 
 /// Print thresholds to control FDR of given calls at multiple levels.
@@ -62,13 +62,40 @@ where
 
     let mut threshold = None;
 
+    // skip events that are not present in the header
+    let cleaned_events = events
+        .into_iter()
+        .filter(|event| {
+            inbcf_reader
+                .header()
+                .info_type(event_to_tag(*event).as_bytes())
+                .is_ok()
+        })
+        .cloned()
+        .collect_vec();
+    if cleaned_events.is_empty() {
+        bail!(errors::Error::InvalidFDRControlEvents)
+    } else if cleaned_events != events {
+        warn!(
+            "Skipping events not present in BCF header: {}",
+            events
+                .iter()
+                .filter_map(|event| if !cleaned_events.contains(event) {
+                    Some(event.name())
+                } else {
+                    None
+                })
+                .join(", ")
+        );
+    }
+
     if local {
         threshold = Some(alpha.ln_one_minus_exp());
     } else if alpha != LogProb::ln_one() {
         let dist_events = if smart {
             vec![SimpleEvent::new("ABSENT"), SimpleEvent::new("ARTIFACT")]
         } else {
-            events.to_vec()
+            cleaned_events.clone()
         };
 
         // do not filter by FDR if alpha is 1.0
@@ -116,7 +143,7 @@ where
         &mut inbcf_reader,
         threshold,
         &mut outbcf,
-        events,
+        &cleaned_events,
         vartype,
         smart,
     )?;

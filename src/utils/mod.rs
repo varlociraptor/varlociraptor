@@ -214,7 +214,14 @@ pub(crate) fn events_to_tags<E>(events: &[E]) -> Vec<String>
 where
     E: Event,
 {
-    events.iter().map(|e| e.tag_name("PROB")).collect_vec()
+    events.iter().map(|e| event_to_tag(e)).collect_vec()
+}
+
+pub(crate) fn event_to_tag<E>(event: &E) -> String
+where
+    E: Event,
+{
+    event.tag_name("PROB")
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
@@ -287,7 +294,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
-    let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let tags = events_to_tags(events);
     let absent_and_artifact_tags = ["PROB_ABSENT".to_owned(), "PROB_ARTIFACT".to_owned()];
     let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
         let bnd_event = info_tag_event(record).ok().flatten();
