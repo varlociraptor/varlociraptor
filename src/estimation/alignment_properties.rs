@@ -21,6 +21,7 @@ use itertools::Itertools;
 use num_traits::Zero;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
+use statrs::distribution::ContinuousCDF;
 use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
@@ -215,6 +216,37 @@ impl AlignmentProperties {
         let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
         bam.fetch(FetchDefinition::All)?;
         let stats = idxstats(path.as_ref())?;
+        let num_alignments = stats
+            .iter()
+            .map(|(_, (_, n_mapped, _))| n_mapped)
+            .sum::<u64>();
+        // TODO: get rough estimate of read length, assume 100 for illumina for now
+        let transitions_per_alignment = 100;
+        let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
+        let precision = 1e-1;
+        let confidence_level = 0.1;
+        let number_of_valid_transitions = 82;
+        let b = statrs::distribution::ChiSquared::new(1.0)?
+            .inverse_cdf(1. - confidence_level / number_of_valid_transitions as f64);
+        dbg!(
+            num_alignments,
+            transitions_per_alignment,
+            num_transitions,
+            precision,
+            confidence_level,
+            number_of_valid_transitions,
+            b
+        );
+        let num_alignments_needed = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5].map(|p| {
+            let p_rel = precision * p;
+            ((b * num_transitions * p * (1. - p)
+                / (p_rel.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
+                / transitions_per_alignment as f64)
+                .ceil() as usize
+        });
+        dbg!(num_alignments_needed);
+        let min_num_alignments_needed = *num_alignments_needed.iter().max().unwrap();
+        dbg!(min_num_alignments_needed);
         let header = bam.header().clone();
 
         let mut n_records_analysed = 0;
