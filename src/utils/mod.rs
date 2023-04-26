@@ -30,12 +30,12 @@ use crate::Event;
 pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod aux_info;
+pub(crate) mod bam_utils;
 pub(crate) mod collect_variants;
 pub(crate) mod comparison;
 pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
 pub(crate) mod variant_buffer;
-pub(crate) mod bam_utils;
 
 pub(crate) use collect_variants::collect_variants;
 
@@ -590,7 +590,6 @@ where
     #[getset(get_copy = "pub(crate)")]
     total_count: usize,
 }
-
 
 fn serialize_tuple_keys<T: Eq + Hash + Debug, S>(
     map: &HashMap<T, usize>,
