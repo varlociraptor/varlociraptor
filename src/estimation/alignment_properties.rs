@@ -11,7 +11,6 @@ use std::ops::AddAssign;
 use std::str;
 use std::u32;
 
-use crate::estimation::alignment_properties::State::HopAX;
 use anyhow::{anyhow, Result};
 use bio::stats::pairhmm::HomopolyPairHMM;
 use bio::stats::{LogProb, Prob};
@@ -245,12 +244,7 @@ impl AlignmentProperties {
                 }
 
                 let chrom = std::str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
-                let cigar_counts = cigar_stats(
-                    &record,
-                    &reference_buffer.seq(chrom).unwrap(),
-                    allow_hardclips,
-                );
-                let transition_counts = transition_stats(
+                let (cigar_counts, transition_counts) = cigar_stats(
                     &record,
                     &reference_buffer.seq(chrom).unwrap(),
                     allow_hardclips,
@@ -309,6 +303,7 @@ impl AlignmentProperties {
             eprintln!();
         }
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
+        properties.transition_counts = Some(all_stats.transition_counts.clone());
 
         properties.wildtype_homopolymer_error_model = properties.wildtype_homopolymer_error_model();
 
@@ -333,7 +328,6 @@ impl AlignmentProperties {
                 transition_counts: all_stats.transition_counts,
             },
         )?;
-        std::process::exit(0);
 
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
@@ -448,45 +442,26 @@ pub enum State {
     HopTX = 12,
     HopTY = 13,
     Other = 14,
-    Start = 15,
 }
 
+const STATES: [State; 14] = [
+    State::MatchA,
+    State::MatchC,
+    State::MatchG,
+    State::MatchT,
+    State::GapX,
+    State::GapY,
+    State::HopAX,
+    State::HopAY,
+    State::HopCX,
+    State::HopCY,
+    State::HopGX,
+    State::HopGY,
+    State::HopTX,
+    State::HopTY,
+];
+
 impl State {
-    fn supports(&self, c: u8) -> bool {
-        use State::*;
-        match self {
-            MatchA | HopAX | HopAY if c.eq_ignore_ascii_case(&b'A') => true,
-            MatchC | HopCX | HopCY if c.eq_ignore_ascii_case(&b'C') => true,
-            MatchG | HopGX | HopGY if c.eq_ignore_ascii_case(&b'G') => true,
-            MatchT | HopTX | HopTY if c.eq_ignore_ascii_case(&b'T') => true,
-            _ => false,
-        }
-    }
-
-    fn is_match(&self) -> bool {
-        use State::*;
-        match self {
-            MatchA | MatchC | MatchG | MatchT => true,
-            _ => false,
-        }
-    }
-
-    fn is_hop(&self) -> bool {
-        use State::*;
-        match self {
-            HopAX | HopAY | HopCX | HopCY | HopGX | HopGY | HopTX | HopTY => true,
-            _ => false,
-        }
-    }
-
-    fn is_gap(&self) -> bool {
-        use State::*;
-        match self {
-            GapX | GapY => true,
-            _ => false,
-        }
-    }
-
     fn match_(c: u8) -> Self {
         use State::*;
         match c.to_ascii_uppercase() {
@@ -548,97 +523,10 @@ impl TransitionCounts {
     pub(crate) fn increment_by(&mut self, from: State, to: State, value: usize) {
         self.inner[(from as usize, to as usize)] += value;
     }
-}
 
-fn advance_positions(c: Cigar, rpos: &mut usize, qpos: &mut usize) {
-    match c {
-        Cigar::Match(n) | Cigar::Equal(n) | Cigar::Diff(n) => {
-            *rpos += n as usize;
-            *qpos += n as usize;
-        }
-        Cigar::Ins(n) => {
-            *qpos += n as usize;
-        }
-        Cigar::Del(n) => {
-            *rpos += n as usize;
-        }
-        Cigar::RefSkip(n) => {
-            *rpos += n as usize;
-        }
-        Cigar::SoftClip(n) => {
-            *qpos += n as usize;
-        }
-        Cigar::HardClip(_) => {}
-        Cigar::Pad(_) => {}
+    pub(crate) fn count(&self, from: State, to: State) -> usize {
+        self.inner[(from as usize, to as usize)]
     }
-}
-
-fn transition_stats(record: &bam::Record, rseq: &[u8], allow_hardclips: bool) -> TransitionCounts {
-    let mut transition_stats = TransitionCounts::default();
-    let qseq = record.seq();
-    let mut qpos = 0usize;
-    let mut rpos = record.pos() as usize;
-    let iter = iter_cigar(record);
-    let mut prev_state = State::Start;
-    for (r1, q1) in iter
-        .flat_map(|c| {
-            advance_positions(c, &mut rpos, &mut qpos);
-            match c {
-                Cigar::Match(n) | Cigar::Equal(n) | Cigar::Diff(n) => {
-                    let n = n as usize;
-                    (0..n)
-                        .map(|i| (rseq[rpos + i - n], qseq[qpos + i - n]))
-                        .collect_vec()
-                }
-                Cigar::Ins(n) => {
-                    let n = n as usize;
-                    (0..n).map(|i| (b'-', qseq[qpos + i - n])).collect_vec()
-                }
-                Cigar::Del(n) => {
-                    let n = n as usize;
-                    (0..n).map(|i| (rseq[rpos + i - n], b'-')).collect_vec()
-                }
-                _ => {
-                    vec![(b'-', b'-')]
-                }
-            }
-        })
-    {
-        use State::*;
-        match (r1, q1) {
-            (b'-', b'-') => {
-                prev_state = Start;
-            }
-            (b'-', q) => match prev_state {
-                s if s.supports(q) && (s.is_hop() || s.is_match()) => {
-                    prev_state = State::hop_x(q);
-                    transition_stats.increment(s, prev_state)
-                }
-                s => {
-                    prev_state = GapX;
-                    transition_stats.increment(s, prev_state);
-                }
-            },
-            (r, b'-') => match prev_state {
-                s if s.supports(r) && (s.is_hop() || s.is_match()) => {
-                    prev_state = State::hop_y(r);
-                    transition_stats.increment(s, prev_state)
-                }
-                s => {
-                    prev_state = GapY;
-                    transition_stats.increment(s, prev_state);
-                }
-            },
-            (r, _q) => {
-                let s = prev_state.clone();
-                prev_state = State::match_(r);
-                transition_stats.increment(s, prev_state);
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    transition_stats
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -691,10 +579,15 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
 /// - gaps, both insertions and deletions, by length
 /// - homopolymer runs, both insertions and deletions, by length and base
 /// - matches, independent of the fact whether they are exact or contain substitutions
-fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> CigarStats {
+fn cigar_stats(
+    record: &bam::Record,
+    refseq: &[u8],
+    allow_hardclips: bool,
+) -> (CigarStats, TransitionCounts) {
     let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
 
     let mut cigar_stats = CigarStats::default();
+    let mut transition_stats = TransitionCounts::default();
     let qseq = record.seq();
     let mut qpos = 0usize;
     let mut rpos = record.pos() as usize;
@@ -730,6 +623,17 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                             )
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
+                            let ms = State::match_(base);
+                            let hs = State::hop_x(base);
+                            transition_stats.increment_by(ms, ms, l);
+                            transition_stats.increment_by(ms, hs, 1);
+                            if len - l > 0 {
+                                transition_stats.increment_by(hs, hs, len - l - 1);
+                            }
+                            if rpos + len + 1 < refseq.len() {
+                                transition_stats
+                                    .increment(hs, State::match_(refseq[rpos + len + 1]));
+                            }
                             cigar_stats
                                 .hop_counts
                                 .entry(base)
@@ -738,6 +642,14 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                         }
                     }
                     if !is_homopolymer || l == 1 {
+                        transition_stats.increment_by(State::match_(base), State::GapX, 1);
+                        if l > 1 {
+                            transition_stats.increment_by(State::GapX, State::GapX, l - 1);
+                        }
+                        if rpos + l + 1 < refseq.len() {
+                            transition_stats
+                                .increment(State::GapX, State::match_(refseq[rpos + l + 1]));
+                        }
                         cigar_stats.gap_counts.incr(-(isize::try_from(l).unwrap()));
                     }
                 }
@@ -766,6 +678,16 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                             );
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
+                            let ms = State::match_(base);
+                            let hs = State::hop_y(base);
+                            transition_stats.increment_by(ms, ms, l);
+                            transition_stats.increment_by(ms, hs, 1);
+                            if len - l > 0 {
+                                transition_stats.increment_by(hs, hs, len - l - 1);
+                            }
+                            if rpos + 1 < refseq.len() {
+                                transition_stats.increment(hs, State::match_(refseq[rpos + 1]));
+                            }
                             cigar_stats
                                 .hop_counts
                                 .entry(base)
@@ -774,6 +696,14 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                         }
                     }
                     if !is_homopolymer || l == 1 {
+                        transition_stats.increment_by(State::match_(base), State::GapY, 1);
+                        if l > 1 {
+                            transition_stats.increment_by(State::GapY, State::GapY, l - 1);
+                        }
+                        if rpos + l + 1 < refseq.len() {
+                            transition_stats
+                                .increment(State::GapY, State::match_(refseq[rpos + l + 1]));
+                        }
                         cigar_stats.gap_counts.incr(isize::try_from(l).unwrap());
                     }
                 }
@@ -799,6 +729,9 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                         }
                     }
                 }
+                for (r1, r2) in refseq[rpos..rpos + l].iter().tuple_windows() {
+                    transition_stats.increment(State::match_(*r1), State::match_(*r2));
+                }
                 qpos += l as usize;
                 rpos += l as usize;
             }
@@ -819,7 +752,7 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
             Cigar::HardClip(_) | Cigar::Pad(_) => continue,
         }
     }
-    cigar_stats
+    (cigar_stats, transition_stats)
 }
 
 impl AlignmentProperties {
@@ -878,52 +811,34 @@ impl AlignmentProperties {
     }
 
     pub(crate) fn estimate_hop_params(&self) -> Result<HopParams> {
-        if let Some(cigar_counts) = &self.cigar_counts {
+        if let Some(transition_counts) = &self.transition_counts {
             let mut insufficient_counts = false;
-            let empty = SimpleCounter::default();
-            let counts = |base| {
-                cigar_counts
-                    .hop_counts
-                    .get(&base)
-                    .unwrap_or(&empty)
-                    .iter()
-                    .map(|(lengths, count)| (*lengths, *count))
-            };
             let (
                 (prob_seq_homopolymer, prob_ref_homopolymer),
                 (prob_seq_extend_homopolymer, prob_ref_extend_homopolymer),
             ): ((Vec<_>, Vec<_>), (Vec<_>, Vec<_>)) = [b'A', b'C', b'G', b'T']
                 .iter()
-                .map(|base| {
-                    let events = |predicate: fn((usize, usize)) -> bool| {
-                        counts(*base).filter(move |(l, _)| predicate(*l))
-                    };
+                .map(|&base| {
                     // METHOD: only look at homopolymer events with a length difference of 1 (either ins or del) since these are very likely always artifacts
-                    let dels = events(|(r, q)| r == q + 1).collect_vec();
-                    let num_diff_1_del_events = dels.iter().map(|(_, c)| c).sum::<usize>();
-                    let num_diff_1_del_bases = dels.iter().map(|((r, _), c)| r * c).sum::<usize>();
+                    let match_ = State::match_(base);
+                    let hop_x = State::hop_x(base);
+                    let hop_y = State::hop_y(base);
 
-                    let ins = events(|(r, q)| q == r + 1).collect_vec();
-                    let num_diff_1_ins_events = ins.iter().map(|(_, c)| c).sum::<usize>();
-                    let num_diff_1_ins_bases = ins.iter().map(|((_, q), c)| q * c).sum::<usize>();
+                    let [prob_ins, prob_del] = [hop_x, hop_y].map(|hop| {
+                        let start_hop = transition_counts.count(match_, hop);
+                        let extend_hop = transition_counts.count(hop, hop);
+                        dbg!(match_, hop, start_hop, extend_hop);
+                        if start_hop + extend_hop < 100 {
+                            insufficient_counts |= true;
+                        }
+                        let from_previous = STATES
+                            .map(|s| transition_counts.count(match_, s))
+                            .iter()
+                            .sum::<usize>();
+                        let prob = (start_hop + extend_hop) as f64 / from_previous as f64;
+                        LogProb::from(Prob::checked(prob).unwrap_or_else(|_| Prob::zero()))
+                    });
 
-                    let prob_del_hop_start_or_extend =
-                        num_diff_1_del_events as f64 / num_diff_1_del_bases as f64;
-                    let prob_ins_hop_start_or_extend =
-                        num_diff_1_ins_events as f64 / num_diff_1_ins_bases as f64;
-
-                    if num_diff_1_del_events < 100 || num_diff_1_ins_events < 100 {
-                        insufficient_counts |= true;
-                    }
-
-                    let prob_ins = LogProb::from(
-                        Prob::checked(prob_ins_hop_start_or_extend)
-                            .unwrap_or_else(|_| Prob::zero()),
-                    );
-                    let prob_del = LogProb::from(
-                        Prob::checked(prob_del_hop_start_or_extend)
-                            .unwrap_or_else(|_| Prob::zero()),
-                    );
                     ((prob_ins, prob_del), (prob_ins, prob_del))
                 })
                 .unzip();
