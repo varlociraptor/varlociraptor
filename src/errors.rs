@@ -80,6 +80,8 @@ pub(crate) enum Error {
     InvalidPriorContaminationEstimate,
     #[error("breakend with MATEID found that does not have its own ID set: this is currently unsupported, as there is no way to uniquely identify the pair")]
     BreakendMateidWithoutRecid,
+    #[error("invalid FDR control events, no events provided or none of the given events matches the events found in the callset")]
+    InvalidFDRControlEvents,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {
