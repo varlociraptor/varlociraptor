@@ -1014,7 +1014,7 @@ mod tests {
     #[test]
     fn test_estimate_all_reads_single_end() {
         // this file contains only single-ended reads (artificially made single-ended with awk)
-        let path ="tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam";
+        let path = "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
