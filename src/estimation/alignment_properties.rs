@@ -472,7 +472,9 @@ impl State {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct TransitionCounts {
-    inner: ndarray::Array2<usize>, // enum State num members/variants == 14, + 1 for start state?
+    // a State x State matrix with each cell containing the number of transitions
+    // from state x to state y
+    inner: ndarray::Array2<usize>,
 }
 
 impl Default for TransitionCounts {
