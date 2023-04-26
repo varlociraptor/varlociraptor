@@ -35,6 +35,7 @@ pub(crate) mod comparison;
 pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
 pub(crate) mod variant_buffer;
+pub(crate) mod bam_utils;
 
 pub(crate) use collect_variants::collect_variants;
 

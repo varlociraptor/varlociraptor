@@ -3,12 +3,13 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use rust_htslib::bam::Read;
+use rust_htslib::bam::{FetchDefinition, Read};
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::f64;
 use std::ops::AddAssign;
+use std::path::Path;
 use std::str;
 use std::u32;
 
@@ -24,6 +25,7 @@ use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
 use crate::utils::aux_tag_is_entire_fragment;
+use crate::utils::bam_utils::idxstats;
 use crate::utils::homopolymers::is_homopolymer_seq;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::SimpleCounter;
@@ -140,7 +142,7 @@ impl AlignmentProperties {
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate(
-        bam: &mut bam::IndexedReader,
+        path: impl AsRef<Path>,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -210,6 +212,9 @@ impl AlignmentProperties {
             tlens: Vec<f64>,
         }
 
+        let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
+        bam.fetch(FetchDefinition::All)?;
+        let stats = idxstats(path.as_ref())?;
         let header = bam.header().clone();
 
         let mut n_records_analysed = 0;
@@ -915,6 +920,7 @@ impl<V: Ord> OptionMax<V> for Option<V> {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::bam_utils::idxstats;
     use bio::io::fasta;
 
     use super::*;
@@ -928,12 +934,11 @@ mod tests {
 
     #[test]
     fn test_estimate() {
-        let mut bam =
-            bam::IndexedReader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+        let path = "tests/resources/tumor-first30000.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &mut bam,
+            path,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -955,14 +960,11 @@ mod tests {
 
     #[test]
     fn test_estimate_all_reads_have_short_clips() {
-        let mut bam = bam::IndexedReader::from_path(
-            "tests/resources/tumor-first30000.reads_with_soft_clips.bam",
-        )
-        .unwrap();
+        let path = "tests/resources/tumor-first30000.reads_with_soft_clips.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &mut bam,
+            path,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -980,14 +982,11 @@ mod tests {
     #[test]
     fn test_estimate_all_reads_single_end() {
         // this file contains only single-ended reads (artificially made single-ended with awk)
-        let mut bam = bam::IndexedReader::from_path(
-            "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam",
-        )
-        .unwrap();
+        let path ="tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &mut bam,
+            path,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
