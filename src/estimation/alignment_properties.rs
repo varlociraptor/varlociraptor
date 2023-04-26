@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use rust_htslib::bam::Read;
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -138,8 +139,8 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub(crate) fn estimate<R: bam::Read>(
-        bam: &mut R,
+    pub(crate) fn estimate(
+        bam: &mut bam::IndexedReader,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -927,7 +928,8 @@ mod tests {
 
     #[test]
     fn test_estimate() {
-        let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+        let mut bam =
+            bam::IndexedReader::from_path("tests/resources/tumor-first30000.bam").unwrap();
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
@@ -953,9 +955,10 @@ mod tests {
 
     #[test]
     fn test_estimate_all_reads_have_short_clips() {
-        let mut bam =
-            bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam")
-                .unwrap();
+        let mut bam = bam::IndexedReader::from_path(
+            "tests/resources/tumor-first30000.reads_with_soft_clips.bam",
+        )
+        .unwrap();
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
@@ -977,7 +980,7 @@ mod tests {
     #[test]
     fn test_estimate_all_reads_single_end() {
         // this file contains only single-ended reads (artificially made single-ended with awk)
-        let mut bam = bam::Reader::from_path(
+        let mut bam = bam::IndexedReader::from_path(
             "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam",
         )
         .unwrap();

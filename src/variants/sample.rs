@@ -172,7 +172,7 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     num_records: Option<usize>,
     epsilon_gap: f64,
 ) -> Result<alignment_properties::AlignmentProperties> {
-    let mut bam = bam::Reader::from_path(path)?;
+    let mut bam = bam::IndexedReader::from_path(path)?;
     alignment_properties::AlignmentProperties::estimate(
         &mut bam,
         omit_insert_size,
