@@ -296,12 +296,6 @@ impl AlignmentProperties {
                 acc
             });
 
-        for i in 0..16 {
-            for j in 0..16 {
-                eprint!("{}\t", all_stats.transition_counts.inner[(i, j)]);
-            }
-            eprintln!();
-        }
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
         properties.transition_counts = Some(all_stats.transition_counts.clone());
 
@@ -309,26 +303,6 @@ impl AlignmentProperties {
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
-        #[derive(Serialize)]
-        struct Props {
-            gap_counts: Vec<(isize, usize)>,
-            hop_counts: Vec<(u8, Vec<((usize, usize), usize)>)>,
-            transition_counts: TransitionCounts,
-        }
-        let g_counts = properties.cigar_counts.as_ref().unwrap().gap_counts.clone();
-        let h_counts = properties.cigar_counts.as_ref().unwrap().hop_counts.clone();
-        serde_json::to_writer_pretty(
-            &mut std::io::stdout(),
-            &Props {
-                gap_counts: g_counts.iter().map(|(x, y)| (*x, *y)).collect(),
-                hop_counts: h_counts
-                    .into_iter()
-                    .map(|(b, v)| (b, v.iter().map(|(x, y)| (*x, *y)).collect::<Vec<_>>()))
-                    .collect(),
-                transition_counts: all_stats.transition_counts,
-            },
-        )?;
-
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
@@ -827,7 +801,6 @@ impl AlignmentProperties {
                     let [prob_ins, prob_del] = [hop_x, hop_y].map(|hop| {
                         let start_hop = transition_counts.count(match_, hop);
                         let extend_hop = transition_counts.count(hop, hop);
-                        dbg!(match_, hop, start_hop, extend_hop);
                         if start_hop + extend_hop < 100 {
                             insufficient_counts |= true;
                         }
