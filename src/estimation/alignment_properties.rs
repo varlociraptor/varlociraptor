@@ -215,40 +215,28 @@ impl AlignmentProperties {
 
         let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
         bam.fetch(FetchDefinition::All)?;
+
+        // Retrieve number of alignments in the bam file.
+        // Use this to estimate the number of alignments needed to estimate the
+        // HPHMM's transition probabilities to a certain precision.
         let stats = idxstats(path.as_ref())?;
         let num_alignments = stats
             .iter()
             .map(|(_, (_, n_mapped, _))| n_mapped)
             .sum::<u64>();
-        // TODO: get rough estimate of read length, assume 100 for illumina for now
-        let transitions_per_alignment = 100;
-        let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
-        let precision = 1e-1;
-        let confidence_level = 0.1;
-        let number_of_valid_transitions = 82;
-        let b = statrs::distribution::ChiSquared::new(1.0)?
-            .inverse_cdf(1. - confidence_level / number_of_valid_transitions as f64);
-        dbg!(
-            num_alignments,
-            transitions_per_alignment,
-            num_transitions,
-            precision,
-            confidence_level,
-            number_of_valid_transitions,
-            b
-        );
-        let num_alignments_needed = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5].map(|p| {
-            let p_rel = precision * p;
-            ((b * num_transitions * p * (1. - p)
-                / (p_rel.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
-                / transitions_per_alignment as f64)
-                .ceil() as usize
-        });
-        dbg!(num_alignments_needed);
-        let min_num_alignments_needed = *num_alignments_needed.iter().max().unwrap();
-        dbg!(min_num_alignments_needed);
-        let header = bam.header().clone();
 
+        let min_num_alignments_needed =
+            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(num_alignments);
+
+        // Given the number of alignments needed, calculate the step size for the record iterator.
+        // The reason to simply use a fixed step size is that
+        // - because it is unknown how alignments are distributed across the genome -
+        // it is difficult to define an unbiased sampling strategy + it requires random access.
+        let step = (num_alignments as f64 / min_num_alignments_needed as f64)
+            .floor()
+            .max(1.) as usize;
+
+        let header = bam.header().clone();
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
         let mut record_flag_stats = RecordFlagStats::new();
@@ -265,8 +253,8 @@ impl AlignmentProperties {
                 }
                 !skip
             })
-            // TODO expose step parameter to cli
-            .step_by(1);
+            .step_by(step)
+            .take(min_num_alignments_needed);
         let records = if let Some(num_records) = num_records {
             Box::new(records.take(num_records)) as Box<dyn Iterator<Item = bam::Record>>
         } else {
@@ -433,6 +421,47 @@ impl AlignmentProperties {
             });
             Ok(properties)
         }
+    }
+
+    fn estimate_number_of_alignments_for_hphmm_mle_param_estimation(num_alignments: u64) -> usize {
+        // TODO: Get rough estimate of read length, assume 100 for illumina for now
+        // Most reads in the wild are at least 100bp long, so this is a conservative estimate.
+        let transitions_per_alignment = 100;
+
+        // The estimation is in terms of the number of transitions,
+        // which is roughly the number of alignments times the average read length.
+        let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
+
+        // The target precision for the transition probabilities.
+        let precision = 1e-1;
+
+        // The confidence level used during estimation.
+        let confidence_level = 0.1;
+
+        // The number of valid transitions (i.e. nonzero transition probability) in the HPHMM.
+        let number_of_valid_transitions = 82;
+
+        // Upper confidence_level / number_of_valid_transitions quantile
+        // of the chi-squared distribution with 1 degree of freedom.
+        let b = statrs::distribution::ChiSquared::new(1.0).expect("Failed constructing ChiSquared distribution with 1 degree of freedom")
+            .inverse_cdf(1. - confidence_level / number_of_valid_transitions as f64);
+
+        // Given expected transition probabilities, calculate the number of alignments needed
+        // to estimate the transition probabilities *for this specific set of alignments* to a
+        // certain precision and confidence level.
+        // Generally, we expect rather low transition probabilities for homopolymer errors,
+        // and roughly 1/4 for match -> match transitions.
+        let num_alignments_needed = [0.25, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5].map(|p| {
+            let p_rel = precision * p;
+            ((b * num_transitions * p * (1. - p)
+                / (p_rel.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
+                / transitions_per_alignment as f64)
+                .ceil() as usize
+        });
+        // The minimum number of alignments that need to be examined to estimate the transition
+        // probabilities is the maximum of the estimates for each transition probability above.
+        let min_num_alignments_needed = *num_alignments_needed.iter().max().unwrap();
+        min_num_alignments_needed
     }
 }
 
