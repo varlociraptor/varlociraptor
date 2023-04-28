@@ -21,6 +21,7 @@ use itertools::Itertools;
 use rust_htslib::bam;
 
 use crate::errors::Error;
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::observations::read_observation::Strand;
@@ -34,6 +35,7 @@ pub(crate) mod pairhmm;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 use bio::stats::pairhmm::HomopolyPairHMM;
 
+use self::edit_distance::EditDistance;
 use self::pairhmm::RefBaseEmission;
 use self::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission};
 
@@ -170,6 +172,7 @@ pub(crate) trait Realigner {
         loci: L,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
+        alignment_properties: &AlignmentProperties,
     ) -> Result<AlleleSupport>
     where
         V: Realignable,
@@ -198,6 +201,7 @@ pub(crate) trait Realigner {
                 .prob_ref_allele(p)
                 .prob_alt_allele(p)
                 .strand(Strand::None)
+                .third_allele_evidence(None)
                 .build()
                 .unwrap());
         }
@@ -229,6 +233,8 @@ pub(crate) trait Realigner {
         // Calculate independent probabilities over all merged regions.
         let mut prob_ref_all = LogProb::ln_one();
         let mut prob_alt_all = LogProb::ln_one();
+        let mut alt_edit_dist: Option<EditDistance> = None;
+        let mut is_third_allele = false;
 
         let ref_seq = self.ref_buffer().seq(record.contig())?;
         let read_seq: bam::record::Seq<'a> = record.seq();
@@ -243,10 +249,10 @@ pub(crate) trait Realigner {
             let read_emission = ReadEmission::new(
                 read_seq,
                 read_qual,
-                region.read_interval.start,
-                region.read_interval.end,
+                Some(region.read_interval.start),
+                Some(region.read_interval.end),
             );
-            let mut edit_dist =
+            let mut edit_dist_calc =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // Prepare reference alleles (the actual reference and any alt variants).
@@ -263,6 +269,8 @@ pub(crate) trait Realigner {
                     ref_seq: Arc::clone(&ref_seq),
                     ref_offset: region.ref_interval.start,
                     ref_end: region.ref_interval.end,
+                    ref_offset_override: None,
+                    ref_end_override: None,
                 }),
             )];
             for variant in alt_variants {
@@ -284,29 +292,61 @@ pub(crate) trait Realigner {
             }
 
             // ref allele (or one of the alt variants)
-            let (mut prob_ref, _) = self.prob_allele(&mut ref_emissions, &mut edit_dist, false);
+            let (mut prob_ref, _, _) = self.prob_allele(
+                &mut ref_emissions,
+                &mut edit_dist_calc,
+                alignment_properties,
+                false,
+            );
 
-            let (mut prob_alt, alt_hit) = self.prob_allele(
-                &mut variant
-                    .alt_emission_params(
-                        Arc::clone(self.ref_buffer()),
-                        &genome::Interval::new(
-                            record.contig().to_owned(),
-                            region.ref_interval.start as u64..region.ref_interval.end as u64,
-                        ),
-                        self.ref_window(),
-                    )?
-                    .into_iter()
-                    .map(|allele_emission| {
-                        ReadVsAlleleEmission::new(&read_emission, allele_emission)
-                    })
-                    .collect_vec(),
-                &mut edit_dist,
+            let mut alt_emission_params = variant
+                .alt_emission_params(
+                    Arc::clone(self.ref_buffer()),
+                    &genome::Interval::new(
+                        record.contig().to_owned(),
+                        region.ref_interval.start as u64..region.ref_interval.end as u64,
+                    ),
+                    self.ref_window(),
+                )?
+                .into_iter()
+                .map(|allele_emission| ReadVsAlleleEmission::new(&read_emission, allele_emission))
+                .collect_vec();
+
+            let (mut prob_alt, alt_hit, alt_params_idx) = self.prob_allele(
+                &mut alt_emission_params,
+                &mut edit_dist_calc,
+                alignment_properties,
                 false,
             );
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
+
+            if prob_alt > prob_ref {
+                // METHOD: If the read has so many edits that it is not plausible that it comes from the
+                // alt allele (more edits than expected by the sequencing error rates) and also not plausible that
+                // it comes from the ref allele, calculate the probability
+                // that it comes from an allele that is inferred from the read sequence itself, and use that as a
+                // contrast to the alt allele instead of prob_ref.
+
+                // Take emission params and undo any shrinkage that has been applied before, because
+                // our alignments are relative to the not shrunken parameters.
+                // TODO: think about a way to ensure this in a typing based approach.
+                let alt_params = &mut alt_emission_params[alt_params_idx];
+                alt_params.clear_ref_offset_override();
+                alt_params.clear_ref_end_override();
+
+                if let Some(mut read_inferred_allele) =
+                    edit_dist_calc.derive_allele_from_read(&alt_params, &alt_hit)
+                {
+                    let prob_read_inferred =
+                        self.calculate_prob_allele(&alt_hit, &mut read_inferred_allele);
+                    if prob_read_inferred > prob_ref {
+                        prob_ref = prob_read_inferred;
+                        is_third_allele = true;
+                    }
+                }
+            }
 
             // METHOD: Normalize probabilities. By this, we avoid biases due to proximal variants that are in
             // cis with the considered one. They are normalized away since they affect both ref and alt.
@@ -354,6 +394,14 @@ pub(crate) trait Realigner {
                 }
             }
 
+            if let Some(ref mut alt_edit_dist) = alt_edit_dist {
+                if let Some(ref hit_dist) = alt_hit.edit_distance() {
+                    alt_edit_dist.update(hit_dist);
+                }
+            } else {
+                alt_edit_dist = alt_hit.edit_distance();
+            }
+
             // METHOD: probabilities of independent regions are combined here.
             prob_ref_all += prob_ref;
             prob_alt_all += prob_alt;
@@ -370,29 +418,31 @@ pub(crate) trait Realigner {
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
+            .third_allele_evidence(if is_third_allele { alt_edit_dist } else { None })
             .build()
             .unwrap())
     }
 
     /// Calculate probability of a certain allele.
-    fn prob_allele(
+    fn prob_allele<'a>(
         &mut self,
-        candidate_allele_params: &mut [ReadVsAlleleEmission],
+        candidate_allele_params: &'a mut [ReadVsAlleleEmission],
         edit_dist: &mut edit_distance::EditDistanceCalculation,
+        alignment_properties: &AlignmentProperties,
         _debug: bool,
-    ) -> (LogProb, EditDistanceHit) {
+    ) -> (LogProb, EditDistanceHit, usize) {
         let mut hits = Vec::new();
         let mut best_dist = None;
-        for params in candidate_allele_params.iter_mut() {
-            if let Some(hit) = edit_dist.calc_best_hit(params, None) {
+        for (i, params) in candidate_allele_params.iter_mut().enumerate() {
+            if let Some(hit) = edit_dist.calc_best_hit(params, None, alignment_properties) {
                 match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
                     Ordering::Less => {
                         hits.clear();
                         best_dist = Some(hit.dist());
-                        hits.push((hit, params));
+                        hits.push((i, hit, params));
                     }
                     Ordering::Equal => {
-                        hits.push((hit, params));
+                        hits.push((i, hit, params));
                     }
                     Ordering::Greater => (),
                 }
@@ -401,8 +451,9 @@ pub(crate) trait Realigner {
 
         let mut prob = None;
         let mut best_hit = None;
+        let mut best_params_idx = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
-        for (hit, allele_params) in hits {
+        for (i, hit, allele_params) in hits {
             // TODO: for now, the short cut for dist==0 is disabled as it can underestimate the true probability.
             // TODO revisit this with read VH00142:2:AAAVJCFHV:2:2502:19689:40396 from test_kilpert_01
             // if hit.dist() == 0 {
@@ -416,11 +467,16 @@ pub(crate) trait Realigner {
             if prob.map_or(true, |prob| p > prob) {
                 prob.replace(p);
                 best_hit.replace(hit.clone());
+                best_params_idx.replace(i);
             }
         }
 
         // This is safe, as there will be always one probability at least.
-        (prob.unwrap(), best_hit.unwrap())
+        let prob = prob.unwrap();
+        let best_hit = best_hit.unwrap();
+        let best_params_idx = best_params_idx.unwrap();
+
+        (prob, best_hit, best_params_idx)
     }
 
     fn calculate_prob_allele(

@@ -6,14 +6,125 @@
 use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::ops::Range;
 
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
+use bio::stats::LogProb;
 
+use crate::default_ref_base_emission;
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
 use super::pairhmm::{ReadVsAlleleEmission, VariantEmission};
+
+#[derive(Debug, Clone, Copy, Derefable, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
+pub(crate) struct EditDistance(#[deref] pub(crate) u32);
+
+impl EditDistance {
+    pub(crate) fn update(&mut self, other_dist: &EditDistance) {
+        self.0 += **other_dist;
+    }
+}
+
+pub(crate) fn is_explainable_by_error_rates(
+    n_subs: usize,
+    n_ins: usize,
+    n_del: usize,
+    alignment_len: usize,
+    alignment_properties: &AlignmentProperties,
+    read_error_rate: LogProb,
+) -> bool {
+    let expected_count = |prob: LogProb| (alignment_len as f64) * prob.exp();
+    let expected_n_subs = expected_count(read_error_rate);
+    let expected_n_ins = expected_count(alignment_properties.gap_params.prob_insertion_artifact);
+    let expected_n_del = expected_count(alignment_properties.gap_params.prob_deletion_artifact);
+
+    n_subs as f64 <= expected_n_subs
+        && n_ins as f64 <= expected_n_ins
+        && n_del as f64 <= expected_n_del
+}
+
+#[derive(Debug, Clone, CopyGetters, Getters, PartialEq, Eq, Hash)]
+pub(crate) struct EditOperationCounts {
+    #[get_copy = "pub(crate)"]
+    substitutions: usize,
+    #[get_copy = "pub(crate)"]
+    insertions: usize,
+    #[get_copy = "pub(crate)"]
+    deletions: usize,
+    #[get_copy = "pub(crate)"]
+    is_explainable_by_error_rates: bool,
+    #[get_copy = "pub(crate)"]
+    alignment_idx: usize,
+    #[get = "pub(crate)"]
+    ref_range: Range<usize>,
+    #[get = "pub(crate)"]
+    in_range_alignment: Vec<AlignmentOperation>,
+}
+
+impl EditOperationCounts {
+    pub(crate) fn new(
+        n_subs: usize,
+        n_ins: usize,
+        n_del: usize,
+        start: usize,
+        end: usize,
+        alignment: Vec<AlignmentOperation>,
+        alignment_properties: &AlignmentProperties,
+        read_error_rate: LogProb,
+        alignment_idx: usize,
+    ) -> Self {
+        assert!(start < end);
+        let alignment_len = end - start;
+        let explainable = is_explainable_by_error_rates(
+            n_subs,
+            n_ins,
+            n_del,
+            alignment_len,
+            alignment_properties,
+            read_error_rate,
+        );
+
+        EditOperationCounts {
+            substitutions: n_subs,
+            insertions: n_ins,
+            deletions: n_del,
+            ref_range: start..end,
+            in_range_alignment: alignment,
+            is_explainable_by_error_rates: explainable,
+            alignment_idx,
+        }
+    }
+
+    pub(crate) fn edit_distance(&self) -> EditDistance {
+        EditDistance((self.substitutions + self.insertions + self.deletions) as u32)
+    }
+}
+
+impl PartialOrd for EditOperationCounts {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.is_explainable_by_error_rates && !other.is_explainable_by_error_rates {
+            return Some(Ordering::Less);
+        } else if !self.is_explainable_by_error_rates && other.is_explainable_by_error_rates {
+            return Some(Ordering::Greater);
+        } else {
+            Some(
+                self.substitutions
+                    .cmp(&other.substitutions)
+                    .then(self.insertions.cmp(&other.insertions))
+                    .then(self.deletions.cmp(&other.deletions)),
+            )
+        }
+    }
+}
+
+impl Ord for EditOperationCounts {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
 
 enum Myers {
     #[cfg(has_u128)]
@@ -63,6 +174,7 @@ impl EditDistanceCalculation {
         &mut self,
         emission_params: &ReadVsAlleleEmission,
         max_dist: Option<usize>,
+        alignment_properties: &AlignmentProperties,
     ) -> Option<EditDistanceHit> {
         let ref_seq = || {
             (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase())
@@ -134,6 +246,69 @@ impl EditDistanceCalculation {
                 emission_params.len_x(),
             );
 
+            // METHOD: obtain edit operations within the alt allele
+            let edit_operation_counts = if emission_params.variant_ref_range().is_some() {
+                Some(
+                    alignments
+                        .iter()
+                        .enumerate()
+                        .map(|(i, alignment)| {
+                            let mut n_subst = 0;
+                            let mut n_del = 0;
+                            let mut n_ins = 0;
+                            let mut pos = (emission_params.ref_offset() + alignment.start) as u64;
+                            let pos_start = pos;
+                            let mut in_range_alignment = Vec::new();
+                            for op in alignment.operations() {
+                                if emission_params.is_in_variant_ref_range(pos) {
+                                    in_range_alignment.push(op.to_owned());
+                                }
+                                match op {
+                                    AlignmentOperation::Subst => {
+                                        if emission_params.is_in_variant_ref_range(pos) {
+                                            n_subst += 1;
+                                        }
+                                        pos += 1;
+                                    }
+                                    AlignmentOperation::Del => {
+                                        if emission_params.is_in_variant_ref_range(pos) {
+                                            n_del += 1;
+                                        }
+                                        pos += 1;
+                                    }
+                                    AlignmentOperation::Ins => {
+                                        if emission_params.is_in_variant_ref_range(pos) {
+                                            n_ins += 1;
+                                        }
+                                    }
+                                    AlignmentOperation::Match => {
+                                        pos += 1;
+                                    }
+                                    _ => {
+                                        unreachable!("bug: unexpected alignment operation");
+                                    }
+                                }
+                            }
+
+                            EditOperationCounts::new(
+                                n_subst,
+                                n_del,
+                                n_ins,
+                                pos_start as usize,
+                                pos as usize,
+                                in_range_alignment,
+                                alignment_properties,
+                                emission_params.read_emission().error_rate(),
+                                i,
+                            )
+                        })
+                        .min()
+                        .unwrap(),
+                )
+            } else {
+                None
+            };
+
             // METHOD: obtain indel operations for homopolymer error model
             let homopolymer_indel_len = if emission_params.is_homopolymer_indel() {
                 alignments
@@ -181,7 +356,111 @@ impl EditDistanceCalculation {
                 dist: best_dist,
                 alignments,
                 homopolymer_indel_len,
+                edit_operation_counts,
             })
+        }
+    }
+
+    pub(crate) fn derive_allele_from_read<'a>(
+        &self,
+        emission_params: &'a ReadVsAlleleEmission,
+        edit_distance_hit: &EditDistanceHit,
+    ) -> Option<ReadVsAlleleEmission<'a>> {
+        // Ensure that the given emission params are not shrunken, because the edit distance hit
+        // is against the not shrunken parameters.
+        assert_eq!(
+            emission_params.ref_offset_orig(),
+            emission_params.ref_offset()
+        );
+        assert_eq!(emission_params.ref_end_orig(), emission_params.ref_end());
+
+        if edit_distance_hit
+            .edit_operation_counts()
+            .as_ref()
+            .map_or(false, |opcounts| !opcounts.is_explainable_by_error_rates())
+        {
+            // METHOD: there are more errors than the error rates could explain
+            // Therefore, we derive a novel allele from the read and consider this as an
+            // alternative to the allele of interest. The read will map better to that,
+            // such that it no longer counts as evidence for the allele of interest.
+            // In case of ambiguity, this will also properly be captured by the comparison.
+
+            // TODO in the future, this can be made more efficient by applying the patch transparently
+            // with some helper data structure upon invocation of ref_base.
+
+            let alignment = edit_distance_hit.some_alignment();
+
+            // relative position in the emission snippet we have aligned against
+            let mut pos_ref = alignment.start;
+            let mut pos_read = 0; // semiglobal alignment
+            let mut end_reduce = 0;
+
+            let mut allele = Vec::new();
+            let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
+            // add part before the alignment
+            allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
+
+            for op in alignment.operations() {
+                let is_in_range = emission_params
+                    .is_in_variant_ref_range(pos_ref as u64 + emission_params.ref_offset() as u64);
+                match op {
+                    AlignmentOperation::Match => {
+                        allele.push(emission_params.ref_base(pos_ref));
+                        pos_ref += 1;
+                        pos_read += 1;
+                    }
+                    AlignmentOperation::Subst => {
+                        allele.push(if is_in_range {
+                            self.read_seq[pos_read]
+                        } else {
+                            emission_params.ref_base(pos_ref)
+                        });
+                        pos_ref += 1;
+                        pos_read += 1;
+                    }
+                    AlignmentOperation::Del => {
+                        if is_in_range {
+                            pos_ref += 1;
+                            end_reduce += 1;
+                        } else {
+                            emission_params.ref_base(pos_ref);
+                            pos_ref += 1;
+                        }
+                    }
+                    AlignmentOperation::Ins => {
+                        if is_in_range {
+                            allele.push(self.read_seq[pos_read]);
+                            pos_read += 1;
+                        } else {
+                            pos_read += 1;
+                        }
+                    }
+                    _ => {
+                        unreachable!("bug: unexpected alignment operation")
+                    }
+                }
+            }
+            // add the remaining sequence
+            allele.extend(
+                (pos_ref..emission_params.ref_end() - emission_params.ref_offset() + 1)
+                    .map(|i| emission_params.ref_base(i)),
+            );
+
+            // Adjust ref_end by end_reduce, in order to ensure that deletions in var_range do not shorten the allele
+            // without adjusting the ref_end.
+
+            Some(ReadVsAlleleEmission::new(
+                emission_params.read_emission(),
+                Box::new(PatchedAlleleEmission {
+                    ref_offset: emission_params.allele_emission().ref_offset(),
+                    ref_end: emission_params.allele_emission().ref_end(),
+                    patched_seq: allele,
+                    ref_offset_override: None,
+                    ref_end_override: None,
+                }),
+            ))
+        } else {
+            None
         }
     }
 }
@@ -206,10 +485,61 @@ pub(crate) struct EditDistanceHit {
     alignments: Vec<Alignment>,
     #[getset(get_copy = "pub(crate)")]
     homopolymer_indel_len: Option<i8>,
+    #[getset(get = "pub(crate)")]
+    edit_operation_counts: Option<EditOperationCounts>,
 }
 
 impl EditDistanceHit {
     pub(crate) fn dist_upper_bound(&self) -> usize {
         self.dist as usize + EDIT_BAND
+    }
+
+    /// Return the best alignment or any one if this cannot be decided.
+    pub(crate) fn some_alignment(&self) -> &Alignment {
+        if let Some(edit_operation_counts) = &self.edit_operation_counts {
+            &self.alignments[edit_operation_counts.alignment_idx()]
+        } else {
+            &self.alignments[0]
+        }
+    }
+
+    pub(crate) fn edit_distance(&self) -> Option<EditDistance> {
+        self.edit_operation_counts()
+            .as_ref()
+            .map(|opcounts| opcounts.edit_distance())
+    }
+}
+
+pub(crate) struct PatchedAlleleEmission {
+    ref_offset: usize,
+    ref_end: usize,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
+    patched_seq: Vec<u8>,
+}
+
+impl RefBaseEmission for PatchedAlleleEmission {
+    fn ref_base(&self, pos: usize) -> u8 {
+        self.patched_seq[pos]
+    }
+
+    default_ref_base_emission!();
+
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
+    }
+
+    fn len_x(&self) -> usize {
+        self.patched_seq.len()
+    }
+}
+
+impl VariantEmission for PatchedAlleleEmission {
+    fn is_homopolymer_indel(&self) -> bool {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
     }
 }

@@ -9,6 +9,7 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
+use bio::alignment::AlignmentOperation;
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
@@ -25,26 +26,50 @@ lazy_static! {
 }
 
 pub(crate) trait RefBaseEmission {
+    /// Return ref base with coordinate i relative to ref_offset.
     fn ref_base(&self, i: usize) -> u8;
 
+    /// Start on reference sequence, inclusive.
     fn ref_offset(&self) -> usize;
 
+    /// End on reference sequence, exclusive.
     fn ref_end(&self) -> usize;
 
-    fn set_ref_offset(&mut self, value: usize);
+    /// Start on reference sequence, inclusive, ignoring override.
+    fn ref_offset_orig(&self) -> usize;
 
-    fn set_ref_end(&mut self, value: usize);
+    /// End on reference sequence, exclusive, ignoring override.
+    fn ref_end_orig(&self) -> usize;
 
-    /// Reference area that is altered by the variant.
+    fn set_ref_offset_override(&mut self, value: usize);
+
+    fn set_ref_end_override(&mut self, value: usize);
+
+    fn clear_ref_offset_override(&mut self);
+
+    fn clear_ref_end_override(&mut self);
+
+    /// Homopolymer reference area that is altered by the variant.
     /// Can return None if not applicable (default).
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>>;
 
+    /// Reference area that is altered by the variant, if applicable.
+    fn variant_ref_range(&self) -> Option<Range<u64>>;
+
+    fn is_in_variant_ref_range(&self, pos: u64) -> bool {
+        if let Some(range) = self.variant_ref_range() {
+            range.contains(&pos)
+        } else {
+            false
+        }
+    }
+
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
-        self.set_ref_end(cmp::min(
+        self.set_ref_end_override(cmp::min(
             self.ref_offset() + hit.end() + EDIT_BAND,
             self.ref_end(),
         ));
-        self.set_ref_offset(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
+        self.set_ref_offset_override(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
     }
 
     fn len_x(&self) -> usize;
@@ -58,19 +83,35 @@ pub(crate) trait VariantEmission {
 macro_rules! default_ref_base_emission {
     () => {
         fn ref_offset(&self) -> usize {
-            self.ref_offset
+            self.ref_offset_override.unwrap_or(self.ref_offset)
         }
 
         fn ref_end(&self) -> usize {
+            self.ref_end_override.unwrap_or(self.ref_end)
+        }
+
+        fn ref_offset_orig(&self) -> usize {
+            self.ref_offset
+        }
+
+        fn ref_end_orig(&self) -> usize {
             self.ref_end
         }
 
-        fn set_ref_offset(&mut self, value: usize) {
-            self.ref_offset = value;
+        fn set_ref_offset_override(&mut self, value: usize) {
+            self.ref_offset_override = Some(value);
         }
 
-        fn set_ref_end(&mut self, value: usize) {
-            self.ref_end = value;
+        fn set_ref_end_override(&mut self, value: usize) {
+            self.ref_end_override = Some(value);
+        }
+
+        fn clear_ref_offset_override(&mut self) {
+            self.ref_offset_override = None;
+        }
+
+        fn clear_ref_end_override(&mut self) {
+            self.ref_end_override = None;
         }
     };
 }
@@ -255,6 +296,7 @@ impl pairhmm::BaseSpecificHopParameters for HopParams {
 pub(crate) struct ReadVsAlleleEmission<'a> {
     #[getset(get = "pub(crate)")]
     read_emission: &'a ReadEmission<'a>,
+    #[getset(get = "pub(crate)")]
     allele_emission: Box<dyn RefBaseVariantEmission>,
 }
 
@@ -275,18 +317,43 @@ impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
     }
 
     #[inline]
-    fn set_ref_offset(&mut self, value: usize) {
-        self.allele_emission.set_ref_offset(value)
+    fn ref_offset_orig(&self) -> usize {
+        self.allele_emission.ref_offset_orig()
     }
 
     #[inline]
-    fn set_ref_end(&mut self, value: usize) {
-        self.allele_emission.set_ref_end(value)
+    fn ref_end_orig(&self) -> usize {
+        self.allele_emission.ref_end_orig()
+    }
+
+    #[inline]
+    fn set_ref_offset_override(&mut self, value: usize) {
+        self.allele_emission.set_ref_offset_override(value)
+    }
+
+    #[inline]
+    fn set_ref_end_override(&mut self, value: usize) {
+        self.allele_emission.set_ref_end_override(value)
+    }
+
+    #[inline]
+    fn clear_ref_offset_override(&mut self) {
+        self.allele_emission.clear_ref_offset_override()
+    }
+
+    #[inline]
+    fn clear_ref_end_override(&mut self) {
+        self.allele_emission.clear_ref_end_override()
     }
 
     #[inline]
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         self.allele_emission.variant_homopolymer_ref_range()
+    }
+
+    #[inline]
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        self.allele_emission.variant_ref_range()
     }
 
     #[inline]
@@ -344,23 +411,31 @@ impl<'a> bio::stats::pairhmm::Emission for ReadVsAlleleEmission<'a> {
     }
 }
 
-#[derive(Getters)]
-#[getset(get = "pub")]
+#[derive(Getters, CopyGetters)]
 pub(crate) struct ReadEmission<'a> {
+    #[getset(get = "pub(crate)")]
     pub(crate) read_seq: bam::record::Seq<'a>,
+    #[getset(get = "pub(crate)")]
     any_miscall: Vec<LogProb>,
+    #[getset(get = "pub(crate)")]
     no_miscall: Vec<LogProb>,
+    #[getset(get = "pub(crate)")]
     read_offset: usize,
+    #[getset(get = "pub(crate)")]
     read_end: usize,
+    #[getset(get_copy = "pub(crate)")]
+    error_rate: LogProb,
 }
 
 impl<'a> ReadEmission<'a> {
     pub(crate) fn new(
         read_seq: bam::record::Seq<'a>,
         qual: &[u8],
-        read_offset: usize,
-        read_end: usize,
+        read_offset: Option<usize>,
+        read_end: Option<usize>,
     ) -> Self {
+        let read_offset = read_offset.unwrap_or(0);
+        let read_end = read_end.unwrap_or(qual.len());
         let mut any_miscall = vec![LogProb::ln_zero(); read_end - read_offset];
         let mut no_miscall = any_miscall.clone();
         for (j, j_) in (read_offset..read_end).enumerate() {
@@ -368,12 +443,14 @@ impl<'a> ReadEmission<'a> {
             any_miscall[j] = prob_miscall;
             no_miscall[j] = prob_miscall.ln_one_minus_exp();
         }
+        let error_rate = LogProb(*LogProb::ln_sum_exp(&any_miscall) - (qual.len() as f64).ln());
         ReadEmission {
             read_seq,
             any_miscall,
             no_miscall,
             read_offset,
             read_end,
+            error_rate,
         }
     }
 
@@ -413,6 +490,8 @@ pub(crate) struct ReferenceEmissionParams {
     pub(crate) ref_seq: Arc<Vec<u8>>,
     pub(crate) ref_offset: usize,
     pub(crate) ref_end: usize,
+    pub(crate) ref_offset_override: Option<usize>,
+    pub(crate) ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for ReferenceEmissionParams {
@@ -422,6 +501,10 @@ impl RefBaseEmission for ReferenceEmissionParams {
     }
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
         None
     }
 

@@ -2,6 +2,29 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.0.0...v8.1.0) (2023-04-26)
+
+
+### Features
+
+* in FDR control, skip events that do not occur in the BCF header. Error if no event matches, warn otherwise. ([#367](https://www.github.com/varlociraptor/varlociraptor/issues/367)) ([f40184e](https://www.github.com/varlociraptor/varlociraptor/commit/f40184e0829f4dde2e0482186dc317c82dd3ab6f))
+
+## [8.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v7.0.0...v8.0.0) (2023-04-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* consider edit distance to alt allele, and infer additional third allele from read if that edit distance exceeds the expectation from sequencing error rates; in addition this introduces a breaking change to the observation output (OBS, SAOBS, and SROBS, see output documentation in online docs and header information) (#363)
+
+### Features
+
+* consider edit distance to alt allele, and infer additional third allele from read if that edit distance exceeds the expectation from sequencing error rates; in addition this introduces a breaking change to the observation output (OBS, SAOBS, and SROBS, see output documentation in online docs and header information) ([#363](https://www.github.com/varlociraptor/varlociraptor/issues/363)) ([b940ac8](https://www.github.com/varlociraptor/varlociraptor/commit/b940ac80f048557f7539fb7cff81f7a5738c7b0d))
+
+
+### Bug Fixes
+
+* improved debug and observation output ([#361](https://www.github.com/varlociraptor/varlociraptor/issues/361)) ([ae76607](https://www.github.com/varlociraptor/varlociraptor/commit/ae766078594e054039bcc3388b35b5d22d818c3e))
+
 ## [7.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v6.0.0...v7.0.0) (2023-03-09)
 
 

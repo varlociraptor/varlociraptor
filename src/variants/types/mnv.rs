@@ -13,6 +13,7 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
+use itertools::Itertools;
 
 use crate::default_ref_base_emission;
 use crate::errors::Error;
@@ -21,6 +22,9 @@ use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::realignment::edit_distance::is_explainable_by_error_rates;
+use crate::variants::evidence::realignment::edit_distance::EditDistance;
+use crate::variants::evidence::realignment::pairhmm::ReadEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::pairhmm::VariantEmission;
@@ -57,6 +61,10 @@ impl<R: Realigner> Mnv<R> {
             realigner: RefCell::new(realigner),
         }
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.ref_bases.len()
+    }
 }
 
 impl<R: Realigner> Realignable for Mnv<R> {
@@ -78,6 +86,8 @@ impl<R: Realigner> Realignable for Mnv<R> {
             alt_start: start,
             alt_end: self.locus.range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -109,7 +119,7 @@ impl<R: Realigner> Variant for Mnv<R> {
     fn allele_support(
         &self,
         read: &SingleEndEvidence,
-        _: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if utils::contains_indel_op(&**read) || !alt_variants.is_empty() {
@@ -123,13 +133,18 @@ impl<R: Realigner> Variant for Mnv<R> {
                 [&self.locus].iter(),
                 self,
                 alt_variants,
+                alignment_properties,
             )?))
         } else {
             let mut prob_ref = LogProb::ln_one();
             let mut prob_alt = LogProb::ln_one();
+            let mut prob_third = LogProb::ln_one();
             let aux_strand_info = utils::aux_tag_strand_info(read);
             let mut strand = Strand::None;
             let mut read_position = None;
+            let mut alt_edit_dist = 0_u32;
+            let read_emission = ReadEmission::new(read.seq(), read.qual(), None, None);
+            let mut is_third_allele = false;
 
             for ((alt_base, ref_base), pos) in self
                 .alt_bases
@@ -150,23 +165,13 @@ impl<R: Realigner> Variant for Mnv<R> {
                     let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                     let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
 
-                    // METHOD: instead of considering the actual REF base, we assume that REF is whatever
-                    // base the read has at this position (if not the ALT base). This way, we avoid biased
-                    // allele frequencies at sites with multiple alternative alleles.
-                    // Note that this is an approximation. The real solution would be to have multiple allele
-                    // frequency variables in the likelihood function, but that would be computationally
-                    // more demanding (leading to a combinatorial explosion).
-                    // However, the approximation is pretty accurate, because it will only matter for true
-                    // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
-                    // because they are too rare.
-                    let non_alt_base = if read_base != *alt_base {
-                        read_base
-                    } else {
-                        *ref_base
-                    };
+                    if read_base != *alt_base {
+                        alt_edit_dist += 1;
+                    }
 
                     let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
-                    let base_prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+                    let base_prob_ref = prob_read_base(read_base, *ref_base, base_qual);
+                    let base_prob_third = prob_read_base(read_base, read_base, base_qual);
 
                     if base_prob_alt != base_prob_ref {
                         if let Some(strand_info) = aux_strand_info {
@@ -180,11 +185,32 @@ impl<R: Realigner> Variant for Mnv<R> {
 
                     prob_ref += base_prob_ref;
                     prob_alt += base_prob_alt;
+                    prob_third += base_prob_third;
                 } else {
                     // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
                     // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
                     // but instead needs to know NOT to add those reads (as observations) further up
                     return Ok(None);
+                }
+            }
+
+            if prob_alt > prob_ref {
+                let explainable = is_explainable_by_error_rates(
+                    alt_edit_dist as usize,
+                    0,
+                    0,
+                    self.len(),
+                    alignment_properties,
+                    read_emission.error_rate(),
+                );
+                if alt_edit_dist > 0 && !explainable {
+                    // METHOD: if the read supports ALT but has more substitutions compared to ALT
+                    // than would be explainable by the expected error rate, it likely belongs to
+                    // a third allele. In such a case, we override prob_ref by the probability that
+                    // the read stems from an artificial third allele derived from its own sequence.
+                    // This is a pragmatic, conservative approach to avoid false positives.
+                    prob_ref = prob_third;
+                    is_third_allele = true;
                 }
             }
 
@@ -201,6 +227,11 @@ impl<R: Realigner> Variant for Mnv<R> {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .read_position(read_position)
+                    .third_allele_evidence(if is_third_allele {
+                        Some(EditDistance(alt_edit_dist))
+                    } else {
+                        None
+                    })
                     .build()
                     .unwrap(),
             ))
@@ -226,6 +257,8 @@ pub(crate) struct MnvEmissionParams {
     alt_start: usize,
     alt_end: usize, // exclusive end
     alt_seq: Rc<Vec<u8>>,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for MnvEmissionParams {
@@ -242,6 +275,10 @@ impl RefBaseEmission for MnvEmissionParams {
 
     fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         None
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some((self.alt_start as u64)..(self.alt_end as u64))
     }
 
     #[inline]

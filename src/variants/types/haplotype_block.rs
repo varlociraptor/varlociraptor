@@ -14,6 +14,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observations::read_observation::{
     Evidence, Observable, SingleEndEvidence,
 };
+use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
@@ -292,9 +293,6 @@ impl Variant for HaplotypeBlock {
         if support.is_empty() {
             Ok(None)
         } else {
-            // if evidence.name() == b"simulated.105" {
-            //     dbg!(haplotype_support(&support, true));
-            // }
             Ok(Some(haplotype_support(&support)))
         }
     }
@@ -314,6 +312,18 @@ fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
         .iter()
         .map(|support| support.prob_alt_allele)
         .sum();
+
+    let mut third_allele_evidence: Option<EditDistance> = None;
+    for variant_support in variant_supports {
+        if let Some(ref other_dist) = variant_support.third_allele_evidence {
+            if let Some(ref mut dist) = third_allele_evidence {
+                dist.update(other_dist);
+            } else {
+                third_allele_evidence = variant_support.third_allele_evidence.clone();
+            }
+        }
+    }
+
     // METHOD: calculate prob_ref via dynamic programming:
     // any combination of ref supports should suffice
 
@@ -346,6 +356,7 @@ fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
         .prob_alt_allele(prob_alt_allele)
         .prob_ref_allele(prob_ref_allele)
         .strand(variant_supports[0].strand())
+        .third_allele_evidence(third_allele_evidence)
         .build()
         .unwrap()
 }

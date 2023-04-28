@@ -26,6 +26,7 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::utils::aux_info::AuxInfo;
+use crate::utils::bayes_factor_to_letter;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::evidence::observations::read_observation::AltLocus;
@@ -154,7 +155,8 @@ impl Call {
         let mut event_probs = Vec::new();
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
-        let mut simple_observations = VecMap::new();
+        let mut simple_alt_observations = VecMap::new();
+        let mut simple_ref_observations = VecMap::new();
         let mut omitted_observations = VecMap::new();
         let mut vaf_densities = VecMap::new();
         let mut obs_counts = VecMap::new();
@@ -246,11 +248,16 @@ impl Call {
                         sample_info.pileup.read_observations().iter().map(|obs| {
                             let score = obs.max_bayes_factor().to_string();
                             format!(
-                                "{}{}{}{}{}{}{}{}",
+                                "{}{}{}{}{}{}{}{}{}",
                                 if obs.is_max_mapq {
                                     score.to_ascii_uppercase()
                                 } else {
                                     score.to_ascii_lowercase()
+                                },
+                                if let Some(dist) = obs.third_allele_evidence {
+                                    format!("{}", dist)
+                                } else {
+                                    ".".to_owned()
                                 },
                                 if obs.paired { 'p' } else { 's' },
                                 match obs.alt_locus {
@@ -295,20 +302,34 @@ impl Call {
                     ),
                 );
 
-                simple_observations.insert(
-                    i,
+                let fmt_simple_obs = |alt_allele: bool| {
                     utils::generalized_cigar(
-                        sample_info.pileup.read_observations().iter().map(|obs| {
-                            let score = obs.max_bayes_factor().to_string();
-                            format!(
-                                "{}",
-                                if obs.is_max_mapq {
-                                    score.to_ascii_uppercase()
+                        sample_info
+                            .pileup
+                            .read_observations()
+                            .iter()
+                            .filter_map(|obs| {
+                                let bf = if alt_allele {
+                                    obs.bayes_factor_alt()
                                 } else {
-                                    score.to_ascii_lowercase()
+                                    obs.bayes_factor_ref()
+                                };
+                                let score = bayes_factor_to_letter(bf);
+                                let keep = (alt_allele && obs.prob_alt > obs.prob_ref)
+                                    || (!alt_allele && obs.prob_alt <= obs.prob_ref);
+                                if keep {
+                                    Some(format!(
+                                        "{}",
+                                        if obs.is_max_mapq {
+                                            score.to_ascii_uppercase()
+                                        } else {
+                                            score.to_ascii_lowercase()
+                                        }
+                                    ))
+                                } else {
+                                    None
                                 }
-                            )
-                        }),
+                            }),
                         false,
                         |(item, _count)| {
                             if item.starts_with('R') {
@@ -319,8 +340,11 @@ impl Call {
                                 0
                             }
                         },
-                    ),
-                );
+                    )
+                };
+
+                simple_alt_observations.insert(i, fmt_simple_obs(true));
+                simple_ref_observations.insert(i, fmt_simple_obs(false));
 
                 omitted_observations.insert(i, sample_info.pileup.n_filtered_out_observations());
 
@@ -405,7 +429,7 @@ impl Call {
             let afs = allelefreq_estimates.values().cloned().collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
-            let sobs = simple_observations
+            let saobs = simple_alt_observations
                 .values()
                 .map(|sample_obs| {
                     if sample_obs.is_empty() {
@@ -415,7 +439,19 @@ impl Call {
                     }
                 })
                 .collect_vec();
-            record.push_format_string(b"SOBS", &sobs)?;
+            record.push_format_string(b"SAOBS", &saobs)?;
+
+            let srobs = simple_ref_observations
+                .values()
+                .map(|sample_obs| {
+                    if sample_obs.is_empty() {
+                        b"."
+                    } else {
+                        sample_obs.as_bytes()
+                    }
+                })
+                .collect_vec();
+            record.push_format_string(b"SROBS", &srobs)?;
 
             let obs = observations
                 .values()

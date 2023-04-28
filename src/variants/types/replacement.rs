@@ -14,10 +14,12 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
+use super::ToVariantRepresentation;
 use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
+use crate::variants::evidence::observations::read_observation::Evidence;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -25,8 +27,6 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
-
-use super::ToVariantRepresentation;
 
 #[derive(Debug)]
 pub(crate) struct Replacement<R: Realigner> {
@@ -97,6 +97,8 @@ impl<R: Realigner> Realignable for Replacement<R> {
             repl_ref_len,
             repl_seq: Rc::clone(&self.replacement),
             is_homopolymer_indel: self.homopolymer_indel_len.is_some(),
+            ref_offset_override: None,
+            ref_end_override: None,
         })])
     }
 }
@@ -180,7 +182,7 @@ impl<R: Realigner> Variant for Replacement<R> {
     fn allele_support(
         &self,
         evidence: &Self::Evidence,
-        _alignment_properties: &AlignmentProperties,
+        alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
@@ -190,6 +192,7 @@ impl<R: Realigner> Variant for Replacement<R> {
                     self.locus.iter(),
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?))
             }
             PairedEndEvidence::PairedEnd { left, right } => {
@@ -198,12 +201,14 @@ impl<R: Realigner> Variant for Replacement<R> {
                     self.locus.iter(),
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
                     right,
                     self.locus.iter(),
                     self,
                     alt_variants,
+                    alignment_properties,
                 )?;
 
                 let mut support = left_support;
@@ -259,6 +264,8 @@ pub(crate) struct ReplacementEmissionParams {
     repl_ref_len: usize,
     repl_seq: Rc<Vec<u8>>,
     is_homopolymer_indel: bool,
+    ref_offset_override: Option<usize>,
+    ref_end_override: Option<usize>,
 }
 
 impl RefBaseEmission for ReplacementEmissionParams {
@@ -280,6 +287,10 @@ impl RefBaseEmission for ReplacementEmissionParams {
         } else {
             None
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<u64>> {
+        Some(self.repl_start as u64..self.repl_alt_end as u64)
     }
 
     #[inline]

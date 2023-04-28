@@ -141,6 +141,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "HOMOPOLYMER_INDEL_LEN",
             "IS_MAX_MAPQ",
             "ALT_LOCUS",
+            "THIRD_ALLELE_EVIDENCE",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\">", name).as_bytes()
@@ -801,7 +802,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "14";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "15";
 
 pub struct Observations {
     pub pileup: Pileup,
@@ -863,6 +864,8 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
     let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
     let is_max_mapq: BitVec<u8> = read_values(record, b"IS_MAX_MAPQ", false)?;
     let alt_locus: Vec<AltLocus> = read_values(record, b"ALT_LOCUS", false)?;
+    let third_allele_evidence: Vec<Option<u32>> =
+        read_values(record, b"THIRD_ALLELE_EVIDENCE", false)?;
 
     let read_obs = (0..prob_mapping.len())
         .map(|i| {
@@ -882,7 +885,8 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
                 .softclipped(softclipped[i as u64])
                 .paired(paired[i as u64])
                 .is_max_mapq(is_max_mapq[i as u64])
-                .alt_locus(alt_locus[i]);
+                .alt_locus(alt_locus[i])
+                .third_allele_evidence(third_allele_evidence[i]);
 
             if is_homopolymer_indel {
                 obs.homopolymer_indel_len(homopolymer_indel_len[i])
@@ -934,6 +938,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(read_observations.len());
     let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut alt_locus = Vec::with_capacity(read_observations.len());
+    let mut third_allele_evidence = Vec::with_capacity(read_observations.len());
 
     let encode_logprob = utils::MiniLogProb::new;
     for obs in read_observations {
@@ -952,6 +957,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         read_position.push(obs.read_position);
         is_max_mapq.push(obs.is_max_mapq);
         alt_locus.push(obs.alt_locus);
+        third_allele_evidence.push(obs.third_allele_evidence);
 
         prob_observable_at_homopolymer_artifact.push(
             obs.prob_observable_at_homopolymer_artifact
@@ -1003,6 +1009,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
     push_values(record, b"IS_MAX_MAPQ", &is_max_mapq)?;
     push_values(record, b"ALT_LOCUS", &alt_locus)?;
+    push_values(record, b"THIRD_ALLELE_EVIDENCE", &third_allele_evidence)?;
 
     if prob_observable_at_homopolymer_artifact
         .iter()
@@ -1044,6 +1051,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
     header.remove_info(b"IS_MAX_MAPQ");
     header.remove_info(b"ALT_LOCUS");
+    header.remove_info(b"THIRD_ALLELE_EVIDENCE");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
