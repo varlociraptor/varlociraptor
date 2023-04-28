@@ -67,9 +67,9 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_read_len: u32,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
-    #[serde(default)]
+    #[serde(skip, default)]
     pub(crate) cigar_counts: Option<CigarStats>,
-    #[serde(default)]
+    #[serde(skip, default)]
     pub(crate) transition_counts: Option<TransitionCounts>,
     #[serde(default)]
     pub(crate) gap_params: GapParams,
