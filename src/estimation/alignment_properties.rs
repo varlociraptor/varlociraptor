@@ -14,7 +14,6 @@ use std::str;
 use std::u32;
 
 use anyhow::{anyhow, Result};
-use bio::stats::pairhmm::HomopolyPairHMM;
 use bio::stats::{LogProb, Prob};
 use counter::Counter;
 use itertools::Itertools;
@@ -269,7 +268,7 @@ impl AlignmentProperties {
                     record.cache_cigar();
                 }
 
-                let chrom = std::str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
+                let chrom = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
                 let (cigar_counts, transition_counts) = cigar_stats(
                     &record,
                     &reference_buffer.seq(chrom).unwrap(),
@@ -980,7 +979,6 @@ impl<V: Ord> OptionMax<V> for Option<V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::bam_utils::idxstats;
     use bio::io::fasta;
 
     use super::*;
