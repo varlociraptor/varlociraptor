@@ -443,7 +443,8 @@ impl AlignmentProperties {
 
         // Upper confidence_level / number_of_valid_transitions quantile
         // of the chi-squared distribution with 1 degree of freedom.
-        let b = statrs::distribution::ChiSquared::new(1.0).expect("Failed constructing ChiSquared distribution with 1 degree of freedom")
+        let b = statrs::distribution::ChiSquared::new(1.0)
+            .expect("Failed constructing ChiSquared distribution with 1 degree of freedom")
             .inverse_cdf(1. - confidence_level / number_of_valid_transitions as f64);
 
         // Given expected transition probabilities, calculate the number of alignments needed
@@ -640,6 +641,8 @@ fn cigar_stats(
     } else {
         Box::new(iter_cigar(record))
     };
+
+    use State::{GapX, GapY};
     for c in iter {
         match c {
             Cigar::Del(l) => {
@@ -670,9 +673,8 @@ fn cigar_stats(
                             let hs = State::hop_x(base);
                             transition_stats.increment_by(ms, ms, l);
                             transition_stats.increment_by(ms, hs, 1);
-                            if len - l > 0 {
-                                transition_stats.increment_by(hs, hs, len - l - 1);
-                            }
+                            let num_hops = len.saturating_sub(l.saturating_sub(2));
+                            transition_stats.increment_by(hs, hs, num_hops);
                             if rpos + len + 1 < refseq.len() {
                                 transition_stats
                                     .increment(hs, State::match_(refseq[rpos + len + 1]));
@@ -685,13 +687,10 @@ fn cigar_stats(
                         }
                     }
                     if !is_homopolymer || l == 1 {
-                        transition_stats.increment_by(State::match_(base), State::GapX, 1);
-                        if l > 1 {
-                            transition_stats.increment_by(State::GapX, State::GapX, l - 1);
-                        }
+                        transition_stats.increment_by(State::match_(base), GapX, 1);
+                        transition_stats.increment_by(GapX, GapX, l.saturating_sub(2));
                         if rpos + l + 1 < refseq.len() {
-                            transition_stats
-                                .increment(State::GapX, State::match_(refseq[rpos + l + 1]));
+                            transition_stats.increment(GapX, State::match_(refseq[rpos + l + 1]));
                         }
                         cigar_stats.gap_counts.incr(-(isize::try_from(l).unwrap()));
                     }
@@ -725,9 +724,8 @@ fn cigar_stats(
                             let hs = State::hop_y(base);
                             transition_stats.increment_by(ms, ms, l);
                             transition_stats.increment_by(ms, hs, 1);
-                            if len - l > 0 {
-                                transition_stats.increment_by(hs, hs, len - l - 1);
-                            }
+                            let num_hops = len.saturating_sub(l.saturating_sub(2));
+                            transition_stats.increment_by(hs, hs, num_hops);
                             if rpos + 1 < refseq.len() {
                                 transition_stats.increment(hs, State::match_(refseq[rpos + 1]));
                             }
@@ -739,13 +737,10 @@ fn cigar_stats(
                         }
                     }
                     if !is_homopolymer || l == 1 {
-                        transition_stats.increment_by(State::match_(base), State::GapY, 1);
-                        if l > 1 {
-                            transition_stats.increment_by(State::GapY, State::GapY, l - 1);
-                        }
+                        transition_stats.increment_by(State::match_(base), GapY, 1);
+                        transition_stats.increment_by(GapY, GapY, l.saturating_sub(2));
                         if rpos + l + 1 < refseq.len() {
-                            transition_stats
-                                .increment(State::GapY, State::match_(refseq[rpos + l + 1]));
+                            transition_stats.increment(GapY, State::match_(refseq[rpos + l + 1]));
                         }
                         cigar_stats.gap_counts.incr(isize::try_from(l).unwrap());
                     }
