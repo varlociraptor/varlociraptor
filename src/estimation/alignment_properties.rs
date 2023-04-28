@@ -795,55 +795,60 @@ fn cigar_stats(
 
 impl AlignmentProperties {
     pub(crate) fn estimate_gap_params(&self) -> Result<GapParams> {
-        if let Some(cigar_counts) = &self.cigar_counts {
-            let gaps = &cigar_counts.gap_counts;
-            let gap_counts_with_length = |length: isize| {
-                gaps.iter()
-                    .filter(|(len, _)| **len == length)
-                    .map(|(_, c)| c)
-                    .sum::<usize>()
-            };
-            if ![2, -2].iter().any(|i| gap_counts_with_length(*i) > 0) || gaps.total_count() < 1000
-            {
-                warn!("Insufficient observations for gap parameter estimation, falling back to default gap parameters");
+        if let Some(transition_counts) = &self.transition_counts {
+            let mut insufficient_counts = false;
+            use State::*;
+            let [[prob_insertion_artifact, prob_insertion_extend_artifact], [prob_deletion_artifact, prob_deletion_extend_artifact]] =
+                [GapX, GapY].map(|gap| {
+                    // Number of transitions from match states to gap state
+                    let from_match_to_gap = [MatchA, MatchC, MatchG, MatchT]
+                        .map(|s| transition_counts.count(s, gap))
+                        .iter()
+                        .sum::<usize>();
+
+                    // Number of self transitions (from gap to gap)
+                    let extend_gap = transition_counts.count(gap, gap);
+
+                    if from_match_to_gap < 100 || extend_gap < 100 {
+                        insufficient_counts |= true;
+                    }
+
+                    // Number of outgoing transitions from gap state (to any state)
+                    let from_gap = STATES
+                        .map(|s| transition_counts.count(gap, s))
+                        .iter()
+                        .sum::<usize>();
+
+                    // Number of transitions from match states to any state
+                    let from_match = STATES
+                        .iter()
+                        .flat_map(|s| {
+                            [MatchA, MatchC, MatchG, MatchT].map(|m| transition_counts.count(m, *s))
+                        })
+                        .sum::<usize>();
+
+                    let prob_start = from_match_to_gap as f64 / from_match as f64;
+                    let prob_extend = extend_gap as f64 / from_gap as f64;
+                    [prob_start, prob_extend]
+                        .map(|p| LogProb::from(Prob::checked(p).unwrap_or_else(|_| Prob::zero())))
+                });
+
+            if insufficient_counts {
+                warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
                 return Err(anyhow!(
-                    "Insufficient observations for gap parameter estimation"
+                    "Insufficient observations for hop parameter estimation"
                 ));
             }
-
-            let [(del_open, del_extend), (ins_open, ins_extend)] = [-1, 1].map(|sign| {
-                let num_gap1 = gap_counts_with_length(sign);
-                let num_gap2 = gap_counts_with_length(2 * sign);
-
-                let gap_open = (num_gap1 + num_gap2) as f64
-                    / (cigar_counts.num_match_bases + cigar_counts.num_ins_bases) as f64;
-                let gap_extend = num_gap2 as f64 / (num_gap1 as f64 + num_gap2 as f64);
-                let gap_extend = if gap_extend < self.epsilon_gap {
-                    0.
-                } else {
-                    gap_extend
-                };
-                (gap_open, gap_extend)
-            });
-
             Ok(GapParams {
-                prob_insertion_artifact: LogProb::from(
-                    Prob::checked(ins_open).unwrap_or_else(|_| Prob::zero()),
-                ),
-                prob_deletion_artifact: LogProb::from(
-                    Prob::checked(del_open).unwrap_or_else(|_| Prob::zero()),
-                ),
-                prob_insertion_extend_artifact: LogProb::from(
-                    Prob::checked(ins_extend).unwrap_or_else(|_| Prob::zero()),
-                ),
-                prob_deletion_extend_artifact: LogProb::from(
-                    Prob::checked(del_extend).unwrap_or_else(|_| Prob::zero()),
-                ),
+                prob_insertion_artifact,
+                prob_deletion_artifact,
+                prob_insertion_extend_artifact,
+                prob_deletion_extend_artifact,
             })
         } else {
-            warn!("No cigar operations counted, falling back to default gap parameters.");
+            warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
             Err(anyhow!(
-                "Insufficient observations for gap parameter estimation"
+                "No cigar operations counted, falling back to default hop parameters"
             ))
         }
     }
@@ -857,7 +862,6 @@ impl AlignmentProperties {
             ): ((Vec<_>, Vec<_>), (Vec<_>, Vec<_>)) = [b'A', b'C', b'G', b'T']
                 .iter()
                 .map(|&base| {
-                    // METHOD: only look at homopolymer events with a length difference of 1 (either ins or del) since these are very likely always artifacts
                     let match_ = State::match_(base);
                     let hop_x = State::hop_x(base);
                     let hop_y = State::hop_y(base);
