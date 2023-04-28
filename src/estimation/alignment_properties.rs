@@ -451,6 +451,7 @@ impl AlignmentProperties {
         // certain precision and confidence level.
         // Generally, we expect rather low transition probabilities for homopolymer errors,
         // and roughly 1/4 for match -> match transitions.
+        // This is the fpc version of the estimate given in https://www.jstor.org/stable/2683352
         let num_alignments_needed = [0.25, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5].map(|p| {
             let p_rel = precision * p;
             ((b * num_transitions * p * (1. - p)
