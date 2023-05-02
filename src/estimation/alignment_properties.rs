@@ -226,7 +226,6 @@ impl AlignmentProperties {
             .iter()
             .map(|(_, (_, n_mapped, _))| n_mapped)
             .sum::<u64>();
-        dbg!(&stats);
 
         let min_num_alignments_needed =
             Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(num_alignments);
