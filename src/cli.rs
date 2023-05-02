@@ -809,11 +809,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         );
                     };
 
-                    let mut reference_buffer = Arc::new(reference::Buffer::new(
-                        fasta::IndexedReader::from_file(&reference)
+                    let mut reference_buffer = Arc::new(
+                        reference::Buffer::from_path(&reference, reference_buffer_size)
                             .context("Unable to read genome reference.")?,
-                        reference_buffer_size,
-                    ));
+                    );
 
                     let alignment_properties = est_or_load_alignment_properties(
                         &alignment_properties,

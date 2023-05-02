@@ -213,17 +213,20 @@ impl AlignmentProperties {
         }
 
         let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
-        reference_buffer.reference_path().map(|p| bam.set_reference(p));
+        if let Some(p) = reference_buffer.reference_path() {
+            bam.set_reference(p)?;
+        };
         bam.fetch(FetchDefinition::All)?;
 
         // Retrieve number of alignments in the bam file.
         // Use this to estimate the number of alignments needed to estimate the
         // HPHMM's transition probabilities to a certain precision.
-        let stats = idxstats(path.as_ref())?;
+        let stats = idxstats(path.as_ref(), reference_buffer.reference_path())?;
         let num_alignments = stats
             .iter()
             .map(|(_, (_, n_mapped, _))| n_mapped)
             .sum::<u64>();
+        dbg!(&stats);
 
         let min_num_alignments_needed =
             Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(num_alignments);

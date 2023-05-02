@@ -6,8 +6,14 @@ use std::ffi;
 use std::path::Path;
 
 /// Get length, mapped and unmapped read counts for each contig.
-pub(crate) fn idxstats(path: impl AsRef<Path>) -> Result<Vec<(String, (u64, u64, u64))>> {
-    let mut reader = bam::Reader::from_path(path.as_ref())?;
+pub(crate) fn idxstats<P1: AsRef<Path>, P2: AsRef<Path>>(
+    path: P1,
+    reference_path: Option<P2>,
+) -> Result<Vec<(String, (u64, u64, u64))>> {
+    let mut reader = bam::IndexedReader::from_path(path.as_ref())?;
+    if let Some(p) = reference_path {
+        reader.set_reference(p.as_ref())?;
+    }
     unsafe {
         let c_str = ffi::CString::new(path.as_ref().to_string_lossy().to_string())?;
         let htsfile = reader.htsfile();
@@ -16,15 +22,12 @@ pub(crate) fn idxstats(path: impl AsRef<Path>) -> Result<Vec<(String, (u64, u64,
     }
 }
 
-unsafe fn _idxstats<R: bam::Read>(
-    bam: &mut R,
-    idx: *mut hts_idx_t,
-) -> Vec<(String, (u64, u64, u64))> {
+unsafe fn _idxstats<R: Read>(bam: &mut R, idx: *mut hts_idx_t) -> Vec<(String, (u64, u64, u64))> {
     bam.header()
         .target_names()
         .iter()
-        .enumerate()
-        .map(|(tid, tname)| {
+        .map(|tname| {
+            let tid = bam.header().tid(tname).unwrap();
             let (mut mapped, mut unmapped) = (0, 0);
             rust_htslib::htslib::hts_idx_get_stat(idx, tid as i32, &mut mapped, &mut unmapped);
             let tname = std::str::from_utf8(tname).unwrap();
