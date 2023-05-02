@@ -1231,8 +1231,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 num_records,
                 epsilon_gap,
             } => {
-                let mut reference_buffer =
-                    reference::Buffer::new(fasta::IndexedReader::from_file(&reference)?, 1);
+                let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
                 let alignment_properties = estimate_alignment_properties(
                     bam,
                     false,

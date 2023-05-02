@@ -79,10 +79,7 @@ pub struct Testcase {
 
 impl TestcaseBuilder {
     pub(crate) fn reference(self, path: impl AsRef<Path> + std::fmt::Debug) -> Result<Self> {
-        Ok(self.reference_buffer(reference::Buffer::new(
-            fasta::IndexedReader::from_file(&path)?,
-            1,
-        )))
+        Ok(self.reference_buffer(reference::Buffer::from_path(&path, 1)?))
     }
 
     pub(crate) fn locus(self, locus: &str) -> Result<Self> {

@@ -213,6 +213,7 @@ impl AlignmentProperties {
         }
 
         let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
+        reference_buffer.reference_path().map(|p| bam.set_reference(p));
         bam.fetch(FetchDefinition::All)?;
 
         // Retrieve number of alignments in the bam file.
