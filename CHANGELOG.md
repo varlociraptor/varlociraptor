@@ -9,6 +9,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 * fix bug in homopolymer error detection that has led to wrong homopolymer error calls. This fix should increase the recall of varlociraptor. ([e83b41a](https://www.github.com/varlociraptor/varlociraptor/commit/e83b41a9ca41502bff9818360691d79712afdb29))
 
+### [8.1.1](https://www.github.com/varlociraptor/varlociraptor/compare/v8.1.0...v8.1.1) (2023-05-10)
+
+
+### Bug Fixes
+
+* fix bug in homopolymer error detection that has led to wrong homopolymer error calls. This fix should increase the recall of varlociraptor. ([e83b41a](https://www.github.com/varlociraptor/varlociraptor/commit/e83b41a9ca41502bff9818360691d79712afdb29))
+
 ## [8.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.0.0...v8.1.0) (2023-04-26)
 
 
