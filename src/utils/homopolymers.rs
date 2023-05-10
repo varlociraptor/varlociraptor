@@ -62,7 +62,8 @@ impl HomopolymerIndelOperation {
         let mut text_pos = 0;
 
         let is_extendable_stretch = |rpos, base| {
-            (rpos < text.len() && extend_homopolymer_stretch(base, &mut text[rpos..].iter()) > 0)
+            (rpos < (text.len() - 1)
+                && extend_homopolymer_stretch(base, &mut text[rpos + 1..].iter()) > 0)
                 || (rpos > 0
                     && extend_homopolymer_stretch(base, &mut text[..rpos].iter().rev()) > 0)
         };
