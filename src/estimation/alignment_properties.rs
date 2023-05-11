@@ -227,8 +227,11 @@ impl AlignmentProperties {
             .map(|(_, (_, n_mapped, _))| n_mapped)
             .sum::<u64>();
 
-        let min_num_alignments_needed =
-            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(num_alignments);
+        let min_num_alignments_needed = if num_alignments > 0 {
+            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(Some(num_alignments))
+        } else {
+            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(None)
+        };
 
         // Given the number of alignments needed, calculate the step size for the record iterator.
         // The reason to simply use a fixed step size is that
@@ -425,17 +428,14 @@ impl AlignmentProperties {
         }
     }
 
-    fn estimate_number_of_alignments_for_hphmm_mle_param_estimation(num_alignments: u64) -> usize {
+    fn estimate_number_of_alignments_for_hphmm_mle_param_estimation(
+        num_alignments: Option<u64>,
+    ) -> usize {
         // TODO: Get rough estimate of read length, assume 100 for illumina for now
         // Most reads in the wild are at least 100bp long, so this is a conservative estimate.
         let transitions_per_alignment = 100;
-
-        // The estimation is in terms of the number of transitions,
-        // which is roughly the number of alignments times the average read length.
-        let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
-
         // The target precision for the transition probabilities.
-        let precision = 1e-1;
+        let precision = 5e-1;
 
         // The confidence level used during estimation.
         let confidence_level = 0.1;
@@ -449,19 +449,40 @@ impl AlignmentProperties {
             .expect("Failed constructing ChiSquared distribution with 1 degree of freedom")
             .inverse_cdf(1. - confidence_level / number_of_valid_transitions as f64);
 
+        // The probabilities for which we want to estimate the number of alignments needed.
+        // This is just a small subset of all possible transition probabilities, but it should
+        // be enough to get a good estimate, simply by covering a large range of values.
+        let probs = [0.25, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5];
+
         // Given expected transition probabilities, calculate the number of alignments needed
         // to estimate the transition probabilities *for this specific set of alignments* to a
         // certain precision and confidence level.
         // Generally, we expect rather low transition probabilities for homopolymer errors,
         // and roughly 1/4 for match -> match transitions.
-        // This is the fpc version of the estimate given in https://www.jstor.org/stable/2683352
-        let num_alignments_needed = [0.25, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5].map(|p| {
-            let p_rel = precision * p;
-            ((b * num_transitions * p * (1. - p)
-                / (p_rel.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
-                / transitions_per_alignment as f64)
-                .ceil() as usize
-        });
+        let num_alignments_needed = if let Some(num_alignments) = num_alignments {
+            // The estimation is in terms of the number of transitions,
+            // which is roughly the number of alignments times the average read length.
+            let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
+
+            // This is the fpc version of the estimate
+            // given in https://www.jstor.org/stable/2683352
+            probs.map(|p| {
+                let p_rel = precision * p;
+                ((b * num_transitions * p * (1. - p)
+                    / (p_rel.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
+                    / transitions_per_alignment as f64)
+                    .ceil() as usize
+            })
+        } else {
+            // This is the *non* fpc version of the estimate
+            // given in https://www.jstor.org/stable/2683352
+            probs.map(|p| {
+                let p_rel = precision * p;
+                (((b * p * (1. - p)) / (p_rel.powi(2))) / transitions_per_alignment as f64).ceil()
+                    as usize
+            })
+        };
+
         // The minimum number of alignments that need to be examined to estimate the transition
         // probabilities is the maximum of the estimates for each transition probability above.
         let min_num_alignments_needed = *num_alignments_needed.iter().max().unwrap();
