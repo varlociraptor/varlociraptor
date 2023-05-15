@@ -25,7 +25,6 @@ use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
 use crate::utils::aux_tag_is_entire_fragment;
-use crate::utils::bam_utils::idxstats;
 use crate::utils::homopolymers::is_homopolymer_seq;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_iter};
 use crate::utils::SimpleCounter;
@@ -80,6 +79,14 @@ pub(crate) struct AlignmentProperties {
     initial: bool,
     #[serde(skip, default)]
     epsilon_gap: f64,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct EstimationParams {
+    num_alignments: Option<u64>,
+    precision: f64,
+    precision_is_relative: bool,
+    confidence_level: f64,
 }
 
 impl AlignmentProperties {
@@ -213,33 +220,66 @@ impl AlignmentProperties {
         }
 
         let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
+        // Retrieve number of alignments in the bam file.
+        // Use this to estimate the number of alignments needed to estimate the
+        // HPHMM's transition probabilities to a certain precision.
+        let num_alignments = bam
+            .index_stats()?
+            .into_iter()
+            .map(|(_tid, _len, mapped, _)| mapped)
+            .sum::<u64>();
+
+        // FIXME: reset fp/reader in rust-htslib after index_stats call
+        let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
         if let Some(p) = reference_buffer.reference_path() {
             bam.set_reference(p)?;
         };
         bam.fetch(FetchDefinition::All)?;
 
-        // Retrieve number of alignments in the bam file.
-        // Use this to estimate the number of alignments needed to estimate the
+        // Parameters for the estimation of the number of alignments needed to estimate the
         // HPHMM's transition probabilities to a certain precision.
-        let stats = idxstats(path.as_ref(), reference_buffer.reference_path())?;
-        let num_alignments = stats
-            .iter()
-            .map(|(_, (_, n_mapped, _))| n_mapped)
-            .sum::<u64>();
-
-        let min_num_alignments_needed = if num_alignments > 0 {
-            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(Some(num_alignments))
-        } else {
-            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(None)
+        // These are currently hardcoded, but could be made configurable.
+        let est_params = EstimationParams {
+            num_alignments: (num_alignments > 0).then(|| num_alignments),
+            precision: 1e-5,
+            precision_is_relative: true,
+            confidence_level: 0.1,
         };
 
-        // Given the number of alignments needed, calculate the step size for the record iterator.
-        // The reason to simply use a fixed step size is that
-        // - because it is unknown how alignments are distributed across the genome -
-        // it is difficult to define an unbiased sampling strategy + it requires random access.
-        let step = (num_alignments as f64 / min_num_alignments_needed as f64)
-            .floor()
-            .max(1.) as usize;
+        let min_num_alignments_needed =
+            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(est_params);
+
+        let num_records = if let Some(num_records) = num_records {
+            if num_records < min_num_alignments_needed {
+                warn!(
+                    "Number of records ({}) is smaller than the number of records needed \
+                    to estimate the HPHMM's transition probabilities to a certain precision ({}). \
+                    This may lead to inaccurate results.",
+                    num_records, min_num_alignments_needed
+                );
+                num_records
+            } else {
+                warn!(
+                    "Number of records ({}) is larger than the number of records needed to \
+                    estimate the HPHMM's transition probabilities to a certain precision ({}). \
+                    This may lead to unnecessarily long runtime.",
+                    num_records, min_num_alignments_needed
+                );
+                num_records
+            }
+        } else {
+            min_num_alignments_needed
+        };
+
+        // // Given the number of alignments needed, calculate the step size for the record iterator.
+        // // The reason to simply use a fixed step size is that
+        // // - because it is unknown how alignments are distributed across the genome -
+        // // it is difficult to define an unbiased sampling strategy + it requires random access.
+        // let step = (num_alignments as f64 / min_num_alignments_needed as f64)
+        //     .floor()
+        //     .max(1.) as usize;
+        // For now, just take the first min_num_alignments_needed alignments.
+        let step = 1;
 
         let header = bam.header().clone();
         let mut n_records_analysed = 0;
@@ -259,12 +299,8 @@ impl AlignmentProperties {
                 !skip
             })
             .step_by(step)
-            .take(min_num_alignments_needed);
-        let records = if let Some(num_records) = num_records {
-            Box::new(records.take(num_records)) as Box<dyn Iterator<Item = bam::Record>>
-        } else {
-            Box::new(records)
-        };
+            .take(num_records);
+
         let all_stats = records
             .map(|mut record| {
                 record_flag_stats.update(&record);
@@ -341,11 +377,11 @@ impl AlignmentProperties {
         properties.max_mapq = all_stats.max_mapq;
         properties.max_read_len = all_stats.max_read_len;
 
-        let s = if let Some(n) = num_records {
-            format!("in {} alignments", n)
-        } else {
-            "in any alignments".into()
-        };
+        let s = format!(
+            "in {} alignments (out of {})",
+            all_stats.n_reads, num_alignments
+        );
+
         if properties.max_del_cigar_len.is_none() {
             warn!(
                 "No deletion CIGAR operations found {}. \
@@ -355,7 +391,7 @@ impl AlignmentProperties {
         }
         if properties.max_ins_cigar_len.is_none() {
             warn!(
-                "No deletion CIGAR operations found {}. \
+                "No insertion CIGAR operations found {}. \
                 Varlociraptor will be unable to estimate the sampling bias for insertions.",
                 s
             );
@@ -429,16 +465,16 @@ impl AlignmentProperties {
     }
 
     fn estimate_number_of_alignments_for_hphmm_mle_param_estimation(
-        num_alignments: Option<u64>,
+        params: EstimationParams,
     ) -> usize {
         // TODO: Get rough estimate of read length, assume 100 for illumina for now
         // Most reads in the wild are at least 100bp long, so this is a conservative estimate.
         let transitions_per_alignment = 100;
         // The target precision for the transition probabilities.
-        let precision = 5e-1;
+        let precision = params.precision; // 5e-1;
 
         // The confidence level used during estimation.
-        let confidence_level = 0.1;
+        let confidence_level = params.confidence_level; // 0.1;
 
         // The number of valid transitions (i.e. nonzero transition probability) in the HPHMM.
         let number_of_valid_transitions = 82;
@@ -459,7 +495,7 @@ impl AlignmentProperties {
         // certain precision and confidence level.
         // Generally, we expect rather low transition probabilities for homopolymer errors,
         // and roughly 1/4 for match -> match transitions.
-        let num_alignments_needed = if let Some(num_alignments) = num_alignments {
+        let num_alignments_needed = if let Some(num_alignments) = params.num_alignments {
             // The estimation is in terms of the number of transitions,
             // which is roughly the number of alignments times the average read length.
             let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
@@ -467,9 +503,13 @@ impl AlignmentProperties {
             // This is the fpc version of the estimate
             // given in https://www.jstor.org/stable/2683352
             probs.map(|p| {
-                let p_rel = precision * p;
+                let p_ = if params.precision_is_relative {
+                    precision * p
+                } else {
+                    precision
+                };
                 ((b * num_transitions * p * (1. - p)
-                    / (p_rel.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
+                    / (p_.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
                     / transitions_per_alignment as f64)
                     .ceil() as usize
             })
@@ -477,8 +517,12 @@ impl AlignmentProperties {
             // This is the *non* fpc version of the estimate
             // given in https://www.jstor.org/stable/2683352
             probs.map(|p| {
-                let p_rel = precision * p;
-                (((b * p * (1. - p)) / (p_rel.powi(2))) / transitions_per_alignment as f64).ceil()
+                let p_ = if params.precision_is_relative {
+                    precision * p
+                } else {
+                    precision
+                };
+                (((b * p * (1. - p)) / (p_.powi(2))) / transitions_per_alignment as f64).ceil()
                     as usize
             })
         };
