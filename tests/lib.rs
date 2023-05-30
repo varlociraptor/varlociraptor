@@ -349,6 +349,19 @@ fn test_fdr_control_local2_smart() {
 }
 
 #[test]
+fn test_fdr_control_local3_smart() {
+    control_fdr(
+        "test_fdr_local3_smart",
+        &["SOMATIC_TUMOR_HIGH", "SOMATIC_TUMOR_LOW", "GERMLINE", "FFPE_ARTIFACT"],
+        0.05,
+        true,
+        true,
+        Some(&varlociraptor::variants::model::VariantType::Snv),
+    );
+    assert_call_number("test_fdr_local3_smart", 1);
+}
+
+#[test]
 fn test_fdr_control_local3() {
     control_fdr(
         "test_fdr_local3",
