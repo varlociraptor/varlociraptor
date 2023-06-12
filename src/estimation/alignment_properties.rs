@@ -3,11 +3,13 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use rust_htslib::bam::{FetchDefinition, Read};
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::f64;
 use std::ops::AddAssign;
+use std::path::Path;
 use std::str;
 use std::u32;
 
@@ -18,6 +20,7 @@ use itertools::Itertools;
 use num_traits::Zero;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
+use statrs::distribution::ContinuousCDF;
 use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
@@ -64,6 +67,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
     pub(crate) cigar_counts: Option<CigarStats>,
+    #[serde(skip, default)]
+    pub(crate) transition_counts: Option<TransitionCounts>,
     #[serde(default)]
     pub(crate) gap_params: GapParams,
     #[serde(default)]
@@ -74,6 +79,14 @@ pub(crate) struct AlignmentProperties {
     initial: bool,
     #[serde(skip, default)]
     epsilon_gap: f64,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct EstimationParams {
+    num_alignments: Option<u64>,
+    precision: f64,
+    precision_is_relative: bool,
+    confidence_level: f64,
 }
 
 impl AlignmentProperties {
@@ -135,8 +148,8 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub(crate) fn estimate<R: bam::Read>(
-        bam: &mut R,
+    pub(crate) fn estimate(
+        path: impl AsRef<Path>,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -153,6 +166,7 @@ impl AlignmentProperties {
             max_read_len: 0,
             max_mapq: 0,
             cigar_counts: Default::default(),
+            transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
             gap_params: Default::default(),
@@ -186,6 +200,7 @@ impl AlignmentProperties {
             mapq: u8,
             read_len: u32,
             cigar_counts: CigarStats,
+            transition_counts: TransitionCounts,
             insert_size: Option<f64>,
         }
 
@@ -200,11 +215,73 @@ impl AlignmentProperties {
             max_del: Option<u32>,
             max_ins: Option<u32>,
             cigar_counts: CigarStats,
+            transition_counts: TransitionCounts,
             tlens: Vec<f64>,
         }
 
-        let header = bam.header().clone();
+        let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
+        // Retrieve number of alignments in the bam file.
+        // Use this to estimate the number of alignments needed to estimate the
+        // HPHMM's transition probabilities to a certain precision.
+        let num_alignments = bam
+            .index_stats()?
+            .into_iter()
+            .map(|(_tid, _len, mapped, _)| mapped)
+            .sum::<u64>();
 
+        // FIXME: reset fp/reader in rust-htslib after index_stats call
+        let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
+        if let Some(p) = reference_buffer.reference_path() {
+            bam.set_reference(p)?;
+        };
+        bam.fetch(FetchDefinition::All)?;
+
+        // Parameters for the estimation of the number of alignments needed to estimate the
+        // HPHMM's transition probabilities to a certain precision.
+        // These are currently hardcoded, but could be made configurable.
+        let est_params = EstimationParams {
+            num_alignments: (num_alignments > 0).then(|| num_alignments),
+            precision: 1e-5,
+            precision_is_relative: true,
+            confidence_level: 0.1,
+        };
+
+        let min_num_alignments_needed =
+            Self::estimate_number_of_alignments_for_hphmm_mle_param_estimation(est_params);
+
+        let num_records = if let Some(num_records) = num_records {
+            if num_records < min_num_alignments_needed {
+                warn!(
+                    "Number of records ({}) is smaller than the number of records needed \
+                    to estimate the HPHMM's transition probabilities to a certain precision ({}). \
+                    This may lead to inaccurate results.",
+                    num_records, min_num_alignments_needed
+                );
+                num_records
+            } else {
+                warn!(
+                    "Number of records ({}) is larger than the number of records needed to \
+                    estimate the HPHMM's transition probabilities to a certain precision ({}). \
+                    This may lead to unnecessarily long runtime.",
+                    num_records, min_num_alignments_needed
+                );
+                num_records
+            }
+        } else {
+            min_num_alignments_needed
+        };
+
+        // // Given the number of alignments needed, calculate the step size for the record iterator.
+        // // The reason to simply use a fixed step size is that
+        // // - because it is unknown how alignments are distributed across the genome -
+        // // it is difficult to define an unbiased sampling strategy + it requires random access.
+        // let step = (num_alignments as f64 / min_num_alignments_needed as f64)
+        //     .floor()
+        //     .max(1.) as usize;
+        // For now, just take the first min_num_alignments_needed alignments.
+        let step = 1;
+
+        let header = bam.header().clone();
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
         let mut record_flag_stats = RecordFlagStats::new();
@@ -221,13 +298,9 @@ impl AlignmentProperties {
                 }
                 !skip
             })
-            // TODO expose step parameter to cli
-            .step_by(1);
-        let records = if let Some(num_records) = num_records {
-            Box::new(records.take(num_records)) as Box<dyn Iterator<Item = bam::Record>>
-        } else {
-            Box::new(records)
-        };
+            .step_by(step)
+            .take(num_records);
+
         let all_stats = records
             .map(|mut record| {
                 record_flag_stats.update(&record);
@@ -237,8 +310,8 @@ impl AlignmentProperties {
                     record.cache_cigar();
                 }
 
-                let chrom = std::str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
-                let cigar_counts = cigar_stats(
+                let chrom = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
+                let (cigar_counts, transition_counts) = cigar_stats(
                     &record,
                     &reference_buffer.seq(chrom).unwrap(),
                     allow_hardclips,
@@ -268,6 +341,7 @@ impl AlignmentProperties {
                     mapq: record.mapq(),
                     read_len: record.seq().len() as u32,
                     cigar_counts,
+                    transition_counts,
                     insert_size,
                 }
             })
@@ -282,6 +356,7 @@ impl AlignmentProperties {
                 acc.max_ins = OptionMax::max(acc.max_ins, rs.cigar_counts.max_ins);
                 acc.max_del = OptionMax::max(acc.max_del, rs.cigar_counts.max_del);
                 acc.cigar_counts += rs.cigar_counts;
+                acc.transition_counts += rs.transition_counts;
                 if let Some(insert_size) = rs.insert_size {
                     acc.tlens.push(insert_size);
                 }
@@ -289,12 +364,12 @@ impl AlignmentProperties {
             });
 
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
+        properties.transition_counts = Some(all_stats.transition_counts.clone());
 
         properties.wildtype_homopolymer_error_model = properties.wildtype_homopolymer_error_model();
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
-
         properties.max_read_len = all_stats.max_read_len;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
@@ -302,11 +377,11 @@ impl AlignmentProperties {
         properties.max_mapq = all_stats.max_mapq;
         properties.max_read_len = all_stats.max_read_len;
 
-        let s = if let Some(n) = num_records {
-            format!("in {} alignments", n)
-        } else {
-            "in any alignments".into()
-        };
+        let s = format!(
+            "in {} alignments (out of {})",
+            all_stats.n_reads, num_alignments
+        );
+
         if properties.max_del_cigar_len.is_none() {
             warn!(
                 "No deletion CIGAR operations found {}. \
@@ -316,7 +391,7 @@ impl AlignmentProperties {
         }
         if properties.max_ins_cigar_len.is_none() {
             warn!(
-                "No deletion CIGAR operations found {}. \
+                "No insertion CIGAR operations found {}. \
                 Varlociraptor will be unable to estimate the sampling bias for insertions.",
                 s
             );
@@ -388,6 +463,182 @@ impl AlignmentProperties {
             Ok(properties)
         }
     }
+
+    fn estimate_number_of_alignments_for_hphmm_mle_param_estimation(
+        params: EstimationParams,
+    ) -> usize {
+        // TODO: Get rough estimate of read length, assume 100 for illumina for now
+        // Most reads in the wild are at least 100bp long, so this is a conservative estimate.
+        let transitions_per_alignment = 100;
+        // The target precision for the transition probabilities.
+        let precision = params.precision; // 5e-1;
+
+        // The confidence level used during estimation.
+        let confidence_level = params.confidence_level; // 0.1;
+
+        // The number of valid transitions (i.e. nonzero transition probability) in the HPHMM.
+        let number_of_valid_transitions = 82;
+
+        // Upper confidence_level / number_of_valid_transitions quantile
+        // of the chi-squared distribution with 1 degree of freedom.
+        let b = statrs::distribution::ChiSquared::new(1.0)
+            .expect("Failed constructing ChiSquared distribution with 1 degree of freedom")
+            .inverse_cdf(1. - confidence_level / number_of_valid_transitions as f64);
+
+        // The probabilities for which we want to estimate the number of alignments needed.
+        // This is just a small subset of all possible transition probabilities, but it should
+        // be enough to get a good estimate, simply by covering a large range of values.
+        let probs = [0.25, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5];
+
+        // Given expected transition probabilities, calculate the number of alignments needed
+        // to estimate the transition probabilities *for this specific set of alignments* to a
+        // certain precision and confidence level.
+        // Generally, we expect rather low transition probabilities for homopolymer errors,
+        // and roughly 1/4 for match -> match transitions.
+        let num_alignments_needed = if let Some(num_alignments) = params.num_alignments {
+            // The estimation is in terms of the number of transitions,
+            // which is roughly the number of alignments times the average read length.
+            let num_transitions = num_alignments as f64 * transitions_per_alignment as f64;
+
+            // This is the fpc version of the estimate
+            // given in https://www.jstor.org/stable/2683352
+            probs.map(|p| {
+                let p_ = if params.precision_is_relative {
+                    precision * p
+                } else {
+                    precision
+                };
+                ((b * num_transitions * p * (1. - p)
+                    / (p_.powi(2) * (num_transitions - 1.) + b * p * (1. - p)))
+                    / transitions_per_alignment as f64)
+                    .ceil() as usize
+            })
+        } else {
+            // This is the *non* fpc version of the estimate
+            // given in https://www.jstor.org/stable/2683352
+            probs.map(|p| {
+                let p_ = if params.precision_is_relative {
+                    precision * p
+                } else {
+                    precision
+                };
+                (((b * p * (1. - p)) / (p_.powi(2))) / transitions_per_alignment as f64).ceil()
+                    as usize
+            })
+        };
+
+        // The minimum number of alignments that need to be examined to estimate the transition
+        // probabilities is the maximum of the estimates for each transition probability above.
+        let min_num_alignments_needed = *num_alignments_needed.iter().max().unwrap();
+        min_num_alignments_needed
+    }
+}
+
+#[repr(usize)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Serialize, Deserialize)]
+pub enum State {
+    MatchA = 0,
+    MatchC = 1,
+    MatchG = 2,
+    MatchT = 3,
+    GapX = 4,
+    GapY = 5,
+    HopAX = 6,
+    HopAY = 7,
+    HopCX = 8,
+    HopCY = 9,
+    HopGX = 10,
+    HopGY = 11,
+    HopTX = 12,
+    HopTY = 13,
+    Other = 14,
+}
+
+const STATES: [State; 14] = [
+    State::MatchA,
+    State::MatchC,
+    State::MatchG,
+    State::MatchT,
+    State::GapX,
+    State::GapY,
+    State::HopAX,
+    State::HopAY,
+    State::HopCX,
+    State::HopCY,
+    State::HopGX,
+    State::HopGY,
+    State::HopTX,
+    State::HopTY,
+];
+
+impl State {
+    fn match_(c: u8) -> Self {
+        use State::*;
+        match c.to_ascii_uppercase() {
+            b'A' => MatchA,
+            b'C' => MatchC,
+            b'G' => MatchG,
+            b'T' => MatchT,
+            _ => Other,
+        }
+    }
+
+    fn hop_x(c: u8) -> Self {
+        use State::*;
+        match c.to_ascii_uppercase() {
+            b'A' => HopAX,
+            b'C' => HopCX,
+            b'G' => HopGX,
+            b'T' => HopTX,
+            _ => Other,
+        }
+    }
+
+    fn hop_y(c: u8) -> Self {
+        use State::*;
+        match c.to_ascii_uppercase() {
+            b'A' => HopAY,
+            b'C' => HopCY,
+            b'G' => HopGY,
+            b'T' => HopTY,
+            _ => Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct TransitionCounts {
+    // a State x State matrix with each cell containing the number of transitions
+    // from state x to state y
+    inner: ndarray::Array2<usize>,
+}
+
+impl Default for TransitionCounts {
+    fn default() -> Self {
+        Self {
+            inner: ndarray::Array2::default((16, 16)),
+        }
+    }
+}
+
+impl AddAssign for TransitionCounts {
+    fn add_assign(&mut self, rhs: Self) {
+        self.inner += &rhs.inner;
+    }
+}
+
+impl TransitionCounts {
+    pub(crate) fn increment(&mut self, from: State, to: State) {
+        self.increment_by(from, to, 1);
+    }
+
+    pub(crate) fn increment_by(&mut self, from: State, to: State, value: usize) {
+        self.inner[(from as usize, to as usize)] += value;
+    }
+
+    pub(crate) fn count(&self, from: State, to: State) -> usize {
+        self.inner[(from as usize, to as usize)]
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -440,10 +691,15 @@ fn iter_cigar(record: &bam::Record) -> impl Iterator<Item = Cigar> + '_ {
 /// - gaps, both insertions and deletions, by length
 /// - homopolymer runs, both insertions and deletions, by length and base
 /// - matches, independent of the fact whether they are exact or contain substitutions
-fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> CigarStats {
+fn cigar_stats(
+    record: &bam::Record,
+    refseq: &[u8],
+    allow_hardclips: bool,
+) -> (CigarStats, TransitionCounts) {
     let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
 
     let mut cigar_stats = CigarStats::default();
+    let mut transition_stats = TransitionCounts::default();
     let qseq = record.seq();
     let mut qpos = 0usize;
     let mut rpos = record.pos() as usize;
@@ -453,6 +709,8 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
     } else {
         Box::new(iter_cigar(record))
     };
+
+    use State::{GapX, GapY};
     for c in iter {
         match c {
             Cigar::Del(l) => {
@@ -479,6 +737,16 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                             )
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
+                            let ms = State::match_(base);
+                            let hs = State::hop_x(base);
+                            transition_stats.increment_by(ms, ms, l);
+                            transition_stats.increment_by(ms, hs, 1);
+                            let num_hops = len.saturating_sub(l.saturating_sub(2));
+                            transition_stats.increment_by(hs, hs, num_hops);
+                            if rpos + len + 1 < refseq.len() {
+                                transition_stats
+                                    .increment(hs, State::match_(refseq[rpos + len + 1]));
+                            }
                             cigar_stats
                                 .hop_counts
                                 .entry(base)
@@ -487,6 +755,11 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                         }
                     }
                     if !is_homopolymer || l == 1 {
+                        transition_stats.increment_by(State::match_(base), GapX, 1);
+                        transition_stats.increment_by(GapX, GapX, l.saturating_sub(2));
+                        if rpos + l + 1 < refseq.len() {
+                            transition_stats.increment(GapX, State::match_(refseq[rpos + l + 1]));
+                        }
                         cigar_stats.gap_counts.incr(-(isize::try_from(l).unwrap()));
                     }
                 }
@@ -515,6 +788,15 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                             );
                         }
                         if len >= MIN_HOMOPOLYMER_LEN {
+                            let ms = State::match_(base);
+                            let hs = State::hop_y(base);
+                            transition_stats.increment_by(ms, ms, l);
+                            transition_stats.increment_by(ms, hs, 1);
+                            let num_hops = len.saturating_sub(l.saturating_sub(2));
+                            transition_stats.increment_by(hs, hs, num_hops);
+                            if rpos + 1 < refseq.len() {
+                                transition_stats.increment(hs, State::match_(refseq[rpos + 1]));
+                            }
                             cigar_stats
                                 .hop_counts
                                 .entry(base)
@@ -523,6 +805,11 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                         }
                     }
                     if !is_homopolymer || l == 1 {
+                        transition_stats.increment_by(State::match_(base), GapY, 1);
+                        transition_stats.increment_by(GapY, GapY, l.saturating_sub(2));
+                        if rpos + l + 1 < refseq.len() {
+                            transition_stats.increment(GapY, State::match_(refseq[rpos + l + 1]));
+                        }
                         cigar_stats.gap_counts.incr(isize::try_from(l).unwrap());
                     }
                 }
@@ -548,6 +835,9 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
                         }
                     }
                 }
+                for (r1, r2) in refseq[rpos..rpos + l].iter().tuple_windows() {
+                    transition_stats.increment(State::match_(*r1), State::match_(*r2));
+                }
                 qpos += l as usize;
                 rpos += l as usize;
             }
@@ -568,111 +858,96 @@ fn cigar_stats(record: &bam::Record, refseq: &[u8], allow_hardclips: bool) -> Ci
             Cigar::HardClip(_) | Cigar::Pad(_) => continue,
         }
     }
-    cigar_stats
+    (cigar_stats, transition_stats)
 }
 
 impl AlignmentProperties {
     pub(crate) fn estimate_gap_params(&self) -> Result<GapParams> {
-        if let Some(cigar_counts) = &self.cigar_counts {
-            let gaps = &cigar_counts.gap_counts;
-            let gap_counts_with_length = |length: isize| {
-                gaps.iter()
-                    .filter(|(len, _)| **len == length)
-                    .map(|(_, c)| c)
-                    .sum::<usize>()
-            };
-            if ![2, -2].iter().any(|i| gap_counts_with_length(*i) > 0) || gaps.total_count() < 1000
-            {
-                warn!("Insufficient observations for gap parameter estimation, falling back to default gap parameters");
+        if let Some(transition_counts) = &self.transition_counts {
+            let mut insufficient_counts = false;
+            use State::*;
+            let [[prob_insertion_artifact, prob_insertion_extend_artifact], [prob_deletion_artifact, prob_deletion_extend_artifact]] =
+                [GapX, GapY].map(|gap| {
+                    // Number of transitions from match states to gap state
+                    let from_match_to_gap = [MatchA, MatchC, MatchG, MatchT]
+                        .map(|s| transition_counts.count(s, gap))
+                        .iter()
+                        .sum::<usize>();
+
+                    // Number of self transitions (from gap to gap)
+                    let extend_gap = transition_counts.count(gap, gap);
+
+                    if from_match_to_gap < 100 || extend_gap < 100 {
+                        insufficient_counts |= true;
+                    }
+
+                    // Number of outgoing transitions from gap state (to any state)
+                    let from_gap = STATES
+                        .map(|s| transition_counts.count(gap, s))
+                        .iter()
+                        .sum::<usize>();
+
+                    // Number of transitions from match states to any state
+                    let from_match = STATES
+                        .iter()
+                        .flat_map(|s| {
+                            [MatchA, MatchC, MatchG, MatchT].map(|m| transition_counts.count(m, *s))
+                        })
+                        .sum::<usize>();
+
+                    let prob_start = from_match_to_gap as f64 / from_match as f64;
+                    let prob_extend = extend_gap as f64 / from_gap as f64;
+                    [prob_start, prob_extend]
+                        .map(|p| LogProb::from(Prob::checked(p).unwrap_or_else(|_| Prob::zero())))
+                });
+
+            if insufficient_counts {
+                warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
                 return Err(anyhow!(
-                    "Insufficient observations for gap parameter estimation"
+                    "Insufficient observations for hop parameter estimation"
                 ));
             }
-
-            let [(del_open, del_extend), (ins_open, ins_extend)] = [-1, 1].map(|sign| {
-                let num_gap1 = gap_counts_with_length(sign);
-                let num_gap2 = gap_counts_with_length(2 * sign);
-
-                let gap_open = (num_gap1 + num_gap2) as f64
-                    / (cigar_counts.num_match_bases + cigar_counts.num_ins_bases) as f64;
-                let gap_extend = num_gap2 as f64 / (num_gap1 as f64 + num_gap2 as f64);
-                let gap_extend = if gap_extend < self.epsilon_gap {
-                    0.
-                } else {
-                    gap_extend
-                };
-                (gap_open, gap_extend)
-            });
-
             Ok(GapParams {
-                prob_insertion_artifact: LogProb::from(
-                    Prob::checked(ins_open).unwrap_or_else(|_| Prob::zero()),
-                ),
-                prob_deletion_artifact: LogProb::from(
-                    Prob::checked(del_open).unwrap_or_else(|_| Prob::zero()),
-                ),
-                prob_insertion_extend_artifact: LogProb::from(
-                    Prob::checked(ins_extend).unwrap_or_else(|_| Prob::zero()),
-                ),
-                prob_deletion_extend_artifact: LogProb::from(
-                    Prob::checked(del_extend).unwrap_or_else(|_| Prob::zero()),
-                ),
+                prob_insertion_artifact,
+                prob_deletion_artifact,
+                prob_insertion_extend_artifact,
+                prob_deletion_extend_artifact,
             })
         } else {
-            warn!("No cigar operations counted, falling back to default gap parameters.");
+            warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
             Err(anyhow!(
-                "Insufficient observations for gap parameter estimation"
+                "No cigar operations counted, falling back to default hop parameters"
             ))
         }
     }
 
     pub(crate) fn estimate_hop_params(&self) -> Result<HopParams> {
-        if let Some(cigar_counts) = &self.cigar_counts {
+        if let Some(transition_counts) = &self.transition_counts {
             let mut insufficient_counts = false;
-            let empty = SimpleCounter::default();
-            let counts = |base| {
-                cigar_counts
-                    .hop_counts
-                    .get(&base)
-                    .unwrap_or(&empty)
-                    .iter()
-                    .map(|(lengths, count)| (*lengths, *count))
-            };
             let (
                 (prob_seq_homopolymer, prob_ref_homopolymer),
                 (prob_seq_extend_homopolymer, prob_ref_extend_homopolymer),
             ): ((Vec<_>, Vec<_>), (Vec<_>, Vec<_>)) = [b'A', b'C', b'G', b'T']
                 .iter()
-                .map(|base| {
-                    let events = |predicate: fn((usize, usize)) -> bool| {
-                        counts(*base).filter(move |(l, _)| predicate(*l))
-                    };
-                    // METHOD: only look at homopolymer events with a length difference of 1 (either ins or del) since these are very likely always artifacts
-                    let dels = events(|(r, q)| r == q + 1).collect_vec();
-                    let num_diff_1_del_events = dels.iter().map(|(_, c)| c).sum::<usize>();
-                    let num_diff_1_del_bases = dels.iter().map(|((r, _), c)| r * c).sum::<usize>();
+                .map(|&base| {
+                    let match_ = State::match_(base);
+                    let hop_x = State::hop_x(base);
+                    let hop_y = State::hop_y(base);
 
-                    let ins = events(|(r, q)| q == r + 1).collect_vec();
-                    let num_diff_1_ins_events = ins.iter().map(|(_, c)| c).sum::<usize>();
-                    let num_diff_1_ins_bases = ins.iter().map(|((_, q), c)| q * c).sum::<usize>();
+                    let [prob_ins, prob_del] = [hop_x, hop_y].map(|hop| {
+                        let start_hop = transition_counts.count(match_, hop);
+                        let extend_hop = transition_counts.count(hop, hop);
+                        if start_hop + extend_hop < 100 {
+                            insufficient_counts |= true;
+                        }
+                        let from_previous = STATES
+                            .map(|s| transition_counts.count(match_, s))
+                            .iter()
+                            .sum::<usize>();
+                        let prob = (start_hop + extend_hop) as f64 / from_previous as f64;
+                        LogProb::from(Prob::checked(prob).unwrap_or_else(|_| Prob::zero()))
+                    });
 
-                    let prob_del_hop_start_or_extend =
-                        num_diff_1_del_events as f64 / num_diff_1_del_bases as f64;
-                    let prob_ins_hop_start_or_extend =
-                        num_diff_1_ins_events as f64 / num_diff_1_ins_bases as f64;
-
-                    if num_diff_1_del_events < 100 || num_diff_1_ins_events < 100 {
-                        insufficient_counts |= true;
-                    }
-
-                    let prob_ins = LogProb::from(
-                        Prob::checked(prob_ins_hop_start_or_extend)
-                            .unwrap_or_else(|_| Prob::zero()),
-                    );
-                    let prob_del = LogProb::from(
-                        Prob::checked(prob_del_hop_start_or_extend)
-                            .unwrap_or_else(|_| Prob::zero()),
-                    );
                     ((prob_ins, prob_del), (prob_ins, prob_del))
                 })
                 .unzip();
@@ -786,11 +1061,11 @@ mod tests {
 
     #[test]
     fn test_estimate() {
-        let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+        let path = "tests/resources/tumor-first30000.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &mut bam,
+            path,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -812,13 +1087,11 @@ mod tests {
 
     #[test]
     fn test_estimate_all_reads_have_short_clips() {
-        let mut bam =
-            bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam")
-                .unwrap();
+        let path = "tests/resources/tumor-first30000.reads_with_soft_clips.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &mut bam,
+            path,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -836,14 +1109,11 @@ mod tests {
     #[test]
     fn test_estimate_all_reads_single_end() {
         // this file contains only single-ended reads (artificially made single-ended with awk)
-        let mut bam = bam::Reader::from_path(
-            "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam",
-        )
-        .unwrap();
+        let path = "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam";
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &mut bam,
+            path,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),

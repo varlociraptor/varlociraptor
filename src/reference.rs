@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
 use std::sync::{Mutex, RwLock};
@@ -11,6 +12,7 @@ use lru_time_cache::LruCache;
 pub(crate) struct Buffer {
     reader: RwLock<fasta::IndexedReader<fs::File>>,
     sequences: Mutex<LruCache<String, Arc<Vec<u8>>>>,
+    reference_path: Option<PathBuf>,
 }
 
 impl Buffer {
@@ -18,7 +20,24 @@ impl Buffer {
         Buffer {
             reader: RwLock::new(fasta),
             sequences: Mutex::new(LruCache::with_capacity(capacity)),
+            reference_path: None,
         }
+    }
+
+    pub(crate) fn from_path<P: AsRef<Path> + std::fmt::Debug>(
+        path: P,
+        capacity: usize,
+    ) -> Result<Self> {
+        let fasta: fasta::IndexedReader<fs::File> = fasta::IndexedReader::from_file(&path)?;
+        Ok(Buffer {
+            reader: RwLock::new(fasta),
+            sequences: Mutex::new(LruCache::with_capacity(capacity)),
+            reference_path: Some(path.as_ref().to_path_buf()),
+        })
+    }
+
+    pub(crate) fn reference_path(&self) -> Option<&PathBuf> {
+        self.reference_path.as_ref()
     }
 
     pub(crate) fn sequences(&self) -> Vec<fasta::Sequence> {
