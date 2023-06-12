@@ -1740,9 +1740,9 @@ dependencies = [
 
 [[package]]
 name = "rust-htslib"
-version = "0.43.0"
+version = "0.43.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1af1e1541f4bbe9de5bffecc512b7e8bf1d08dcf538b127ce21ae52d52ca8bd6"
+checksum = "53881800f22b91fa893cc3f6d70e6e9aa96d200133bfe112e36aee37aad70bf5"
 dependencies = [
  "bio-types",
  "byteorder",
