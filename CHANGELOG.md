@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.1.1...v8.2.0) (2023-06-12)
+
+
+### Features
+
+* warn on missing ANN records in mutational burden estimation ([#376](https://www.github.com/varlociraptor/varlociraptor/issues/376)) ([32006fb](https://www.github.com/varlociraptor/varlociraptor/commit/32006fb62450ad0b1f9786dca9c20759588792a2))
+
+
+### Bug Fixes
+
+* Improved parameter estimation for (H)PHMM ([#371](https://www.github.com/varlociraptor/varlociraptor/issues/371)) ([508333e](https://www.github.com/varlociraptor/varlociraptor/commit/508333e4471550ad7c14cb0b66ceeea8ff29996d))
+
 ### [8.1.1](https://www.github.com/varlociraptor/varlociraptor/compare/v8.1.0...v8.1.1) (2023-05-10)
 
 
