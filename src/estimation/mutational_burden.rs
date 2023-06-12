@@ -15,27 +15,31 @@ use crate::{Event, SimpleEvent};
 
 /// Consider only variants in coding regions.
 /// We rely on the ANN field for this.
-fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
-    for ann in rec
-        .info(b"ANN")
-        .string()?
-        .expect("ANN field not found. Annotate VCF with e.g. snpEff.")
-        .iter()
-    {
-        let mut coding = false;
-        for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
-            if i == 7 {
-                coding = entry == b"protein_coding";
+fn is_valid_variant(rec: &mut bcf::Record, header: &bcf::header::HeaderView) -> Result<bool> {
+    if let Some(ann) = rec.info(b"ANN").string()? {
+        for ann in ann.iter() {
+            let mut coding = false;
+            for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
+                if i == 7 {
+                    coding = entry == b"protein_coding";
+                }
+                if i == 13 {
+                    coding &= entry != b"";
+                }
             }
-            if i == 13 {
-                coding &= entry != b"";
+            if coding {
+                return Ok(true);
             }
         }
-        if coding {
-            return Ok(true);
-        }
+        Ok(false)
+    } else {
+        warn!(
+            "No ANN field found in record at {}:{}.",
+            std::str::from_utf8(header.rid2name(rec.rid().unwrap())?)?,
+            rec.pos() + 1
+        );
+        Ok(false)
     }
-    Ok(false)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -127,7 +131,7 @@ pub(crate) fn collect_estimates(
             let vafs = rec.format(b"AF").float()?[*id].to_owned();
             vafmap.insert(name, vafs);
         }
-        if !is_valid_variant(&mut rec)? {
+        if !is_valid_variant(&mut rec, &header)? {
             info!(
                 "Skipping variant {}:{} because it is not coding.",
                 contig, vcfpos
