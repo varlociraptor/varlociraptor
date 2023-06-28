@@ -180,6 +180,7 @@ testcase!(test_imprecise_fusion_absent, exact);
 testcase!(test_uzuner_clonal_1, exact);
 testcase!(test_uzuner_clonal_2, exact);
 testcase!(test_uzuner_clonal_3, exact);
+testcase!(test_uzuner_fp_snv_with_realignment, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

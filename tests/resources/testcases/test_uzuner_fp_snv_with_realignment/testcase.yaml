@@ -1,11 +1,20 @@
+# A false positive SNV that occurs because of the following situation:
+#
+# Next to it, there is a deletion. Both the SNV and the deletion are inside of a repeat.
+# Reads with the deletion are by default realigned against the SNV. It can happen that this
+# realignment generates evidence for the SNV (it is better to have the SNV for the indel reads than
+# having nothing). However, if Varlociraptor would consider the entire haplotype with the deletion 
+# as well, there is no evidence for the SNV (deletion + SNV is worse than deletion alone).
+#
+# With Freebayes, such problems should not occur because it will report these variants as longer
+# replacements. Whenever one has a caller that reports atomic variants, this can be a problem.
+# However, this is fixed in latest Varlociraptor because it checks the edit distance after realignments.
+# If that exceeds a maximum derived from the expected sequencing errors likelihoods are corrected assuming
+# a third allele not represented by the considered variant. This is exactly what we have here.
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - sample == 0.0
 
 # necessary bam files
 samples:
@@ -20,7 +29,12 @@ candidate: 'candidates.vcf'
 
 scenario: 'scenario.yaml'
 
-
+omit_strand_bias: true
+omit_read_orientation_bias: true
+omit_read_position_bias: true
+omit_softclip_bias: true
+omit_homopolymer_artifact_detection: true
+omit_alt_locus_bias: true
 
 
 # reference sequence
