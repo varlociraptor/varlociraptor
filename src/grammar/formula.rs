@@ -83,6 +83,7 @@ impl From<NormalizedFormula> for Formula {
                     refbase,
                 }),
                 NormalizedFormula::False => Formula::Terminal(FormulaTerminal::False),
+                NormalizedFormula::True => Formula::Terminal(FormulaTerminal::True),
                 NormalizedFormula::Log2FoldChange {
                     sample_a,
                     sample_b,
