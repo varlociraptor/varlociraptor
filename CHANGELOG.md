@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.2.0...v8.3.0) (2023-06-28)
+
+
+### Features
+
+* implement "true" formula terminal ([#384](https://www.github.com/varlociraptor/varlociraptor/issues/384)) ([fc45604](https://www.github.com/varlociraptor/varlociraptor/commit/fc456048e1f88c47119cd8ffdd6279ac85dbc743))
+
 ## [8.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.1.1...v8.2.0) (2023-06-12)
 
 
