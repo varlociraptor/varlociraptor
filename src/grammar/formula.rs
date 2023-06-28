@@ -363,7 +363,6 @@ impl From<Expr<FormulaTerminal>> for Formula {
             },
             Expr::Const(false) => Formula::Terminal(FormulaTerminal::False),
             Expr::Const(true) => Formula::Terminal(FormulaTerminal::True),
-            _ => panic!("bug: unexpected boolean expression containing constant"),
         }
     }
 }
@@ -727,6 +726,7 @@ impl Formula {
     fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
         Ok(match self {
             Formula::Terminal(FormulaTerminal::False) => Formula::Terminal(FormulaTerminal::True),
+            Formula::Terminal(FormulaTerminal::True) => Formula::Terminal(FormulaTerminal::False),
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
@@ -873,6 +873,7 @@ impl Formula {
         })
     }
 
+    /// Move Negation operators into the atoms.
     fn apply_negations(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
         Ok(match self {
             Formula::Negation { operand } => operand
@@ -914,6 +915,7 @@ impl Formula {
                 panic!("bug: expressions should be expanded before applying negations");
             }
             Formula::Terminal(FormulaTerminal::False) => Formula::Terminal(FormulaTerminal::False),
+            Formula::Terminal(FormulaTerminal::True) => Formula::Terminal(FormulaTerminal::True),
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
