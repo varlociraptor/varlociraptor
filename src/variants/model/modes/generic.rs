@@ -215,6 +215,7 @@ impl GenericPosterior {
                 subdensity(likelihood_operands)
             }
             grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
+            grammar::vaftree::NodeKind::True => LogProb::ln_one(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event =
                     |allele_freq, likelihood_operands: &mut LikelihoodOperands, is_discrete| {
