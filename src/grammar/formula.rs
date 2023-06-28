@@ -119,6 +119,7 @@ pub(crate) enum FormulaTerminal {
         predicate: Log2FoldChangePredicate,
     },
     False,
+    True,
 }
 
 impl FormulaTerminal {
@@ -216,6 +217,7 @@ impl std::fmt::Display for Formula {
 
         let formatted = match self {
             Formula::Terminal(FormulaTerminal::False) => "false".to_owned(),
+            Formula::Terminal(FormulaTerminal::True) => "true".to_owned(),
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Set(vafs),
@@ -360,6 +362,7 @@ impl From<Expr<FormulaTerminal>> for Formula {
                 },
             },
             Expr::Const(false) => Formula::Terminal(FormulaTerminal::False),
+            Expr::Const(true) => Formula::Terminal(FormulaTerminal::True),
             _ => panic!("bug: unexpected boolean expression containing constant"),
         }
     }
@@ -369,6 +372,9 @@ impl Into<Expr<FormulaTerminal>> for Formula {
     fn into(self) -> Expr<FormulaTerminal> {
         if self.is_terminal_false() {
             return Expr::Const(false);
+        }
+        if self.is_terminal_true() {
+            return Expr::Const(true);
         }
         match self {
             Formula::Terminal(terminal) => Expr::Terminal(terminal),
@@ -409,6 +415,15 @@ impl Formula {
         match self {
             Formula::Terminal(FormulaTerminal::Atom { vafs, .. }) => vafs.is_empty(),
             Formula::Terminal(FormulaTerminal::False) => true,
+            _ => false,
+        }
+    }
+
+    /// Return true if this formula is a terminal that is always true (an full VAF range or "true").
+    pub(crate) fn is_terminal_true(&self) -> bool {
+        match self {
+            Formula::Terminal(FormulaTerminal::Atom { vafs, .. }) => vafs.is_complete(),
+            Formula::Terminal(FormulaTerminal::True) => true,
             _ => false,
         }
     }
@@ -550,6 +565,7 @@ impl Formula {
                 panic!("bug: negations should have been applied before normalization")
             }
             Formula::Terminal(FormulaTerminal::False) => NormalizedFormula::False,
+            Formula::Terminal(FormulaTerminal::True) => NormalizedFormula::True,
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
@@ -602,6 +618,7 @@ impl Formula {
                         }
                     }
                 }
+
                 let operands = grouped_operands
                     .into_iter()
                     .map(|(_, statements)| statements)
@@ -667,12 +684,12 @@ impl Formula {
                         }
                     }
                 }
-                Formula::Disjunction {
-                    operands: grouped_operands
-                        .into_iter()
-                        .flat_map(|(_, statements)| statements)
-                        .collect(),
-                }
+                let operands = grouped_operands
+                    .into_iter()
+                    .flat_map(|(_, statements)| statements)
+                    .collect();
+
+                Formula::Disjunction { operands }
             }
             Formula::Negation { operand } => Formula::Negation {
                 operand: Box::new(operand.merge_atoms()),
@@ -709,9 +726,7 @@ impl Formula {
     /// Negate formula.
     fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
         Ok(match self {
-            Formula::Terminal(FormulaTerminal::False) => {
-                panic!("bug: negation not implemented for false terminal (you cannot use false in a negated statement in the grammar).")
-            }
+            Formula::Terminal(FormulaTerminal::False) => Formula::Terminal(FormulaTerminal::True),
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
@@ -935,6 +950,7 @@ pub(crate) enum NormalizedFormula {
         predicate: Log2FoldChangePredicate,
     },
     False,
+    True,
 }
 
 impl std::fmt::Debug for NormalizedFormula {
@@ -993,6 +1009,7 @@ impl std::fmt::Display for NormalizedFormula {
                 operands.iter().map(&fmt_operand).join(" | ")
             }
             NormalizedFormula::False => "false".to_owned(),
+            NormalizedFormula::True => "true".to_owned(),
             NormalizedFormula::Log2FoldChange {
                 sample_a,
                 sample_b,
@@ -1035,6 +1052,13 @@ impl VAFSpectrum {
             VAFSpectrum::Range(range) => range.is_empty(),
         }
     }
+
+    pub(crate) fn is_complete(&self) -> bool {
+        match self {
+            VAFSpectrum::Set(_) => false,
+            VAFSpectrum::Range(range) => range.is_complete(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Hash, CopyGetters)]
@@ -1067,6 +1091,10 @@ impl VAFRange {
 
     pub(crate) fn is_empty(&self) -> bool {
         self.start == self.end && (self.left_exclusive || self.right_exclusive)
+    }
+
+    pub(crate) fn is_complete(&self) -> bool {
+        *self.start == 0.0 && *self.end == 1.0 && !self.left_exclusive && !self.right_exclusive
     }
 
     pub(crate) fn is_singleton(&self) -> bool {

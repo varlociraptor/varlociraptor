@@ -77,6 +77,7 @@ pub(crate) enum NodeKind {
         predicate: Log2FoldChangePredicate,
     },
     False,
+    True,
 }
 
 #[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
@@ -143,6 +144,7 @@ impl Node {
                 lfc_found
             }
             NodeKind::False => false,
+            NodeKind::True => true,
             NodeKind::Variant { .. } => true,
         };
         if self.children.is_empty() {
@@ -220,6 +222,7 @@ impl VAFTree {
                     altbase,
                 })]),
                 NormalizedFormula::False => Ok(vec![Node::new(NodeKind::False)]),
+                NormalizedFormula::True => Ok(vec![Node::new(NodeKind::True)]),
                 NormalizedFormula::Log2FoldChange {
                     sample_a,
                     sample_b,
