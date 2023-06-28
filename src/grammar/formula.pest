@@ -3,7 +3,7 @@ vafdef = _{ vaf | vafrange | vafset }
 vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
 vafset = { "{" ~ vaf ~ ("," ~ vaf)+ ~ "}" }
 
-formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression | cmp | lfc | false_literal) ~ EOI }
+formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression | cmp | lfc | false_literal | true_literal) ~ EOI }
 conjunction = { subformula ~ ( "&" ~ subformula )+ }
 disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }
@@ -16,6 +16,7 @@ expression = { "$" ~ identifier }
 identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 variant = { iupac ~ ">" ~ iupac }
 false_literal = { "false" }
+true_literal = { "true" }
 
 cmp_ops = { ("<=" | "<" | ">=" | ">"  | "!=" | "==" ) }
 cmp = { identifier ~ cmp_ops ~ identifier }
