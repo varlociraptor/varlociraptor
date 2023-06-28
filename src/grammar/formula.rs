@@ -1536,7 +1536,7 @@ where
             })
         }
         Rule::false_literal => Formula::Terminal(FormulaTerminal::False),
-        Rule::true_literal => Formula::Terminal(FormulaTerminal::False),
+        Rule::true_literal => Formula::Terminal(FormulaTerminal::True),
         Rule::cmp_ops => unreachable!(),
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),
