@@ -108,6 +108,7 @@ pub enum Varlociraptor {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Genotype,
+    // TODO add subcommand for generating methylation candidates
 }
 
 pub struct PreprocessInput {
@@ -1289,6 +1290,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
+        // TODO add handling for candidates methylation subcammand
     }
     Ok(())
 }
