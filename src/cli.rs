@@ -14,6 +14,7 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
+use rust_htslib::bcf::{Format, Header, Writer};
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
@@ -109,6 +110,12 @@ pub enum Varlociraptor {
     )]
     Genotype,
     // TODO add subcommand for generating methylation candidates
+    #[structopt(
+        name = "candidates",
+        about = "Find candidates for variants (right now only methylation)",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Candidates,
 }
 
 pub struct PreprocessInput {
@@ -1291,6 +1298,62 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             }
         },
         // TODO add handling for candidates methylation subcammand
+        Varlociraptor::Candidates => {
+            static FASTA_PATH: &str = "../cargo_test/resources/example.fasta";
+            static VCF_PATH: &str = "../cargo_test/resources/output.vcf";
+            // Öffne die Eingabe-FASTA-Datei
+            let fasta_file: File = File::open(FASTA_PATH).expect("Unable to open");
+            let reader = fasta::Reader::new(fasta_file);
+
+            // Öffne die Ausgabe-VCF-Datei
+            let mut vcf_header = Header::new();
+
+            let header_contig_line = r#"##contig=<ID=20,length=243>"#;
+            vcf_header.push_record(header_contig_line.as_bytes());
+
+            let mut vcf_writer =
+                Writer::from_path(VCF_PATH, &vcf_header, true, Format::Vcf).unwrap();
+            let mut record = vcf_writer.empty_record();
+
+            // Set chrom and pos to 1 and 7, respectively - note the 0-based positions
+            let rid = vcf_writer.header().name2rid(b"20").unwrap();
+            record.set_id(&[20]);
+            record.set_pos(6);
+
+            // Write record
+            match vcf_writer.write(&record) {
+                Ok(_) => { /* Erfolg */ }
+                Err(e) => {
+                    eprintln!("Error: {}", e)
+                }
+            }
+
+            /*for result in reader.records() {
+                let fasta_record = result.expect("Error during fasta record parsing");
+                let sequence: String = String::from_utf8_lossy(fasta_record.seq()).to_string();
+                // Finde die Positionen der Kandidaten im Sequenzabschnitt
+                let candidates: Vec<_> = sequence.match_indices("AA").map(|(idx, _)| idx).collect();
+
+                // Schreibe VCF-Einträge für jede gefundene Position
+                for position in candidates {
+
+                    let contig = fasta_record.id().parse::<u32>().unwrap();
+                    let pos = position as i64 + 1; // VCF-Positionen sind 1-basiert
+
+                    // Erstelle VCF-Eintrag
+                    let mut vcf_record = vcf_writer.empty_record();
+                    vcf_record.set_rid(Some(contig));
+                    vcf_record.set_pos(pos);
+                    match vcf_writer.write(&vcf_record) {
+                        Ok(_) => { /* Erfolg */ }
+                        Err(e) => {
+                            eprintln!("Error: {}", e)
+                        }
+                    }
+                }
+            }*/
+            println!("Test, ob Candidates funktioniert.")
+        }
     }
     Ok(())
 }
