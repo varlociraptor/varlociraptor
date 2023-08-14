@@ -1301,58 +1301,59 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
         Varlociraptor::Candidates => {
             static FASTA_PATH: &str = "../cargo_test/resources/example.fasta";
             static VCF_PATH: &str = "../cargo_test/resources/output.vcf";
-            // Öffne die Eingabe-FASTA-Datei
+
+            // Open FASTA File
             let fasta_file: File = File::open(FASTA_PATH).expect("Unable to open");
             let reader = fasta::Reader::new(fasta_file);
+            let mut data: Vec<(u32, i64)> = vec![];
 
-            // Öffne die Ausgabe-VCF-Datei
-            let mut vcf_header = Header::new();
-
-            let header_contig_line = r#"##contig=<ID=20,length=243>"#;
-            vcf_header.push_record(header_contig_line.as_bytes());
-
-            let mut vcf_writer =
-                Writer::from_path(VCF_PATH, &vcf_header, true, Format::Vcf).unwrap();
-            let mut record = vcf_writer.empty_record();
-
-            // Set chrom and pos to 1 and 7, respectively - note the 0-based positions
-            let rid = vcf_writer.header().name2rid(b"20").unwrap();
-            record.set_id(&[20]);
-            record.set_pos(6);
-
-            // Write record
-            match vcf_writer.write(&record) {
-                Ok(_) => { /* Erfolg */ }
-                Err(e) => {
-                    eprintln!("Error: {}", e)
+            // Collect all chromosomes and positions of candidates
+            for result in reader.records() {
+                let fasta_record = result.expect("Error during fasta record parsing");
+                let sequence: String = String::from_utf8_lossy(fasta_record.seq()).to_string();
+                let candidates: Vec<_> = sequence.match_indices("CG").map(|(idx, _)| idx).collect();
+                // For every candidate collect the information
+                for position in candidates {
+                    let contig = fasta_record.id().parse::<u32>().unwrap();
+                    let pos = position as i64;
+                    data.push((contig, pos));
                 }
             }
 
-            /*for result in reader.records() {
-                let fasta_record = result.expect("Error during fasta record parsing");
-                let sequence: String = String::from_utf8_lossy(fasta_record.seq()).to_string();
-                // Finde die Positionen der Kandidaten im Sequenzabschnitt
-                let candidates: Vec<_> = sequence.match_indices("AA").map(|(idx, _)| idx).collect();
+            //Write the VCF-Header
+            let mut vcf_header = Header::new();
+            let unique_contig_list: Vec<u32> = data.iter().map(|(contig, _)| *contig).collect();
+            let mut unique_contig_list: Vec<u32> = unique_contig_list;
+            unique_contig_list.dedup();
+            for contig_id in unique_contig_list {
+                let header_contig_line: String = format!(r#"##contig=<ID={}>"#, contig_id);
+                vcf_header.push_record(header_contig_line.as_bytes());
+            }
 
-                // Schreibe VCF-Einträge für jede gefundene Position
-                for position in candidates {
+            let mut vcf_writer =
+                Writer::from_path(VCF_PATH, &vcf_header, true, Format::Vcf).unwrap();
 
-                    let contig = fasta_record.id().parse::<u32>().unwrap();
-                    let pos = position as i64 + 1; // VCF-Positionen sind 1-basiert
+            //Prepare the records
+            let mut record = vcf_writer.empty_record();
+            for rec in data {
+                let rid = vcf_writer
+                    .header()
+                    .name2rid(rec.0.to_string().as_bytes())
+                    .unwrap();
+                record.set_rid(Some(rid));
+                record.set_pos(rec.1);
+                let new_alleles: &[&[u8]] = &[b"CG", b"METH"];
+                record.set_alleles(new_alleles);
 
-                    // Erstelle VCF-Eintrag
-                    let mut vcf_record = vcf_writer.empty_record();
-                    vcf_record.set_rid(Some(contig));
-                    vcf_record.set_pos(pos);
-                    match vcf_writer.write(&vcf_record) {
-                        Ok(_) => { /* Erfolg */ }
-                        Err(e) => {
-                            eprintln!("Error: {}", e)
-                        }
+
+                // Write record
+                match vcf_writer.write(&record) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("Error: {}", e)
                     }
                 }
-            }*/
-            println!("Test, ob Candidates funktioniert.")
+            }
         }
     }
     Ok(())
