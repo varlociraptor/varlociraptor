@@ -112,10 +112,25 @@ pub enum Varlociraptor {
     // TODO add subcommand for generating methylation candidates
     #[structopt(
         name = "candidates",
-        about = "Find candidates for variants (right now only methylation)",
-        setting = structopt::clap::AppSettings::ColoredHelp,
+        about = "Find methylation candidates for variants"
     )]
-    Candidates,
+    Candidates {
+        #[structopt(
+            name = "input",
+            parse(from_os_str),
+            required = true,
+            help = "Input FASTA File"
+        )]
+        FASTA_FILE: PathBuf,
+
+        #[structopt(
+            name = "output",
+            parse(from_os_str),
+            required = false,
+            help = "Input FASTA File"
+        )]
+        VCF_FILE: PathBuf,
+    },
 }
 
 pub struct PreprocessInput {
@@ -1298,12 +1313,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             }
         },
         // TODO add handling for candidates methylation subcammand
-        Varlociraptor::Candidates => {
-            static FASTA_PATH: &str = "../cargo_test/resources/example.fasta";
-            static VCF_PATH: &str = "../cargo_test/resources/output.vcf";
+        Varlociraptor::Candidates {
+            FASTA_FILE: input,
+            VCF_FILE: output,
+        } => {
+            println!("Input file: {:?}", input);
+            println!("Output file: {:?}", output);
 
             // Open FASTA File
-            let fasta_file: File = File::open(FASTA_PATH).expect("Unable to open");
+            let fasta_file: File = File::open(input).expect("Unable to open");
             let reader = fasta::Reader::new(fasta_file);
             let mut data: Vec<(u32, i64)> = vec![];
 
@@ -1314,7 +1332,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let candidates: Vec<_> = sequence.match_indices("CG").map(|(idx, _)| idx).collect();
                 // For every candidate collect the information
                 for position in candidates {
-                    let contig = fasta_record.id().parse::<u32>().unwrap();
+                    let temp = fasta_record.id();
+                    let contig = fasta_record.id().parse::<u32>()?;
                     let pos = position as i64;
                     data.push((contig, pos));
                 }
@@ -1330,8 +1349,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 vcf_header.push_record(header_contig_line.as_bytes());
             }
 
-            let mut vcf_writer =
-                Writer::from_path(VCF_PATH, &vcf_header, true, Format::Vcf).unwrap();
+            let mut vcf_writer = Writer::from_path(output, &vcf_header, true, Format::Vcf).unwrap();
 
             //Prepare the records
             let mut record = vcf_writer.empty_record();
@@ -1342,9 +1360,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .unwrap();
                 record.set_rid(Some(rid));
                 record.set_pos(rec.1);
-                let new_alleles: &[&[u8]] = &[b"CG", b"METH"];
+                let new_alleles: &[&[u8]] = &[b"CG", b"<METH>"];
                 record.set_alleles(new_alleles);
-
+                record.set_qual(0.0);
 
                 // Write record
                 match vcf_writer.write(&record) {
