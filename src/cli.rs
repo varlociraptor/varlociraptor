@@ -14,6 +14,7 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
+use rust_htslib::bcf::record::{Numeric, Record};
 use rust_htslib::bcf::{Format, Header, Writer};
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
@@ -123,13 +124,8 @@ pub enum Varlociraptor {
         )]
         FASTA_FILE: PathBuf,
 
-        #[structopt(
-            name = "output",
-            parse(from_os_str),
-            required = false,
-            help = "Input FASTA File"
-        )]
-        VCF_FILE: PathBuf,
+        #[structopt(name = "output", parse(from_os_str), help = "Input FASTA File")]
+        VCF_FILE: Option<PathBuf>,
     },
 }
 
@@ -1349,7 +1345,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 vcf_header.push_record(header_contig_line.as_bytes());
             }
 
-            let mut vcf_writer = Writer::from_path(output, &vcf_header, true, Format::Vcf).unwrap();
+            //Create a vcf writer depending on the output (to file or to stdout)
+            let mut vcf_writer;
+            match output {
+                Some(path) => {
+                    vcf_writer = Writer::from_path(path, &vcf_header, true, Format::Vcf).unwrap();
+                }
+                None => {
+                    vcf_writer = Writer::from_stdout(&vcf_header, true, Format::Vcf).unwrap();
+                }
+            }
 
             //Prepare the records
             let mut record = vcf_writer.empty_record();
@@ -1362,7 +1367,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 record.set_pos(rec.1);
                 let new_alleles: &[&[u8]] = &[b"CG", b"<METH>"];
                 record.set_alleles(new_alleles);
-                record.set_qual(0.0);
+                record.set_qual(f32::missing());
 
                 // Write record
                 match vcf_writer.write(&record) {
