@@ -9,6 +9,8 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use std::collections::HashSet;
+
 use anyhow::{bail, Context, Result};
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -1313,13 +1315,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             FASTA_FILE: input,
             VCF_FILE: output,
         } => {
-            println!("Input file: {:?}", input);
-            println!("Output file: {:?}", output);
-
             // Open FASTA File
             let fasta_file: File = File::open(input).expect("Unable to open");
             let reader = fasta::Reader::new(fasta_file);
-            let mut data: Vec<(u32, i64)> = vec![];
+            let mut data: Vec<(String, i64)> = vec![];
 
             // Collect all chromosomes and positions of candidates
             for result in reader.records() {
@@ -1328,24 +1327,30 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let candidates: Vec<_> = sequence.match_indices("CG").map(|(idx, _)| idx).collect();
                 // For every candidate collect the information
                 for position in candidates {
-                    let temp = fasta_record.id();
-                    let contig = fasta_record.id().parse::<u32>()?;
+                    let contig = fasta_record.id().to_owned();
                     let pos = position as i64;
                     data.push((contig, pos));
                 }
             }
-
-            //Write the VCF-Header
+            //Write the VCF header (every contig appears once)
             let mut vcf_header = Header::new();
-            let unique_contig_list: Vec<u32> = data.iter().map(|(contig, _)| *contig).collect();
+            let unique_strs: HashSet<_> = data.clone()
+            .into_iter()
+            .map(|(s, _)| s)
+            .collect();
+        
+             let unique_contig_list: Vec<String> = unique_strs.into_iter().collect();
+        
+
+            /* let unique_contig_list: Vec<u32> = data.iter().map(|(contig, _)| *contig).collect();
             let mut unique_contig_list: Vec<u32> = unique_contig_list;
-            unique_contig_list.dedup();
+            unique_contig_list.dedup(); */
             for contig_id in unique_contig_list {
                 let header_contig_line: String = format!(r#"##contig=<ID={}>"#, contig_id);
                 vcf_header.push_record(header_contig_line.as_bytes());
             }
 
-            //Create a vcf writer depending on the output (to file or to stdout)
+            //Create a VCF writer depending on the output (to file or to stdout)
             let mut vcf_writer;
             match output {
                 Some(path) => {
