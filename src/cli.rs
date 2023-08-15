@@ -1338,13 +1338,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             .into_iter()
             .map(|(s, _)| s)
             .collect();
-        
-             let unique_contig_list: Vec<String> = unique_strs.into_iter().collect();
-        
-
-            /* let unique_contig_list: Vec<u32> = data.iter().map(|(contig, _)| *contig).collect();
-            let mut unique_contig_list: Vec<u32> = unique_contig_list;
-            unique_contig_list.dedup(); */
+            let unique_contig_list: Vec<String> = unique_strs.into_iter().collect();
             for contig_id in unique_contig_list {
                 let header_contig_line: String = format!(r#"##contig=<ID={}>"#, contig_id);
                 vcf_header.push_record(header_contig_line.as_bytes());
