@@ -1,9 +1,9 @@
-use std::path::PathBuf;
-use rust_htslib::bcf::record::{Numeric};
-use rust_htslib::bcf::{Format, Header, Writer};
 use bio::io::fasta;
-use std::fs::File;
+use rust_htslib::bcf::record::Numeric;
+use rust_htslib::bcf::{Format, Header, Writer};
 use std::collections::HashSet;
+use std::fs::File;
+use std::path::PathBuf;
 
 /// Find all methylation candidates "CG" in a FASTA File
 ///
@@ -12,11 +12,7 @@ use std::collections::HashSet;
 /// * `infasta` - path to FASTA with genome
 /// * `outbcf` - path to VCF with found methylation candidates (None for stdout)
 
-
-pub fn find_candidates(
-    infasta: PathBuf,
-    outvcf: Option<PathBuf>,
-)  {
+pub fn find_candidates(infasta: PathBuf, outvcf: Option<PathBuf>) {
     // Open FASTA File
     let fasta_file: File = File::open(infasta).expect("Unable to open");
     let reader = fasta::Reader::new(fasta_file);
