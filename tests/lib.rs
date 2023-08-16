@@ -395,8 +395,9 @@ fn control_meth_candidates(test: &str) {
 fn assert_candidates_number(test: &str, expected_calls: usize) {
     let basedir = basedir(test);
 
-    let mut reader = Reader::from_path(format!("{}/candidates.vcf", basedir)).expect("Error opening file.");
-    let calls =  reader.records().map(|r| r.unwrap()).collect_vec();
+    let mut reader =
+        Reader::from_path(format!("{}/candidates.vcf", basedir)).expect("Error opening file.");
+    let calls = reader.records().map(|r| r.unwrap()).collect_vec();
 
     let ok = calls.len() == expected_calls;
 
@@ -413,4 +414,3 @@ fn test_meth_candidates1() {
     control_meth_candidates("test_meth_ev_1");
     assert_candidates_number("test_meth_ev_1", 6);
 }
-
