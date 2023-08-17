@@ -111,7 +111,7 @@ pub enum Varlociraptor {
     // TODO add subcommand for generating methylation candidates
     #[structopt(
         name = "methylation-candidates",
-        about = "Find methylation candidates for variants"
+        about = "Generate BCF with methylation candidates"
     )]
     MethylationCandidates {
         #[structopt(
