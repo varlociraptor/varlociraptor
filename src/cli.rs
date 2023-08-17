@@ -113,7 +113,7 @@ pub enum Varlociraptor {
         name = "candidates",
         about = "Find methylation candidates for variants"
     )]
-    Candidates {
+    MethylationCandidates {
         #[structopt(
             name = "input",
             parse(from_os_str),
