@@ -111,7 +111,8 @@ pub enum Varlociraptor {
     // TODO add subcommand for generating methylation candidates
     #[structopt(
         name = "methylation-candidates",
-        about = "Generate BCF with methylation candidates"
+        about = "Generate BCF with methylation candidates",
+        usage = "varlociraptor methylation-candidates input.fasta output.bcf"
     )]
     MethylationCandidates {
         #[structopt(
@@ -122,7 +123,7 @@ pub enum Varlociraptor {
         )]
         input: PathBuf,
 
-        #[structopt(name = "output", parse(from_os_str), help = "Output VCF File")]
+        #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
 }
@@ -1306,7 +1307,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
-        // TODO add handling for candidates methylation subcammand
         Varlociraptor::Candidates { input, output } => {
             candidates::methylation::find_candidates(input, output);
         }
