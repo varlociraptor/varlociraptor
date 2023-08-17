@@ -3,6 +3,8 @@ extern crate paste;
 #[macro_use]
 extern crate lazy_static;
 
+use anyhow::Context;
+use anyhow::Result;
 use bio::io::fasta;
 use std::fs::File;
 use std::sync::Mutex;
@@ -382,7 +384,7 @@ fn test_fdr_control_local3() {
 // Tests for methylation candidates
 //####################################################################################################################################################
 
-fn control_meth_candidates(test: &str) {
+fn control_meth_candidates(test: &str) -> Result<()> {
     let basedir = basedir(test);
     let output = format!("{}/candidates.vcf", basedir);
     cleanup_file(&output);
@@ -390,14 +392,16 @@ fn control_meth_candidates(test: &str) {
         PathBuf::from(format!("{}/genome.fasta", basedir)),
         Some(PathBuf::from(output)),
     )
+    .with_context(|| format!("error computing methylation candidates"))?;
+    Ok(())
 }
 
-fn assert_candidates_number(test: &str, expected_calls: usize) {
+fn assert_candidates_number(test: &str, expected_calls: usize) -> Result<()> {
     let basedir = basedir(test);
 
-    let mut reader =
-        Reader::from_path(format!("{}/candidates.vcf", basedir)).expect("Error opening file.");
-    let calls = reader.records().map(|r| r.unwrap()).collect_vec();
+    let mut reader = Reader::from_path(format!("{}/candidates.vcf", basedir))
+        .with_context(|| format!("error reading VCF file"))?;
+    let calls = reader.records().map(|record| record.unwrap()).collect_vec();
 
     let ok = calls.len() == expected_calls;
 
@@ -407,6 +411,7 @@ fn assert_candidates_number(test: &str, expected_calls: usize) {
         calls.len(),
         expected_calls
     );
+    Ok(())
 }
 
 #[test]

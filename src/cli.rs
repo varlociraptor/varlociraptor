@@ -108,7 +108,6 @@ pub enum Varlociraptor {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Genotype,
-    // TODO add subcommand for generating methylation candidates
     #[structopt(
         name = "methylation-candidates",
         about = "Generate BCF with methylation candidates",
@@ -1307,7 +1306,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
-        Varlociraptor::Candidates { input, output } => {
+        Varlociraptor::MethylationCandidates { input, output } => {
             candidates::methylation::find_candidates(input, output);
         }
     }
