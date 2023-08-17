@@ -122,7 +122,7 @@ pub enum Varlociraptor {
         )]
         input: PathBuf,
 
-        #[structopt(name = "output", parse(from_os_str), help = "Output VCF File")]
+        #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
 }
