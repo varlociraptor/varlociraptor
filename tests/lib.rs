@@ -386,7 +386,7 @@ fn test_fdr_control_local3() {
 
 fn control_meth_candidates(test: &str) -> Result<()> {
     let basedir = basedir(test);
-    let output = format!("{}/candidates.vcf", basedir);
+    let output = format!("{}/candidates.bcf", basedir);
     cleanup_file(&output);
     varlociraptor::candidates::methylation::find_candidates(
         PathBuf::from(format!("{}/genome.fasta", basedir)),
@@ -399,8 +399,8 @@ fn control_meth_candidates(test: &str) -> Result<()> {
 fn assert_candidates_number(test: &str, expected_calls: usize) -> Result<()> {
     let basedir = basedir(test);
 
-    let mut reader = Reader::from_path(format!("{}/candidates.vcf", basedir))
-        .with_context(|| format!("error reading VCF file"))?;
+    let mut reader = Reader::from_path(format!("{}/candidates.bcf", basedir))
+        .with_context(|| format!("error reading BCF file"))?;
     let calls = reader.records().map(|record| record.unwrap()).collect_vec();
 
     let ok = calls.len() == expected_calls;

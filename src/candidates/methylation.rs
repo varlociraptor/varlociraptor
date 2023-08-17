@@ -12,9 +12,9 @@ use std::path::PathBuf;
 /// # Arguments
 ///
 /// * `infasta` - path to FASTA with genome
-/// * `outbcf` - path to VCF with found methylation candidates (None for stdout)
+/// * `outbcf` - path to BCF with found methylation candidates (None for stdout)
 // TODO: add implementation for other methylation types (CHH, ..., given via a pattern arg)
-pub fn find_candidates(infasta: PathBuf, outvcf: Option<PathBuf>) -> Result<()> {
+pub fn find_candidates(infasta: PathBuf, outbcf: Option<PathBuf>) -> Result<()> {
     // Open FASTA File
     let reader =
         fasta::Reader::from_file(infasta).with_context(|| format!("error reading FASTA file"))?;
@@ -33,30 +33,30 @@ pub fn find_candidates(infasta: PathBuf, outvcf: Option<PathBuf>) -> Result<()> 
             data.push((contig, pos));
         }
     }
-    //Write the VCF header (every contig appears once)
-    let mut vcf_header = Header::new();
+    //Write the BCF header (every contig appears once)
+    let mut bcf_header = Header::new();
     for contig_id in data.clone().into_iter().map(|(contig, _)| contig).unique() {
         let header_contig_line = format!(r#"##contig=<ID={}>"#, contig_id);
-        vcf_header.push_record(header_contig_line.as_bytes());
+        bcf_header.push_record(header_contig_line.as_bytes());
     }
 
-    //Create a VCF writer depending on the output (to file or to stdout)
-    let mut vcf_writer;
-    match outvcf {
+    //Create a BCF writer depending on the output (to file or to stdout)
+    let mut bcf_writer;
+    match outbcf {
         Some(path) => {
-            vcf_writer = Writer::from_path(path, &vcf_header, true, Format::Vcf)
+            bcf_writer = Writer::from_path(path, &bcf_header, true, Format::Bcf)
                 .with_context(|| format!("error opening BCF writer"))?;
         }
         None => {
-            vcf_writer = Writer::from_stdout(&vcf_header, true, Format::Vcf)
+            bcf_writer = Writer::from_stdout(&bcf_header, true, Format::Bcf)
                 .with_context(|| format!("error opening BCF writer"))?;
         }
     }
 
     //Prepare the records
-    let mut record = vcf_writer.empty_record();
+    let mut record = bcf_writer.empty_record();
     for (contig, pos) in data {
-        let rid = vcf_writer
+        let rid = bcf_writer
             .header()
             .name2rid(contig.as_bytes())
             .with_context(|| format!("error finding contig {contig} in header."))?;
@@ -67,7 +67,7 @@ pub fn find_candidates(infasta: PathBuf, outvcf: Option<PathBuf>) -> Result<()> 
         record.set_qual(f32::missing());
 
         // Write record
-        vcf_writer
+        bcf_writer
             .write(&record)
             .with_context(|| format!("failed to write BCF record with methylation candidate"))?;
     }
