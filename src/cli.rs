@@ -110,10 +110,10 @@ pub enum Varlociraptor {
     Genotype,
     // TODO add subcommand for generating methylation candidates
     #[structopt(
-        name = "candidates",
+        name = "methylation-candidates",
         about = "Find methylation candidates for variants"
     )]
-    Candidates {
+    MethylationCandidates {
         #[structopt(
             name = "input",
             parse(from_os_str),
