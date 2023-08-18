@@ -1307,7 +1307,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             }
         },
         Varlociraptor::MethylationCandidates { input, output } => {
-            candidates::methylation::find_candidates(input, output);
+            candidates::methylation::find_candidates(input, output)?;
         }
     }
     Ok(())

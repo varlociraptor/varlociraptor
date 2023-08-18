@@ -3,8 +3,6 @@ use bio::io::fasta::Reader;
 use itertools::Itertools;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{Format, Header, Writer};
-use std::collections::HashSet;
-use std::fs::File;
 use std::path::PathBuf;
 
 /// Find all methylation candidates "CG" in a FASTA File
@@ -62,7 +60,9 @@ pub fn find_candidates(infasta: PathBuf, outbcf: Option<PathBuf>) -> Result<()> 
         record.set_rid(Some(rid));
         record.set_pos(pos);
         let new_alleles: &[&[u8]] = &[b"CG", b"<METH>"];
-        record.set_alleles(new_alleles);
+        record
+            .set_alleles(new_alleles)
+            .with_context(|| format!("error setting alleles"))?;
         record.set_qual(f32::missing());
 
         // Write record

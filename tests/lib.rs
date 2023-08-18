@@ -5,8 +5,6 @@ extern crate lazy_static;
 
 use anyhow::Context;
 use anyhow::Result;
-use bio::io::fasta;
-use std::fs::File;
 use std::sync::Mutex;
 use std::{fs, path::Path, path::PathBuf};
 
@@ -415,7 +413,8 @@ fn assert_candidates_number(test: &str, expected_calls: usize) -> Result<()> {
 }
 
 #[test]
-fn test_meth_candidates1() {
-    control_meth_candidates("test_meth_ev_1");
-    assert_candidates_number("test_meth_ev_1", 6);
+fn test_meth_candidates1() -> Result<()> {
+    control_meth_candidates("test_meth_ev_1")?;
+    assert_candidates_number("test_meth_ev_1", 6)?;
+    Ok(())
 }
