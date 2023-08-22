@@ -27,11 +27,11 @@ pub(crate) mod duplication;
 pub(crate) mod haplotype_block;
 pub(crate) mod insertion;
 pub(crate) mod inversion;
+pub(crate) mod methylation;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod replacement;
 pub(crate) mod snv;
-pub(crate) mod methylation;
 
 pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;

@@ -1,30 +1,35 @@
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils;
+use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
+use anyhow::Result;
+use bio::stats::{LogProb, Prob};
+use bio_types::genome::AbstractInterval;
+use num_traits::ToPrimitive;
 
 #[derive(new)]
 pub(crate) struct Methylation {
     locus: SingleLocus,
 }
 
-fn is_methylated(read: SingleEndEvidence, qpos: u32) -> Vec<i32> {
-    if let Ok(basemods) = read.aux(b"MM") {
-        let basemods_value: &[u8] = basemods.string().unwrap();
-        println!("MM:Z value: {:?}", basemods_value);
-        let mut methylated_positions = Vec::new();
-        if let Some(methylated_part) = basemods_value.strip_prefix("C+m,") {
-            let mut meth_pos = 0;
-            for position_str in methylated_part.split(',') {
-                if let Ok(position) = position_str.parse::<usize>() {
-                    meth_pos += position + 1;
-                    methylated_positions.push(meth_pos);
-                }
+fn is_methylated(read: &SingleEndEvidence, qpos: u32) -> Vec<i32> {
+    let mm_tag = read.aux(b"MM");
+    println!("Test");
+    /*     let basemods_value: &[u8] = mm_tag
+    println!("MM:Z value: {:?}", basemods_value);
+    let mut methylated_positions = Vec::new();
+    if let Some(methylated_part) = basemods_value.strip_prefix("C+m,") {
+        let mut meth_pos = 0;
+        for position_str in methylated_part.split(',') {
+            if let Ok(position) = position_str.parse::<usize>() {
+                meth_pos += position + 1;
+                methylated_positions.push(meth_pos);
             }
         }
-        methylated_positions
     }
+    methylated_positions */
+    Vec::new()
 }
 
 fn prob_is_methylated_pi() {
@@ -73,8 +78,13 @@ impl Variant for Methylation {
         &self.locus
     }
 
-    fn allele_support(&self, read: &SingleEndEvidence) -> Result<Option<AlleleSupport>> {
-        // Ich erhalte die Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet
+    fn allele_support(
+        &self,
+        read: &SingleEndEvidence,
+        alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Option<AlleleSupport>> {
+        // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt.
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
@@ -87,12 +97,13 @@ impl Variant for Methylation {
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             // Hole info aus MM File, ob das C methyliert ist.
             let meth_pos = is_methylated(read, qpos);
-            let is_meth = meth_pos.contains(&qpos);
+            let is_meth = meth_pos.contains(&qpos.to_i32().unwrap());
             // TODO prob alt berechne ich über den ML String im BAM File
-            let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
+            // ? let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             // ! Wo bekomme ich die Wkeit für prob_ref her? Ist es erstmal einfach 1 - prob_alt? Was wäre dann o_i?
-            let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
-
+            // ? let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+            let prob_ref = LogProb::from(Prob(1.0));
+            let prob_alt = LogProb::from(Prob(0.0));
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)

@@ -778,6 +778,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
     let opt_clone = opt.clone();
     match opt {
         Varlociraptor::Preprocess { kind } => {
+            warn!("Test7");
             match kind {
                 PreprocessKind::Variants {
                     reference,
