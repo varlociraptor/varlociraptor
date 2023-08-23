@@ -1,0 +1,98 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'varlociraptor'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=varlociraptor"
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "preprocess SNV",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor",
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "preprocess",
+                "variants",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-genome.fasta",
+                "--candidates",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates-snv.bcf",
+                "--bam",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "preprocess Meth",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor",
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "preprocess",
+                "variants",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-genome.fasta",
+                "--candidates",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates.bcf",
+                "--bam",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'lib'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=lib",
+                    "--package=varlociraptor"
+                ],
+                "filter": {
+                    "name": "lib",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
