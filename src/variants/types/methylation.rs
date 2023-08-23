@@ -1,7 +1,9 @@
 // cargo run -- preprocess variants ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-genome.fasta --candidates ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates.bcf --bam ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam > ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/observations.bcf
 
+use super::ToVariantRepresentation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realignable;
+use crate::variants::model;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -9,22 +11,20 @@ use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use num_traits::ToPrimitive;
-use super::ToVariantRepresentation;
-use crate::variants::model;
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
     locus: SingleLocus,
 }
 
-impl Methylation{
+impl Methylation {
     pub(crate) fn new(locus: genome::Locus) -> Self {
-        Methylation { 
+        Methylation {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 2,
-            ))
-        } 
+            )),
+        }
     }
 }
 

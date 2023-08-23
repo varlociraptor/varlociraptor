@@ -221,7 +221,7 @@ pub enum VariantType {
     Insertion(Option<Range<u64>>),
     #[strum(serialize = "DEL")]
     Deletion(Option<Range<u64>>),
-    #[strum(serialize = "SNV")]
+    #[strum(serialize = "METH")]
     Methylation,
     #[strum(serialize = "SNV")]
     Snv,

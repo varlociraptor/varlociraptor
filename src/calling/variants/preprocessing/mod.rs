@@ -718,8 +718,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         match variant {
                             model::Variant::Methylation() => haplotype_block
                                 .push_single_locus_single_end_evidence_variant(Box::new(
-                                parse_meth()?,
-                            )),
+                                    parse_meth()?,
+                                )),
                             model::Variant::Snv(alt) => haplotype_block
                                 .push_single_locus_single_end_evidence_variant(Box::new(
                                     parse_snv(*alt)?,
