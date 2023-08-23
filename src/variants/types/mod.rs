@@ -40,6 +40,7 @@ pub(crate) use inversion::Inversion;
 pub(crate) use mnv::Mnv;
 pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
+pub(crate) use methylation::Methylation;
 pub(crate) use snv::Snv;
 
 use super::evidence::insert_size::estimate_insert_size;

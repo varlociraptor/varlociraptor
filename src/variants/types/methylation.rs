@@ -1,3 +1,5 @@
+// cargo run -- preprocess variants ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-genome.fasta --candidates ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates.bcf --bam ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam > ~/Documents/Promotion/varlociraptor-methylation-evaluation/resources/observations.bcf
+
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
@@ -5,12 +7,25 @@ use crate::variants::types::{
 };
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use bio_types::genome::AbstractInterval;
+use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use num_traits::ToPrimitive;
+use super::ToVariantRepresentation;
+use crate::variants::model;
 
-#[derive(new)]
+#[derive(Debug)]
 pub(crate) struct Methylation {
     locus: SingleLocus,
+}
+
+impl Methylation{
+    pub(crate) fn new(locus: genome::Locus) -> Self {
+        Methylation { 
+            locus: SingleLocus::new(genome::Interval::new(
+                locus.contig().to_owned(),
+                locus.pos()..locus.pos() + 2,
+            ))
+        } 
+    }
 }
 
 fn is_methylated(read: &SingleEndEvidence, qpos: u32) -> Vec<i32> {
@@ -30,20 +45,6 @@ fn is_methylated(read: &SingleEndEvidence, qpos: u32) -> Vec<i32> {
     }
     methylated_positions */
     Vec::new()
-}
-
-fn prob_is_methylated_pi() {
-    // Wenn is_methylated = True:
-    //       Gucke an passender Stelle in ML nach
-    // Wenn is_methylated = False
-    //       ?Wkeit, dass C fälschlicherweise nicht als methyliert erkannt wurde (woher?)
-}
-
-fn prob_is_methylated_ai() {
-    // Wenn is_methylated = True:
-    //       ?Wkeit, dass es fälschlicherweise als methyliert erkannt wurde
-    // Wenn is_methylated = False
-    //       ?Wkeit, dass nicht methyliert ist
 }
 
 impl Variant for Methylation {
@@ -81,10 +82,11 @@ impl Variant for Methylation {
     fn allele_support(
         &self,
         read: &SingleEndEvidence,
-        alignment_properties: &AlignmentProperties,
-        alt_variants: &[Box<dyn Realignable>],
+        _alignment_properties: &AlignmentProperties,
+        _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt.
+        warn!("Test: Methylation wird aufgerufen");
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
@@ -123,6 +125,12 @@ impl Variant for Methylation {
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
+    }
+}
+
+impl ToVariantRepresentation for Methylation {
+    fn to_variant_representation(&self) -> model::Variant {
+        model::Variant::Methylation()
     }
 }
 

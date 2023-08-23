@@ -610,9 +610,14 @@ impl VariantBuilder {
                     .svlen(Some(svlen))
                     .svtype(Some(b"INS".to_vec()))
             }
-            model::Variant::Snv(base) => self
+            model::Variant::Methylation() => {
+                self
+            }
+            model::Variant::Snv(base) => {
+                self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
-                .alt_allele(vec![*base].to_ascii_uppercase()),
+                .alt_allele(vec![*base].to_ascii_uppercase())
+            }
             model::Variant::Mnv(bases) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + bases.len()].to_ascii_uppercase())
                 .alt_allele(bases.to_ascii_uppercase()),

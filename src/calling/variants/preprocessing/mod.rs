@@ -490,6 +490,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })
         };
 
+        let parse_meth = || -> Result<variants::types::Methylation> {
+            let locus = variants.locus().clone();
+            Ok(variants::types::Methylation::new(locus))
+        };
+
         let parse_snv = |alt| -> Result<variants::types::Snv<R>> {
             let locus = variants.locus().clone();
             Ok(variants::types::Snv::new(
@@ -578,6 +583,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             })
             .map(|variant_info| -> Result<Box<dyn Realignable>> {
                 Ok(match variant_info.variant() {
+                    model::Variant::Methylation() => unreachable!(),
                     model::Variant::Snv(alt) => Box::new(parse_snv(*alt)?),
                     model::Variant::Mnv(alt) => Box::new(parse_mnv(alt)?),
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
@@ -710,6 +716,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
                         match variant {
+                            model::Variant::Methylation() => haplotype_block
+                                .push_single_locus_single_end_evidence_variant(Box::new(
+                                parse_meth()?,
+                            )),
                             model::Variant::Snv(alt) => haplotype_block
                                 .push_single_locus_single_end_evidence_variant(Box::new(
                                     parse_snv(*alt)?,
@@ -765,6 +775,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             } else {
                 // single variants
                 match variants.variant_of_interest().variant() {
+                    model::Variant::Methylation() => {
+                        sample.extract_observations(&parse_meth()?, &Vec::new())?
+                    }
                     model::Variant::Snv(alt) => {
                         sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
                     }

@@ -108,7 +108,7 @@ impl<R: Realigner> Variant for Snv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        warn!("Test2");
+        warn!("Test: SNV wird aufgerufen");
         if utils::contains_indel_op(&**read) {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the SNV might be an artifact
