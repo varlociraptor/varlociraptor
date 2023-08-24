@@ -4,6 +4,9 @@ use super::ToVariantRepresentation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
+
+use crate::variants::evidence::observations::read_observation::Strand;
+use rust_htslib::bam::record::Aux;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -15,6 +18,7 @@ use num_traits::ToPrimitive;
 #[derive(Debug)]
 pub(crate) struct Methylation {
     locus: SingleLocus,
+    
 }
 
 impl Methylation {
@@ -28,23 +32,42 @@ impl Methylation {
     }
 }
 
-fn is_methylated(read: &SingleEndEvidence, qpos: u32) -> Vec<i32> {
-    let mm_tag = read.aux(b"MM");
-    println!("Test");
-    /*     let basemods_value: &[u8] = mm_tag
-    println!("MM:Z value: {:?}", basemods_value);
-    let mut methylated_positions = Vec::new();
-    if let Some(methylated_part) = basemods_value.strip_prefix("C+m,") {
-        let mut meth_pos = 0;
-        for position_str in methylated_part.split(',') {
-            if let Ok(position) = position_str.parse::<usize>() {
-                meth_pos += position + 1;
-                methylated_positions.push(meth_pos);
+use log::{warn, error};
+
+fn methylated_cs(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
+    let mm_tag = read.aux(b"MM").map_err(|e| e.to_string())?;
+    
+    if let Aux::String(tag_value) = mm_tag {
+        let mut basemods_value = tag_value.to_owned();
+        
+        // Überprüfen, ob der Tag nicht leer ist
+        if !basemods_value.is_empty() {
+            basemods_value.pop();
+            warn!("MM:Z value: {}", basemods_value);
+            
+            if let Some(methylated_part) = basemods_value.strip_prefix("C+m,") {
+                let mut meth_pos = 0;
+                let methylated_cs: Vec<usize> = methylated_part.split(',')
+                    .filter_map(|position_str| {
+                        position_str.parse::<usize>().ok().map(|position| {
+                            meth_pos += position + 1;
+                            meth_pos
+                        })
+                    })
+                    .collect();
+                let pos_cs= String::from_utf8_lossy(read.seq().encoded).to_string();
+                  /*   .char_indices()
+                    .filter(|(_, c)| *c == 'C')
+                    .map(|(index, _)| index)
+                    .collect(); */
+                // let pos_methylated_cs = pos_cs.filter((|_|, pos)| )
+                return Ok(methylated_cs);
             }
         }
+    } else {
+        error!("Tag is not of type String");
     }
-    methylated_positions */
-    Vec::new()
+    Err("Error while obtaining MM:Z tag".to_string())
 }
 
 impl Variant for Methylation {
@@ -86,7 +109,7 @@ impl Variant for Methylation {
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt.
-        warn!("Test: Methylation wird aufgerufen");
+        
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
@@ -98,19 +121,24 @@ impl Variant for Methylation {
             // TODO base qual muss ich noch irgendwie einbringen?
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             // Hole info aus MM File, ob das C methyliert ist.
-            let meth_pos = is_methylated(read, qpos);
-            let is_meth = meth_pos.contains(&qpos.to_i32().unwrap());
+            let meth_pos = methylated_cs(read).unwrap();
+            let is_meth = meth_pos.contains(&qpos.to_usize().unwrap());
             // TODO prob alt berechne ich über den ML String im BAM File
             // ? let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             // ! Wo bekomme ich die Wkeit für prob_ref her? Ist es erstmal einfach 1 - prob_alt? Was wäre dann o_i?
             // ? let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
             let prob_ref = LogProb::from(Prob(1.0));
             let prob_alt = LogProb::from(Prob(0.0));
+            // ! Um strand muss ich mich noch kuemmern
+            let strand = Strand::no_strand_info();
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
+                    .strand(strand)
                     .read_position(Some(qpos))
+                    // ! Um third allele muss ich mich noch kuemmern
+                    .third_allele_evidence(None)
                     .build()
                     .unwrap(),
             ))

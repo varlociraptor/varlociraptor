@@ -611,7 +611,11 @@ impl VariantBuilder {
                     .svtype(Some(b"INS".to_vec()))
             }
             model::Variant::Methylation() => {
-                self
+                let ref_allele = vec![chrom_seq.unwrap()[start]];
+                self.
+                ref_allele(ref_allele.to_ascii_uppercase())
+                .alt_allele(b"<METH>".to_ascii_uppercase())
+
             }
             model::Variant::Snv(base) => {
                 self
