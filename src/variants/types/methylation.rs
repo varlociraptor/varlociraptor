@@ -76,17 +76,15 @@ fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
 }
 
 
-fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
+fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
     let ml_tag = read.aux(b"ML").map_err(|e| e.to_string())?;
-    if let Aux::String(tag_value) = ml_tag {
-        let mut ml = tag_value.to_owned();
-        if !ml.is_empty() {
-           
-        }
+    if let Aux::ArrayU8(tag_value) = ml_tag {
+        let ml: Vec<f64> = tag_value.iter().map(|val| f64::from(val) / 255.0).collect();
+        return Ok(ml)
     } else {
         error!("Tag is not of type String");
     }
-    Err("Error while obtaining MM:Z tag".to_string())
+    Err("Error while obtaining ML:B tag".to_string())
 }
 
 impl Variant for Methylation {
@@ -147,8 +145,14 @@ impl Variant for Methylation {
             // ? let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             // ! Wo bekomme ich die Wkeit für prob_ref her? Ist es erstmal einfach 1 - prob_alt? Was wäre dann o_i?
             // ? let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
-            let prob_ref = LogProb::from(Prob(1.0));
-            let prob_alt = LogProb::from(Prob(0.0));
+            let mut prob_alt = LogProb::from(Prob(0.0));
+            let mut prob_ref = LogProb::from(Prob(1.0));
+            if let Some(position) = meth_pos.iter().position(|&pos| pos as u32 == qpos) {
+                prob_alt = LogProb::from(Prob(meth_pos[position] as f64));
+                prob_ref = LogProb::from(Prob(1 as f64 - meth_pos[position] as f64));
+            } else {
+                warn!("How to compute this probability?");
+            }
             // ! Um strand muss ich mich noch kuemmern
             let strand = Strand::no_strand_info();
             Ok(Some(
