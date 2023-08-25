@@ -10,6 +10,7 @@ use rust_htslib::bam::record::Aux;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
+use log::{warn, error};
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
@@ -32,22 +33,26 @@ impl Methylation {
     }
 }
 
-use log::{warn, error};
 
-fn methylated_cs(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
+
+fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
     let mm_tag = read.aux(b"MM").map_err(|e| e.to_string())?;
-    
     if let Aux::String(tag_value) = mm_tag {
-        let mut basemods_value = tag_value.to_owned();
-        
-        // Überprüfen, ob der Tag nicht leer ist
-        if !basemods_value.is_empty() {
-            basemods_value.pop();
-            warn!("MM:Z value: {}", basemods_value);
-            
-            if let Some(methylated_part) = basemods_value.strip_prefix("C+m,") {
+        let mut mm = tag_value.to_owned();
+        if !mm.is_empty() {
+            // Compute the positions of all Cs in the Read
+            let read_base = read.seq().as_bytes();
+            let read_seq= String::from_utf8_lossy(&read_base).to_string();
+            let pos_cs: Vec<usize> = read_seq
+                .char_indices()
+                .filter(|(_, c)| *c == 'C')
+                .map(|(index, _)| index)
+                .collect(); 
+            // Compute which Cs are methylated
+            mm.pop();            
+            if let Some(methylated_part) = mm.strip_prefix("C+m,") {
                 let mut meth_pos = 0;
-                let methylated_cs: Vec<usize> = methylated_part.split(',')
+                let mut methylated_cs: Vec<usize> = methylated_part.split(',')
                     .filter_map(|position_str| {
                         position_str.parse::<usize>().ok().map(|position| {
                             meth_pos += position + 1;
@@ -55,14 +60,28 @@ fn methylated_cs(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
                         })
                     })
                     .collect();
-                let pos_cs= String::from_utf8_lossy(read.seq().encoded).to_string();
-                  /*   .char_indices()
-                    .filter(|(_, c)| *c == 'C')
-                    .map(|(index, _)| index)
-                    .collect(); */
-                // let pos_methylated_cs = pos_cs.filter((|_|, pos)| )
-                return Ok(methylated_cs);
+                // If last C is not methylated there has been added one C to much
+                if methylated_cs[methylated_cs.len() - 1] > pos_cs.len() {
+                    methylated_cs.pop();
+                }
+                // Chose only the methylated Cs out of all Cs
+                let pos_methylated_cs: Vec<usize> = methylated_cs.iter().map(|&pos| pos_cs[pos - 1]).collect();
+                return Ok(pos_methylated_cs);
             }
+        }
+    } else {
+        error!("Tag is not of type String");
+    }
+    Err("Error while obtaining MM:Z tag".to_string())
+}
+
+
+fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
+    let ml_tag = read.aux(b"ML").map_err(|e| e.to_string())?;
+    if let Aux::String(tag_value) = ml_tag {
+        let mut ml = tag_value.to_owned();
+        if !ml.is_empty() {
+           
         }
     } else {
         error!("Tag is not of type String");
@@ -121,8 +140,9 @@ impl Variant for Methylation {
             // TODO base qual muss ich noch irgendwie einbringen?
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             // Hole info aus MM File, ob das C methyliert ist.
-            let meth_pos = methylated_cs(read).unwrap();
+            let meth_pos = meth_pos(read).unwrap();
             let is_meth = meth_pos.contains(&qpos.to_usize().unwrap());
+            let meth_probs = meth_probs(read).unwrap();
             // TODO prob alt berechne ich über den ML String im BAM File
             // ? let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             // ! Wo bekomme ich die Wkeit für prob_ref her? Ist es erstmal einfach 1 - prob_alt? Was wäre dann o_i?
