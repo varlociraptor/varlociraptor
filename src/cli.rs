@@ -8,7 +8,6 @@ use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-
 use anyhow::{bail, Context, Result};
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -37,7 +36,7 @@ use crate::variants::evidence::realignment;
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
-use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
+use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, Readtype};
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -304,7 +303,16 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         output_raw_observations: Option<PathBuf>,
+        #[structopt(
+            long = "read-type",
+            required = false,
+            default_value = "PacBio",
+            possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
+            help = "Sequencing method used to gain the reads, important for chosing methylation method. Chose 'PacBio' for long reads sequenced by PacBio or 'Illumina' for short reads after undergoing bisulfite treatment."
+        )]
+        read_type: Readtype,
     },
+
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -778,7 +786,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
     let opt_clone = opt.clone();
     match opt {
         Varlociraptor::Preprocess { kind } => {
-            warn!("Test7");
             match kind {
                 PreprocessKind::Variants {
                     reference,
@@ -798,6 +805,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
+                    read_type: meth_method
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {

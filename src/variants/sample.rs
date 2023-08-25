@@ -288,3 +288,23 @@ impl Sample {
         Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
     }
 }
+
+/// Strand combination for read pairs as given by the sequencing protocol.
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    EnumVariantNames,
+)]
+pub enum Readtype {
+    #[strum(serialize = "illumina")]
+    Illumina,
+    #[strum(serialize = "pacbio")]
+    PacBio,
+}

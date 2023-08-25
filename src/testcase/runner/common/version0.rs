@@ -7,6 +7,7 @@ use yaml_rust::Yaml;
 use crate::cli::{PreprocessKind, Varlociraptor};
 use crate::testcase::runner::common::Mode;
 use crate::testcase::runner::common::Testcase;
+use crate::variants::sample::Readtype;
 
 #[derive(Debug)]
 pub struct TestcaseVersion0 {
@@ -90,6 +91,7 @@ impl Testcase for TestcaseVersion0 {
                         protocol_strandedness,
                         realignment_window: indel_window as u64,
                         max_depth,
+                        read_type: Readtype::PacBio,
                         // The rest will be overwritten.
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),
@@ -104,6 +106,7 @@ impl Testcase for TestcaseVersion0 {
                         log_mode: "default".to_owned(),
                         pairhmm_mode: "exact".to_owned(),
                         output_raw_observations: None,
+                   
                     },
                 };
 

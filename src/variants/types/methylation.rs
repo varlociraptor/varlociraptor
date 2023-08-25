@@ -14,12 +14,13 @@ use log::{warn, error};
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
-use num_traits::ToPrimitive;
+
+
+
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
     locus: SingleLocus,
-    
 }
 
 impl Methylation {
@@ -32,8 +33,6 @@ impl Methylation {
         }
     }
 }
-
-
 
 fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
     let mm_tag = read.aux(b"MM").map_err(|e| e.to_string())?;
@@ -60,7 +59,7 @@ fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
                         })
                     })
                     .collect();
-                // If last C is not methylated there has been added one C to much
+                // If last C is not methylated, there has been added one C to much
                 if methylated_cs[methylated_cs.len() - 1] > pos_cs.len() {
                     methylated_cs.pop();
                 }
@@ -134,26 +133,23 @@ impl Variant for Methylation {
             .read_pos(self.locus.range().start as u32, false, false)?
         {
             // TODO Wenn read_base kein C ist muss ich mir was ausdenken? Was ist, wenn die nächte Base im Read kein G ist?
-            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+            let _read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
             // TODO base qual muss ich noch irgendwie einbringen?
-            let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
+            let _base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             // Hole info aus MM File, ob das C methyliert ist.
             let meth_pos = meth_pos(read).unwrap();
-            let is_meth = meth_pos.contains(&qpos.to_usize().unwrap());
             let meth_probs = meth_probs(read).unwrap();
-            // TODO prob alt berechne ich über den ML String im BAM File
-            // ? let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
-            // ! Wo bekomme ich die Wkeit für prob_ref her? Ist es erstmal einfach 1 - prob_alt? Was wäre dann o_i?
-            // ? let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(1.0));
             if let Some(position) = meth_pos.iter().position(|&pos| pos as u32 == qpos) {
-                prob_alt = LogProb::from(Prob(meth_pos[position] as f64));
-                prob_ref = LogProb::from(Prob(1 as f64 - meth_pos[position] as f64));
+                prob_alt = LogProb::from(Prob(meth_probs[position] as f64));
+                prob_ref = LogProb::from(Prob(1 as f64 - meth_probs[position] as f64));
             } else {
-                warn!("How to compute this probability?");
+                prob_alt = LogProb::from(Prob(0.0));
+                prob_ref = LogProb::from(Prob(1.0));
+                warn!("No probability given for unmethylated Cs!");
             }
-            // ! Um strand muss ich mich noch kuemmern
+            // TODO: Um strand muss ich mich noch kuemmern
             let strand = Strand::no_strand_info();
             Ok(Some(
                 AlleleSupportBuilder::default()
@@ -161,7 +157,7 @@ impl Variant for Methylation {
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
                     .read_position(Some(qpos))
-                    // ! Um third allele muss ich mich noch kuemmern
+                    // TODO: Um third allele muss ich mich noch kuemmern
                     .third_allele_evidence(None)
                     .build()
                     .unwrap(),
