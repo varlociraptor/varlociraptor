@@ -71,7 +71,9 @@
                 "--candidates",
                 "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates.bcf",
                 "--bam",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam"
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam",
+                "--read-type",
+                "PacBio"
             ],
             "cwd": "${workspaceFolder}"
         },
