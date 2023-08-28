@@ -303,8 +303,8 @@ impl Sample {
     EnumVariantNames,
 )]
 pub enum Readtype {
-    #[strum(serialize = "illumina")]
+    #[strum(serialize = "Illumina")]
     Illumina,
-    #[strum(serialize = "pacbio")]
+    #[strum(serialize = "PacBio")]
     PacBio,
 }

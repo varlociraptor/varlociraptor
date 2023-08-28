@@ -19,7 +19,8 @@ use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
-
+use crate::variants::sample::Readtype::{PacBio, Illumina};
+use crate::variants::sample::Readtype;
 use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
@@ -74,6 +75,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     raw_observation_output: Option<PathBuf>,
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
+    readtype: Readtype
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -492,7 +494,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
-            Ok(variants::types::Methylation::new(locus))
+            let readtype = self.readtype;
+            Ok(variants::types::Methylation::new(locus, readtype))
         };
 
         let parse_snv = |alt| -> Result<variants::types::Snv<R>> {

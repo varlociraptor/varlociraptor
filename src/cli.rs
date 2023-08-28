@@ -805,7 +805,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
-                    read_type: meth_method
+                    read_type
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
@@ -868,6 +868,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         hop_params,
                                         realignment_window,
                                     ))
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
@@ -896,6 +897,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                         reference_buffer,
                                     ))
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
@@ -924,6 +926,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         gap_params,
                                         realignment_window,
                                     ))
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
