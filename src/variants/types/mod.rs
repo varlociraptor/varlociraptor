@@ -37,10 +37,10 @@ pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;
 pub(crate) use inversion::Inversion;
+pub(crate) use methylation::Methylation;
 pub(crate) use mnv::Mnv;
 pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
-pub(crate) use methylation::Methylation;
 pub(crate) use snv::Snv;
 
 use super::evidence::insert_size::estimate_insert_size;
@@ -175,6 +175,10 @@ pub(crate) trait Variant {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer_indel_len().is_some()
     }
+
+    fn is_meth(&self) -> bool {
+        false
+    }
 }
 
 pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
@@ -252,7 +256,7 @@ where
         buffer.fetch(locus, false)?;
 
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-
+        warn!("So oft");
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
@@ -262,6 +266,9 @@ where
                 alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
 
                 let evidence = SingleEndEvidence::new(record);
+                if self.is_meth() {
+                    warn!("meth is going on!")
+                }
                 if self
                     .is_valid_evidence(&evidence, alignment_properties)
                     .is_some()
@@ -274,7 +281,6 @@ where
             .collect();
 
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
-
         let mut observations = Vec::new();
         for evidence in candidates {
             if subsampler.keep() {

@@ -10,6 +10,8 @@ use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
+use std::collections::HashMap;
+
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
@@ -119,6 +121,10 @@ impl Variant for Methylation {
         &self.locus
     }
 
+    fn is_meth(&self) -> bool {
+        true
+    }
+
     fn allele_support(
         &self,
         read: &SingleEndEvidence,
@@ -140,21 +146,22 @@ impl Variant for Methylation {
                 Readtype::Illumina => {
                     let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                     let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
+                    // Prob?read?base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
                     prob_alt = prob_read_base(read_base, b'C', base_qual);
-                    if read_base == b'T' || read_base == b'C' {
-                        prob_ref = prob_read_base(read_base, b'T', base_qual);
-                    } else {
-                        prob_ref = prob_read_base(read_base, read_base, base_qual);
-                    }
+                    let no_c = if read_base != b'C' { read_base } else { b'T' };
+                    prob_ref = prob_read_base(read_base, no_c, base_qual);
                 }
                 Readtype::PacBio => {
                     // Hole info aus MM File, ob das C methyliert ist.
                     let meth_pos = meth_pos(read).unwrap();
                     let meth_probs = meth_probs(read).unwrap();
-
-                    if let Some(position) = meth_pos.iter().position(|&pos| pos as u32 == qpos) {
-                        prob_alt = LogProb::from(Prob(meth_probs[position] as f64));
-                        prob_ref = LogProb::from(Prob(1 as f64 - meth_probs[position] as f64));
+                    let pos_to_probs: HashMap<usize, f64> =
+                        meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                    //if let Some(position) = meth_pos.iter().position(|&pos| pos as u32 == qpos) {
+                    if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
+                        prob_alt = LogProb::from(Prob(*value as f64));
+                        prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
+                    //    prob_ref = LogProb::from(Prob(1 as f64 - meth_probs[position] as f64));
                     } else {
                         // TODO What should I do if there is no prob given
                         prob_alt = LogProb::from(Prob(0.0));

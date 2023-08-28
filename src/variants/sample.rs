@@ -267,7 +267,7 @@ impl Sample {
         } else {
             None
         };
-
+        warn!("Wie oft");
         let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,

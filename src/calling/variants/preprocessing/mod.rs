@@ -10,17 +10,6 @@ use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
-use anyhow::{bail, Context, Result};
-use bio_types::genome::{self, AbstractLocus};
-use bio_types::sequence::SequenceReadPairOrientation;
-use bv::BitVec;
-use byteorder::{ByteOrder, LittleEndian};
-use itertools::Itertools;
-use progress_logger::ProgressLogger;
-use rust_htslib::bam::{self, Read as BAMRead};
-use rust_htslib::bcf::{self, Read as BCFRead};
-use crate::variants::sample::Readtype::{PacBio, Illumina};
-use crate::variants::sample::Readtype;
 use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
@@ -38,10 +27,21 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
+use crate::variants::sample::Readtype;
+use crate::variants::sample::Readtype::{Illumina, PacBio};
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
+use anyhow::{bail, Context, Result};
+use bio_types::genome::{self, AbstractLocus};
+use bio_types::sequence::SequenceReadPairOrientation;
+use bv::BitVec;
+use byteorder::{ByteOrder, LittleEndian};
+use itertools::Itertools;
+use progress_logger::ProgressLogger;
+use rust_htslib::bam::{self, Read as BAMRead};
+use rust_htslib::bcf::{self, Read as BCFRead};
 
 pub(crate) mod haplotype_feature_index;
 
@@ -75,7 +75,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     raw_observation_output: Option<PathBuf>,
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
-    readtype: Readtype
+    readtype: Readtype,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -778,12 +778,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             } else {
                 // single variants
                 match variants.variant_of_interest().variant() {
-                    model::Variant::Methylation() => {
-                        sample.extract_observations(&parse_meth()?, &Vec::new())?
-                    }
                     model::Variant::Snv(alt) => {
                         sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
                     }
+
                     model::Variant::Mnv(alt) => {
                         sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
                     }
@@ -812,6 +810,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Breakend { .. } => unimplemented!(
                         "bug: breakends without haplotype events should be ignored for now"
                     ),
+                    model::Variant::Methylation() => {
+                        sample.extract_observations(&parse_meth()?, &Vec::new())?
+                    }
                 }
             },
         ))
