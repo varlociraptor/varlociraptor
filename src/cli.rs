@@ -20,6 +20,7 @@ use crate::calling::variants::calling::{
     call_generic, CallWriter, DefaultCandidateFilter, SampleInfos,
 };
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+use crate::candidates;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
@@ -106,6 +107,23 @@ pub enum Varlociraptor {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Genotype,
+    #[structopt(
+        name = "methylation-candidates",
+        about = "Generate BCF with methylation candidates",
+        usage = "varlociraptor methylation-candidates input.fasta output.bcf"
+    )]
+    MethylationCandidates {
+        #[structopt(
+            name = "input",
+            parse(from_os_str),
+            required = true,
+            help = "Input FASTA File"
+        )]
+        input: PathBuf,
+
+        #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
+        output: Option<PathBuf>,
+    },
 }
 
 pub struct PreprocessInput {
@@ -1300,6 +1318,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
+        Varlociraptor::MethylationCandidates { input, output } => {
+            candidates::methylation::find_candidates(input, output)?;
+        }
     }
     Ok(())
 }
