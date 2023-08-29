@@ -11,9 +11,7 @@ use bio::stats::LogProb;
 use itertools::Itertools;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, SingleEndEvidence,
-};
+use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
@@ -189,7 +187,7 @@ impl Variant for HaplotypeBlock {
             self.multi_locus_single_end_evidence_variants
                 .iter()
                 .enumerate()
-                .filter_map(|(i, variant)| {
+                .filter_map(|(_i, variant)| {
                     let valid = evidence
                         .into_single_end_evidence()
                         .iter()
@@ -286,7 +284,7 @@ impl Variant for HaplotypeBlock {
                     .map(|variant| variant.allele_support(evidence, alignment_properties, &[])),
             )
             .collect::<Result<Vec<Option<AlleleSupport>>>>()?;
-        let mut support = support
+        let support = support
             .into_iter()
             .filter_map(|support| support)
             .collect_vec();

@@ -28,7 +28,7 @@ use crate::variants::evidence::observations::read_observation::{
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Readtype;
-use crate::variants::sample::Readtype::{Illumina, PacBio};
+
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;

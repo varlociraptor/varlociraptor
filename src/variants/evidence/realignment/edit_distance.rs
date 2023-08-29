@@ -396,7 +396,7 @@ impl EditDistanceCalculation {
             let mut end_reduce = 0;
 
             let mut allele = Vec::new();
-            let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
+            let _opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
 

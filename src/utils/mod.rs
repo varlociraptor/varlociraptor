@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::{AddAssign, Deref};
 use std::path::PathBuf;
@@ -654,7 +654,7 @@ where
 
 /// Format to given precision
 /// Taken from https://stackoverflow.com/a/60498499/7070491
-pub(crate) fn signif(float: f64, precision: usize) -> String {
+pub(crate) fn _signif(float: f64, precision: usize) -> String {
     // compute absolute value
     let a = float.abs();
 

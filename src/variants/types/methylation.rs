@@ -94,7 +94,7 @@ impl Variant for Methylation {
     type Loci = SingleLocus;
 
     fn is_imprecise(&self) -> bool {
-        false
+        true
     }
 
     /// Determine whether the evidence is suitable to assessing probabilities
@@ -171,7 +171,14 @@ impl Variant for Methylation {
                 }
             }
             // TODO: Implement strand
-            let strand = Strand::no_strand_info();
+            let strand = if prob_ref != prob_alt {
+                Strand::from_record_and_pos(read, qpos as usize)?
+            } else {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                Strand::no_strand_info()
+            };
+            // let strand = Strand::no_strand_info();
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)
