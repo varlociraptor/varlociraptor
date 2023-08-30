@@ -94,7 +94,7 @@ impl Variant for Methylation {
     type Loci = SingleLocus;
 
     fn is_imprecise(&self) -> bool {
-        true
+        false
     }
 
     /// Determine whether the evidence is suitable to assessing probabilities
