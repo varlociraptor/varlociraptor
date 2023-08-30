@@ -9,7 +9,6 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
-use bio::alignment::AlignmentOperation;
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
@@ -477,11 +476,6 @@ impl<'a> ReadEmission<'a> {
     #[inline]
     pub(crate) fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
-    }
-
-    /// Calculate probability that none of the bases is miscalled.
-    pub(crate) fn certainty_est(&self) -> LogProb {
-        self.no_miscall.iter().sum()
     }
 }
 
