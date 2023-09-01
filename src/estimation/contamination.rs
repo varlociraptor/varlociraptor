@@ -235,7 +235,6 @@ impl bio::stats::bayesian::model::Marginal for Marginal {
 #[derive(Clone, Debug)]
 struct VAFDist {
     histogram: BTreeMap<AlleleFreq, usize>,
-    total: usize,
     max_vaf: AlleleFreq,
 }
 
@@ -252,11 +251,7 @@ impl VAFDist {
                 max_vaf = obs.max_posterior_vaf;
             }
         }
-        VAFDist {
-            histogram,
-            total,
-            max_vaf,
-        }
+        VAFDist { histogram, max_vaf }
     }
 
     fn get_expected_vaf(
