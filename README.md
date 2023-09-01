@@ -1,7 +1,7 @@
 # Varlociraptor
 
 [![Bioconda](https://img.shields.io/conda/dn/bioconda/varlociraptor?label=bioconda%20downloads)](https://bioconda.github.io/recipes/varlociraptor/README.html)
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/varlociraptor/varlociraptor/CI/master?label=tests)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/varlociraptor/varlociraptor/rust.yml?label=tests&branch=master)
 [![Codecov](https://img.shields.io/codecov/c/github/varlociraptor/varlociraptor/master.svg?label=test%20coverage)](https://codecov.io/gh/varlociraptor/varlociraptor)
 [![API docs](https://img.shields.io/badge/API-documentation-blue.svg)](https://docs.rs/varlociraptor)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)

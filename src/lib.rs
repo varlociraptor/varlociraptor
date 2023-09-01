@@ -33,6 +33,7 @@ extern crate typed_builder;
 extern crate paste;
 
 pub mod calling;
+pub mod candidates;
 pub mod cli;
 pub(crate) mod conversion;
 pub(crate) mod errors;
