@@ -3,12 +3,14 @@ extern crate paste;
 #[macro_use]
 extern crate lazy_static;
 
+use anyhow::Context;
+use anyhow::Result;
 use std::sync::Mutex;
-use std::{fs, path::Path};
+use std::{fs, path::Path, path::PathBuf};
 
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use rust_htslib::bcf::{self, Read};
+use rust_htslib::bcf::{self, Read, Reader};
 use varlociraptor::{testcase, testcase_should_panic};
 
 testcase!(test01, exact, fast);
@@ -375,3 +377,44 @@ fn test_fdr_control_local3() {
 //         )),
 //     );
 // }
+
+//####################################################################################################################################################
+// Tests for methylation candidates
+//####################################################################################################################################################
+
+fn control_meth_candidates(test: &str) -> Result<()> {
+    let basedir = basedir(test);
+    let output = format!("{}/candidates.bcf", basedir);
+    cleanup_file(&output);
+    varlociraptor::candidates::methylation::find_candidates(
+        PathBuf::from(format!("{}/genome.fasta", basedir)),
+        Some(PathBuf::from(output)),
+    )
+    .with_context(|| format!("error computing methylation candidates"))?;
+    Ok(())
+}
+
+fn assert_candidates_number(test: &str, expected_calls: usize) -> Result<()> {
+    let basedir = basedir(test);
+
+    let mut reader = Reader::from_path(format!("{}/candidates.bcf", basedir))
+        .with_context(|| format!("error reading BCF file"))?;
+    let calls = reader.records().map(|record| record.unwrap()).collect_vec();
+
+    let ok = calls.len() == expected_calls;
+
+    assert!(
+        ok,
+        "unexpected number of calls ({} vs {})",
+        calls.len(),
+        expected_calls
+    );
+    Ok(())
+}
+
+#[test]
+fn test_meth_candidates1() -> Result<()> {
+    control_meth_candidates("test_meth_ev_1")?;
+    assert_candidates_number("test_meth_ev_1", 6)?;
+    Ok(())
+}
