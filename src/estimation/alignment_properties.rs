@@ -77,8 +77,6 @@ pub(crate) struct AlignmentProperties {
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
     initial: bool,
-    #[serde(skip, default)]
-    epsilon_gap: f64,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -153,7 +151,7 @@ impl AlignmentProperties {
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
-        epsilon_gap: f64,
+        _epsilon_gap: f64,
     ) -> Result<Self> {
         // If we do not consider insert size, it is safe to also process hardclipped reads.
         let allow_hardclips = omit_insert_size;
@@ -171,7 +169,6 @@ impl AlignmentProperties {
             initial: true,
             gap_params: Default::default(),
             hop_params: Default::default(),
-            epsilon_gap,
         };
 
         #[derive(Debug)]
