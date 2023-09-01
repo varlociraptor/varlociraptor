@@ -5,7 +5,7 @@ samples:
   read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:
     path: 'read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold.bam'
     properties: '{"insert_size":{"mean":400.107223476298,"sd":23.655646684857626},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.25333333333333335,"max_read_len":150,"wildtype_homopolymer_error_model":{"0":1.0},"initial":false}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":2000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"each-record","output_raw_observations":null}}}}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"realignment_window":64,"max_depth":2000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"each-record","output_raw_observations":null}}}}'
   
 
 # candidate variant

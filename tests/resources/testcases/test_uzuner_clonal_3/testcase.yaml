@@ -7,7 +7,7 @@ samples:
   sample:
     path: 'sample.bam'
     properties: '{"insert_size":{"mean":145.84191176470588,"sd":48.11937785483768},"max_del_cigar_len":2,"max_ins_cigar_len":1,"frac_max_softclip":0.12,"max_read_len":150,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-12.785891140783116,"prob_deletion_artifact":-12.186270018233994,"prob_insertion_extend_artifact":null,"prob_deletion_extend_artifact":null},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"0":0.9988689762888958,"2":0.0011848819830615734,"1":0.00005385827195734425},"initial":false}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
   
 
 # candidate variant
