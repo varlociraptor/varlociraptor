@@ -241,12 +241,10 @@ struct VAFDist {
 impl VAFDist {
     fn new(variant_observations: &[VariantObservation]) -> Self {
         let mut histogram = BTreeMap::default();
-        let mut total = 0;
         let mut max_vaf = AlleleFreq(0.0);
         for obs in variant_observations {
             let bin = AlleleFreq((*obs.max_posterior_vaf * 100.0).floor() / 100.0);
             *histogram.entry(bin).or_insert(0) += 1;
-            total += 1;
             if obs.max_posterior_vaf > max_vaf {
                 max_vaf = obs.max_posterior_vaf;
             }
