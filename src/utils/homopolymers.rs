@@ -12,7 +12,6 @@ use crate::{estimation::alignment_properties::AlignmentProperties, variants::typ
 pub(crate) struct HomopolymerIndelOperation {
     len: i8,
     text_pos: usize,
-    base: u8,
 }
 
 impl HomopolymerIndelOperation {
@@ -122,11 +121,7 @@ impl HomopolymerIndelOperation {
             }
         }
 
-        homopolymer_indel_len.map(|len| HomopolymerIndelOperation {
-            len,
-            text_pos,
-            base: homopolymer_base.unwrap(),
-        })
+        homopolymer_indel_len.map(|len| HomopolymerIndelOperation { len, text_pos })
     }
 }
 
