@@ -57,7 +57,6 @@ impl HomopolymerIndelOperation {
         let mut rpos = 0;
         let mut qpos = 0;
         let mut homopolymer_indel_len = None;
-        let mut homopolymer_base = None;
         let mut text_pos = 0;
 
         let is_extendable_stretch = |rpos, base| {
@@ -85,7 +84,6 @@ impl HomopolymerIndelOperation {
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(-(len as i8));
-                            homopolymer_base = Some(text[rpos]);
                             text_pos = rpos;
                         } else {
                             // METHOD: more complex indel situation, not considered for homopolymer error handling.
@@ -101,7 +99,6 @@ impl HomopolymerIndelOperation {
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(len as i8);
-                            homopolymer_base = Some(pattern[qpos]);
                             text_pos = rpos;
                         } else {
                             // METHOD: more complex indel situation, not considered for homopolymer error handling.
