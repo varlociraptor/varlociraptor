@@ -264,7 +264,7 @@ pub enum PreprocessKind {
             possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
-        protocol_strandedness: ProtocolStrandedness,
+        _protocol_strandedness: ProtocolStrandedness,
         #[structopt(
             long = "indel-window",
             default_value = "64",
@@ -806,7 +806,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     alignment_properties,
                     output,
                     propagate_info_fields,
-                    protocol_strandedness,
+                    _protocol_strandedness,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
@@ -857,7 +857,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
-                                    .protocol_strandedness(protocol_strandedness)
+                                    ._protocol_strandedness(_protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -886,7 +886,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
-                                    .protocol_strandedness(protocol_strandedness)
+                                    ._protocol_strandedness(_protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -914,7 +914,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
-                                    .protocol_strandedness(protocol_strandedness)
+                                    ._protocol_strandedness(_protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)

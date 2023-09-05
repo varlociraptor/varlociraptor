@@ -207,7 +207,7 @@
 ##INFO=<ID=PROB_DOUBLE_OVERLAP,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant internal use only).">
 ##INFO=<ID=STRAND,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant internal use only).">
 ##INFO=<ID=READ_ORIENTATION,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant internal use only).">
-##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/chm.freebayes.bcf","bam":"results/recal/chm.sorted.bam","threads":72,"reference_buffer_size":10,"alignment_properties":null,"output":"results/observations/chm/chm.freebayes.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}
+##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/chm.freebayes.bcf","bam":"results/recal/chm.sorted.bam","threads":72,"reference_buffer_size":10,"alignment_properties":null,"output":"results/observations/chm/chm.freebayes.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"_protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}
 ##varlociraptor_observation_format_version=4
 ##bcftools_viewVersion=1.10.2+htslib-1.10.2
 ##bcftools_viewCommand=view candidates.vcf; Date=Mon Sep  7 12:12:52 2020

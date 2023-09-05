@@ -191,7 +191,8 @@ pub(crate) struct Sample {
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
     max_depth: usize,
-    protocol_strandedness: ProtocolStrandedness,
+    // Not used right now, but will be implemented in the future
+    _protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
     fragment_id_factory: FragmentIdFactory,
     report_fragment_ids: bool,

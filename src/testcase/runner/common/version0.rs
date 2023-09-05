@@ -78,7 +78,7 @@ impl Testcase for TestcaseVersion0 {
                         spurious_del_rate: _,
                         spurious_insext_rate: _,
                         spurious_delext_rate: _,
-                        protocol_strandedness,
+                        _protocol_strandedness,
                         indel_window,
                         max_depth,
                         ..
@@ -87,7 +87,7 @@ impl Testcase for TestcaseVersion0 {
                 let options = Varlociraptor::Preprocess {
                     kind: PreprocessKind::Variants {
                         reference,
-                        protocol_strandedness,
+                        _protocol_strandedness,
                         realignment_window: indel_window as u64,
                         max_depth,
                         // The rest will be overwritten.
@@ -263,7 +263,7 @@ pub mod cli {
                 possible_values = { use strum::IntoEnumIterator; &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
                 help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
             )]
-            protocol_strandedness: ProtocolStrandedness,
+            _protocol_strandedness: ProtocolStrandedness,
             #[structopt(long = "omit-snvs", help = "Don't call SNVs.")]
             omit_snvs: bool,
             #[structopt(long = "omit-indels", help = "Don't call Indels.")]

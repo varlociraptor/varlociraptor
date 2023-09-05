@@ -18,7 +18,7 @@
 ##INFO=<ID=READ_POSITION,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
 ##INFO=<ID=SOFTCLIPPED,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
 ##INFO=<ID=PAIRED,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
-##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"tmp.fasta","candidates":"tmp.vcf","bam":"tmp.tumor.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}
+##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"tmp.fasta","candidates":"tmp.vcf","bam":"tmp.tumor.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"_protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}
 ##varlociraptor_observation_format_version=7
 ##bcftools_viewVersion=1.11+htslib-1.11
 ##bcftools_viewCommand=view -; Date=Thu Apr 29 08:56:08 2021
