@@ -38,7 +38,7 @@ use crate::variants::evidence::realignment;
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
-use crate::variants::sample::estimate_alignment_properties;
+use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -258,6 +258,13 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         propagate_info_fields: Vec<String>,
+        #[structopt(
+            long = "strandedness",
+            default_value = "opposite",
+            possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
+            help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
+        )]
+        protocol_strandedness: ProtocolStrandedness,
         #[structopt(
             long = "indel-window",
             default_value = "64",
@@ -799,6 +806,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     alignment_properties,
                     output,
                     propagate_info_fields,
+                    protocol_strandedness,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
@@ -849,6 +857,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -877,6 +886,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -904,6 +914,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
+                                    .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)

@@ -15,7 +15,7 @@
 ##INFO=<ID=PROB_ANY_STRAND,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant internal use only).">
 ##INFO=<ID=FORWARD_STRAND,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant internal use only).">
 ##INFO=<ID=REVERSE_STRAND,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant internal use only).">
-##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"resources/chrI.genome.fasta","candidates":"results/simulated.variants.vcf","bam":"results/mapped/30x.sorted.bam","alignment_properties":null,"output":"results/varlociraptor/preprocess/30x.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}
+##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"resources/chrI.genome.fasta","candidates":"results/simulated.variants.vcf","bam":"results/mapped/30x.sorted.bam","alignment_properties":null,"output":"results/varlociraptor/preprocess/30x.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}
 ##varlociraptor_observation_format_version=2
 ##bcftools_viewVersion=1.10.2+htslib-1.10.2-3
 ##bcftools_viewCommand=view candidates.vcf; Date=Wed Jul 29 13:45:08 2020

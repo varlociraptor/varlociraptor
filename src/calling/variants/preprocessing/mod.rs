@@ -38,7 +38,7 @@ use crate::variants::evidence::observations::read_observation::{
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
-use crate::variants::sample::SampleBuilder;
+use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
 
@@ -50,6 +50,7 @@ use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeF
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
     alignment_properties: AlignmentProperties,
     max_depth: usize,
+    protocol_strandedness: ProtocolStrandedness,
     reference_buffer: Arc<reference::Buffer>,
     realigner: R,
     inbcf: PathBuf,
@@ -203,6 +204,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
+            .protocol_strandedness(self.protocol_strandedness)
             .report_fragment_ids(self.report_fragment_ids)
             .adjust_prob_mapping(self.adjust_prob_mapping)
             .alignments(
