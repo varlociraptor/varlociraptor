@@ -256,7 +256,7 @@ where
         buffer.fetch(locus, false)?;
 
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-        warn!("So oft");
+        // warn!("So oft");
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
@@ -267,7 +267,7 @@ where
 
                 let evidence = SingleEndEvidence::new(record);
                 if self.is_meth() {
-                    warn!("meth is going on!")
+                    // warn!("meth is going on!")
                 }
                 if self
                     .is_valid_evidence(&evidence, alignment_properties)
