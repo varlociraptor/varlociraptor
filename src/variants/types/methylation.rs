@@ -152,17 +152,24 @@ impl Variant for Methylation {
             let prob_ref;
             // TODO Do something, if the next base is no G
             match self.readtype {
-
                 Readtype::Illumina => {
-                    let mut read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
-                    let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-                    // if read.inner.core.flag == 16 {
-                        // read_base = convert_backward_to_forward(read_base);
-                    // }
-                    // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
-                    prob_alt = prob_read_base(read_base, b'C', base_qual);
-                    let no_c = if read_base != b'C' { read_base } else { b'T' };
-                    prob_ref = prob_read_base(read_base, no_c, base_qual);
+                    // TODO: Finde allgemeingueltige Regel fuer Backward Read
+                    let forward_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
+                    if forward_read {
+                        let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+                        let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
+                        // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
+                        prob_alt = prob_read_base(read_base, b'C', base_qual);
+                        let no_c = if read_base != b'C' { read_base } else { b'T' };
+                        prob_ref = prob_read_base(read_base, no_c, base_qual);
+                    }
+                    else {
+                        let read_base = unsafe { read.seq().decoded_base_unchecked((qpos + 1) as usize) };
+                        let base_qual = unsafe { *read.qual().get_unchecked((qpos + 1) as usize) };
+                        prob_alt = prob_read_base(read_base, b'G', base_qual);
+                        let no_g = if read_base != b'G' { read_base } else { b'A' };
+                        prob_ref = prob_read_base(read_base, no_g, base_qual);
+                    }
                 }
                 Readtype::PacBio => {
                     // Get methylation info from MM and ML TAG.
