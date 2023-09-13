@@ -154,8 +154,8 @@ impl Variant for Methylation {
             match self.readtype {
                 Readtype::Illumina => {
                     // TODO: Finde allgemeingueltige Regel fuer Backward Read
-                    let forward_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
-                    if forward_read {
+                    let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
+                    if !reverse_read {
                         let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                         let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
                         // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
