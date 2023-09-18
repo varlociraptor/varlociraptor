@@ -13,6 +13,7 @@ use crate::variants::types::{
 use std::collections::HashMap;
 
 use anyhow::Result;
+use bio::stats::bayesian::bayes_factors::evidence;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use log::{error, warn};
@@ -89,15 +90,6 @@ fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
     Err("Error while obtaining ML:B tag".to_string())
 }
 
-fn convert_backward_to_forward(read_base: u8) -> u8 {
-    match read_base {
-        b'A' => b'G',
-        b'C' => b'T',
-        b'G' => b'A',
-        b'T' => b'C',
-        _ => read_base,
-    }
-}
 
 impl Variant for Methylation {
     type Evidence = SingleEndEvidence;
@@ -118,7 +110,13 @@ impl Variant for Methylation {
         evidence: &SingleEndEvidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        if self.locus.range().start == 44304 {
+            warn!("Debug");
+        }
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
+            Some(vec![0])
+            //   && self.locus.range().start == 44304
+        } else if self.locus.reverse_overlap(evidence){
             Some(vec![0])
         } else {
             None
@@ -140,21 +138,30 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt.
-
-        if let Some(qpos) = read
+        // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt. // 
+        let mut qpos: Option<i32> = None;
+        if let Some(inner_qpos) = read
             .cigar_cached()
             .unwrap()
             // TODO expect u64 in read_pos
             .read_pos(self.locus.range().start as u32, false, false)?
         {
+            qpos = Some(inner_qpos as i32); // Ändern Sie den Wert der äußeren qpos-Variable
+        }
+        else if self.locus.reverse_overlap(read) {
+            qpos = Some(-1); // Ändern Sie den Wert der äußeren qpos-Variable
+        }
+        
+        if let Some(qpos) = qpos {
             let prob_alt;
             let prob_ref;
             // TODO Do something, if the next base is no G
             match self.readtype {
                 Readtype::Illumina => {
                     // TODO: Finde allgemeingueltige Regel fuer Backward Read
-                    let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
+                    // let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
+                    let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
+
                     if !reverse_read {
                         let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                         let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
@@ -164,6 +171,7 @@ impl Variant for Methylation {
                         prob_ref = prob_read_base(read_base, no_c, base_qual);
                     }
                     else {
+                        let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
                         let read_base = unsafe { read.seq().decoded_base_unchecked((qpos + 1) as usize) };
                         let base_qual = unsafe { *read.qual().get_unchecked((qpos + 1) as usize) };
                         prob_alt = prob_read_base(read_base, b'G', base_qual);
@@ -202,7 +210,7 @@ impl Variant for Methylation {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
-                    .read_position(Some(qpos))
+                    .read_position(Some(qpos as u32))
                     // TODO: Implement third allele
                     .third_allele_evidence(None)
                     .build()
