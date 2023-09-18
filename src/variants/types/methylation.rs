@@ -110,9 +110,6 @@ impl Variant for Methylation {
         evidence: &SingleEndEvidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        if self.locus.range().start == 44304 {
-            warn!("Debug");
-        }
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
             //   && self.locus.range().start == 44304
@@ -158,10 +155,8 @@ impl Variant for Methylation {
             // TODO Do something, if the next base is no G
             match self.readtype {
                 Readtype::Illumina => {
-                    // TODO: Finde allgemeingueltige Regel fuer Backward Read
                     // let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
                     let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
-
                     if !reverse_read {
                         let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                         let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
@@ -171,7 +166,6 @@ impl Variant for Methylation {
                         prob_ref = prob_read_base(read_base, no_c, base_qual);
                     }
                     else {
-                        let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
                         let read_base = unsafe { read.seq().decoded_base_unchecked((qpos + 1) as usize) };
                         let base_qual = unsafe { *read.qual().get_unchecked((qpos + 1) as usize) };
                         prob_alt = prob_read_base(read_base, b'G', base_qual);
