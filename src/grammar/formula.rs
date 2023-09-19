@@ -1180,7 +1180,7 @@ impl VAFRange {
     }
 
     pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
-        let min_vaf = if n_obs < 10 {
+        let min_vaf = if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
             self.start
         } else {
             let obs_count = Self::expected_observation_count(self.start, n_obs);
@@ -1216,7 +1216,7 @@ impl VAFRange {
             *self.end != 0.0,
             "bug: observable_max may not be called if end=0.0."
         );
-        if n_obs < 10 {
+        if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
             self.end
         } else {
             let mut obs_count = Self::expected_observation_count(self.end, n_obs);
@@ -1235,6 +1235,10 @@ impl VAFRange {
 
     fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
         n_obs as f64 * *freq
+    }
+
+    fn is_adjustment_possible(&self, n_obs: usize) -> bool {
+        Self::expected_observation_count(self.end - self.start, n_obs) > 1.0
     }
 }
 

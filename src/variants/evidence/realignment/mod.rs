@@ -39,6 +39,7 @@ use self::edit_distance::EditDistance;
 use self::pairhmm::RefBaseEmission;
 use self::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission};
 
+#[derive(Debug)]
 pub(crate) struct CandidateRegion {
     overlap: bool,
     read_interval: Range<usize>,
