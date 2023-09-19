@@ -442,7 +442,7 @@ impl EditDistanceCalculation {
             }
             // add the remaining sequence
             allele.extend(
-                (pos_ref..emission_params.ref_end() - emission_params.ref_offset() + 1)
+                (pos_ref..emission_params.ref_end() - emission_params.ref_offset())
                     .map(|i| emission_params.ref_base(i)),
             );
 
