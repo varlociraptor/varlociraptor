@@ -2,6 +2,24 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.0](https://github.com/varlociraptor/varlociraptor/compare/v8.3.0...v8.4.0) (2023-09-19)
+
+
+### Features
+
+* methylation candidates ([#394](https://github.com/varlociraptor/varlociraptor/issues/394)) ([d977058](https://github.com/varlociraptor/varlociraptor/commit/d977058805426c54801c8945719f32a935356546))
+
+
+### Bug Fixes
+
+* fixed handling of allele frequency boundaries (avoiding NaN probabilities in some rare cases); fixed handling of upper reference bound when estimating probability of third allele ([#398](https://github.com/varlociraptor/varlociraptor/issues/398)) ([e255ff9](https://github.com/varlociraptor/varlociraptor/commit/e255ff925017670732db8c6e7814cd66d8b3b0c8))
+
+
+### Miscellaneous Chores
+
+* trigger release 8.3.1 ([2db869f](https://github.com/varlociraptor/varlociraptor/commit/2db869fd18365c574c05ad72eec2a6b1b5509032))
+* trigger release 8.4.0 ([668cc49](https://github.com/varlociraptor/varlociraptor/commit/668cc4935d631b0117f832a5dcc1d6bc7dcc94bb))
+
 ## [8.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.2.0...v8.3.0) (2023-06-28)
 
 
