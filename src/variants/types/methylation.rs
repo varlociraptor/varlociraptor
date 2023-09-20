@@ -110,14 +110,9 @@ impl Variant for Methylation {
         evidence: &SingleEndEvidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        if self.locus.range().start == 36210 {
-            warn!("Debug");
-        }
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
-            //   && self.locus.range().start == 44304
-            
-        // If the forward read starts with a G of a CG position, the backward read has a C there and gives reason about methylation
+        // If the forward read end with a C of a CpG site or the reverse reag starts with a C in a CpG site include the read
         } else if self.locus.outside_overlap(evidence) {
             Some(vec![0])
         } else {
@@ -140,34 +135,28 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt. // 
+        // qpos: Position of the C under consideration in the read 
         // let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a reverse read
         let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
-        let mut qpos: Option<i32> = None;
-        if let Some(inner_qpos) = read
+        let qpos = if let Some(inner_qpos) = read
             .cigar_cached()
             .unwrap()
-            // TODO expect u64 in read_pos
             .read_pos(self.locus.range().start as u32, false, false)?
         {
-            qpos = Some(inner_qpos as i32); // Ändern Sie den Wert der äußeren qpos-Variable
-        }
-        else if self.locus.outside_overlap(read) {
-            if reverse_read {
-                qpos = Some(-1); // Ändern Sie den Wert der äußeren qpos-Variable
-            }
-            else {
-                qpos = Some((read.cigar_len() + 1) as i32)
-            }
-        }
-        
+            Some(inner_qpos as i32)
+        } else if self.locus.outside_overlap(read) {
+            Some(if reverse_read { -1 } else { (read.cigar_len() + 1) as i32 })
+        } else {
+            None
+        };
+            
         if let Some(qpos) = qpos {
             let prob_alt;
             let prob_ref;
             // TODO Do something, if the next base is no G
-            if self.locus.range().start == 24973 {
-                warn!("Debug!");
-            }
+            // if self.locus.range().start == 24973 {
+            //     warn!("Debug!");
+            // }
             match self.readtype {
                 Readtype::Illumina => {
                     if !reverse_read {
