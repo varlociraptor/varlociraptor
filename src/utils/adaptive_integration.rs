@@ -58,23 +58,56 @@ where
     let mut first_middle = None;
     let mut middle = None;
 
-    while (((right - left) >= max_resolution) && left < right) || middle.is_none() {
-        middle = Some(grid_point(middle_grid_point(left, right), &mut probs));
 
-        if first_middle.is_none() {
-            first_middle = middle;
+
+while (((right - left) >= max_resolution) && left < right) || middle.is_none() {
+    middle = Some(grid_point(middle_grid_point(left, right), &mut probs));
+    let middle1 = grid_point(middle_grid_point(left, middle.unwrap()), &mut probs);
+    let middle2 = grid_point(middle_grid_point(middle.unwrap(), right), &mut probs);
+
+
+    if first_middle.is_none() {
+        first_middle = middle;
+    }
+
+    let mut probs_list = HashMap::new();
+    let x_values = [left, middle1, middle2, right];
+    for &x in &x_values {
+        let prob = *probs.get(&x).unwrap();
+        probs_list.insert(x, prob);
+    }
+
+    let mut max_idx1 = 0;
+    for (&x, &value) in probs_list.iter() {
+        if value > probs_list[&x_values[max_idx1]] {
+            max_idx1 = x_values.iter().position(|&v| v == x).unwrap();
         }
+    }
 
-        let left_prob = probs.get(&left).unwrap();
-        let right_prob = probs.get(&right).unwrap();
+    if max_idx1 > 0 {
+        left = x_values[max_idx1 - 1];
+    } else {
+        left = x_values[max_idx1]; 
+    }
+    if max_idx1 < 3 {
+        right = x_values[max_idx1 + 1];
+    } else {
+        right = x_values[max_idx1];
+    }
 
-        if left_prob > right_prob {
-            // investigate left window more closely
-            right = middle.unwrap();
-        } else {
-            // investigate right window more closely
-            left = middle.unwrap();
-        }
+
+   
+    
+    // Old Code with binary search -> Did not find the best results 
+    // else {
+    //     if left_prob > right_prob {
+    //         // investigate left window more closely
+    //         right = middle.unwrap();
+    //     } else {
+    //         // investigate right window more closely
+    //         left = middle.unwrap();
+    //     }
+    // }
     }
     // METHOD: add additional grid point in the initially abandoned arm
     if middle < first_middle {

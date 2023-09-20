@@ -110,10 +110,15 @@ impl Variant for Methylation {
         evidence: &SingleEndEvidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        if self.locus.range().start == 36210 {
+            warn!("Debug");
+        }
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
             //   && self.locus.range().start == 44304
-        } else if self.locus.reverse_overlap(evidence){
+            
+        // If the forward read starts with a G of a CG position, the backward read has a C there and gives reason about methylation
+        } else if self.locus.outside_overlap(evidence) {
             Some(vec![0])
         } else {
             None
@@ -136,6 +141,8 @@ impl Variant for Methylation {
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         // qpos: Position im Read, an der das C steht wenn es die nicht gibt, wird der Read nicht betrachtet und der else Block wird ausgeführt. // 
+        // let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a reverse read
+        let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
         let mut qpos: Option<i32> = None;
         if let Some(inner_qpos) = read
             .cigar_cached()
@@ -145,18 +152,24 @@ impl Variant for Methylation {
         {
             qpos = Some(inner_qpos as i32); // Ändern Sie den Wert der äußeren qpos-Variable
         }
-        else if self.locus.reverse_overlap(read) {
-            qpos = Some(-1); // Ändern Sie den Wert der äußeren qpos-Variable
+        else if self.locus.outside_overlap(read) {
+            if reverse_read {
+                qpos = Some(-1); // Ändern Sie den Wert der äußeren qpos-Variable
+            }
+            else {
+                qpos = Some((read.cigar_len() + 1) as i32)
+            }
         }
         
         if let Some(qpos) = qpos {
             let prob_alt;
             let prob_ref;
             // TODO Do something, if the next base is no G
+            if self.locus.range().start == 24973 {
+                warn!("Debug!");
+            }
             match self.readtype {
                 Readtype::Illumina => {
-                    // let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
-                    let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
                     if !reverse_read {
                         let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                         let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };

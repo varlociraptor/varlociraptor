@@ -503,8 +503,10 @@ impl SingleLocus {
         Overlap::None
     }
 
-    fn reverse_overlap(&self, evidence: &SingleEndEvidence) -> bool {
-        let reverse_read =  (evidence.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
+    fn outside_overlap(&self, evidence: &SingleEndEvidence) -> bool {
+        // let reverse_read =  (evidence.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
+        let reverse_read = evidence.inner.core.flag == 163 || evidence.inner.core.flag == 83 || evidence.inner.core.flag == 16;
+
         let pos = evidence.pos() as u64;
         let end_pos = evidence.cigar_cached().unwrap().end_pos() as u64;
     
@@ -512,6 +514,11 @@ impl SingleLocus {
         if pos <= self.range().start + 1 && reverse_read {
             if end_pos >= self.range().end {
                 return true
+            }
+        }
+        else if end_pos >= self.range().end - 1 && !reverse_read{
+            if pos <= self.range().start {
+                return true;
             }
         }
         false

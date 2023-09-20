@@ -414,7 +414,9 @@ where
                     work_item.check_homopolymer_artifact_detection,
                     work_item.check_alt_locus_bias,
                 )?;
-
+                if work_item.call.pos == 43764 {
+                    warn!("Debug");
+                }
                 self.call_record(&mut work_item, _model, _events);
 
                 self.call_processor
