@@ -74,6 +74,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     raw_observation_output: Option<PathBuf>,
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
+    atomic_candidate_variants: bool,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -497,6 +498,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ref_base()?,
                 alt,
                 self.realigner.clone(),
+                !self.atomic_candidate_variants,
             ))
         };
 
@@ -520,6 +522,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     .to_owned(),
                 alt.to_owned(),
                 self.realigner.clone(),
+                !self.atomic_candidate_variants,
             ))
         };
 

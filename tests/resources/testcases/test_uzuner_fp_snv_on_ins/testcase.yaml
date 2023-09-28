@@ -1,18 +1,14 @@
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - sample == 0.0
 
 # necessary bam files
 samples:
   sample:
     path: 'sample.bam'
     properties: '{"insert_size":{"mean":150.73021840315073,"sd":76.48661586376208},"max_del_cigar_len":14,"max_ins_cigar_len":18,"frac_max_softclip":0.9900990099009901,"max_read_len":101,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.469450748118796,"prob_deletion_artifact":-8.191662061622653,"prob_insertion_extend_artifact":-0.9516818568143385,"prob_deletion_extend_artifact":-0.4580555877859265},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"2":0.0001651729006327695,"1":0.0013056524526209399,"-1":3.9326881103040365e-6,"4":0.000043259569213344394,"22":3.9326881103040365e-6,"3":0.00001966344055152018,"-2":0.000023596128661824215,"0":0.9987690686214749},"initial":false}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"omit_mapq_adjustment":true,"atomic_candidate_variants":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
   
 
 # candidate variant
