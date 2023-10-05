@@ -299,9 +299,12 @@ where
     }
 }
 
-impl<V> Observable<PairedEndEvidence> for V
+
+impl<V, L> Observable<PairedEndEvidence> for V
 where
-    V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
+    // V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
+    V: Variant<Evidence = PairedEndEvidence, Loci = L>,
+    L: Loci
 {
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
@@ -446,6 +449,9 @@ where
     }
 }
 
+
+
+
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
     fn is_single_contig(&self) -> bool;
@@ -506,6 +512,7 @@ impl SingleLocus {
     fn outside_overlap(&self, evidence: &SingleEndEvidence) -> bool {
         // let reverse_read =  (evidence.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
         let reverse_read = evidence.inner.core.flag == 163 || evidence.inner.core.flag == 83 || evidence.inner.core.flag == 16;
+        // let reverse_read = (evidence.inner.core.flag & 0x10) != 0;
 
         let pos = evidence.pos() as u64;
         let end_pos = evidence.cigar_cached().unwrap().end_pos() as u64;
