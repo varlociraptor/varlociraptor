@@ -11,6 +11,8 @@ use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
+use rusty_machine::prelude::BaseMatrixMut;
+use strum::IntoEnumIterator;
 use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -231,7 +233,7 @@ pub(crate) trait ToVariantRepresentation {
     fn to_variant_representation(&self) -> model::Variant;
 }
 
-impl<V> Observable<SingleEndEvidence> for V
+impl<V> Observable<SingleEndEvidence, SingleLocus> for V
 where
     V: Variant<Evidence = SingleEndEvidence, Loci = SingleLocus>,
 {
@@ -256,7 +258,6 @@ where
         buffer.fetch(locus, false)?;
 
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-        // warn!("So oft");
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
@@ -300,11 +301,10 @@ where
 }
 
 
-impl<V, L> Observable<PairedEndEvidence> for V
+
+impl<V> Observable<PairedEndEvidence, MultiLocus> for V
 where
-    // V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
-    V: Variant<Evidence = PairedEndEvidence, Loci = L>,
-    L: Loci
+    V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>
 {
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
@@ -449,6 +449,149 @@ where
     }
 }
 
+impl<V> Observable<PairedEndEvidence, SingleLocus> for V
+where
+    V: Variant<Evidence = PairedEndEvidence, Loci = SingleLocus>
+{
+    fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
+        let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
+                // In BWA, MAPQ is influenced by the mate, hence they are not independent
+                // and we can therefore not multiply them. By taking the maximum, we
+                // make a conservative choice (since 1-mapq is the mapping probability).
+                let mut p = prob(left);
+                let mut q = prob(right);
+                if p < q {
+                    std::mem::swap(&mut p, &mut q);
+                }
+                p.ln_one_minus_exp()
+            }
+        }
+    }
+
+    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => record.mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+        }
+    }
+
+    fn extract_observations(
+        &self,
+        buffer: &mut sample::RecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
+        max_depth: usize,
+        alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+    ) -> Result<Vec<ReadObservation>> {
+        // We cannot use a hash function here because candidates have to be considered
+        // in a deterministic order. Otherwise, subsampling high-depth regions will result
+        // in slightly different probabilities each time.
+        let mut candidate_records = BTreeMap::new();
+
+        
+        let locus = self.loci();
+        buffer.fetch(locus, true)?;
+        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
+
+        for record in buffer.iter() {
+            // METHOD: First, we check whether the record contains an indel in the cigar.
+            // We store the maximum indel size to update the global estimates, in case
+            // it is larger in this region.
+            alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
+
+            // We look at the whole fragment at once.
+
+            // TODO move this text to the right place:
+            // We ensure fair sampling by checking if the whole fragment overlaps the
+            // centerpoint. Only taking the internal segment would not be fair,
+            // because then the second read of reference fragments tends to cross
+            // the centerpoint and the fragment would be discarded.
+            // The latter would not happen for alt (deletion) fragments, because the second
+            // read would map right of the variant in that case.
+
+            // We always choose the leftmost and the rightmost alignment, thereby also
+            // considering supplementary alignments.
+
+            if !candidate_records.contains_key(record.qname()) {
+                // this is the first (primary or supplementary alignment in the pair
+                candidate_records.insert(record.qname().to_owned(), Candidate::new(record));
+            } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
+                // this is either the last alignment or one in the middle
+                if (candidate.left.is_first_in_template() && record.is_first_in_template())
+                    && (candidate.left.is_last_in_template() && record.is_last_in_template())
+                {
+                    // Ignore another partial alignment right of the first.
+                    continue;
+                }
+                // replace right record (we seek for the rightmost (partial) alignment)
+                candidate.right = Some(record);
+            }
+        }
+        
+
+        let mut candidates = Vec::new();
+        let mut locus_depth = VecMap::new();
+        let mut push_evidence = |evidence: PairedEndEvidence, idx| {
+            candidates.push(evidence);
+            for i in idx {
+                let count = locus_depth.entry(i).or_insert(0);
+                *count += 1;
+            }
+        };
+
+        for candidate in candidate_records.values() {
+            if let Some(ref right) = candidate.right {
+                if candidate.left.mapq() == 0 || right.mapq() == 0 {
+                    // Ignore pairs with ambiguous alignments.
+                    // The statistical model does not consider them anyway.
+                    continue;
+                }
+                let evidence = PairedEndEvidence::PairedEnd {
+                    left: Rc::clone(&candidate.left),
+                    right: Rc::clone(right),
+                };
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    push_evidence(evidence, idx);
+                }
+            } else {
+                // this is a single alignment with unmapped mate or mate outside of the
+                // region of interest
+                let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    push_evidence(evidence, idx);
+                }
+            }
+        }
+
+        // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
+        // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
+        let subsample = locus_depth.values().all(|depth| *depth > max_depth);
+        let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+
+
+
+        let mut observations = Vec::new();
+        for evidence in &candidates {
+            if !subsample || subsampler.keep() {
+                if let Some(obs) = self.evidence_to_observation(
+                    evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                    alt_variants,
+                    observation_id_factory,
+                )? {
+                    observations.push(obs);
+                }
+            }
+        }
+
+        Ok(observations)
+    }
+}
 
 
 
@@ -550,6 +693,7 @@ pub(crate) struct MultiLocus {
     #[deref(mutable)]
     loci: Vec<SingleLocus>,
 }
+
 
 impl Loci for MultiLocus {
     fn first_pos(&self) -> u64 {

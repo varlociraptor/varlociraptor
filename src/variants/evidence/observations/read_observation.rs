@@ -545,7 +545,7 @@ pub(crate) fn locus_to_bucket(
 }
 
 /// Something that can be converted into observations.
-pub(crate) trait Observable<E>: Variant<Evidence = E>
+pub(crate) trait Observable<E, L>: Variant<Evidence = E, Loci = L>
 where
     E: Evidence + Eq + Hash,
 {

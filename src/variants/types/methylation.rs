@@ -156,8 +156,6 @@ impl Variant for Methylation {
         // let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a reverse read
         // let reverse_read = (read.inner.core.flag & 0x10) != 0;
         // let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
-        let reverse_read = true;
-        let qpos = Some(10);
         // let qpos = if let Some(inner_qpos) = read
         //     .cigar_cached()
         //     .unwrap()
@@ -170,6 +168,21 @@ impl Variant for Methylation {
         //     None
         // };
             
+        // if let Some(qpos) = qpos {
+        let qpos;
+        qpos = match read {
+            PairedEndEvidence::SingleEnd(record) | PairedEndEvidence::PairedEnd { left: record, right: _ } => {
+                if let Some(inner_qpos) = record
+                    .cigar_cached()
+                    .unwrap()
+                    .read_pos(self.locus.range().start as u32, false, false)?
+                {
+                    Some(inner_qpos as i32)
+                } else {
+                    None
+                }
+            }
+        };
         if let Some(qpos) = qpos {
             let prob_alt;
             let prob_ref;
@@ -178,33 +191,47 @@ impl Variant for Methylation {
                 Readtype::Illumina => {
                     match read {
                         PairedEndEvidence::SingleEnd(record) => {
-                            if !reverse_read {
-                                // let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
-                                // let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-                                // // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
-                                // prob_alt = prob_read_base(read_base, b'C', base_qual);
-                                // let no_c = if read_base != b'C' { read_base } else { b'T' };
-                                // prob_ref = prob_read_base(read_base, no_c, base_qual);
-                                println!("Single und falschrum")
+                            let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
+                        
+                            warn!("{:?}", qpos);
+                            
+                                if !reverse_read {          
+                                    let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+                                    let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
+                                    // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
+                                    prob_alt = prob_read_base(read_base, b'C', base_qual);
+                                    let no_c = if read_base != b'C' { read_base } else { b'T' };
+                                    prob_ref = prob_read_base(read_base, no_c, base_qual);
+                                    warn!("Single und richtigrum")
+                                }
+                                else {
+                                    let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+                                    let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
+                                    prob_alt = prob_read_base(read_base, b'G', base_qual);
+                                    let no_g = if read_base != b'G' { read_base } else { b'A' };
+                                    prob_ref = prob_read_base(read_base, no_g, base_qual);
+                                    warn!("Single und falschrum")
+                                }
                             }
-                            else {
-                                // let read_base = unsafe { read.seq().decoded_base_unchecked((qpos + 1) as usize) };
-                                // let base_qual = unsafe { *read.qual().get_unchecked((qpos + 1) as usize) };
-                                // prob_alt = prob_read_base(read_base, b'G', base_qual);
-                                // let no_g = if read_base != b'G' { read_base } else { b'A' };
-                                // prob_ref = prob_read_base(read_base, no_g, base_qual);
-                                println!("Single und richtigrum")
-
-                            }
-                        }
+                        
                         PairedEndEvidence::PairedEnd { left, right } => {
-                            println!("Okay, hier sind tatsaechlich paired end Reads!");
+                            prob_alt = LogProb(0.0);
+                            prob_ref = LogProb(0.0);
+                            // if nur ein Read deckt CpG ab:
+                            //  so wie bisher
+                            // if beide decken es ab:
+                            //  Produkt von prob_alt und prob_ref
+                            warn!("Left pos: {}", left.inner.core.pos);
+                            warn!("Left pos: {}", right.inner.core.pos);
+                            warn!("Okay, hier sind tatsaechlich paired end Reads!");
                         }
                     }
                 }
                 Readtype::PacBio => {
-                    // // Get methylation info from MM and ML TAG.
-                    // let meth_pos = meth_pos(read).unwrap();
+                    warn!("PacBio");
+                    // let record = read.into_single_end_evidence();  
+                    //  // // Get methylation info from MM and ML TAG.
+                    // let meth_pos = meth_pos(record).unwrap();
                     // let meth_probs = meth_probs(read).unwrap();
                     // let pos_to_probs: HashMap<usize, f64> =
                     //     meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
@@ -219,15 +246,23 @@ impl Variant for Methylation {
                     // }
                 }
             }
+            
             // TODO: Implement strand
-            // let strand = if prob_ref != prob_alt {
-            //     Strand::from_record_and_pos(read, qpos as usize)?
-            // } else {
-            //     // METHOD: if record is not informative, we don't want to
-            //     // retain its information (e.g. strand).
-            //     Strand::no_strand_info()
-            // };
-            let strand = Strand::no_strand_info();
+          
+            let strand = if prob_ref != prob_alt {
+                let record = match &read {
+                    PairedEndEvidence::SingleEnd(record) => record,
+                    PairedEndEvidence::PairedEnd { left, right: _ } => left,
+                };
+                
+                Strand::from_record_and_pos(&record, qpos as usize)?
+            } else {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                Strand::no_strand_info()
+            };
+            
+            // let strand = Strand::no_strand_info();
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)
@@ -239,6 +274,7 @@ impl Variant for Methylation {
                     .build()
                     .unwrap(),
             ))
+
         } else {
             // a read that spans an SNV might have the respective position in the
             // reference skipped (Cigar op 'N'), and the library should not choke on those reads
@@ -246,98 +282,6 @@ impl Variant for Methylation {
             Ok(None)
         }
     }
- // #################################################################### - Old SingleEnd - ###################################################
-    // fn allele_support(
-    //     &self,
-    //     read: &SingleEndEvidence,
-    //     _alignment_properties: &AlignmentProperties,
-    //     _alt_variants: &[Box<dyn Realignable>],
-    // ) -> Result<Option<AlleleSupport>> {
-    //     // qpos: Position of the C under consideration in the read 
-    //     // let reverse_read =  (read.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a reverse read
-    //     // let reverse_read = (read.inner.core.flag & 0x10) != 0;
-    //     let reverse_read = read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16;
-    //     let qpos = if let Some(inner_qpos) = read
-    //         .cigar_cached()
-    //         .unwrap()
-    //         .read_pos(self.locus.range().start as u32, false, false)?
-    //     {
-    //         Some(inner_qpos as i32)
-    //     } else if self.locus.outside_overlap(read) {
-    //         Some(if reverse_read { -1 } else { (read.cigar_len() + 1) as i32 })
-    //     } else {
-    //         None
-    //     };
-            
-    //     if let Some(qpos) = qpos {
-    //         let prob_alt;
-    //         let prob_ref;
-    //         // TODO Do something, if the next base is no G
-    //         match self.readtype {
-    //             Readtype::Illumina => {
-    //                 if !reverse_read {
-    //                     let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
-    //                     let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-    //                     // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
-    //                     prob_alt = prob_read_base(read_base, b'C', base_qual);
-    //                     let no_c = if read_base != b'C' { read_base } else { b'T' };
-    //                     prob_ref = prob_read_base(read_base, no_c, base_qual);
-    //                 }
-    //                 else {
-    //                     let read_base = unsafe { read.seq().decoded_base_unchecked((qpos + 1) as usize) };
-    //                     let base_qual = unsafe { *read.qual().get_unchecked((qpos + 1) as usize) };
-    //                     prob_alt = prob_read_base(read_base, b'G', base_qual);
-    //                     let no_g = if read_base != b'G' { read_base } else { b'A' };
-    //                     prob_ref = prob_read_base(read_base, no_g, base_qual);
-    //                 }
-    //             }
-    //             Readtype::PacBio => {
-    //                 // Get methylation info from MM and ML TAG.
-    //                 let meth_pos = meth_pos(read).unwrap();
-    //                 let meth_probs = meth_probs(read).unwrap();
-    //                 let pos_to_probs: HashMap<usize, f64> =
-    //                     meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-    //                 if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
-    //                     prob_alt = LogProb::from(Prob(*value as f64));
-    //                     prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
-    //                 } else {
-    //                     // TODO What should I do if there is no prob given
-    //                     prob_alt = LogProb::from(Prob(0.0));
-    //                     prob_ref = LogProb::from(Prob(1.0));
-    //                     warn!("No probability given for unmethylated Cs!");
-    //                 }
-    //             }
-    //         }
-    //         // TODO: Implement strand
-    //         let strand = if prob_ref != prob_alt {
-    //             Strand::from_record_and_pos(read, qpos as usize)?
-    //         } else {
-    //             // METHOD: if record is not informative, we don't want to
-    //             // retain its information (e.g. strand).
-    //             Strand::no_strand_info()
-    //         };
-    //         // let strand = Strand::no_strand_info();
-    //         Ok(Some(
-    //             AlleleSupportBuilder::default()
-    //                 .prob_ref_allele(prob_ref)
-    //                 .prob_alt_allele(prob_alt)
-    //                 .strand(strand)
-    //                 .read_position(Some(qpos as u32))
-    //                 // TODO: Implement third allele
-    //                 .third_allele_evidence(None)
-    //                 .build()
-    //                 .unwrap(),
-    //         ))
-    //     } else {
-    //         // a read that spans an SNV might have the respective position in the
-    //         // reference skipped (Cigar op 'N'), and the library should not choke on those reads
-    //         // but instead needs to know NOT to add those reads (as observations) further up
-    //         Ok(None)
-    //     }
-    // }
-    // #################################################################### - Old SingleEnd - ###################################################
-
-
 
 
     /// Calculate probability to sample a record length like the given one from the alt allele.

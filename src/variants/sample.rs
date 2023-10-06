@@ -250,7 +250,7 @@ impl Sample {
     where
         E: read_observation::Evidence + Eq + Hash,
         L: variants::types::Loci,
-        V: Variant<Loci = L, Evidence = E> + Observable<E>,
+        V: Variant<Loci = L, Evidence = E> + Observable<E,L>,
     {
         let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
             if self.report_fragment_ids {

@@ -22,7 +22,7 @@ use super::ToVariantRepresentation;
 
 pub(crate) trait SingleLocusSingleEndVariant:
     Variant<Loci = SingleLocus, Evidence = SingleEndEvidence>
-    + Observable<SingleEndEvidence>
+    + Observable<SingleEndEvidence, SingleLocus>
     + ToVariantRepresentation
 {
 }
@@ -30,13 +30,13 @@ pub(crate) trait SingleLocusSingleEndVariant:
 impl<V> SingleLocusSingleEndVariant for V where
     V: Variant<Loci = SingleLocus, Evidence = SingleEndEvidence>
         + ToVariantRepresentation
-        + Observable<SingleEndEvidence>
+        + Observable<SingleEndEvidence, SingleLocus>
 {
 }
 
 pub(crate) trait SingleLocusPairedEndVariant:
     Variant<Loci = SingleLocus, Evidence = PairedEndEvidence>
-    + Observable<PairedEndEvidence>
+    + Observable<PairedEndEvidence, SingleLocus>
     + ToVariantRepresentation
 {
 }
@@ -44,13 +44,13 @@ pub(crate) trait SingleLocusPairedEndVariant:
 impl<V> SingleLocusPairedEndVariant for V where
     V: Variant<Loci = SingleLocus, Evidence = PairedEndEvidence>
         + ToVariantRepresentation
-        + Observable<PairedEndEvidence>
+        + Observable<PairedEndEvidence, SingleLocus>
 {
 }
 
 pub(crate) trait MultiLocusSingleEndVariant:
     Variant<Loci = MultiLocus, Evidence = SingleEndEvidence>
-    + Observable<SingleEndEvidence>
+    + Observable<SingleEndEvidence, MultiLocus>
     + ToVariantRepresentation
 {
 }
@@ -58,13 +58,13 @@ pub(crate) trait MultiLocusSingleEndVariant:
 impl<V> MultiLocusSingleEndVariant for V where
     V: Variant<Loci = MultiLocus, Evidence = SingleEndEvidence>
         + ToVariantRepresentation
-        + Observable<SingleEndEvidence>
+        + Observable<SingleEndEvidence, MultiLocus>
 {
 }
 
 pub(crate) trait MultiLocusPairedEndVariant:
     Variant<Loci = MultiLocus, Evidence = PairedEndEvidence>
-    + Observable<PairedEndEvidence>
+    + Observable<PairedEndEvidence, MultiLocus>
     + ToVariantRepresentation
 {
 }
@@ -72,7 +72,7 @@ pub(crate) trait MultiLocusPairedEndVariant:
 impl<V> MultiLocusPairedEndVariant for V where
     V: Variant<Loci = MultiLocus, Evidence = PairedEndEvidence>
         + ToVariantRepresentation
-        + Observable<PairedEndEvidence>
+        + Observable<PairedEndEvidence, MultiLocus>
 {
 }
 
