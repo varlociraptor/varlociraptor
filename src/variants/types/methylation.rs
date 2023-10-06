@@ -10,7 +10,10 @@ use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, MultiLocus, SingleEndEvidence, PairedEndEvidence, SingleLocus, Variant,
 };
+use rust_htslib::bam::Record;
 use std::collections::HashMap;
+use std::rc::Rc;
+
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -87,6 +90,43 @@ fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
         error!("Tag is not of type String");
     }
     Err("Error while obtaining ML:B tag".to_string())
+}
+
+fn qpos_in_read(qpos: i32, read: &Rc<Record>) -> bool {
+    return read.inner.core.pos <= qpos as i64 && qpos <= read.inner.core.pos as i32 + read.inner.core.l_qseq;
+}
+
+fn get_qpos(read: &Rc<Record> , locus: &SingleLocus) -> Option<i32> {
+    if let Some(qpos) = read
+        .cigar_cached()
+        .unwrap()
+        .read_pos(locus.range().start as u32, false, false).unwrap()
+    {
+        Some(qpos as i32)
+    } else {
+        None
+    }
+}
+
+fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogProb, LogProb){
+    let prob_alt;
+    let prob_ref;
+    if !reverse_read {          
+        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
+        // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
+        prob_alt = prob_read_base(read_base, b'C', base_qual);
+        let no_c = if read_base != b'C' { read_base } else { b'T' };
+        prob_ref = prob_read_base(read_base, no_c, base_qual);
+    }
+    else {
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
+        prob_alt = prob_read_base(read_base, b'G', base_qual);
+        let no_g = if read_base != b'G' { read_base } else { b'A' };
+        prob_ref = prob_read_base(read_base, no_g, base_qual);
+    }
+    (prob_alt, prob_ref)
 }
 
 
@@ -171,64 +211,64 @@ impl Variant for Methylation {
         // if let Some(qpos) = qpos {
         let qpos;
         qpos = match read {
-            PairedEndEvidence::SingleEnd(record) | PairedEndEvidence::PairedEnd { left: record, right: _ } => {
-                if let Some(inner_qpos) = record
-                    .cigar_cached()
-                    .unwrap()
-                    .read_pos(self.locus.range().start as u32, false, false)?
-                {
-                    Some(inner_qpos as i32)
-                } else {
-                    None
+            PairedEndEvidence::SingleEnd(record) => {
+                    get_qpos(record, &self.locus)
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let result1 = get_qpos(left, &self.locus);
+                let result2 = get_qpos(right, &self.locus);
+        
+                match (result1, result2) {
+                    (Some(inner_qpos), _) => Some(inner_qpos),
+                    (_, Some(inner_qpos)) => Some(inner_qpos),
+                    _ => None,
                 }
             }
         };
         if let Some(qpos) = qpos {
-            let prob_alt;
-            let prob_ref;
+            let mut prob_alt = LogProb::from(Prob(0.0));
+            let mut prob_ref = LogProb::from(Prob(1.0));
             // TODO Do something, if the next base is no G
             match self.readtype {
                 Readtype::Illumina => {
                     match read {
                         PairedEndEvidence::SingleEnd(record) => {
-                            let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
-                        
-                            warn!("{:?}", qpos);
-                            
-                                if !reverse_read {          
-                                    let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-                                    let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
-                                    // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
-                                    prob_alt = prob_read_base(read_base, b'C', base_qual);
-                                    let no_c = if read_base != b'C' { read_base } else { b'T' };
-                                    prob_ref = prob_read_base(read_base, no_c, base_qual);
-                                    warn!("Single und richtigrum")
-                                }
-                                else {
-                                    let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
-                                    let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
-                                    prob_alt = prob_read_base(read_base, b'G', base_qual);
-                                    let no_g = if read_base != b'G' { read_base } else { b'A' };
-                                    prob_ref = prob_read_base(read_base, no_g, base_qual);
-                                    warn!("Single und falschrum")
-                                }
-                            }
+                            if let Some(qpos) = get_qpos(record, &self.locus) {
+                                let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
+                                compute_probs(reverse_read, record, qpos);
+                            }  
+                        }
                         
                         PairedEndEvidence::PairedEnd { left, right } => {
                             prob_alt = LogProb(0.0);
                             prob_ref = LogProb(0.0);
+                            let qpos_left = get_qpos(left, &self.locus);
+                            let qpos_right = get_qpos(right, &self.locus);
+                            if qpos_left.is_some() && qpos_right.is_some() {   
+                                let reverse_read_left = left.inner.core.flag == 163 || left.inner.core.flag == 83 || left.inner.core.flag == 16;
+                                let (prob_alt_left, prob_ref_left) = compute_probs(reverse_read_left, left, qpos_left.unwrap());
+                                let reverse_read_right = right.inner.core.flag == 163 || right.inner.core.flag == 83 || right.inner.core.flag == 16;
+                                let (prob_alt_right, prob_ref_right) = compute_probs(reverse_read_right, right, qpos_right.unwrap());                                                       
+                                prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
+                                prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
+
+                            }
                             // if nur ein Read deckt CpG ab:
-                            //  so wie bisher
-                            // if beide decken es ab:
-                            //  Produkt von prob_alt und prob_ref
-                            warn!("Left pos: {}", left.inner.core.pos);
-                            warn!("Left pos: {}", right.inner.core.pos);
-                            warn!("Okay, hier sind tatsaechlich paired end Reads!");
+                            else if let Some(qpos_left) = qpos_left {
+                                let reverse_read = left.inner.core.flag == 163 || left.inner.core.flag == 83 || left.inner.core.flag == 16;
+                                (prob_alt, prob_ref) = compute_probs(reverse_read, left, qpos_left);
+                            }
+                            else if let Some(qpos_right) = qpos_right {
+                                let reverse_read = right.inner.core.flag == 163 || right.inner.core.flag == 83 || right.inner.core.flag == 16;
+                                (prob_alt, prob_ref) = compute_probs(reverse_read, right, qpos_right);
+                            }
                         }
                     }
                 }
                 Readtype::PacBio => {
-                    warn!("PacBio");
+                    prob_alt = LogProb::from(Prob(0.0));
+                    prob_ref = LogProb::from(Prob(1.0));
+                    // warn!("PacBio");
                     // let record = read.into_single_end_evidence();  
                     //  // // Get methylation info from MM and ML TAG.
                     // let meth_pos = meth_pos(record).unwrap();
