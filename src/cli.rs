@@ -209,6 +209,16 @@ pub enum PreprocessKind {
         report_fragment_ids: bool,
         #[structopt(
             long,
+            help = "Assume that candidate variants are given in atomic form (unlike e.g. \
+            provided by freebayes which combines adjacent variants that appear to be in \
+            phase into longer haplotypes). If variants are atomic, we do not want to perform \
+            realignment against SNVs and MNVs because those can lead to false positives if \
+            they are immediately followed or preceeded by indels."
+        )]
+        #[serde(default)]
+        atomic_candidate_variants: bool,
+        #[structopt(
+            long,
             help = "Do not adjust mapping quality (MAPQ). By default Varlociraptor will adjust mapping qualities \
             in order to avoid false positive hits caused by inflated MAPQ values at ambiguous loci. \
             This happens by conservatively averaging MAPQs of all reads that overlap a given locus. \
@@ -802,6 +812,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     candidates,
                     bam,
                     report_fragment_ids,
+                    atomic_candidate_variants,
                     omit_mapq_adjustment,
                     alignment_properties,
                     output,
@@ -877,6 +888,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         hop_params,
                                         realignment_window,
                                     ))
+                                    .atomic_candidate_variants(atomic_candidate_variants)
                                     .build();
                             processor.process()?;
                         }
@@ -905,6 +917,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                         reference_buffer,
                                     ))
+                                    .atomic_candidate_variants(atomic_candidate_variants)
                                     .build();
                             processor.process()?;
                         }
@@ -933,6 +946,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         gap_params,
                                         realignment_window,
                                     ))
+                                    .atomic_candidate_variants(atomic_candidate_variants)
                                     .build();
                             processor.process()?;
                         }
