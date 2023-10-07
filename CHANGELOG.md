@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.1](https://github.com/varlociraptor/varlociraptor/compare/v8.4.0...v8.4.1) (2023-10-07)
+
+
+### Bug Fixes
+
+* add flag for stating that candidate variants are atomic (in such cases, no realignment against SNVs and MNVs should happen because nearby indels can induce false positives if they are not considered in the realignment) ([#400](https://github.com/varlociraptor/varlociraptor/issues/400)) ([2e22c50](https://github.com/varlociraptor/varlociraptor/commit/2e22c50ff899468170525bc9ffaa1675912b2e7d))
+
 ## [8.4.0](https://github.com/varlociraptor/varlociraptor/compare/v8.3.0...v8.4.0) (2023-09-19)
 
 
