@@ -234,8 +234,8 @@ impl Variant for Methylation {
                     match read {
                         PairedEndEvidence::SingleEnd(record) => {
                             if let Some(qpos) = get_qpos(record, &self.locus) {
-                                let reverse_read = (read.inner.core.flag & 0x10) != 0;
-
+                                // let reverse_read = (record.inner.core.flag & 0x10) != 0;
+                                let reverse_read = false;
                                 // let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
                                 compute_probs(reverse_read, record, qpos);
                             }  
@@ -247,11 +247,13 @@ impl Variant for Methylation {
                             let qpos_left = get_qpos(left, &self.locus);
                             let qpos_right = get_qpos(right, &self.locus);
                             if qpos_left.is_some() && qpos_right.is_some() {   
-                                let reverse_read_left = (left.inner.core.flag & 0x10) != 0;
+                                // let reverse_read_left = (left.inner.core.flag & 0x10) != 0;
+                                let reverse_read_left = false;
 
                                 // let reverse_read_left = left.inner.core.flag == 163 || left.inner.core.flag == 83 || left.inner.core.flag == 16;
                                 let (prob_alt_left, prob_ref_left) = compute_probs(reverse_read_left, left, qpos_left.unwrap());
-                                let reverse_read_right = (right.inner.core.flag & 0x10) != 0;
+                                // let reverse_read_right = (right.inner.core.flag & 0x10) != 0;
+                                let reverse_read_right = false;
 
                                 // let reverse_read_right = right.inner.core.flag == 163 || right.inner.core.flag == 83 || right.inner.core.flag == 16;
                                 let (prob_alt_right, prob_ref_right) = compute_probs(reverse_read_right, right, qpos_right.unwrap());                                                       
@@ -261,12 +263,15 @@ impl Variant for Methylation {
                             }
                             // if nur ein Read deckt CpG ab:
                             else if let Some(qpos_left) = qpos_left {
-                                let reverse_read = (left.inner.core.flag & 0x10) != 0;
+                                // let reverse_read = (left.inner.core.flag & 0x10) != 0;
+                                let reverse_read = false;
+
                                 // let reverse_read = left.inner.core.flag == 163 || left.inner.core.flag == 83 || left.inner.core.flag == 16;
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, left, qpos_left);
                             }
                             else if let Some(qpos_right) = qpos_right {
-                                let reverse_read_left = (right.inner.core.flag & 0x10) != 0;
+                                // let reverse_read = (right.inner.core.flag & 0x10) != 0;
+                                let reverse_read = false;
 
                                 // let reverse_read = right.inner.core.flag == 163 || right.inner.core.flag == 83 || right.inner.core.flag == 16;
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, right, qpos_right);
