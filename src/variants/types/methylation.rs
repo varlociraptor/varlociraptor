@@ -257,9 +257,7 @@ impl Variant for Methylation {
                     match read {
                         PairedEndEvidence::SingleEnd(record) => {
                             if let Some(qpos) = get_qpos(record, &self.locus) {
-                                // let reverse_read = (record.inner.core.flag & 0x10) != 0;
                                 let reverse_read = read_reverse_strand(record, false);
-                                // let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
                                 compute_probs(reverse_read, record, qpos);
                             }  
                         }
