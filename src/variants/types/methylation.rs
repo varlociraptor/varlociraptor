@@ -129,6 +129,29 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
     (prob_alt, prob_ref)
 }
 
+fn read_reverse_strand(read:  &Rc<Record>, paired: bool) -> bool {
+    let flag = read.inner.core.flag;
+    let read_reverse = 0b10000;
+    let mate_reverse = 0b100000;
+    let first_in_pair = 0b1000000;
+    let second_in_pair = 0b10000000;
+    if paired{
+        if (flag & read_reverse) != 0 && (flag & first_in_pair) != 0 {
+            return true
+        }
+        else if (flag & mate_reverse) != 0 && (flag & second_in_pair) != 0 {
+            return true
+        }
+    }
+    else {
+        if (flag & read_reverse) != 0 {
+            return true
+        }
+    }
+    false
+    
+}
+
 
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;
@@ -235,7 +258,7 @@ impl Variant for Methylation {
                         PairedEndEvidence::SingleEnd(record) => {
                             if let Some(qpos) = get_qpos(record, &self.locus) {
                                 // let reverse_read = (record.inner.core.flag & 0x10) != 0;
-                                let reverse_read = false;
+                                let reverse_read = read_reverse_strand(record, false);
                                 // let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
                                 compute_probs(reverse_read, record, qpos);
                             }  
@@ -246,16 +269,10 @@ impl Variant for Methylation {
                             prob_ref = LogProb(0.0);
                             let qpos_left = get_qpos(left, &self.locus);
                             let qpos_right = get_qpos(right, &self.locus);
-                            if qpos_left.is_some() && qpos_right.is_some() {   
-                                // let reverse_read_left = (left.inner.core.flag & 0x10) != 0;
-                                let reverse_read_left = false;
-
-                                // let reverse_read_left = left.inner.core.flag == 163 || left.inner.core.flag == 83 || left.inner.core.flag == 16;
+                            if qpos_left.is_some() && qpos_right.is_some() { 
+                                let reverse_read_left = read_reverse_strand(left, true);
                                 let (prob_alt_left, prob_ref_left) = compute_probs(reverse_read_left, left, qpos_left.unwrap());
-                                // let reverse_read_right = (right.inner.core.flag & 0x10) != 0;
-                                let reverse_read_right = false;
-
-                                // let reverse_read_right = right.inner.core.flag == 163 || right.inner.core.flag == 83 || right.inner.core.flag == 16;
+                                let reverse_read_right = read_reverse_strand(right, true);
                                 let (prob_alt_right, prob_ref_right) = compute_probs(reverse_read_right, right, qpos_right.unwrap());                                                       
                                 prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                                 prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
@@ -263,17 +280,11 @@ impl Variant for Methylation {
                             }
                             // if nur ein Read deckt CpG ab:
                             else if let Some(qpos_left) = qpos_left {
-                                // let reverse_read = (left.inner.core.flag & 0x10) != 0;
-                                let reverse_read = false;
-
-                                // let reverse_read = left.inner.core.flag == 163 || left.inner.core.flag == 83 || left.inner.core.flag == 16;
+                                let reverse_read = read_reverse_strand(left, true);
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, left, qpos_left);
                             }
                             else if let Some(qpos_right) = qpos_right {
-                                // let reverse_read = (right.inner.core.flag & 0x10) != 0;
-                                let reverse_read = false;
-
-                                // let reverse_read = right.inner.core.flag == 163 || right.inner.core.flag == 83 || right.inner.core.flag == 16;
+                                let reverse_read = read_reverse_strand(right, true);
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, right, qpos_right);
                             }
                         }
