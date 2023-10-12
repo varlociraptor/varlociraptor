@@ -114,6 +114,8 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
     if !reverse_read {          
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
+
+        warn!("Read base forward: {:?} \n", read_base);
         // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
         prob_alt = prob_read_base(read_base, b'C', base_qual);
         let no_c = if read_base != b'C' { read_base } else { b'T' };
@@ -121,6 +123,8 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
     }
     else {
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        warn!("Read base reverse: {:?} \n", read_base);
+
         let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
         prob_alt = prob_read_base(read_base, b'G', base_qual);
         let no_g = if read_base != b'G' { read_base } else { b'A' };
@@ -149,6 +153,7 @@ fn read_reverse_strand(read:  &Rc<Record>, paired: bool) -> bool {
         }
     }
     false
+    // read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16
     
 }
 
@@ -250,23 +255,30 @@ impl Variant for Methylation {
         };
         if let Some(qpos) = qpos {
             let mut prob_alt = LogProb::from(Prob(0.0));
-            let mut prob_ref = LogProb::from(Prob(1.0));
+            let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
             match self.readtype {
                 Readtype::Illumina => {
                     match read {
                         PairedEndEvidence::SingleEnd(record) => {
+                            if self.locus.interval.range().start == 10416803 {
+                                // warn!("Readposition: {:?} \n", read.PairedEnd.inner.core.pos);
+                                warn!("QPos: {:?} \n", qpos);
+                            }
                             if let Some(qpos) = get_qpos(record, &self.locus) {
                                 let reverse_read = read_reverse_strand(record, false);
-                                compute_probs(reverse_read, record, qpos);
+                                (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
                             }  
                         }
                         
                         PairedEndEvidence::PairedEnd { left, right } => {
-                            prob_alt = LogProb(0.0);
-                            prob_ref = LogProb(0.0);
                             let qpos_left = get_qpos(left, &self.locus);
                             let qpos_right = get_qpos(right, &self.locus);
+                            if self.locus.interval.range().start == 10612519 {
+                                // warn!("Readposition: {:?} \n", read.PairedEnd.inner.core.pos);
+                                warn!("QPos Left: {:?} \n", qpos_left);
+                                warn!("QPos right: {:?} \n", qpos_right);
+                            }
                             if qpos_left.is_some() && qpos_right.is_some() { 
                                 let reverse_read_left = read_reverse_strand(left, true);
                                 let (prob_alt_left, prob_ref_left) = compute_probs(reverse_read_left, left, qpos_left.unwrap());
@@ -288,6 +300,7 @@ impl Variant for Methylation {
                         }
                     }
                 }
+
                 Readtype::PacBio => {
                     prob_alt = LogProb::from(Prob(0.0));
                     prob_ref = LogProb::from(Prob(1.0));
@@ -311,6 +324,7 @@ impl Variant for Methylation {
             }
             
             // TODO: Implement strand
+            warn!("################################################################################################################");
           
             let strand = if prob_ref != prob_alt {
                 let record = match &read {
