@@ -239,7 +239,7 @@ impl Variant for Methylation {
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
-            if self.locus.interval.range().start == 8447241 {
+            if self.locus.interval.range().start == 8447240 {
                 // warn!("Readposition: {:?} \n", read.PairedEnd.inner.core.pos);
                 warn!("##############################");
                 warn!("QPos: {:?}", qpos);
