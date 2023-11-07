@@ -137,6 +137,8 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
     }
     else {
         // In the reverse String we have to check on the position qpos + 1, because CG ist in the reverse string GC.
+        // warn!("Qpos: {:?}, Sequence: {:?}", qpos, record.seq().len());
+
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
         // After aligning every base is flipped so we want the probabilitz for G and not for C (now GC turns into CG)
@@ -173,6 +175,18 @@ fn read_reverse_strand(flag:u16, paired: bool) -> bool {
     false    
 }
 
+fn read_invalid(flag:u16) -> bool {
+    let secondary_alignment = 0b100000000;
+    let qc_failed = 0b1000000000;
+    let duplicate = 0b10000000000;
+    let supplemental = 0b100000000000;
+    if (flag & secondary_alignment) != 0 || (flag & qc_failed) != 0 
+    || (flag & duplicate) != 0 || (flag & supplemental) != 0 {
+        return true
+    }
+    false    
+}
+
 
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;
@@ -194,11 +208,13 @@ impl Variant for Methylation {
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
-            // TODO maybe problems, if CpG position starts/ends just at the beginning/end of the read
+            // TODO maybe problems, if CpG position starts just at the beginning/end of the read (Ich habe mich eigentlich darum gekuemmert, wenn das C der CpG Position die letzte Stelle des Reads is und es ein reverse Read ist (dann ist es nicht abgesdeckt.) Was fehlt: Wenn die erste Position das G einer CpG Stelle ist und der Read reverse ist.)
             PairedEndEvidence::SingleEnd(read) => !self.locus.overlap(read, true).is_none(),
             PairedEndEvidence::PairedEnd { left, right } => {
                 !self.locus.overlap(left, true).is_none()
-                    || !self.locus.overlap(right, true).is_none()
+                    || !self.locus.overlap(right, true).is_none() 
+                    || !self.locus.outside_overlap(left)
+                    || !self.locus.outside_overlap(right)
             }
         } {
             Some(vec![0])
@@ -239,19 +255,24 @@ impl Variant for Methylation {
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
-            if self.locus.interval.range().start == 8447240 {
-                // warn!("Readposition: {:?} \n", read.PairedEnd.inner.core.pos);
-                warn!("##############################");
+            if self.locus.interval.range().start == 25663596 {
+                warn!("2##############################");
                 warn!("QPos: {:?}", qpos);
             }
+            
             match self.readtype {
                 Readtype::Illumina => {
                     match read {
                         PairedEndEvidence::SingleEnd(record) => {
+                            // return Ok(None);
                             // TODO in paired end data are some single end reads?
                             if let Some(qpos) = get_qpos(record, &self.locus) {
                                 let reverse_read = read_reverse_strand(record.inner.core.flag, false);
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
+                                if self.locus.interval.range().start == 25663596 {
+
+                                    warn!("Single: {:?}", record.inner.core.flag);
+                                }
                             }  
                         }                        
                         PairedEndEvidence::PairedEnd { left, right } => {
@@ -262,16 +283,39 @@ impl Variant for Methylation {
                             let mut prob_ref_left = LogProb(0.0);
                             let mut prob_alt_right = LogProb(0.0);
                             let mut prob_ref_right = LogProb(0.0);
+                            let left_invalid = read_invalid(left.inner.core.flag);
+                            let right_invalid = read_invalid(right.inner.core.flag);
+                            if left_invalid && right_invalid {
+                                return Ok(None);
+                            }
                             if let Some(qpos_left) = qpos_left {
                                 let reverse_read = read_reverse_strand(left.inner.core.flag, true);
+                                // If locus is on last position of the read and reverse, the C of the CG is not included
+                                if (qpos_left as usize == left.seq().len() - 1 && reverse_read) || left_invalid{
+                                    return Ok(None)
+                                }
                                 (prob_alt_left, prob_ref_left) = compute_probs(reverse_read, left, qpos_left);
                             }
                             if let Some(qpos_right) = qpos_right {
                                 let reverse_read = read_reverse_strand(right.inner.core.flag, true);
+                                if (qpos_right as usize == right.seq().len() - 1 && reverse_read) || right_invalid{
+                                    return Ok(None)
+                                }
                                 (prob_alt_right, prob_ref_right) = compute_probs(reverse_read, right, qpos_right);
                             }                                 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
+                            if self.locus.interval.range().start ==  25663596 {
+                                warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
+
+                                warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
+                                warn!("Right: {:?}, {:?}", right.inner.core.flag, qpos_right);
+                                warn!("Prob_alt: {:?}", prob_alt);
+                                warn!("Prob_ref: {:?}", prob_ref);
+
+                            }
+                            
+
                         }
                     }
                 }
