@@ -191,6 +191,22 @@ fn read_invalid(flag:u16) -> bool {
     return true
 }
 
+fn mutation_occurred(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> bool {
+    if reverse_read {
+        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        if !reverse_read && (read_base == 67 || read_base == 84) {
+            return  true
+        }
+    }
+    else {
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        if !reverse_read && (read_base == 65 || read_base == 71) {
+            return  true
+        }
+    }
+    false
+}
+
 
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;
@@ -259,7 +275,7 @@ impl Variant for Methylation {
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
-            if self.locus.interval.range().start == 41105566 {
+            if self.locus.interval.range().start == 39312462 {
                 warn!("2##############################");
                 warn!("QPos: {:?}", qpos);
             }
@@ -272,6 +288,9 @@ impl Variant for Methylation {
                             // TODO in paired end data are some single end reads?
                             if let Some(qpos) = get_qpos(record, &self.locus) {
                                 let reverse_read = read_reverse_strand(record.inner.core.flag, false);
+                                if mutation_occurred(reverse_read, record, qpos) || read_invalid(record.inner.core.flag) {
+                                    return Ok(None)
+                                }
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
                                 if self.locus.interval.range().start == 41105566 {
 
@@ -295,8 +314,7 @@ impl Variant for Methylation {
                             if let Some(qpos_left) = qpos_left {
                                 let reverse_read = read_reverse_strand(left.inner.core.flag, true);
                                 // Don't lookat read if it is a mutation and not methylation
-                                let read_base = unsafe { left.seq().decoded_base_unchecked(qpos_left as usize) };
-                                if read_base == 65 || read_base == 71{
+                                if mutation_occurred(reverse_read, left, qpos_left) {
                                     return Ok(None)
                                 }
                                 // If locus is on last position of the read and reverse, the C of the CG is not included
@@ -308,8 +326,7 @@ impl Variant for Methylation {
                             if let Some(qpos_right) = qpos_right {
                                 let reverse_read = read_reverse_strand(right.inner.core.flag, true);
                                 // Don't lookat read if it is a mutation and not methylation
-                                let read_base = unsafe { left.seq().decoded_base_unchecked((qpos_right + 1) as usize) };
-                                if read_base == 67 || read_base == 84{
+                                if mutation_occurred(reverse_read, right, qpos_right) {
                                     return Ok(None)
                                 }
                                 if (qpos_right as usize == right.seq().len() - 1 && reverse_read) || right_invalid{
@@ -319,7 +336,7 @@ impl Variant for Methylation {
                             }                                 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
-                            if self.locus.interval.range().start ==  41105566 {
+                            if self.locus.interval.range().start ==  39312462 {
                                 warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
 
                                 warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
@@ -355,7 +372,7 @@ impl Variant for Methylation {
                     // }
                 }
             }
-        
+            println!("!!!!!!!!!!!!!!!!!!!!!");
           
             let strand = if prob_ref != prob_alt {
                     let record = match &read {
