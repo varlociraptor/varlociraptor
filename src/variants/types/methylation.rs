@@ -176,15 +176,19 @@ fn read_reverse_strand(flag:u16, paired: bool) -> bool {
 }
 
 fn read_invalid(flag:u16) -> bool {
-    let secondary_alignment = 0b100000000;
-    let qc_failed = 0b1000000000;
-    let duplicate = 0b10000000000;
-    let supplemental = 0b100000000000;
-    if (flag & secondary_alignment) != 0 || (flag & qc_failed) != 0 
-    || (flag & duplicate) != 0 || (flag & supplemental) != 0 {
-        return true
+    // let secondary_alignment = 0b100000000;
+    // let qc_failed = 0b1000000000;
+    // let duplicate = 0b10000000000;
+    // let supplemental = 0b100000000000;
+    // if (flag & secondary_alignment) != 0 || (flag & qc_failed) != 0 
+    // || (flag & duplicate) != 0 || (flag & supplemental) != 0 {
+    //     return true
+    // }
+    // false    
+    if flag == 0 || flag == 16 || flag == 99 || flag == 83 || flag == 147 || flag == 163 {
+        return false
     }
-    false    
+    return true
 }
 
 
@@ -255,7 +259,7 @@ impl Variant for Methylation {
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
-            if self.locus.interval.range().start == 25663596 {
+            if self.locus.interval.range().start == 41105566 {
                 warn!("2##############################");
                 warn!("QPos: {:?}", qpos);
             }
@@ -269,7 +273,7 @@ impl Variant for Methylation {
                             if let Some(qpos) = get_qpos(record, &self.locus) {
                                 let reverse_read = read_reverse_strand(record.inner.core.flag, false);
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
-                                if self.locus.interval.range().start == 25663596 {
+                                if self.locus.interval.range().start == 41105566 {
 
                                     warn!("Single: {:?}", record.inner.core.flag);
                                 }
@@ -290,6 +294,11 @@ impl Variant for Methylation {
                             }
                             if let Some(qpos_left) = qpos_left {
                                 let reverse_read = read_reverse_strand(left.inner.core.flag, true);
+                                // Don't lookat read if it is a mutation and not methylation
+                                let read_base = unsafe { left.seq().decoded_base_unchecked(qpos_left as usize) };
+                                if read_base == 65 || read_base == 71{
+                                    return Ok(None)
+                                }
                                 // If locus is on last position of the read and reverse, the C of the CG is not included
                                 if (qpos_left as usize == left.seq().len() - 1 && reverse_read) || left_invalid{
                                     return Ok(None)
@@ -298,6 +307,11 @@ impl Variant for Methylation {
                             }
                             if let Some(qpos_right) = qpos_right {
                                 let reverse_read = read_reverse_strand(right.inner.core.flag, true);
+                                // Don't lookat read if it is a mutation and not methylation
+                                let read_base = unsafe { left.seq().decoded_base_unchecked((qpos_right + 1) as usize) };
+                                if read_base == 67 || read_base == 84{
+                                    return Ok(None)
+                                }
                                 if (qpos_right as usize == right.seq().len() - 1 && reverse_read) || right_invalid{
                                     return Ok(None)
                                 }
@@ -305,7 +319,7 @@ impl Variant for Methylation {
                             }                                 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
-                            if self.locus.interval.range().start ==  25663596 {
+                            if self.locus.interval.range().start ==  41105566 {
                                 warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
 
                                 warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
