@@ -917,6 +917,10 @@ impl VariantEmission for BreakendEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
     }
+
+    fn alt_vs_ref_len_diff(&self) -> isize {
+        0 // since the whole alt_allele sequence is replaced, this has no relevance
+    }
 }
 
 /// Modeling of breakends.

@@ -340,8 +340,15 @@ pub(crate) trait Realigner {
                 if let Some(mut read_inferred_allele) =
                     edit_dist_calc.derive_allele_from_read(&alt_params, &alt_hit)
                 {
+                    let third_allele_hit = edit_dist_calc
+                        .calc_best_hit(&read_inferred_allele, None, alignment_properties, true)
+                        .expect(
+                            "bug: no hit obtained when aligning against third allele. \
+                        This is impossible because the third allele is derived from \
+                        the read.",
+                        );
                     let prob_read_inferred =
-                        self.calculate_prob_allele(&alt_hit, &mut read_inferred_allele);
+                        self.calculate_prob_allele(&third_allele_hit, &mut read_inferred_allele);
                     if prob_read_inferred > prob_ref {
                         prob_ref = prob_read_inferred;
                         is_third_allele = true;
@@ -435,7 +442,7 @@ pub(crate) trait Realigner {
         let mut hits = Vec::new();
         let mut best_dist = None;
         for (i, params) in candidate_allele_params.iter_mut().enumerate() {
-            if let Some(hit) = edit_dist.calc_best_hit(params, None, alignment_properties) {
+            if let Some(hit) = edit_dist.calc_best_hit(params, None, alignment_properties, false) {
                 match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
                     Ordering::Less => {
                         hits.clear();

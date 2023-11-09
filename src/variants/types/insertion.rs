@@ -281,4 +281,8 @@ impl VariantEmission for InsertionEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer.is_some()
     }
+
+    fn alt_vs_ref_len_diff(&self) -> isize {
+        self.ins_len as isize
+    }
 }
