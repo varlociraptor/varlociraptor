@@ -129,6 +129,9 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
     let prob_ref;
     if !reverse_read {          
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        let read_base_1 = unsafe { record.seq().decoded_base_unchecked((qpos - 1) as usize) };
+        let read_base_2 = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        warn!("Read bases: {:?}, {:?}, {:?}", read_base, read_base_1, read_base_2);
         let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
         // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
         prob_alt = prob_read_base(read_base, b'C', base_qual);
@@ -140,6 +143,10 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
         // warn!("Qpos: {:?}, Sequence: {:?}", qpos, record.seq().len());
 
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        let read_base_1 = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        let read_base_2 = unsafe { record.seq().decoded_base_unchecked((qpos + 2) as usize) };
+        warn!("Read bases: {:?}, {:?}, {:?}", read_base, read_base_1, read_base_2);
+        
         let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
         // After aligning every base is flipped so we want the probabilitz for G and not for C (now GC turns into CG)
         prob_alt = prob_read_base(read_base, b'G', base_qual);
@@ -154,12 +161,14 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
 /// # Returns
 ///
 /// True if read given read is a reverse read, false if it is a forward read
-fn read_reverse_strand(flag:u16, paired: bool) -> bool {
+pub fn read_reverse_strand(flag:u16) -> bool {
+    let read_paired = 0b1;
+    let read_mapped_porper_pair = 0b01;
     let read_reverse = 0b10000;
     let mate_reverse = 0b100000;
     let first_in_pair = 0b1000000;
     let second_in_pair = 0b10000000;
-    if paired{
+    if (flag & read_paired) != 0 && (flag & read_mapped_porper_pair) != 0 {
         if (flag & read_reverse) != 0 && (flag & first_in_pair) != 0 {
             return true
         }
@@ -172,7 +181,8 @@ fn read_reverse_strand(flag:u16, paired: bool) -> bool {
             return true
         }
     }
-    false    
+    false
+    // read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16
 }
 
 fn read_invalid(flag:u16) -> bool {
@@ -193,14 +203,14 @@ fn read_invalid(flag:u16) -> bool {
 
 fn mutation_occurred(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> bool {
     if reverse_read {
-        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        if !reverse_read && (read_base == 67 || read_base == 84) {
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        if read_base == 67 || read_base == 84 {
             return  true
         }
     }
     else {
-        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
-        if !reverse_read && (read_base == 65 || read_base == 71) {
+        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        if read_base == 65 || read_base == 71 {
             return  true
         }
     }
@@ -275,7 +285,7 @@ impl Variant for Methylation {
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
-            if self.locus.interval.range().start == 39312462 {
+            if self.locus.interval.range().start == 40437797 {
                 warn!("2##############################");
                 warn!("QPos: {:?}", qpos);
             }
@@ -287,14 +297,15 @@ impl Variant for Methylation {
                             // return Ok(None);
                             // TODO in paired end data are some single end reads?
                             if let Some(qpos) = get_qpos(record, &self.locus) {
-                                let reverse_read = read_reverse_strand(record.inner.core.flag, false);
+                                let reverse_read = read_reverse_strand(record.inner.core.flag);
                                 if mutation_occurred(reverse_read, record, qpos) || read_invalid(record.inner.core.flag) {
                                     return Ok(None)
                                 }
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
-                                if self.locus.interval.range().start == 41105566 {
-
-                                    warn!("Single: {:?}", record.inner.core.flag);
+                                if self.locus.interval.range().start == 40437797 {
+                                    warn!("Single: {:?}, {:?}", record.inner.core.flag,  record.inner.core.pos + 1);
+                                    warn!("Prob_alt: {:?}", prob_alt);
+                                    warn!("Prob_ref: {:?}", prob_ref);
                                 }
                             }  
                         }                        
@@ -312,7 +323,7 @@ impl Variant for Methylation {
                                 return Ok(None);
                             }
                             if let Some(qpos_left) = qpos_left {
-                                let reverse_read = read_reverse_strand(left.inner.core.flag, true);
+                                let reverse_read = read_reverse_strand(left.inner.core.flag);
                                 // Don't lookat read if it is a mutation and not methylation
                                 if mutation_occurred(reverse_read, left, qpos_left) {
                                     return Ok(None)
@@ -324,7 +335,7 @@ impl Variant for Methylation {
                                 (prob_alt_left, prob_ref_left) = compute_probs(reverse_read, left, qpos_left);
                             }
                             if let Some(qpos_right) = qpos_right {
-                                let reverse_read = read_reverse_strand(right.inner.core.flag, true);
+                                let reverse_read = read_reverse_strand(right.inner.core.flag);
                                 // Don't lookat read if it is a mutation and not methylation
                                 if mutation_occurred(reverse_read, right, qpos_right) {
                                     return Ok(None)
@@ -336,7 +347,7 @@ impl Variant for Methylation {
                             }                                 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
-                            if self.locus.interval.range().start ==  39312462 {
+                            if self.locus.interval.range().start ==  40437797 {
                                 warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
 
                                 warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
@@ -372,7 +383,7 @@ impl Variant for Methylation {
                     // }
                 }
             }
-            println!("!!!!!!!!!!!!!!!!!!!!!");
+            warn!("!!!!!!!!!!!!!!!!!!!!!");
           
             let strand = if prob_ref != prob_alt {
                     let record = match &read {
