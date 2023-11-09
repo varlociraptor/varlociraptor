@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.2](https://github.com/varlociraptor/varlociraptor/compare/v8.4.1...v8.4.2) (2023-11-09)
+
+
+### Bug Fixes
+
+* out of bounds error in estimation of third allele probability ([#403](https://github.com/varlociraptor/varlociraptor/issues/403)) ([37eafa4](https://github.com/varlociraptor/varlociraptor/commit/37eafa402865a9aa84d818233dc24dfeb301270a))
+
 ## [8.4.1](https://github.com/varlociraptor/varlociraptor/compare/v8.4.0...v8.4.1) (2023-10-07)
 
 
