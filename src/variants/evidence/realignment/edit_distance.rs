@@ -175,6 +175,7 @@ impl EditDistanceCalculation {
         emission_params: &ReadVsAlleleEmission,
         max_dist: Option<usize>,
         alignment_properties: &AlignmentProperties,
+        is_patched_allele: bool,
     ) -> Option<EditDistanceHit> {
         let ref_seq = || {
             (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase())
@@ -247,7 +248,9 @@ impl EditDistanceCalculation {
             );
 
             // METHOD: obtain edit operations within the alt allele
-            let edit_operation_counts = if emission_params.variant_ref_range().is_some() {
+            let edit_operation_counts = if !is_patched_allele
+                && emission_params.variant_ref_range().is_some()
+            {
                 Some(
                     alignments
                         .iter()
@@ -310,7 +313,9 @@ impl EditDistanceCalculation {
             };
 
             // METHOD: obtain indel operations for homopolymer error model
-            let homopolymer_indel_len = if emission_params.is_homopolymer_indel() {
+            let homopolymer_indel_len = if !is_patched_allele
+                && emission_params.is_homopolymer_indel()
+            {
                 alignments
                     .iter()
                     .filter_map(|alignment| {
@@ -440,9 +445,18 @@ impl EditDistanceCalculation {
                     }
                 }
             }
+
+            let del_len = cmp::min(emission_params.alt_vs_ref_len_diff(), 0).abs() as usize;
             // add the remaining sequence
+            // be robust to del_len being too large (can happen when the encoding in the VCF is wrong)
             allele.extend(
-                (pos_ref..emission_params.ref_end() - emission_params.ref_offset())
+                (pos_ref
+                    ..cmp::max(
+                        (emission_params.ref_end() - emission_params.ref_offset())
+                            .saturating_sub(del_len),
+                        pos_ref,
+                    ))
+                    //(pos_ref..emission_params.ref_end() - emission_params.ref_offset())
                     .map(|i| emission_params.ref_base(i)),
             );
 
@@ -453,7 +467,7 @@ impl EditDistanceCalculation {
                 emission_params.read_emission(),
                 Box::new(PatchedAlleleEmission {
                     ref_offset: emission_params.allele_emission().ref_offset(),
-                    ref_end: emission_params.allele_emission().ref_end(),
+                    ref_end: emission_params.allele_emission().ref_offset() + allele.len(), //emission_params.allele_emission().ref_end(),
                     patched_seq: allele,
                     ref_offset_override: None,
                     ref_end_override: None,
@@ -540,6 +554,10 @@ impl RefBaseEmission for PatchedAlleleEmission {
 
 impl VariantEmission for PatchedAlleleEmission {
     fn is_homopolymer_indel(&self) -> bool {
+        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
+    }
+
+    fn alt_vs_ref_len_diff(&self) -> isize {
         unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
     }
 }

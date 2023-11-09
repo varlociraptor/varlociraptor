@@ -315,4 +315,8 @@ impl VariantEmission for ReplacementEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         self.is_homopolymer_indel
     }
+
+    fn alt_vs_ref_len_diff(&self) -> isize {
+        self.repl_alt_len as isize - self.repl_ref_len as isize
+    }
 }
