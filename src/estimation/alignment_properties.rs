@@ -311,6 +311,8 @@ impl AlignmentProperties {
                 }
 
                 let chrom = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
+
+
                 let (cigar_counts, transition_counts) = cigar_stats(
                     &record,
                     &reference_buffer.seq(chrom).unwrap(),

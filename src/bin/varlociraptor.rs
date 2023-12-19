@@ -13,7 +13,6 @@ static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
 pub(crate) fn main() -> Result<()> {
     let opt = Varlociraptor::from_args();
-    println!("Test");
     // setup logger
     fern::Dispatch::new()
         .level(log::LevelFilter::Info)
