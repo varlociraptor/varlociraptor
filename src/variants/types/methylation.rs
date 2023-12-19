@@ -131,7 +131,6 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         let read_base_1 = unsafe { record.seq().decoded_base_unchecked((qpos - 1) as usize) };
         let read_base_2 = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
-        warn!("Read bases: {:?}, {:?}, {:?}", read_base, read_base_1, read_base_2);
         let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
         // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
         prob_alt = prob_read_base(read_base, b'C', base_qual);
@@ -145,7 +144,6 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         let read_base_1 = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         let read_base_2 = unsafe { record.seq().decoded_base_unchecked((qpos + 2) as usize) };
-        warn!("Read bases: {:?}, {:?}, {:?}", read_base, read_base_1, read_base_2);
         
         let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
         // After aligning every base is flipped so we want the probabilitz for G and not for C (now GC turns into CG)
@@ -265,7 +263,8 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let qpos;
+        warn!("Testmethylation");
+	let qpos;
         qpos = match read {
             PairedEndEvidence::SingleEnd(record) => {
                     get_qpos(record, &self.locus)
@@ -289,6 +288,8 @@ impl Variant for Methylation {
                 warn!("2##############################");
                 warn!("QPos: {:?}", qpos);
             }
+            warn!("QPos: {:?}", qpos);
+
             
             match self.readtype {
                 Readtype::Illumina => {
@@ -383,7 +384,6 @@ impl Variant for Methylation {
                     // }
                 }
             }
-            warn!("!!!!!!!!!!!!!!!!!!!!!");
           
             let strand = if prob_ref != prob_alt {
                     let record = match &read {
