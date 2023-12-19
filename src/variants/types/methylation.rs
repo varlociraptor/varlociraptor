@@ -129,8 +129,6 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
     let prob_ref;
     if !reverse_read {          
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        let read_base_1 = unsafe { record.seq().decoded_base_unchecked((qpos - 1) as usize) };
-        let read_base_2 = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
         // Prob_read_base: Wkeit, dass die gegebene Readbase tatsachlich der 2. base entspricht (Also dass es eigtl die 2. Base ist)
         prob_alt = prob_read_base(read_base, b'C', base_qual);
@@ -141,10 +139,7 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
         // In the reverse String we have to check on the position qpos + 1, because CG ist in the reverse string GC.
         // warn!("Qpos: {:?}, Sequence: {:?}", qpos, record.seq().len());
 
-        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
-        let read_base_1 = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        let read_base_2 = unsafe { record.seq().decoded_base_unchecked((qpos + 2) as usize) };
-        
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };      
         let base_qual = unsafe { *record.qual().get_unchecked((qpos + 1) as usize) };
         // After aligning every base is flipped so we want the probabilitz for G and not for C (now GC turns into CG)
         prob_alt = prob_read_base(read_base, b'G', base_qual);
@@ -263,8 +258,7 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        warn!("Testmethylation");
-	let qpos;
+        let qpos;
         qpos = match read {
             PairedEndEvidence::SingleEnd(record) => {
                     get_qpos(record, &self.locus)
@@ -284,17 +278,15 @@ impl Variant for Methylation {
             let mut prob_alt = LogProb::from(Prob(0.0));
             let mut prob_ref = LogProb::from(Prob(0.0));
             // TODO Do something, if the next base is no G
-            if self.locus.interval.range().start == 40437797 {
+            if self.locus.interval.range().start == 3 {
                 warn!("2##############################");
                 warn!("QPos: {:?}", qpos);
             }
-            warn!("QPos: {:?}", qpos);
-
             
-            match self.readtype {
-                Readtype::Illumina => {
-                    match read {
-                        PairedEndEvidence::SingleEnd(record) => {
+            match read {
+                PairedEndEvidence::SingleEnd(record) => {
+                    match self.readtype {
+                        Readtype::Illumina => {
                             // return Ok(None);
                             // TODO in paired end data are some single end reads?
                             if let Some(qpos) = get_qpos(record, &self.locus) {
@@ -303,87 +295,89 @@ impl Variant for Methylation {
                                     return Ok(None)
                                 }
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
-                                if self.locus.interval.range().start == 40437797 {
+                                if self.locus.interval.range().start == 3 {
                                     warn!("Single: {:?}, {:?}", record.inner.core.flag,  record.inner.core.pos + 1);
                                     warn!("Prob_alt: {:?}", prob_alt);
                                     warn!("Prob_ref: {:?}", prob_ref);
                                 }
                             }  
-                        }                        
-                        PairedEndEvidence::PairedEnd { left, right } => {
-                            // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
-                            let qpos_left = get_qpos(left, &self.locus);
-                            let qpos_right = get_qpos(right, &self.locus);
-                            let mut prob_alt_left = LogProb(0.0);
-                            let mut prob_ref_left = LogProb(0.0);
-                            let mut prob_alt_right = LogProb(0.0);
-                            let mut prob_ref_right = LogProb(0.0);
-                            let left_invalid = read_invalid(left.inner.core.flag);
-                            let right_invalid = read_invalid(right.inner.core.flag);
-                            if left_invalid && right_invalid {
-                                return Ok(None);
+                        }
+                        Readtype::PacBio => {
+                            prob_alt = LogProb::from(Prob(0.0));
+                            prob_ref = LogProb::from(Prob(1.0));
+                            warn!("PacBio");
+                            let record = read.into_single_end_evidence();  
+                                // // Get methylation info from MM and ML TAG.
+                            let meth_pos = meth_pos(&record[0]).unwrap();
+                            let meth_probs = meth_probs(&record[0]).unwrap();
+                            let pos_to_probs: HashMap<usize, f64> =
+                                meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                            if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
+                                prob_alt = LogProb::from(Prob(*value as f64));
+                                prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
+                            } else {
+                                // TODO What should I do if there is no prob given
+                                prob_alt = LogProb::from(Prob(0.0));
+                                prob_ref = LogProb::from(Prob(1.0));
+                                warn!("No probability given for unmethylated Cs!");
                             }
-                            if let Some(qpos_left) = qpos_left {
-                                let reverse_read = read_reverse_strand(left.inner.core.flag);
-                                // Don't lookat read if it is a mutation and not methylation
-                                if mutation_occurred(reverse_read, left, qpos_left) {
-                                    return Ok(None)
-                                }
-                                // If locus is on last position of the read and reverse, the C of the CG is not included
-                                if (qpos_left as usize == left.seq().len() - 1 && reverse_read) || left_invalid{
-                                    return Ok(None)
-                                }
-                                (prob_alt_left, prob_ref_left) = compute_probs(reverse_read, left, qpos_left);
-                            }
-                            if let Some(qpos_right) = qpos_right {
-                                let reverse_read = read_reverse_strand(right.inner.core.flag);
-                                // Don't lookat read if it is a mutation and not methylation
-                                if mutation_occurred(reverse_read, right, qpos_right) {
-                                    return Ok(None)
-                                }
-                                if (qpos_right as usize == right.seq().len() - 1 && reverse_read) || right_invalid{
-                                    return Ok(None)
-                                }
-                                (prob_alt_right, prob_ref_right) = compute_probs(reverse_read, right, qpos_right);
-                            }                                 
-                            prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
-                            prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
-                            if self.locus.interval.range().start ==  40437797 {
-                                warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
+                        }
+                    } 
+                }                       
+                PairedEndEvidence::PairedEnd { left, right } => {
+                    // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
+                    let qpos_left = get_qpos(left, &self.locus);
+                    let qpos_right = get_qpos(right, &self.locus);
+                    let mut prob_alt_left = LogProb(0.0);
+                    let mut prob_ref_left = LogProb(0.0);
+                    let mut prob_alt_right = LogProb(0.0);
+                    let mut prob_ref_right = LogProb(0.0);
+                    let left_invalid = read_invalid(left.inner.core.flag);
+                    let right_invalid = read_invalid(right.inner.core.flag);
+                    if left_invalid && right_invalid {
+                        return Ok(None);
+                    }
+                    if let Some(qpos_left) = qpos_left {
+                        let reverse_read = read_reverse_strand(left.inner.core.flag);
+                        // Don't lookat read if it is a mutation and not methylation
+                        // if mutation_occurred(reverse_read, left, qpos_left) {
+                        //     return Ok(None)
+                        // }
+                        // If locus is on last position of the read and reverse, the C of the CG is not included
+                        if (qpos_left as usize == left.seq().len() - 1 && reverse_read) || left_invalid{
+                            return Ok(None)
+                        }
+                        (prob_alt_left, prob_ref_left) = compute_probs(reverse_read, left, qpos_left);
+                    }
+                    if let Some(qpos_right) = qpos_right {
+                        let reverse_read = read_reverse_strand(right.inner.core.flag);
+                        // Don't lookat read if it is a mutation and not methylation
+                        // if mutation_occurred(reverse_read, right, qpos_right) {
+                        //     return Ok(None)
+                        // }
+                        if (qpos_right as usize == right.seq().len() - 1 && reverse_read) || right_invalid{
+                            return Ok(None)
+                        }
+                        (prob_alt_right, prob_ref_right) = compute_probs(reverse_read, right, qpos_right);
+                    }                                 
+                    prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
+                    prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
+                    if self.locus.interval.range().start ==  3 {
+                        warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
 
-                                warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
-                                warn!("Right: {:?}, {:?}", right.inner.core.flag, qpos_right);
-                                warn!("Prob_alt: {:?}", prob_alt);
-                                warn!("Prob_ref: {:?}", prob_ref);
+                        warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
+                        warn!("Right: {:?}, {:?}", right.inner.core.flag, qpos_right);
+                        warn!("Prob_alt: {:?}", prob_alt);
+                        warn!("Prob_ref: {:?}", prob_ref);
 
-                            }
+                    }
                             
 
-                        }
-                    }
-                }
-
-                Readtype::PacBio => {
-                    // prob_alt = LogProb::from(Prob(0.0));
-                    // prob_ref = LogProb::from(Prob(1.0));
-                    // warn!("PacBio");
-                    // let record = read.into_single_end_evidence();  
-                    //  // // Get methylation info from MM and ML TAG.
-                    // let meth_pos = meth_pos(record).unwrap();
-                    // let meth_probs = meth_probs(read).unwrap();
-                    // let pos_to_probs: HashMap<usize, f64> =
-                    //     meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                    // if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
-                    //     prob_alt = LogProb::from(Prob(*value as f64));
-                    //     prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
-                    // } else {
-                    //     // TODO What should I do if there is no prob given
-                    //     prob_alt = LogProb::from(Prob(0.0));
-                    //     prob_ref = LogProb::from(Prob(1.0));
-                    //     warn!("No probability given for unmethylated Cs!");
-                    // }
+                
                 }
             }
+            
+            warn!("!!!!!!!!!!!!!!!!!!!!!");
           
             let strand = if prob_ref != prob_alt {
                     let record = match &read {
