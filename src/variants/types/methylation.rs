@@ -36,6 +36,7 @@ impl Methylation {
     }
 }
 
+/// Bei MM tags ist wichtig, ob es sich um forward oder reverse strand handelt. Bei forward geht man von vorne nach hinten ud zaehlt die Cs. Bei reverse geht man in der Sequenz von hinten nach vorne, im MM tag von vorne nach hinten und zaehlt die Gs
 fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
     let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
@@ -44,7 +45,7 @@ fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
         if !mm.is_empty() {
             // Compute the positions of all Cs (or Gs for reverse strand) in the read
             let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
-            let mut pos_read_base: Vec<usize> = vec![];
+            let pos_read_base: Vec<usize>;
             if !read_reverse{
                 pos_read_base = read_seq
                     .char_indices()
@@ -323,10 +324,7 @@ impl Variant for Methylation {
                             }  
                         }
                         Readtype::PacBio => {
-                            println!("{:?}", record.inner.core.pos);
-
-                            prob_alt = LogProb::from(Prob(0.0));
-                            prob_ref = LogProb::from(Prob(1.0));
+                            println!("YOOO");
                             let record = read.into_single_end_evidence();  
                             // Get methylation info from MM and ML TAG.
                             let meth_pos = meth_pos(&record[0]).unwrap();
