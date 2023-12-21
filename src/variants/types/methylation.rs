@@ -37,18 +37,29 @@ impl Methylation {
 }
 
 fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
-    let mm_tag = read.aux(b"MM").map_err(|e| e.to_string())?;
+    let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
+    let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::String(tag_value) = mm_tag {
         let mut mm = tag_value.to_owned();
         if !mm.is_empty() {
-            // Compute the positions of all Cs in the Read
-
+            // Compute the positions of all Cs (or Gs for reverse strand) in the read
             let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
-            let pos_cs: Vec<usize> = read_seq
+            let mut pos_read_base: Vec<usize> = vec![];
+            if !read_reverse{
+                pos_read_base = read_seq
+                    .char_indices()
+                    .filter(|(_, c)| *c == 'C')
+                    .map(|(index, _)| index)
+                    .collect();
+            }
+            else {
+                pos_read_base = read_seq
                 .char_indices()
-                .filter(|(_, c)| *c == 'C')
+                .filter(|(_, c)| *c == 'G')
                 .map(|(index, _)| index)
+                .rev()
                 .collect();
+            }
             // Compute which Cs are methylated
             mm.pop();
             if let Some(methylated_part) = mm.strip_prefix("C+m,") {
@@ -63,17 +74,21 @@ fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
                     })
                     .collect();
                 // If last C is not methylated, there has been added one C to much
-                if methylated_cs[methylated_cs.len() - 1] > pos_cs.len() {
+                if methylated_cs[methylated_cs.len() - 1] > pos_read_base.len() {
                     methylated_cs.pop();
                 }
                 // Chose only the methylated Cs out of all Cs
-                let pos_methylated_cs: Vec<usize> =
-                    methylated_cs.iter().map(|&pos| pos_cs[pos - 1]).collect();
+                let mut pos_methylated_cs: Vec<usize> = 
+                    methylated_cs.iter().map(|&pos| pos_read_base[pos - 1]).collect();
+            
+                if read_reverse {
+                    pos_methylated_cs.reverse();
+                } 
                 return Ok(pos_methylated_cs);
             }
         }
     } else {
-        error!("Tag is not of type String");
+        error!("MM tag in bam file is not valid");
     }
     Err("Error while obtaining MM:Z tag".to_string())
 }
@@ -86,10 +101,15 @@ fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probaability of no methylation (reference)
 fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
-    let ml_tag = read.aux(b"ML").map_err(|e| e.to_string())?;
+    let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
+    let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
-        let ml: Vec<f64> = tag_value.iter().map(|val| f64::from(val) / 255.0).collect();
+        let mut ml: Vec<f64> = tag_value.iter().map(|val| f64::from(val) / 255.0).collect();
+        if read_reverse{
+            ml.reverse();
+        }
         return Ok(ml);
+
     } else {
         error!("Tag is not of type String");
     }
@@ -303,11 +323,12 @@ impl Variant for Methylation {
                             }  
                         }
                         Readtype::PacBio => {
+                            println!("{:?}", record.inner.core.pos);
+
                             prob_alt = LogProb::from(Prob(0.0));
                             prob_ref = LogProb::from(Prob(1.0));
-                            warn!("PacBio");
                             let record = read.into_single_end_evidence();  
-                                // // Get methylation info from MM and ML TAG.
+                            // Get methylation info from MM and ML TAG.
                             let meth_pos = meth_pos(&record[0]).unwrap();
                             let meth_probs = meth_probs(&record[0]).unwrap();
                             let pos_to_probs: HashMap<usize, f64> =
