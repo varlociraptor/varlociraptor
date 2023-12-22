@@ -253,13 +253,7 @@ impl Variant for Methylation {
     ) -> Option<Vec<usize>> {
         if match evidence {
             // TODO maybe problems, if CpG position starts just at the beginning/end of the read (Ich habe mich eigentlich darum gekuemmert, wenn das C der CpG Position die letzte Stelle des Reads is und es ein reverse Read ist (dann ist es nicht abgesdeckt.) Was fehlt: Wenn die erste Position das G einer CpG Stelle ist und der Read reverse ist.)
-            PairedEndEvidence::SingleEnd(read) => 
-                match self.readtype {
-                    Readtype::Illumina => {!self.locus.overlap(read, true).is_none()},
-                    Readtype::PacBio => {!self.locus.overlap(read, true).is_none() 
-                        && !meth_pos(&evidence.into_single_end_evidence()[0]).is_err()
-                    },
-                }
+            PairedEndEvidence::SingleEnd(read) => !self.locus.overlap(read, true).is_none(),
             PairedEndEvidence::PairedEnd { left, right } => {
                 !self.locus.overlap(left, true).is_none()
                     || !self.locus.overlap(right, true).is_none() 
@@ -267,7 +261,16 @@ impl Variant for Methylation {
                     || !self.locus.outside_overlap(right)
             }
         } {
-            Some(vec![0])
+            if match self.readtype {
+                    // Some single PacBio reads don't have an MM:Z value and are therefore not legal
+                    Readtype::Illumina => {true},
+                    Readtype::PacBio => {!meth_pos(&evidence.into_single_end_evidence()[0]).is_err()
+                    },
+                } {
+                    Some(vec![0])
+                } else {
+                    None
+                }
         } else {
             None
         }
@@ -329,10 +332,6 @@ impl Variant for Methylation {
                         Readtype::PacBio => {
                             let record = read.into_single_end_evidence();  
                             // Get methylation info from MM and ML TAG.
-                            println!("{:?}", record[0].inner.core.pos);
-                            if record[0].inner.core.pos == 39351021 {
-                                println!("Debug");
-                            }
                             let meth_pos = meth_pos(&record[0]).unwrap();
                             let meth_probs = meth_probs(&record[0]).unwrap();
                             let pos_to_probs: HashMap<usize, f64> =
