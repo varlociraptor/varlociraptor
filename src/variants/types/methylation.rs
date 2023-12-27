@@ -340,9 +340,21 @@ impl Variant for Methylation {
                             let meth_probs = meth_probs(&record[0]).unwrap();
                             let pos_to_probs: HashMap<usize, f64> =
                                 meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                            if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
+                            
+                            // Umwandlung der HashMap in einen Vektor von Tupeln (Schlüssel, Wert)
+                            let mut pos_to_probs_vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
+
+                            // Sortierung des Vektors basierend auf den Schlüsseln (usize)
+                            pos_to_probs_vec.sort_by(|a, b| a.0.cmp(&b.0));
+                            let mut pos_in_read = qpos;
+                            if read_reverse_strand(record[0].inner.core.flag) {
+                                pos_in_read += 1;
+                            }                        
+                            if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
                                 prob_alt = LogProb::from(Prob(*value as f64));
                                 prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
+                            
+                            
                             } else {
                                 // TODO What should I do if there is no prob given
                                 prob_alt = LogProb::from(Prob(0.0));
