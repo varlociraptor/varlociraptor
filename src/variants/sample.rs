@@ -307,4 +307,6 @@ pub enum Readtype {
     Illumina,
     #[strum(serialize = "PacBio")]
     PacBio,
+    #[strum(serialize = "Nanopore")]
+    Nanopore,
 }

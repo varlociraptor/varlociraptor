@@ -117,11 +117,9 @@ fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
     Err("Error while obtaining ML:B tag".to_string())
 }
 
-fn qpos_in_read(qpos: i32, read: &Rc<Record>) -> bool {
-    return read.inner.core.pos <= qpos as i64 && qpos <= read.inner.core.pos as i32 + read.inner.core.l_qseq;
-}
 
-/// Postion of CpG site in the read
+
+/// Position of CpG site in the read
 ///
 /// # Returns
 ///
@@ -264,8 +262,9 @@ impl Variant for Methylation {
             if match self.readtype {
                     // Some single PacBio reads don't have an MM:Z value and are therefore not legal
                     Readtype::Illumina => {true},
-                    Readtype::PacBio => {!meth_pos(&evidence.into_single_end_evidence()[0]).is_err()
-                    },
+                    Readtype::PacBio => {!meth_pos(&evidence.into_single_end_evidence()[0]).is_err()},
+                    Readtype::Nanopore => {!meth_pos(&evidence.into_single_end_evidence()[0]).is_err()},
+
                 } {
                     Some(vec![0])
                 } else {
@@ -329,7 +328,7 @@ impl Variant for Methylation {
                                 }
                             }  
                         }
-                        Readtype::PacBio => {
+                        Readtype::PacBio | Readtype::Nanopore=> {
                             let record = read.into_single_end_evidence();  
                             // Get methylation info from MM and ML TAG.
                             // if record[0].inner.core.pos == 26650477 {
@@ -415,7 +414,7 @@ impl Variant for Methylation {
                             }
                         }
                         // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
-                        Readtype::PacBio => {
+                        Readtype::PacBio | Readtype::Nanopore => {
                             let mut record = read.into_single_end_evidence();  
 
                             if left.inner.core.flag < 2000 {
