@@ -17,6 +17,14 @@ use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use log::{error, warn};
 use rust_htslib::bam::record::Aux;
+use std::sync::Mutex;
+use lazy_static::lazy_static;
+
+// We save methylation info of the single reads for PacBio and Nanopore to not recompute the information for every candidate
+lazy_static! {
+    static ref READ_TO_METH_PROBS: Mutex<HashMap<i64, HashMap<usize, f64>>> = Mutex::new(HashMap::new());
+}
+
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
@@ -330,25 +338,24 @@ impl Variant for Methylation {
                         }
                         Readtype::PacBio | Readtype::Nanopore=> {
                             let record = read.into_single_end_evidence();  
-                            // Get methylation info from MM and ML TAG.
-                            // if record[0].inner.core.pos == 26650477 {
-                            //     println!("Debug");
-                                
-                            // }
-                            let meth_pos = meth_pos(&record[0]).unwrap();
-                            let meth_probs = meth_probs(&record[0]).unwrap();
-                            let pos_to_probs: HashMap<usize, f64> =
-                                meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                            
-                            // Umwandlung der HashMap in einen Vektor von Tupeln (Schlüssel, Wert)
-                            let mut pos_to_probs_vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
-
-                            // Sortierung des Vektors basierend auf den Schlüsseln (usize)
-                            pos_to_probs_vec.sort_by(|a, b| a.0.cmp(&b.0));
                             let mut pos_in_read = qpos;
                             if read_reverse_strand(record[0].inner.core.flag) {
                                 pos_in_read += 1;
-                            }                        
+                            }  
+                            let mut data = READ_TO_METH_PROBS.lock().unwrap(); // 
+                            // Wenn dieser Read fuer einen anderen Kandidaten bereits betrachtet wurde haben wir die MM und ML Informationen bereitsgespeichert
+                            let pos_to_probs: HashMap<usize, f64>;
+                            if let Some(pos_to_probs_found) = data.get(&record[0].inner.core.pos) {
+                                pos_to_probs = pos_to_probs_found.clone();
+                            }
+                            else {
+                                let meth_pos = meth_pos(&record[0]).unwrap();
+                                let meth_probs = meth_probs(&record[0]).unwrap();
+                                pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                                data.insert(record[0].inner.core.pos, pos_to_probs.clone());                     
+                            }
+                         
+                                                
                             if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
                                 prob_alt = LogProb::from(Prob(*value as f64));
                                 prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));

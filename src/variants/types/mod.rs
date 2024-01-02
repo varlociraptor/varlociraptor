@@ -571,9 +571,6 @@ where
         // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
         let subsample = locus_depth.values().all(|depth| *depth > max_depth);
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
-
-
-
         let mut observations = Vec::new();
         for evidence in &candidates {
             if !subsample || subsampler.keep() {
