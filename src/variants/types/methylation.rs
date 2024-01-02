@@ -435,25 +435,36 @@ impl Variant for Methylation {
 
 
 
-                            // Get methylation info from MM and ML TAG.
-                            // if record[0].inner.core.pos == 26650477 {
-                            //     println!("Debug");
-                                
-                            // }
-                            let meth_pos = meth_pos(&record[0]).unwrap();
-                            let meth_probs = meth_probs(&record[0]).unwrap();
-                            let pos_to_probs: HashMap<usize, f64> =
-                                meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                            if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
+                            let record = read.into_single_end_evidence();  
+                            let mut pos_in_read = qpos;
+                            if read_reverse_strand(record[0].inner.core.flag) {
+                                pos_in_read += 1;
+                            }  
+                            let mut data = READ_TO_METH_PROBS.lock().unwrap(); // 
+                            // Wenn dieser Read fuer einen anderen Kandidaten bereits betrachtet wurde haben wir die MM und ML Informationen bereitsgespeichert
+                            let pos_to_probs: HashMap<usize, f64>;
+                            if let Some(pos_to_probs_found) = data.get(&record[0].inner.core.pos) {
+                                pos_to_probs = pos_to_probs_found.clone();
+                            }
+                            else {
+                                let meth_pos = meth_pos(&record[0]).unwrap();
+                                let meth_probs = meth_probs(&record[0]).unwrap();
+                                pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                                data.insert(record[0].inner.core.pos, pos_to_probs.clone());                     
+                            }
+                         
+                                                
+                            if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
                                 prob_alt = LogProb::from(Prob(*value as f64));
                                 prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
+                            
+                            
                             } else {
                                 // TODO What should I do if there is no prob given
                                 prob_alt = LogProb::from(Prob(0.0));
                                 prob_ref = LogProb::from(Prob(1.0));
                                 warn!("No probability given for unmethylated Cs!");
                             }
-
                         } 
                     }
 
