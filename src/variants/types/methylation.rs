@@ -20,7 +20,7 @@ use rust_htslib::bam::record::Aux;
 use std::sync::Mutex;
 use lazy_static::lazy_static;
 
-// We save methylation info of the single reads for PacBio and Nanopore to not recompute the information for every candidate
+// We save methylation info of the single reads for PacBio and Nanopore in order to not recompute the information for every candidate
 lazy_static! {
     static ref READ_TO_METH_PROBS: Mutex<HashMap<i64, HashMap<usize, f64>>> = Mutex::new(HashMap::new());
 }
@@ -44,7 +44,7 @@ impl Methylation {
     }
 }
 
-/// Bei MM tags ist wichtig, ob es sich um forward oder reverse strand handelt. Bei forward geht man von vorne nach hinten ud zaehlt die Cs. Bei reverse geht man in der Sequenz von hinten nach vorne, im MM tag von vorne nach hinten und zaehlt die Gs
+/// With MM tags it is important to know whether it is a forward or reverse strand. With forward, you go from front to back and count the Cs. With reverse, you go from back to front in the sequence, in the MM tag from front to back and count the Gs
 fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
     let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
@@ -349,6 +349,7 @@ impl Variant for Methylation {
                                 pos_to_probs = pos_to_probs_found.clone();
                             }
                             else {
+                                println!("{:?}", record[0].inner.core.pos);
                                 let meth_pos = meth_pos(&record[0]).unwrap();
                                 let meth_probs = meth_probs(&record[0]).unwrap();
                                 pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
@@ -365,7 +366,7 @@ impl Variant for Methylation {
                                 // TODO What should I do if there is no prob given
                                 prob_alt = LogProb::from(Prob(0.0));
                                 prob_ref = LogProb::from(Prob(1.0));
-                                warn!("No probability given for unmethylated Cs!");
+                                // warn!("No probability given for unmethylated Cs!");
                             }
                         }
                     } 
@@ -423,7 +424,7 @@ impl Variant for Methylation {
                         // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
                         Readtype::PacBio | Readtype::Nanopore => {
                             let mut record = read.into_single_end_evidence();  
-
+                            // Chose non-supplementary alignment
                             if left.inner.core.flag < 2000 {
 
                                 record.remove(1);
@@ -440,13 +441,15 @@ impl Variant for Methylation {
                             if read_reverse_strand(record[0].inner.core.flag) {
                                 pos_in_read += 1;
                             }  
-                            let mut data = READ_TO_METH_PROBS.lock().unwrap(); // 
-                            // Wenn dieser Read fuer einen anderen Kandidaten bereits betrachtet wurde haben wir die MM und ML Informationen bereitsgespeichert
+                            let mut data = READ_TO_METH_PROBS.lock().unwrap();
+                            // If this read has already been viewed for another candidate, we have already saved the MM and ML information
                             let pos_to_probs: HashMap<usize, f64>;
                             if let Some(pos_to_probs_found) = data.get(&record[0].inner.core.pos) {
                                 pos_to_probs = pos_to_probs_found.clone();
                             }
                             else {
+                                println!("{:?}", record[0].inner.core.pos);
+
                                 let meth_pos = meth_pos(&record[0]).unwrap();
                                 let meth_probs = meth_probs(&record[0]).unwrap();
                                 pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
@@ -472,7 +475,6 @@ impl Variant for Methylation {
                 }
             }
             
-            warn!("!!!!!!!!!!!!!!!!!!!!!");
           
             let strand = if prob_ref != prob_alt {
                     let record = match &read {
