@@ -182,27 +182,15 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
 ///
 /// True if read given read is a reverse read, false if it is a forward read
 pub fn read_reverse_strand(flag:u16) -> bool {
-    let read_paired = 0b1;
-    let read_mapped_porper_pair = 0b01;
+
     let read_reverse = 0b10000;
-    let mate_reverse = 0b100000;
-    let first_in_pair = 0b1000000;
-    let second_in_pair = 0b10000000;
-    if (flag & read_paired) != 0 && (flag & read_mapped_porper_pair) != 0 {
-        if (flag & read_reverse) != 0 && (flag & first_in_pair) != 0 {
-            return true
-        }
-        else if (flag & mate_reverse) != 0 && (flag & second_in_pair) != 0 {
-            return true
-        }
+
+    if (flag & read_reverse) != 0 {
+        return true
     }
-    else {
-        if (flag & read_reverse) != 0 {
-            return true
-        }
-    }
+    
     false
-    // read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16
+    // read.inner.core.flag == 147 || read.inner.core.flag == 83 || read.inner.core.flag == 16
 }
 
 fn read_invalid(flag:u16) -> bool {
@@ -349,7 +337,6 @@ impl Variant for Methylation {
                                 pos_to_probs = pos_to_probs_found.clone();
                             }
                             else {
-                                println!("{:?}", record[0].inner.core.pos);
                                 let meth_pos = meth_pos(&record[0]).unwrap();
                                 let meth_probs = meth_probs(&record[0]).unwrap();
                                 pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
@@ -448,7 +435,6 @@ impl Variant for Methylation {
                                 pos_to_probs = pos_to_probs_found.clone();
                             }
                             else {
-                                println!("{:?}", record[0].inner.core.pos);
 
                                 let meth_pos = meth_pos(&record[0]).unwrap();
                                 let meth_probs = meth_probs(&record[0]).unwrap();
