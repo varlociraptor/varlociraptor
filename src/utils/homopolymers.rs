@@ -198,15 +198,33 @@ impl HomopolymerErrorModel {
                         .collect_vec(),
                 )
             };
+            let is_insertion = variant_homopolymer_indel_len > 0;
 
             let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
             let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
+            dbg!(prob_homopolymer_deletion);
             let mut prob_homopolymer_artifact_deletion = prob_homopolymer_deletion;
             let mut prob_homopolymer_artifact_insertion = prob_homopolymer_insertion;
+            dbg!((
+                prob_homopolymer_artifact_insertion,
+                prob_homopolymer_artifact_deletion
+            ));
             let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
             if prob_total != LogProb::ln_zero() {
-                prob_homopolymer_artifact_insertion -= prob_total;
-                prob_homopolymer_artifact_deletion -= prob_total;
+                if (is_insertion
+                    && variant_homopolymer_indel_len
+                        <= alignment_properties.max_homopolymer_insertion_len() as i8)
+                    || (!is_insertion
+                        && variant_homopolymer_indel_len.abs()
+                            <= alignment_properties.max_homopolymer_deletion_len() as i8)
+                {
+                    prob_homopolymer_artifact_insertion -= prob_total;
+                    prob_homopolymer_artifact_deletion -= prob_total;
+                } else {
+                    // insertion or deletion is too long to be an artifact. There is no scenario with such a long homopolymer error.
+                    prob_homopolymer_artifact_insertion = LogProb::ln_zero();
+                    prob_homopolymer_artifact_deletion = LogProb::ln_zero();
+                }
             } // else both of them are already zero, nothing to do.
 
             Some(HomopolymerErrorModel {
