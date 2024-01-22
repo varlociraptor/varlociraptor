@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.3](https://github.com/varlociraptor/varlociraptor/compare/v8.4.2...v8.4.3) (2024-01-22)
+
+
+### Bug Fixes
+
+* fix invalid identification of homopolymer error ([#405](https://github.com/varlociraptor/varlociraptor/issues/405)) ([e1b66cc](https://github.com/varlociraptor/varlociraptor/commit/e1b66ccb0f7ddd5d1ab72676940fcd4715e5993c))
+
 ## [8.4.2](https://github.com/varlociraptor/varlociraptor/compare/v8.4.1...v8.4.2) (2023-11-09)
 
 
