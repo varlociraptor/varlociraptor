@@ -622,7 +622,6 @@ where
                                 .prob_observable_at_homopolymer_artifact(None)
                                 .prob_observable_at_homopolymer_variant(None);
                         } else {
-                            dbg!((alt_indel_len, ref_indel_len));
                             obs.homopolymer_indel_len(Some(alt_indel_len));
                             assert!(ref_indel_len != 0); // caught above
                             if ref_indel_len > 0 {

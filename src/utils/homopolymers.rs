@@ -202,13 +202,8 @@ impl HomopolymerErrorModel {
 
             let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
             let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
-            dbg!(prob_homopolymer_deletion);
             let mut prob_homopolymer_artifact_deletion = prob_homopolymer_deletion;
             let mut prob_homopolymer_artifact_insertion = prob_homopolymer_insertion;
-            dbg!((
-                prob_homopolymer_artifact_insertion,
-                prob_homopolymer_artifact_deletion
-            ));
             let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
             if prob_total != LogProb::ln_zero() {
                 if (is_insertion
