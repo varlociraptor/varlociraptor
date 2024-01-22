@@ -625,6 +625,7 @@ where
                             obs.homopolymer_indel_len(Some(alt_indel_len));
                             assert!(ref_indel_len != 0); // caught above
                             if ref_indel_len > 0 {
+                                // insertion
                                 obs.prob_observable_at_homopolymer_artifact(Some(
                                     homopolymer_error_model.prob_homopolymer_artifact_insertion(),
                                 ))

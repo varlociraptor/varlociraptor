@@ -81,6 +81,26 @@ pub(crate) struct AlignmentProperties {
     epsilon_gap: f64,
 }
 
+impl AlignmentProperties {
+    pub(crate) fn max_homopolymer_insertion_len(&self) -> u16 {
+        self.wildtype_homopolymer_error_model
+            .keys()
+            .filter(|i| **i >= 0)
+            .map(|i| *i as u16)
+            .max()
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn max_homopolymer_deletion_len(&self) -> u16 {
+        self.wildtype_homopolymer_error_model
+            .keys()
+            .filter(|i| **i <= 0)
+            .map(|i| i.abs() as u16)
+            .max()
+            .unwrap_or(0)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 struct EstimationParams {
     num_alignments: Option<u64>,
