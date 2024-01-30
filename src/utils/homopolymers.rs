@@ -62,7 +62,11 @@ impl HomopolymerIndelOperation {
         let mut text_pos = 0;
 
         let is_extendable_stretch = |rpos, base| {
-            let min_len = if text[rpos] == base { 0 } else { 1 };
+            let min_len = if rpos < (text.len() - 1) && text[rpos] == base {
+                0
+            } else {
+                1
+            };
             (rpos < (text.len() - 1)
                 && extend_homopolymer_stretch(base, &mut text[rpos + 1..].iter()) > min_len)
                 || (rpos > 0
@@ -281,6 +285,14 @@ mod test_homopolymer {
             HomopolymerIndelOperation::from_alignment(b"GTTA", b"GTTTA", test_alignment);
         if test_homopolymer_indel.is_none() {
             panic!("Missed homopolymer error");
+        }
+
+        // Insertion of identical base at end of text
+        let test_alignment = &[Match, Match, Match, Match, Ins];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"ACGT", b"ACGTT", test_alignment);
+        if test_homopolymer_indel.is_some() {
+            panic!("Invalid homopolymer error detected");
         }
     }
 }
