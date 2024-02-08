@@ -22,7 +22,7 @@ use lazy_static::lazy_static;
 
 // We save methylation info of the single reads for PacBio and Nanopore in order to not recompute the information for every candidate
 lazy_static! {
-    static ref READ_TO_METH_PROBS: Mutex<HashMap<i64, HashMap<usize, f64>>> = Mutex::new(HashMap::new());
+    static ref READ_TO_METH_PROBS: Mutex<HashMap<String, HashMap<usize, f64>>> = Mutex::new(HashMap::new());
 }
 
 
@@ -113,7 +113,7 @@ fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
     let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
-        let mut ml: Vec<f64> = tag_value.iter().map(|val| f64::from(val) / 255.0).collect();
+        let mut ml: Vec<f64> = tag_value.iter().map(|val| (f64::from(val) + 0.5) / 256.0).collect();
         if read_reverse{
             ml.reverse();
         }
@@ -182,15 +182,27 @@ fn compute_probs(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogPro
 ///
 /// True if read given read is a reverse read, false if it is a forward read
 pub fn read_reverse_strand(flag:u16) -> bool {
-
+    let read_paired = 0b1;
+    let read_mapped_porper_pair = 0b01;
     let read_reverse = 0b10000;
-
-    if (flag & read_reverse) != 0 {
-        return true
+    let mate_reverse = 0b100000;
+    let first_in_pair = 0b1000000;
+    let second_in_pair = 0b10000000;
+    if (flag & read_paired) != 0 && (flag & read_mapped_porper_pair) != 0 {
+        if (flag & read_reverse) != 0 && (flag & first_in_pair) != 0 {
+            return true
+        }
+        else if (flag & mate_reverse) != 0 && (flag & second_in_pair) != 0 {
+            return true
+        }
     }
-    
+    else {
+        if (flag & read_reverse) != 0 {
+            return true
+        }
+    }
     false
-    // read.inner.core.flag == 147 || read.inner.core.flag == 83 || read.inner.core.flag == 16
+    // read.inner.core.flag == 163 || read.inner.core.flag == 83 || read.inner.core.flag == 16
 }
 
 fn read_invalid(flag:u16) -> bool {
@@ -317,44 +329,63 @@ impl Variant for Methylation {
                                     return Ok(None)
                                 }
                                 (prob_alt, prob_ref) = compute_probs(reverse_read, record, qpos);
-                                if self.locus.interval.range().start == 3 {
-                                    warn!("Single: {:?}, {:?}", record.inner.core.flag,  record.inner.core.pos + 1);
-                                    warn!("Prob_alt: {:?}", prob_alt);
-                                    warn!("Prob_ref: {:?}", prob_ref);
-                                }
                             }  
                         }
                         Readtype::PacBio | Readtype::Nanopore=> {
                             let record = read.into_single_end_evidence();  
-                            let mut pos_in_read = qpos;
+                            let read_id = String::from_utf8(record[0].qname().to_vec()).unwrap();
+                            if read_id == "09a7f853-ce37-4314-a0e5-faf71a260b60"  {
+                                warn!("Debug");
+                            }
+                            let mut pos_in_read = qpos + 1;
                             if read_reverse_strand(record[0].inner.core.flag) {
-                                pos_in_read += 1;
+                                pos_in_read += 2;
                             }  
                             let mut data = READ_TO_METH_PROBS.lock().unwrap(); // 
                             // Wenn dieser Read fuer einen anderen Kandidaten bereits betrachtet wurde haben wir die MM und ML Informationen bereitsgespeichert
                             let pos_to_probs: HashMap<usize, f64>;
-                            if let Some(pos_to_probs_found) = data.get(&record[0].inner.core.pos) {
+
+                            if let Some(pos_to_probs_found) = data.get(&read_id) {
                                 pos_to_probs = pos_to_probs_found.clone();
                             }
                             else {
                                 let meth_pos = meth_pos(&record[0]).unwrap();
                                 let meth_probs = meth_probs(&record[0]).unwrap();
                                 pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                                data.insert(record[0].inner.core.pos, pos_to_probs.clone());                     
+
+                                // // Konvertiere HashMap in einen Vektor von Tupeln (key, value)
+                                // let mut vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
+                                // // Sortiere den Vektor nach der ersten Zahl in jedem Tupel
+                                // vec.sort_by(|a, b| a.0.cmp(&b.0));
+
+                                data.insert(read_id.clone(), pos_to_probs.clone());                     
                             }
                          
                                                 
                             if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
                                 prob_alt = LogProb::from(Prob(*value as f64));
                                 prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
+                                warn!("{:?}, {:?}", read_id, self.locus.interval.range());
+                                warn!("{:?}, {:?}, {:?}", prob_ref, prob_alt, value);
+                                warn!("");
+                                if prob_ref == LogProb(-f64::INFINITY) {
+                                    // prob_alt = LogProb::from(Prob(0.99));
+                                    // prob_ref = LogProb::from(Prob(0.01)); 
+                                }
                             
                             
                             } else {
-                                // TODO What should I do if there is no prob given
-                                prob_alt = LogProb::from(Prob(0.0));
-                                prob_ref = LogProb::from(Prob(1.0));
                                 // warn!("No probability given for unmethylated Cs!");
+                                // return Ok(None)
+                                // TODO What should I do if there is no prob given
+                                // prob_alt = LogProb::from(Prob(0.30));
+                                // prob_ref = LogProb::from(Prob(0.70));
+                                prob_alt = LogProb::from(Prob(0.01));
+                                prob_ref = LogProb::from(Prob(0.99));
                             }
+                            // warn!("{:?}, {:?}", name, self.locus.interval.range());
+                            // warn!("{:?}, {:?}", prob_ref, prob_alt);
+                            // warn!("");
                         }
                     } 
                 }                       
@@ -398,19 +429,12 @@ impl Variant for Methylation {
                             }                                 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
-                            if self.locus.interval.range().start ==  3 {
-                                warn!("Positions: {:?}, {:?}", left.inner.core.pos + 1, right.inner.core.pos + 1);
-
-                                warn!("Left: {:?}, {:?}", left.inner.core.flag, qpos_left);
-                                warn!("Right: {:?}, {:?}", right.inner.core.flag, qpos_right);
-                                warn!("Prob_alt: {:?}", prob_alt);
-                                warn!("Prob_ref: {:?}", prob_ref);
-
-                            }
                         }
                         // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
                         Readtype::PacBio | Readtype::Nanopore => {
                             let mut record = read.into_single_end_evidence();  
+                            let read_id = String::from_utf8(record[0].qname().to_vec()).unwrap();
+
                             // Chose non-supplementary alignment
                             if left.inner.core.flag < 2000 {
 
@@ -431,7 +455,7 @@ impl Variant for Methylation {
                             let mut data = READ_TO_METH_PROBS.lock().unwrap();
                             // If this read has already been viewed for another candidate, we have already saved the MM and ML information
                             let pos_to_probs: HashMap<usize, f64>;
-                            if let Some(pos_to_probs_found) = data.get(&record[0].inner.core.pos) {
+                            if let Some(pos_to_probs_found) = data.get(&read_id) {
                                 pos_to_probs = pos_to_probs_found.clone();
                             }
                             else {
@@ -439,25 +463,23 @@ impl Variant for Methylation {
                                 let meth_pos = meth_pos(&record[0]).unwrap();
                                 let meth_probs = meth_probs(&record[0]).unwrap();
                                 pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                                data.insert(record[0].inner.core.pos, pos_to_probs.clone());                     
+                                data.insert(read_id, pos_to_probs.clone());                     
                             }
                          
                                                 
                             if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
                                 prob_alt = LogProb::from(Prob(*value as f64));
                                 prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
-                            
-                            
+                                                    
                             } else {
-                                // TODO What should I do if there is no prob given
-                                prob_alt = LogProb::from(Prob(0.0));
-                                prob_ref = LogProb::from(Prob(1.0));
                                 warn!("No probability given for unmethylated Cs!");
+                                // return  Ok(None)
+                                // TODO What should I do if there is no prob given
+                                prob_alt = LogProb::from(Prob(0.01));
+                                prob_ref = LogProb::from(Prob(0.99));
                             }
                         } 
-                    }
-
-                
+                    }      
                 }
             }
             
