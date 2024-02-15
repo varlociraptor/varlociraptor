@@ -296,13 +296,14 @@ impl GenericPosterior {
                         let resolution = &self.resolutions[*sample];
                         let min_vaf = vafs.observable_min(n_obs);
                         let max_vaf = vafs.observable_max(n_obs);
+                        assert!(min_vaf <= max_vaf, "bug: min_vaf > max_vaf");
                         let mut density = |vaf| {
                             let mut likelihood_operands = likelihood_operands.clone();
                             push_base_event(vaf, &mut likelihood_operands, false);
                             subdensity(&mut likelihood_operands)
                         };
 
-                        if (max_vaf - min_vaf) < **resolution {
+                        let p = if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.
                             LogProb::ln_simpsons_integrate_exp(
@@ -329,7 +330,9 @@ impl GenericPosterior {
                                 max_vaf,
                                 **resolution,
                             )
-                        }
+                        };
+
+                        p
                     }
                 }
             }

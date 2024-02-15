@@ -2,6 +2,52 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.4](https://github.com/varlociraptor/varlociraptor/compare/v8.4.3...v8.4.4) (2024-01-30)
+
+
+### Bug Fixes
+
+* fix homopolymer identification ([#407](https://github.com/varlociraptor/varlociraptor/issues/407)) ([e99bf23](https://github.com/varlociraptor/varlociraptor/commit/e99bf2338d65a4fe4940e6248ce6337eb23224c6))
+
+## [8.4.3](https://github.com/varlociraptor/varlociraptor/compare/v8.4.2...v8.4.3) (2024-01-22)
+
+
+### Bug Fixes
+
+* fix invalid identification of homopolymer error ([#405](https://github.com/varlociraptor/varlociraptor/issues/405)) ([e1b66cc](https://github.com/varlociraptor/varlociraptor/commit/e1b66ccb0f7ddd5d1ab72676940fcd4715e5993c))
+
+## [8.4.2](https://github.com/varlociraptor/varlociraptor/compare/v8.4.1...v8.4.2) (2023-11-09)
+
+
+### Bug Fixes
+
+* out of bounds error in estimation of third allele probability ([#403](https://github.com/varlociraptor/varlociraptor/issues/403)) ([37eafa4](https://github.com/varlociraptor/varlociraptor/commit/37eafa402865a9aa84d818233dc24dfeb301270a))
+
+## [8.4.1](https://github.com/varlociraptor/varlociraptor/compare/v8.4.0...v8.4.1) (2023-10-07)
+
+
+### Bug Fixes
+
+* add flag for stating that candidate variants are atomic (in such cases, no realignment against SNVs and MNVs should happen because nearby indels can induce false positives if they are not considered in the realignment) ([#400](https://github.com/varlociraptor/varlociraptor/issues/400)) ([2e22c50](https://github.com/varlociraptor/varlociraptor/commit/2e22c50ff899468170525bc9ffaa1675912b2e7d))
+
+## [8.4.0](https://github.com/varlociraptor/varlociraptor/compare/v8.3.0...v8.4.0) (2023-09-19)
+
+
+### Features
+
+* methylation candidates ([#394](https://github.com/varlociraptor/varlociraptor/issues/394)) ([d977058](https://github.com/varlociraptor/varlociraptor/commit/d977058805426c54801c8945719f32a935356546))
+
+
+### Bug Fixes
+
+* fixed handling of allele frequency boundaries (avoiding NaN probabilities in some rare cases); fixed handling of upper reference bound when estimating probability of third allele ([#398](https://github.com/varlociraptor/varlociraptor/issues/398)) ([e255ff9](https://github.com/varlociraptor/varlociraptor/commit/e255ff925017670732db8c6e7814cd66d8b3b0c8))
+
+
+### Miscellaneous Chores
+
+* trigger release 8.3.1 ([2db869f](https://github.com/varlociraptor/varlociraptor/commit/2db869fd18365c574c05ad72eec2a6b1b5509032))
+* trigger release 8.4.0 ([668cc49](https://github.com/varlociraptor/varlociraptor/commit/668cc4935d631b0117f832a5dcc1d6bc7dcc94bb))
+
 ## [8.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v8.2.0...v8.3.0) (2023-06-28)
 
 

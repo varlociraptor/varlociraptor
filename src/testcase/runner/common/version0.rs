@@ -106,7 +106,7 @@ impl Testcase for TestcaseVersion0 {
                         log_mode: "default".to_owned(),
                         pairhmm_mode: "exact".to_owned(),
                         output_raw_observations: None,
-                   
+                        atomic_candidate_variants: false,
                     },
                 };
 

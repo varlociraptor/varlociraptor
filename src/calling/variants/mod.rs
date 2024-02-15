@@ -469,7 +469,7 @@ impl Call {
                 .values()
                 .map(|n| **n as i32)
                 .collect_vec();
-            record.push_format_integer(b"OOBS", &oobs);
+            record.push_format_integer(b"OOBS", &oobs)?;
 
             let sb = strand_bias.values().map(|sb| vec![*sb]).collect_vec();
             record.push_format_string(b"SB", &sb)?;

@@ -62,10 +62,15 @@ impl HomopolymerIndelOperation {
         let mut text_pos = 0;
 
         let is_extendable_stretch = |rpos, base| {
+            let min_len = if rpos < (text.len() - 1) && text[rpos] == base {
+                0
+            } else {
+                1
+            };
             (rpos < (text.len() - 1)
-                && extend_homopolymer_stretch(base, &mut text[rpos + 1..].iter()) > 0)
+                && extend_homopolymer_stretch(base, &mut text[rpos + 1..].iter()) > min_len)
                 || (rpos > 0
-                    && extend_homopolymer_stretch(base, &mut text[..rpos].iter().rev()) > 0)
+                    && extend_homopolymer_stretch(base, &mut text[..rpos].iter().rev()) > min_len)
         };
 
         for (op, stretch) in &alignment.iter().group_by(|op| *op) {
@@ -197,6 +202,7 @@ impl HomopolymerErrorModel {
                         .collect_vec(),
                 )
             };
+            let is_insertion = variant_homopolymer_indel_len > 0;
 
             let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
             let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
@@ -204,8 +210,20 @@ impl HomopolymerErrorModel {
             let mut prob_homopolymer_artifact_insertion = prob_homopolymer_insertion;
             let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
             if prob_total != LogProb::ln_zero() {
-                prob_homopolymer_artifact_insertion -= prob_total;
-                prob_homopolymer_artifact_deletion -= prob_total;
+                if (is_insertion
+                    && variant_homopolymer_indel_len
+                        <= alignment_properties.max_homopolymer_insertion_len() as i8)
+                    || (!is_insertion
+                        && variant_homopolymer_indel_len.abs()
+                            <= alignment_properties.max_homopolymer_deletion_len() as i8)
+                {
+                    prob_homopolymer_artifact_insertion -= prob_total;
+                    prob_homopolymer_artifact_deletion -= prob_total;
+                } else {
+                    // insertion or deletion is too long to be an artifact. There is no scenario with such a long homopolymer error.
+                    prob_homopolymer_artifact_insertion = LogProb::ln_zero();
+                    prob_homopolymer_artifact_deletion = LogProb::ln_zero();
+                }
             } // else both of them are already zero, nothing to do.
 
             Some(HomopolymerErrorModel {
@@ -220,6 +238,61 @@ impl HomopolymerErrorModel {
             })
         } else {
             None
+        }
+    }
+}
+
+#[cfg(test)]
+mod test_homopolymer {
+    use crate::utils::homopolymers::HomopolymerIndelOperation;
+    use bio_types::alignment::AlignmentOperation::*;
+    #[test]
+    fn test_homopolymer_indel_operation() {
+        // Insertion after identical base
+        let test_alignment = &[Match, Match, Ins, Match, Match];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"ACGT", b"ACCGT", test_alignment);
+        if test_homopolymer_indel.is_some() {
+            panic!("Invalid homopolymer error detected");
+        }
+
+        // Insertion before identical base
+        let test_alignment = &[Match, Ins, Match, Match, Match];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"ACGT", b"ACCGT", test_alignment);
+        if test_homopolymer_indel.is_some() {
+            panic!("Invalid homopolymer error detected");
+        }
+
+        // Insertion at the beginning of the homopolymer
+        let test_alignment = &[Match, Ins, Match, Match, Match];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"GTTA", b"GTTTA", test_alignment);
+        if test_homopolymer_indel.is_none() {
+            panic!("Missed homopolymer error");
+        }
+
+        // Insertion in the middle of the homopolymer
+        let test_alignment = &[Match, Match, Ins, Match, Match];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"GTTA", b"GTTTA", test_alignment);
+        if test_homopolymer_indel.is_none() {
+            panic!("Missed homopolymer error ");
+        }
+        // Insertion at the end of the homopolymer
+        let test_alignment = &[Match, Match, Match, Ins, Match];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"GTTA", b"GTTTA", test_alignment);
+        if test_homopolymer_indel.is_none() {
+            panic!("Missed homopolymer error");
+        }
+
+        // Insertion of identical base at end of text
+        let test_alignment = &[Match, Match, Match, Match, Ins];
+        let test_homopolymer_indel =
+            HomopolymerIndelOperation::from_alignment(b"ACGT", b"ACGTT", test_alignment);
+        if test_homopolymer_indel.is_some() {
+            panic!("Invalid homopolymer error detected");
         }
     }
 }

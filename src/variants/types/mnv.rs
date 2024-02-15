@@ -42,6 +42,7 @@ pub(crate) struct Mnv<R: Realigner> {
     ref_bases: Vec<u8>,
     alt_bases: Rc<Vec<u8>>,
     realigner: RefCell<R>,
+    realign_indel_reads: bool,
 }
 
 impl<R: Realigner> Mnv<R> {
@@ -50,6 +51,7 @@ impl<R: Realigner> Mnv<R> {
         ref_bases: Vec<u8>,
         alt_bases: Vec<u8>,
         realigner: R,
+        realign_indel_reads: bool,
     ) -> Self {
         Mnv {
             locus: SingleLocus::new(genome::Interval::new(
@@ -59,6 +61,7 @@ impl<R: Realigner> Mnv<R> {
             ref_bases: ref_bases.to_ascii_uppercase(),
             alt_bases: Rc::new(alt_bases.to_ascii_uppercase()),
             realigner: RefCell::new(realigner),
+            realign_indel_reads,
         }
     }
 
@@ -122,12 +125,15 @@ impl<R: Realigner> Variant for Mnv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if utils::contains_indel_op(&**read) || !alt_variants.is_empty() {
+        if self.realign_indel_reads
+            && (utils::contains_indel_op(&**read) || !alt_variants.is_empty())
+        {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the MNV might be an artifact
             // of the aligner. Also, if we have alt alignments here, we need to
             // realign as well since we need the multi-allelic case handling in the
-            // realigner.
+            // realigner. TODO the latter is probably not needed anymore with third allele
+            // handling. Check this.
             Ok(Some(self.realigner.borrow_mut().allele_support(
                 &**read,
                 [&self.locus].iter(),
@@ -292,5 +298,9 @@ impl RefBaseEmission for MnvEmissionParams {
 impl VariantEmission for MnvEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
+    }
+
+    fn alt_vs_ref_len_diff(&self) -> isize {
+        0
     }
 }

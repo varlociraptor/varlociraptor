@@ -38,10 +38,17 @@ pub(crate) struct Snv<R: Realigner> {
     ref_base: u8,
     alt_base: u8,
     realigner: RefCell<R>,
+    realign_indel_reads: bool,
 }
 
 impl<R: Realigner> Snv<R> {
-    pub(crate) fn new(locus: genome::Locus, ref_base: u8, alt_base: u8, realigner: R) -> Self {
+    pub(crate) fn new(
+        locus: genome::Locus,
+        ref_base: u8,
+        alt_base: u8,
+        realigner: R,
+        realign_indel_reads: bool,
+    ) -> Self {
         Snv {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
@@ -50,6 +57,7 @@ impl<R: Realigner> Snv<R> {
             ref_base: ref_base.to_ascii_uppercase(),
             alt_base: alt_base.to_ascii_uppercase(),
             realigner: RefCell::new(realigner),
+            realign_indel_reads,
         }
     }
 }
@@ -108,8 +116,7 @@ impl<R: Realigner> Variant for Snv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        warn!("Test: SNV wird aufgerufen");
-        if utils::contains_indel_op(&**read) {
+        if self.realign_indel_reads && utils::contains_indel_op(&**read) {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the SNV might be an artifact
             // of the aligner.
@@ -231,6 +238,10 @@ impl RefBaseEmission for SnvEmissionParams {
 impl VariantEmission for SnvEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
+    }
+
+    fn alt_vs_ref_len_diff(&self) -> isize {
+        0
     }
 }
 

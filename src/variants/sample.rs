@@ -29,16 +29,32 @@ use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
 use crate::variants::evidence::observations::pileup::Pileup;
 
-#[derive(new, Getters, Debug)]
+#[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
     #[getset(get = "pub")]
     single_read_window: u64,
     #[getset(get = "pub")]
     read_pair_window: u64,
+    methylation_probs: Option<HashMap<bam::Record, HashMap<usize, LogProb>>>,
 }
 
 impl RecordBuffer {
+    pub(crate) fn new(
+        inner: bam::RecordBuffer,
+        single_read_window: u64,
+        read_pair_window: u64,
+        collect_methylation_probs: bool,
+    ) -> Self {
+        RecordBuffer {
+            inner,
+            single_read_window,
+            read_pair_window,
+            methylation_probs: if collect_methylation_probs { HashMap::new() } else { None },
+        }
+    }
+
+
     pub(crate) fn window(&self, read_pair_mode: bool, left: bool) -> u64 {
         if read_pair_mode {
             self.read_pair_window
@@ -62,6 +78,23 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
+
+        if let Some(methylation_probs) = self.methylation_probs {
+            for rec in &self.inner {
+                if !methylation_probs.contains(rec) {
+                    // METHOD: we need to fetch the methylation probabilities for the reads in the interval
+                    // to be able to calculate the methylation probabilities for the variant.
+                    // This is done by fetching the reads and then iterating over them to calculate the
+                    // methylation probabilities.
+                }
+            }
+
+            // METHOD: clean up methylation probabilities for reads that are not anymore in the interval.
+            // Use self.inner.tid() to check the current contig and remove all methylation_probs entries for
+            // other contigs.
+            // Use self.inner.start() to remove all methylation_probs entries for reads that are starting before
+            // self.inner.start().
+        }
 
         Ok(())
     }
@@ -208,6 +241,7 @@ impl SampleBuilder {
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
+        collect_methylation_probs: bool,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -229,6 +263,7 @@ impl SampleBuilder {
                 record_buffer,
                 single_read_window,
                 read_pair_window,
+                collect_methylation_probs,
             ))
     }
 }
