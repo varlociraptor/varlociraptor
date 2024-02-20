@@ -1,0 +1,32 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  sample:
+    path: 'sample.bam'
+    properties: '{"insert_size":{"mean":150.0,"sd":0.0},"max_del_cigar_len":26,"max_ins_cigar_len":12,"frac_max_softclip":0.24,"max_read_len":150,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-12.785891140783116,"prob_deletion_artifact":-12.186270018233994,"prob_insertion_extend_artifact":null,"prob_deletion_extend_artifact":null},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"0":1.0000057523696886,"1":2.300947875477303e-6,"3":1.1504739377386515e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"atomic_candidate_variants":true,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
