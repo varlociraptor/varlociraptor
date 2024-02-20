@@ -12,18 +12,20 @@ use std::str;
 use anyhow::Result;
 use bio_types::{genome, genome::AbstractInterval};
 use derive_builder::Builder;
+use log::Log;
 use rand::distributions;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
-use rust_htslib::bam;
-
+use rust_htslib::bam::{self, Record};
+use std::collections::HashMap;
+use bio::stats::LogProb;
 use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::read_observation::{
-    self, major_read_position, Observable, ReadObservation,
+    self, major_read_position, Observable, ReadObservation, SingleEndEvidence,
 };
 use crate::variants::{self, types::Variant};
-
+use super::types::methylation::{meth_pos, meth_probs};
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
@@ -36,7 +38,7 @@ pub(crate) struct RecordBuffer {
     single_read_window: u64,
     #[getset(get = "pub")]
     read_pair_window: u64,
-    methylation_probs: Option<HashMap<bam::Record, HashMap<usize, LogProb>>>,
+    methylation_probs: Option<HashMap<String, HashMap<usize, LogProb>>>,
 }
 
 impl RecordBuffer {
@@ -50,7 +52,7 @@ impl RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
-            methylation_probs: if collect_methylation_probs { HashMap::new() } else { None },
+            methylation_probs: if collect_methylation_probs { Some(HashMap::new()) } else { None },
         }
     }
 
@@ -79,23 +81,34 @@ impl RecordBuffer {
             interval.range().end + self.window(read_pair_mode, false),
         )?;
 
-        if let Some(methylation_probs) = self.methylation_probs {
-            for rec in &self.inner {
-                if !methylation_probs.contains(rec) {
+        if let Some(methylation_probs) = &mut self.methylation_probs {
+            for rec in self.inner.iter() {
+                let record = SingleEndEvidence::new(rec.to_owned());
+                let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + 
+                    &rec.inner.core.pos.to_string() + 
+                    &rec.inner.core.flag.to_string() + 
+                    &rec.cigar_cached().unwrap().to_string();
+                warn!("Dieser rec ist: {:?}", rec.tid());
+                if methylation_probs.get(&rec_id).is_none() {
                     // METHOD: we need to fetch the methylation probabilities for the reads in the interval
                     // to be able to calculate the methylation probabilities for the variant.
                     // This is done by fetching the reads and then iterating over them to calculate the
                     // methylation probabilities.
+                    let meth_pos = meth_pos(&record).unwrap();
+                    let meth_probs = meth_probs(&record).unwrap();
+                    let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                    methylation_probs.insert(rec_id, pos_to_probs.clone());     
                 }
             }
-
+            warn!("");
+            
             // METHOD: clean up methylation probabilities for reads that are not anymore in the interval.
             // Use self.inner.tid() to check the current contig and remove all methylation_probs entries for
             // other contigs.
             // Use self.inner.start() to remove all methylation_probs entries for reads that are starting before
             // self.inner.start().
         }
-
+        
         Ok(())
     }
 

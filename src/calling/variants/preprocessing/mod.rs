@@ -76,6 +76,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
+    readtype: Readtype,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -203,6 +204,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
         bam_reader.set_threads(1)?;
+        let collect_methylation_probs = matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
+
+
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -213,6 +217,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
+                collect_methylation_probs
             )
             .build()
             .unwrap();
@@ -529,7 +534,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     .to_owned(),
                 alt.to_owned(),
                 self.realigner.clone(),
-                !self.atomic_candidate_variants,
+                true
             ))
         };
 

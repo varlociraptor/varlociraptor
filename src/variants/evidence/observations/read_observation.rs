@@ -687,7 +687,7 @@ pub(crate) trait Evidence {
 }
 
 #[derive(new, Clone, Eq, Debug)]
-pub(crate) struct SingleEndEvidence {
+pub struct SingleEndEvidence {
     inner: Rc<bam::Record>,
 }
 

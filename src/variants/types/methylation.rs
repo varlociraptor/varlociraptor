@@ -49,7 +49,7 @@ impl Methylation {
 /// # Returns
 ///
 /// pos_methylated_cs: Vector of positions of methylated Cs in Read
-fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
+pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
     let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
     if let Aux::String(tag_value) = mm_tag {
         let mut mm = tag_value.to_owned();
@@ -107,11 +107,11 @@ fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
 /// # Returns
 ///
 /// ml: Vector of methylation probabilities
-fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<f64>, String> {
+pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
     let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
-        let mut ml: Vec<f64> = tag_value.iter().map(|val| (f64::from(val) + 0.5) / 256.0).collect();
+        let mut ml: Vec<LogProb> = tag_value.iter().map(|val| LogProb((f64::from(val) + 0.5) / 256.0)).collect();
         if read_reverse{
             ml.reverse();
         }
@@ -134,20 +134,19 @@ fn compute_probs_pb_np(record: &SingleEndEvidence, pos_in_read: i32, read_id: &S
     let prob_ref;
     // We use a global variable for storing MM and ML information of reads
     let mut data = READ_TO_METH_PROBS.lock().unwrap(); 
-    let pos_to_probs: HashMap<usize, f64>;
+    let pos_to_probs: HashMap<usize, f64> = HashMap::new();
 
-    if let Some(pos_to_probs_found) = data.get(read_id) {
-        pos_to_probs = pos_to_probs_found.clone();
-    }
-    else {
-        let meth_pos = meth_pos(&record).unwrap();
-        let meth_probs = meth_probs(&record).unwrap();
-        pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-
-        // let mut vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
-        // vec.sort_by(|a, b| a.0.cmp(&b.0));
-        data.insert(read_id.clone(), pos_to_probs.clone());                     
-    }
+    // if let Some(pos_to_probs_found) = data.get(read_id) {
+    //     pos_to_probs = pos_to_probs_found.clone();
+    // }
+    // else {
+    //     let meth_pos = meth_pos(&record).unwrap();
+    //     let meth_probs = meth_probs(&record).unwrap();
+    //     pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+    //     // let mut vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
+    //     // vec.sort_by(|a, b| a.0.cmp(&b.0));
+    //     data.insert(read_id.clone(), pos_to_probs.clone());                     
+    // }
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
         prob_alt = LogProb::from(Prob(*value as f64));
         prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));

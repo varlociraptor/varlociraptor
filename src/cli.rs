@@ -898,6 +898,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
@@ -927,6 +928,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         reference_buffer,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
@@ -956,6 +958,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
