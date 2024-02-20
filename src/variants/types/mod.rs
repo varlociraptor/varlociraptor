@@ -496,7 +496,6 @@ where
         let locus = self.loci();
         buffer.fetch(locus, true)?;
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-
         for record in buffer.iter() {
             // METHOD: First, we check whether the record contains an indel in the cigar.
             // We store the maximum indel size to update the global estimates, in case
