@@ -289,18 +289,18 @@ impl<R: Realigner> BreakendGroup<R> {
                 for bnds in self.breakends.values().permutations(2) {
                     let (bnd, other_bnd) = (bnds[0], bnds[1]);
                     if bnd.is_left_to_right() {
-                        if is_match(bnd, left) {
+                        if is_match(bnd, left.record()) {
                             // METHOD: left record matches, let's see what the right record does.
-                            if is_match(other_bnd, right) {
+                            if is_match(other_bnd, right.record()) {
                                 return Some(ImpreciseEvidence::Supporting);
                             } else {
                                 return Some(ImpreciseEvidence::NotSupporting);
                             }
                         }
                     } else {
-                        if is_match(bnd, right) {
+                        if is_match(bnd, right.record()) {
                             // METHOD: right record matches, let's see what the left record does.
-                            if is_match(other_bnd, left) {
+                            if is_match(other_bnd, left.record()) {
                                 return Some(ImpreciseEvidence::Supporting);
                             } else {
                                 return Some(ImpreciseEvidence::NotSupporting);
@@ -362,14 +362,14 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
 
             let overlapping: Vec<_> = match evidence {
                 PairedEndEvidence::SingleEnd(read) => {
-                    if !is_valid_ref_bases(read) {
+                    if !is_valid_ref_bases(read.record()) {
                         return None;
                     }
                     self.loci
                         .iter()
                         .enumerate()
                         .filter_map(|(i, locus)| {
-                            if is_valid_overlap(locus, read) {
+                            if is_valid_overlap(locus, read.record()) {
                                 Some(i)
                             } else {
                                 None
@@ -378,7 +378,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         .collect()
                 }
                 PairedEndEvidence::PairedEnd { left, right } => {
-                    if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
+                    if !is_valid_ref_bases(left.record()) && !is_valid_ref_bases(right.record()) {
                         return None;
                     }
 
@@ -386,7 +386,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, locus)| {
-                            if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
+                            if is_valid_overlap(locus, left.record()) || is_valid_overlap(locus, right.record()) {
                                 Some(i)
                             } else {
                                 None
@@ -429,8 +429,8 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                                     .filter_map(|(left_pos, right_pos)| {
                                         if left_pos < right_pos {
                                             Some(self.allele_support_isize(
-                                                left,
-                                                right,
+                                                left.record(),
+                                                right.record(),
                                                 alignment_properties,
                                                 right_pos - left_pos,
                                             ))
@@ -505,7 +505,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             match evidence {
                 PairedEndEvidence::SingleEnd(record) => {
                     Ok(Some(self.realigner.borrow_mut().allele_support(
-                        record,
+                        record.record(),
                         self.loci.iter(),
                         self,
                         alt_variants,
@@ -514,14 +514,14 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 }
                 PairedEndEvidence::PairedEnd { left, right } => {
                     let left_support = self.realigner.borrow_mut().allele_support(
-                        left,
+                        left.record(),
                         self.loci.iter(),
                         self,
                         alt_variants,
                         alignment_properties,
                     )?;
                     let right_support = self.realigner.borrow_mut().allele_support(
-                        right,
+                        right.record(),
                         self.loci.iter(),
                         self,
                         alt_variants,
@@ -554,15 +554,15 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                     // METHOD: we do not require the fragment to enclose the breakend group.
                     // Hence, we treat both reads independently.
                     (self
-                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                        .prob_sample_alt_read(left.record().seq().len() as u64, alignment_properties)
                         .ln_one_minus_exp()
                         + self
-                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                            .prob_sample_alt_read(right.record().seq().len() as u64, alignment_properties)
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }
                 PairedEndEvidence::SingleEnd(read) => {
-                    self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+                    self.prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties)
                 }
             }
         }

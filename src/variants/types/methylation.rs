@@ -1,4 +1,5 @@
 use super::ToVariantRepresentation;
+use crate::candidates::methylation;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
@@ -129,28 +130,20 @@ pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probaability of no methylation (reference)
-fn compute_probs_pb_np(record: &SingleEndEvidence, pos_in_read: i32, read_id: &String) -> (LogProb, LogProb) {
+fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) -> (LogProb, LogProb) {
     let prob_alt;
     let prob_ref;
-    // We use a global variable for storing MM and ML information of reads
-    let mut data = READ_TO_METH_PROBS.lock().unwrap(); 
-    let pos_to_probs: HashMap<usize, f64> = HashMap::new();
+ 
+    let mut vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
+    // Sortiere den Vektor nach der ersten Zahl in jedem Tupel
+    vec.sort_by(|a, b| a.0.cmp(&b.0));
 
-    // if let Some(pos_to_probs_found) = data.get(read_id) {
-    //     pos_to_probs = pos_to_probs_found.clone();
-    // }
-    // else {
-    //     let meth_pos = meth_pos(&record).unwrap();
-    //     let meth_probs = meth_probs(&record).unwrap();
-    //     pos_to_probs = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-    //     // let mut vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
-    //     // vec.sort_by(|a, b| a.0.cmp(&b.0));
-    //     data.insert(read_id.clone(), pos_to_probs.clone());                     
-    // }
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
-        prob_alt = LogProb::from(Prob(*value as f64));
-        prob_ref = LogProb::from(Prob(1 as f64 - *value as f64));
+        prob_alt = *value;
+        prob_ref = LogProb(1 as f64 - *prob_alt);
         // warn!("modified, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
+        // prob_ref = LogProb::from(Prob(0.99));
+        
     } else {
         prob_alt = LogProb::from(Prob(0.01));
         prob_ref = LogProb::from(Prob(0.99));
@@ -304,12 +297,12 @@ impl Variant for Methylation {
     ) -> Option<Vec<usize>> {
         if match evidence {
             // TODO maybe problems, if CpG position starts just at the beginning/end of the read (Ich habe mich eigentlich darum gekuemmert, wenn das C der CpG Position die letzte Stelle des Reads is und es ein reverse Read ist (dann ist es nicht abgesdeckt.) Was fehlt: Wenn die erste Position das G einer CpG Stelle ist und der Read reverse ist.)
-            PairedEndEvidence::SingleEnd(read) => !self.locus.overlap(read, true).is_none(),
+            PairedEndEvidence::SingleEnd(read) => !self.locus.overlap(read.record(), true).is_none(),
             PairedEndEvidence::PairedEnd { left, right } => {
-                !self.locus.overlap(left, true).is_none()
-                    || !self.locus.overlap(right, true).is_none() 
-                    || !self.locus.outside_overlap(left)
-                    || !self.locus.outside_overlap(right)
+                !self.locus.overlap(left.record(), true).is_none()
+                    || !self.locus.overlap(right.record(), true).is_none() 
+                    || !self.locus.outside_overlap(left.record())
+                    || !self.locus.outside_overlap(right.record())
             }
         } {
             if match self.readtype {
@@ -343,11 +336,11 @@ impl Variant for Methylation {
         let qpos;
         qpos = match read {
             PairedEndEvidence::SingleEnd(record) => {
-                get_qpos(record, &self.locus)
+                get_qpos(record.record(), &self.locus)
             }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let result1 = get_qpos(left, &self.locus);
-                let result2 = get_qpos(right, &self.locus);
+                let result1 = get_qpos(left.record(), &self.locus);
+                let result2 = get_qpos(right.record(), &self.locus);
         
                 match (result1, result2) {
                     (Some(inner_qpos), _) => Some(inner_qpos),
@@ -367,26 +360,27 @@ impl Variant for Methylation {
                     match self.readtype {
 
                         Readtype::Illumina => {
-                            let reverse_read = read_reverse_strand(record.inner.core.flag);
-                            if mutation_occurred(reverse_read, record, qpos) || read_invalid(record.inner.core.flag) {
+                            let reverse_read = read_reverse_strand(record.record().inner.core.flag);
+                            if mutation_occurred(reverse_read, record.record(), qpos) || read_invalid(record.record().inner.core.flag) {
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_illumina(reverse_read, record, qpos);
+                            (prob_alt, prob_ref) = compute_probs_illumina(reverse_read, record.record(), qpos);
                         }
 
                         Readtype::PacBio | Readtype::Nanopore=> {
                             let record = &read.into_single_end_evidence()[0];  
+                            let methylation_probs = &read.get_methylation_probs()[0];
                             let read_id = String::from_utf8(record.qname().to_vec()).unwrap();        
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
-                            
+                            warn!("{:?}, {:?}", read_id, record.inner.core.flag);
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status  
                             if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
                                 // warn!("no information, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(record, pos_in_read, &read_id);  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, methylation_probs.clone().unwrap());  
                         }
                     } 
                 }      
@@ -396,8 +390,8 @@ impl Variant for Methylation {
 
                         Readtype::Illumina => {
                             // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
-                            let (prob_alt_left, prob_ref_left) = process_read(left, &self.locus).unwrap_or((LogProb(0.0), LogProb(0.0)));
-                            let (prob_alt_right, prob_ref_right) = process_read(right, &self.locus).unwrap_or((LogProb(0.0), LogProb(0.0)));
+                            let (prob_alt_left, prob_ref_left) = process_read(left.record(), &self.locus).unwrap_or((LogProb(0.0), LogProb(0.0)));
+                            let (prob_alt_right, prob_ref_right) = process_read(right.record(), &self.locus).unwrap_or((LogProb(0.0), LogProb(0.0)));
                             
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
@@ -406,6 +400,7 @@ impl Variant for Methylation {
                         // In this case we just chose the first alignment
                         Readtype::PacBio | Readtype::Nanopore => {
                             let record = &read.into_single_end_evidence()[0];  
+                            let methylation_probs = &read.get_methylation_probs()[0];
                             let read_id = String::from_utf8(record.qname().to_vec()).unwrap();        
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
@@ -416,7 +411,7 @@ impl Variant for Methylation {
                                 // warn!("no information, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(record, pos_in_read, &read_id);  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, methylation_probs.clone().unwrap());  
                         } 
                     }      
                 }
@@ -429,7 +424,7 @@ impl Variant for Methylation {
                         PairedEndEvidence::PairedEnd { left, right: _ } => left,
                     };
                     
-                    Strand::from_record_and_pos(&record, qpos as usize)?
+                    Strand::from_record_and_pos(&record.record(), qpos as usize)?
                 } else {
                     // METHOD: if record is not informative, we don't want to
                     // retain its information (e.g. strand).

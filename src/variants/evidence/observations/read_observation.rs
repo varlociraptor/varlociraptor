@@ -9,6 +9,7 @@ use std::ops;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
+use std::collections::HashMap;
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -750,24 +751,67 @@ impl Hash for SingleEndEvidence {
     }
 }
 
-#[derive(Clone, Eq, Debug)]
+#[derive(Getters, Clone, Debug)]
+pub struct ExtendedRecord {
+    #[getset(get = "pub")]
+    record: Rc<bam::Record>,
+    #[getset(get = "pub")]
+    prob_methylation: Option<HashMap<usize, LogProb>>
+}
+
+impl ExtendedRecord {
+    pub(crate) fn new(
+        record: Rc<bam::Record>,
+        prob_methylation: Option<HashMap<usize, LogProb>>,
+    ) -> Self {
+        ExtendedRecord {
+            record,
+            prob_methylation
+        }
+    }
+}
+
+
+impl PartialEq for ExtendedRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.record == other.record
+    }
+}
+
+impl Eq for ExtendedRecord {
+
+}
+
+#[derive(Clone, Debug, Eq)]
 pub(crate) enum PairedEndEvidence {
-    SingleEnd(Rc<bam::Record>),
+    SingleEnd(ExtendedRecord),
     PairedEnd {
-        left: Rc<bam::Record>,
-        right: Rc<bam::Record>,
+        left: ExtendedRecord,
+        right: ExtendedRecord,
     },
 }
 
 impl PairedEndEvidence {
+    pub(crate) fn get_methylation_probs(&self) -> Vec<Option<HashMap<usize, LogProb>>> {
+        match self {
+            PairedEndEvidence::SingleEnd(record) => {
+                vec![record.prob_methylation.clone()]
+            }
+            PairedEndEvidence::PairedEnd { left, right } => vec![
+                left.prob_methylation.clone(),
+                right.prob_methylation.clone()
+            ],
+        }
+    }
+
     pub(crate) fn into_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
-                vec![SingleEndEvidence::new(Rc::clone(record))]
+                vec![SingleEndEvidence::new(Rc::clone(&record.record))]
             }
             PairedEndEvidence::PairedEnd { left, right } => vec![
-                SingleEndEvidence::new(Rc::clone(left)),
-                SingleEndEvidence::new(Rc::clone(right)),
+                SingleEndEvidence::new(Rc::clone(&left.record)),
+                SingleEndEvidence::new(Rc::clone(&right.record)),
             ],
         }
     }
@@ -776,27 +820,27 @@ impl PairedEndEvidence {
 impl Evidence for PairedEndEvidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
-            PairedEndEvidence::SingleEnd(read) => read_orientation(read.as_ref()),
-            PairedEndEvidence::PairedEnd { left, .. } => read_orientation(left.as_ref()),
+            PairedEndEvidence::SingleEnd(read) => read_orientation(read.record.as_ref()),
+            PairedEndEvidence::PairedEnd { left, .. } => read_orientation(left.record.as_ref()),
         }
     }
 
     fn is_paired(&self) -> bool {
         match self {
-            PairedEndEvidence::SingleEnd(read) => read.is_paired(),
-            PairedEndEvidence::PairedEnd { left, .. } => left.is_paired(),
+            PairedEndEvidence::SingleEnd(read) => read.record.is_paired(),
+            PairedEndEvidence::PairedEnd { left, .. } => left.record.is_paired(),
         }
     }
 
     fn softclipped(&self) -> bool {
         match self {
             PairedEndEvidence::SingleEnd(rec) => {
-                let cigar = rec.cigar_cached().unwrap();
+                let cigar = rec.record.cigar_cached().unwrap();
                 cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
             }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let cigar_left = left.cigar_cached().unwrap();
-                let cigar_right = right.cigar_cached().unwrap();
+                let cigar_left = left.record.cigar_cached().unwrap();
+                let cigar_right = right.record.cigar_cached().unwrap();
                 cigar_left.leading_softclips() > 0
                     || cigar_left.trailing_softclips() > 0
                     || cigar_right.leading_softclips() > 0
@@ -807,24 +851,24 @@ impl Evidence for PairedEndEvidence {
 
     fn len(&self) -> usize {
         match self {
-            PairedEndEvidence::SingleEnd(rec) => rec.seq_len(),
-            PairedEndEvidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
+            PairedEndEvidence::SingleEnd(rec) => rec.record.seq_len(),
+            PairedEndEvidence::PairedEnd { left, right } => left.record.seq_len() + right.record.seq_len(),
         }
     }
 
     fn name(&self) -> &[u8] {
         match self {
-            PairedEndEvidence::PairedEnd { left, .. } => left.qname(),
-            PairedEndEvidence::SingleEnd(rec) => rec.qname(),
+            PairedEndEvidence::PairedEnd { left, .. } => left.record.qname(),
+            PairedEndEvidence::SingleEnd(rec) => rec.record.qname(),
         }
     }
 
     fn alt_loci(&self) -> ExactAltLoci {
         match self {
-            PairedEndEvidence::SingleEnd(rec) => ExactAltLoci::from(rec.as_ref()),
+            PairedEndEvidence::SingleEnd(rec) => ExactAltLoci::from(rec.record.as_ref()),
             PairedEndEvidence::PairedEnd { left, right } => {
-                let mut left = ExactAltLoci::from(left.as_ref());
-                left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
+                let mut left = ExactAltLoci::from(left.record.as_ref());
+                left.inner.extend(ExactAltLoci::from(right.record.as_ref()).inner);
                 left
             }
         }
@@ -833,10 +877,10 @@ impl Evidence for PairedEndEvidence {
     fn start_locus(&self) -> genome::Locus {
         match self {
             PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.contig().to_owned(), rec.range().start)
+                genome::Locus::new(rec.record.contig().to_owned(), rec.record.range().start)
             }
             PairedEndEvidence::PairedEnd { left, .. } => {
-                genome::Locus::new(left.contig().to_owned(), left.range().start)
+                genome::Locus::new(left.record.contig().to_owned(), left.record.range().start)
             }
         }
     }
@@ -844,10 +888,10 @@ impl Evidence for PairedEndEvidence {
     fn end_locus(&self) -> genome::Locus {
         match self {
             PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.contig().to_owned(), rec.range().end)
+                genome::Locus::new(rec.record.contig().to_owned(), rec.record.range().end)
             }
             PairedEndEvidence::PairedEnd { right, .. } => {
-                genome::Locus::new(right.contig().to_owned(), right.range().end)
+                genome::Locus::new(right.record.contig().to_owned(), right.record.range().end)
             }
         }
     }
@@ -857,12 +901,12 @@ impl PartialEq for PairedEndEvidence {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (PairedEndEvidence::SingleEnd(a), PairedEndEvidence::SingleEnd(b)) => {
-                a.qname() == b.qname()
+                a.record.qname() == b.record.qname()
             }
             (
                 PairedEndEvidence::PairedEnd { left: a, .. },
                 PairedEndEvidence::PairedEnd { left: b, .. },
-            ) => a.qname() == b.qname(),
+            ) => a.record.qname() == b.record.qname(),
             _ => false,
         }
     }
@@ -871,8 +915,8 @@ impl PartialEq for PairedEndEvidence {
 impl Hash for PairedEndEvidence {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            PairedEndEvidence::SingleEnd(a) => a.qname().hash(state),
-            PairedEndEvidence::PairedEnd { left: a, .. } => a.qname().hash(state),
+            PairedEndEvidence::SingleEnd(a) => a.record.qname().hash(state),
+            PairedEndEvidence::PairedEnd { left: a, .. } => a.record.qname().hash(state),
         }
     }
 }

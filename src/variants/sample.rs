@@ -38,6 +38,7 @@ pub(crate) struct RecordBuffer {
     single_read_window: u64,
     #[getset(get = "pub")]
     read_pair_window: u64,
+    #[getset(get = "pub")]
     methylation_probs: Option<HashMap<String, HashMap<usize, LogProb>>>,
 }
 
@@ -67,6 +68,21 @@ impl RecordBuffer {
         }
     }
 
+    pub(crate) fn get_methylation_probs(&self, record: Rc<Record>) -> Option<HashMap<usize, LogProb>>{
+        match self.methylation_probs() {
+            Some(meth_probs) => {
+                let rec_id = String::from_utf8(record.qname().to_vec()).unwrap() + 
+                    &record.inner.core.pos.to_string() + 
+                    &record.inner.core.flag.to_string() + 
+                    &record.cigar_cached().unwrap().to_string();
+                meth_probs.get(&rec_id).cloned()
+            }
+            None => {
+                None
+            }
+        }
+    }
+
     pub(crate) fn fetch(
         &mut self,
         interval: &genome::Interval,
@@ -82,25 +98,23 @@ impl RecordBuffer {
         )?;
 
         if let Some(methylation_probs) = &mut self.methylation_probs {
-            // for rec in self.inner.iter() {
-            //     let record = SingleEndEvidence::new(rec.to_owned());
-            //     let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + 
-            //         &rec.inner.core.pos.to_string() + 
-            //         &rec.inner.core.flag.to_string() + 
-            //         &rec.cigar_cached().unwrap().to_string();
-            //     warn!("Dieser rec ist: {:?}", rec.tid());
-            //     if methylation_probs.get(&rec_id).is_none() {
-            //         // METHOD: we need to fetch the methylation probabilities for the reads in the interval
-            //         // to be able to calculate the methylation probabilities for the variant.
-            //         // This is done by fetching the reads and then iterating over them to calculate the
-            //         // methylation probabilities.
-            //         let meth_pos = meth_pos(&record).unwrap();
-            //         let meth_probs = meth_probs(&record).unwrap();
-            //         let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-            //         methylation_probs.insert(rec_id, pos_to_probs.clone());     
-            //     }
-            // }
-            // warn!("");
+            for rec in self.inner.iter() {
+                let record = SingleEndEvidence::new(rec.to_owned());
+                let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + 
+                    &rec.inner.core.pos.to_string() + 
+                    &rec.inner.core.flag.to_string() + 
+                    &rec.cigar_cached().unwrap().to_string();
+                if methylation_probs.get(&rec_id).is_none() {
+                    // METHOD: we need to fetch the methylation probabilities for the reads in the interval
+                    // to be able to calculate the methylation probabilities for the variant.
+                    // This is done by fetching the reads and then iterating over them to calculate the
+                    // methylation probabilities.
+                    let meth_pos = meth_pos(&record).unwrap();
+                    let meth_probs = meth_probs(&record).unwrap();
+                    let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                    methylation_probs.insert(rec_id, pos_to_probs.clone());     
+                }
+            }
             
             // METHOD: clean up methylation probabilities for reads that are not anymore in the interval.
             // Use self.inner.tid() to check the current contig and remove all methylation_probs entries for

@@ -19,7 +19,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence, Strand,
+    Evidence, Observable, PairedEndEvidence, ExtendedRecord, ReadObservation, SingleEndEvidence, Strand,
 };
 use crate::variants::sample;
 
@@ -309,14 +309,14 @@ where
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
+            PairedEndEvidence::SingleEnd(record) => prob(record.record()).ln_one_minus_exp(),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
                 // make a conservative choice (since 1-mapq is the mapping probability).
-                let mut p = prob(left);
-                let mut q = prob(right);
+                let mut p = prob(left.record());
+                let mut q = prob(right.record());
                 if p < q {
                     std::mem::swap(&mut p, &mut q);
                 }
@@ -327,8 +327,8 @@ where
 
     fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => record.mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+            PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.record().mapq(), right.record().mapq()),
         }
     }
 
@@ -409,8 +409,8 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: Rc::clone(&candidate.left),
-                    right: Rc::clone(right),
+                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())),
+                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right.clone())),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -418,7 +418,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
@@ -456,14 +456,14 @@ where
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
+            PairedEndEvidence::SingleEnd(record) => prob(record.record()).ln_one_minus_exp(),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
                 // make a conservative choice (since 1-mapq is the mapping probability).
-                let mut p = prob(left);
-                let mut q = prob(right);
+                let mut p = prob(left.record());
+                let mut q = prob(right.record());
                 if p < q {
                     std::mem::swap(&mut p, &mut q);
                 }
@@ -474,8 +474,8 @@ where
 
     fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => record.mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+            PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.record().mapq(), right.record().mapq()),
         }
     }
 
@@ -550,8 +550,8 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: Rc::clone(&candidate.left),
-                    right: Rc::clone(right),
+                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())),
+                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right.clone())),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -559,7 +559,8 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
+                
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
