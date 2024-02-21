@@ -261,6 +261,7 @@ impl<R: Realigner> Variant for Deletion<R> {
                 if alignment_properties.insert_size.is_some() {
                     let isize_support =
                         self.allele_support_isize(left, right, alignment_properties, self.len())?;
+
                     support.merge(&isize_support);
                 }
 

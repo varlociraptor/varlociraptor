@@ -230,7 +230,7 @@ where
     P: Clone,
     A: Clone,
 {
-    name: Option<String>,
+    pub name: Option<String>,
     pub fragment_id: Option<u64>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,

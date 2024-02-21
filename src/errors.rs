@@ -82,6 +82,8 @@ pub(crate) enum Error {
     BreakendMateidWithoutRecid,
     #[error("invalid FDR control events, no events provided or none of the given events matches the events found in the callset")]
     InvalidFDRControlEvents,
+    #[error("unrealistic insert size distribution: the standard deviation is 0.0, consider sampling more reads for estimating alignment properties")]
+    UnrealisticIsizeSd,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {

@@ -13,6 +13,7 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 use vec_map::VecMap;
 
+use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
@@ -183,6 +184,10 @@ pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
         alignment_properties: &AlignmentProperties,
         alt_del_len: u64,
     ) -> Result<AlleleSupport> {
+        if alignment_properties.insert_size.unwrap().sd == 0.0 {
+            return Err(Error::UnrealisticIsizeSd.into());
+        }
+
         let insert_size = estimate_insert_size(left_record, right_record)?;
 
         // TODO: sum over all possible lens if there are multiple ones and use some reasonable prior
