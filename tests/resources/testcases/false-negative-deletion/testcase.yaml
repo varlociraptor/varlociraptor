@@ -1,0 +1,32 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  sample:
+    path: 'sample.bam'
+    properties: '{"insert_size":{"mean":100.0,"sd":0.0},"max_del_cigar_len":26,"max_ins_cigar_len":12,"frac_max_softclip":0.39,"max_read_len":100,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-8.344335890601256,"prob_deletion_artifact":-9.95462450491567,"prob_insertion_extend_artifact":-0.1778428232561166,"prob_deletion_extend_artifact":-1.1430640512389436},"hop_params":{"prob_seq_homopolymer":[-9.0727051077935,-9.606780174814975,-9.507368219636895,-9.178996941647455],"prob_ref_homopolymer":[-9.826476910169879,-9.454974161946971,-9.306697524174744,-9.801526554993448],"prob_seq_extend_homopolymer":[-9.0727051077935,-9.606780174814975,-9.507368219636895,-9.178996941647455],"prob_ref_extend_homopolymer":[-9.826476910169879,-9.454974161946971,-9.306697524174744,-9.801526554993448]},"wildtype_homopolymer_error_model":{"2":0.000010278781101021917,"3":2.0557562202043834e-6,"0":0.9998643200894665,"1":0.00015109808218502217},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"atomic_candidate_variants":true,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
