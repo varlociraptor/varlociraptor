@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.5](https://github.com/varlociraptor/varlociraptor/compare/v8.4.4...v8.4.5) (2024-02-21)
+
+
+### Bug Fixes
+
+* fail if insert size standard deviation is zero, because that is unrealistic and causes numeric issues ([#410](https://github.com/varlociraptor/varlociraptor/issues/410)) ([cf6eead](https://github.com/varlociraptor/varlociraptor/commit/cf6eead3601819089a3c8172fce84ff06c2d4fca))
+
 ## [8.4.4](https://github.com/varlociraptor/varlociraptor/compare/v8.4.3...v8.4.4) (2024-01-30)
 
 
