@@ -1,5 +1,4 @@
 use super::ToVariantRepresentation;
-use crate::candidates::methylation;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
@@ -140,7 +139,7 @@ fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) 
 
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
         prob_alt = *value;
-        prob_ref = LogProb(1 as f64 - *prob_alt);
+        prob_ref = LogProb(1_f64 - *prob_alt);
         // warn!("modified, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
         // prob_ref = LogProb::from(Prob(0.99));
         
@@ -160,15 +159,10 @@ fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) 
 /// Option<position>: Position of CpG site if it is included in read
 /// None else
 fn get_qpos(read: &Rc<Record> , locus: &SingleLocus) -> Option<i32> {
-    if let Some(qpos) = read
+    read
         .cigar_cached()
         .unwrap()
-        .read_pos(locus.range().start as u32, false, false).unwrap()
-    {
-        Some(qpos as i32)
-    } else {
-        None
-    }
+        .read_pos(locus.range().start as u32, false, false).unwrap().map(|qpos| qpos as i32)
 }
 
 /// Computes the probability of methylation/no methylation of a given position in an Illumina read. Takes mapping probability into account
@@ -178,8 +172,6 @@ fn get_qpos(read: &Rc<Record> , locus: &SingleLocus) -> Option<i32> {
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probaability of no methylation (reference)
 fn compute_probs_illumina(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogProb, LogProb){
-    let prob_alt;
-    let prob_ref;
     let (pos_in_read, ref_base, bisulfite_base) = if !reverse_read {
         (qpos, b'C', b'T')
     } else {
@@ -189,9 +181,9 @@ fn compute_probs_illumina(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -
     let read_base = unsafe { record.seq().decoded_base_unchecked(pos_in_read as usize) };
     let base_qual = unsafe { *record.qual().get_unchecked(pos_in_read as usize) };
 
-    prob_alt = prob_read_base(read_base, ref_base, base_qual);
+    let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let no_c = if read_base != ref_base { read_base } else { bisulfite_base };
-    prob_ref = prob_read_base(read_base, no_c, base_qual);
+    let prob_ref = prob_read_base(read_base, no_c, base_qual);
     
     (prob_alt, prob_ref)
 }
@@ -226,18 +218,10 @@ pub fn read_reverse_strand(flag:u16) -> bool {
     let mate_reverse = 0b100000;
     let first_in_pair = 0b1000000;
     let second_in_pair = 0b10000000;
-    if (flag & read_paired) != 0 && (flag & read_mapped_porper_pair) != 0 {
-        if (flag & read_reverse) != 0 && (flag & first_in_pair) != 0 {
-            return true
-        }
-        else if (flag & mate_reverse) != 0 && (flag & second_in_pair) != 0 {
-            return true
-        }
-    }
-    else {
-        if (flag & read_reverse) != 0 {
-            return true
-        }
+    if  (flag & read_paired != 0 && flag & read_mapped_porper_pair != 0 && flag & read_reverse != 0 && flag & first_in_pair != 0) ||
+        (flag & read_paired != 0 && flag & read_mapped_porper_pair != 0 && flag & mate_reverse != 0 && flag & second_in_pair != 0) ||
+        (flag & read_reverse != 0 && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0)) {
+            return true;
     }
     false
 }
@@ -251,7 +235,7 @@ fn read_invalid(flag:u16) -> bool {
     if flag == 0 || flag == 16 || flag == 99 || flag == 83 || flag == 147 || flag == 163 {
         return false
     }
-    return true
+    true
 }
 
 /// Computes if a mutation occured at the C of a CpG position
@@ -308,8 +292,8 @@ impl Variant for Methylation {
             if match self.readtype {
                     // Some single PacBio reads don't have an MM:Z value and are therefore not legal
                     Readtype::Illumina => {true},
-                    Readtype::PacBio => {!meth_pos(&evidence.into_single_end_evidence()[0]).is_err()},
-                    Readtype::Nanopore => {!meth_pos(&evidence.into_single_end_evidence()[0]).is_err()},
+                    Readtype::PacBio => {meth_pos(&evidence.into_single_end_evidence()[0]).is_ok()},
+                    Readtype::Nanopore => {meth_pos(&evidence.into_single_end_evidence()[0]).is_ok()},
 
                 } {
                     Some(vec![0])
@@ -333,8 +317,7 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let qpos;
-        qpos = match read {
+        let qpos = match read {
             PairedEndEvidence::SingleEnd(record) => {
                 get_qpos(record.record(), &self.locus)
             }
@@ -350,8 +333,8 @@ impl Variant for Methylation {
             }
         };
         if let Some(qpos) = qpos {
-            let mut prob_alt = LogProb::from(Prob(0.0));
-            let mut prob_ref = LogProb::from(Prob(0.0));
+            let prob_alt;
+            let prob_ref;
             // TODO Do something, if the next base is no G
 
             
@@ -401,7 +384,6 @@ impl Variant for Methylation {
                         Readtype::PacBio | Readtype::Nanopore => {
                             let record = &read.into_single_end_evidence()[0];  
                             let methylation_probs = &read.get_methylation_probs()[0];
-                            let read_id = String::from_utf8(record.qname().to_vec()).unwrap();        
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
@@ -424,7 +406,7 @@ impl Variant for Methylation {
                         PairedEndEvidence::PairedEnd { left, right: _ } => left,
                     };
                     
-                    Strand::from_record_and_pos(&record.record(), qpos as usize)?
+                    Strand::from_record_and_pos(record.record(), qpos as usize)?
                 } else {
                     // METHOD: if record is not informative, we don't want to
                     // retain its information (e.g. strand).

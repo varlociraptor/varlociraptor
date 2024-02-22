@@ -12,7 +12,6 @@ use std::str;
 use anyhow::Result;
 use bio_types::{genome, genome::AbstractInterval};
 use derive_builder::Builder;
-use log::Log;
 use rand::distributions;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
