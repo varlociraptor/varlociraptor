@@ -352,18 +352,14 @@ impl Variant for Methylation {
 
                         Readtype::PacBio | Readtype::Nanopore=> {
                             let record = &read.into_single_end_evidence()[0];  
-                            let methylation_probs = &read.get_methylation_probs()[0];
-                            let read_id = String::from_utf8(record.qname().to_vec()).unwrap();        
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
-                            warn!("{:?}, {:?}", read_id, record.inner.core.flag);
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status  
                             if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
-                                // warn!("no information, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, methylation_probs.clone().unwrap());  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].clone().unwrap());  
                         }
                     } 
                 }      
@@ -383,17 +379,14 @@ impl Variant for Methylation {
                         // In this case we just chose the first alignment
                         Readtype::PacBio | Readtype::Nanopore => {
                             let record = &read.into_single_end_evidence()[0];  
-                            let methylation_probs = &read.get_methylation_probs()[0];
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
-                            let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
-                            
+                            let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };                              
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status  
                             if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
-                                // warn!("no information, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, methylation_probs.clone().unwrap());  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].clone().unwrap());  
                         } 
                     }      
                 }

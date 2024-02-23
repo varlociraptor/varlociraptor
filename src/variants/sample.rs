@@ -99,27 +99,38 @@ impl RecordBuffer {
         if let Some(methylation_probs) = &mut self.methylation_probs {
             for rec in self.inner.iter() {
                 let record = SingleEndEvidence::new(rec.to_owned());
-                let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + 
-                    &rec.inner.core.pos.to_string() + 
-                    &rec.inner.core.flag.to_string() + 
+                let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + "_" +
+                    &rec.inner.core.pos.to_string() + "_" +
+                    &rec.inner.core.flag.to_string() + "_" +
+                    &rec.tid().to_string() + "_" +
                     &rec.cigar_cached().unwrap().to_string();
+                // Compute methylation probs out of MM and ML tag and save in methylation_probs
                 if methylation_probs.get(&rec_id).is_none() {
-                    // METHOD: we need to fetch the methylation probabilities for the reads in the interval
-                    // to be able to calculate the methylation probabilities for the variant.
-                    // This is done by fetching the reads and then iterating over them to calculate the
-                    // methylation probabilities.
                     let meth_pos = meth_pos(&record).unwrap();
                     let meth_probs = meth_probs(&record).unwrap();
                     let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
                     methylation_probs.insert(rec_id, pos_to_probs.clone());     
                 }
             }
+            // Delete all reads on methylation_probs that are not considered anymore
+            let buffer_tid = self.inner.tid().unwrap();
+            let buffer_start = self.inner.start().unwrap() as i32;
+            if let Some(methylation_probs_map) = &mut self.methylation_probs {
+                let keys_to_remove: Vec<_> = methylation_probs_map
+                    .iter()
+                    .filter(|(key, _value)| {
+                        let key_parts: Vec<_> = key.split('_').collect();
+                        let rec_tid = key_parts[3].parse::<i32>().unwrap_or_default();
+                        let rec_pos = key_parts[1].parse::<i32>().unwrap_or_default();
+                        rec_tid != buffer_tid || rec_pos < buffer_start
+                    })
+                    .map(|(key, _value)| key.clone())
+                    .collect();
             
-            // METHOD: clean up methylation probabilities for reads that are not anymore in the interval.
-            // Use self.inner.tid() to check the current contig and remove all methylation_probs entries for
-            // other contigs.
-            // Use self.inner.start() to remove all methylation_probs entries for reads that are starting before
-            // self.inner.start().
+                for key in keys_to_remove {
+                    methylation_probs_map.remove(&key);
+                }
+            }
         }
         
         Ok(())
