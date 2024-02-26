@@ -70,9 +70,10 @@ impl RecordBuffer {
     pub(crate) fn get_methylation_probs(&self, record: Rc<Record>) -> Option<HashMap<usize, LogProb>>{
         match self.methylation_probs() {
             Some(meth_probs) => {
-                let rec_id = String::from_utf8(record.qname().to_vec()).unwrap() + 
-                    &record.inner.core.pos.to_string() + 
-                    &record.inner.core.flag.to_string() + 
+                let rec_id = String::from_utf8(record.qname().to_vec()).unwrap() + "_" +
+                    &record.inner.core.pos.to_string() + "_" +
+                    &record.inner.core.flag.to_string() + "_" +
+                    &record.tid().to_string() + "_" +
                     &record.cigar_cached().unwrap().to_string();
                 meth_probs.get(&rec_id).cloned()
             }
@@ -95,10 +96,13 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-
+// 17374194
         if let Some(methylation_probs) = &mut self.methylation_probs {
             for rec in self.inner.iter() {
                 let record = SingleEndEvidence::new(rec.to_owned());
+                if rec.inner.core.pos == 17374194 {
+                    warn!("Debug");
+                }
                 let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + "_" +
                     &rec.inner.core.pos.to_string() + "_" +
                     &rec.inner.core.flag.to_string() + "_" +
@@ -113,24 +117,24 @@ impl RecordBuffer {
                 }
             }
             // Delete all reads on methylation_probs that are not considered anymore
-            let buffer_tid = self.inner.tid().unwrap();
-            let buffer_start = self.inner.start().unwrap() as i32;
-            if let Some(methylation_probs_map) = &mut self.methylation_probs {
-                let keys_to_remove: Vec<_> = methylation_probs_map
-                    .iter()
-                    .filter(|(key, _value)| {
-                        let key_parts: Vec<_> = key.split('_').collect();
-                        let rec_tid = key_parts[3].parse::<i32>().unwrap_or_default();
-                        let rec_pos = key_parts[1].parse::<i32>().unwrap_or_default();
-                        rec_tid != buffer_tid || rec_pos < buffer_start
-                    })
-                    .map(|(key, _value)| key.clone())
-                    .collect();
+            // let buffer_tid = self.inner.tid().unwrap();
+            // let buffer_start = self.inner.start().unwrap() as i32;
+            // if let Some(methylation_probs_map) = &mut self.methylation_probs {
+            //     let keys_to_remove: Vec<_> = methylation_probs_map
+            //         .iter()
+            //         .filter(|(key, _value)| {
+            //             let key_parts: Vec<_> = key.split('_').collect();
+            //             let rec_tid = key_parts[3].parse::<i32>().unwrap_or_default();
+            //             let rec_pos = key_parts[1].parse::<i32>().unwrap_or_default();
+            //             rec_tid != buffer_tid || rec_pos < buffer_start
+            //         })
+            //         .map(|(key, _value)| key.clone())
+            //         .collect();
             
-                for key in keys_to_remove {
-                    methylation_probs_map.remove(&key);
-                }
-            }
+            //     for key in keys_to_remove {
+            //         methylation_probs_map.remove(&key);
+            //     }
+            // }
         }
         
         Ok(())

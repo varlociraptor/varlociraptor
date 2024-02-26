@@ -557,7 +557,10 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                
+                if candidate.left.inner.core.pos == 17374194 {
+                    warn!("Debug");
+                }
+                let prob_meth = buffer.get_methylation_probs(candidate.left.clone());
                 let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);

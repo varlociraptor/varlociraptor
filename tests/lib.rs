@@ -170,6 +170,8 @@ testcase!(test_nanopore_03, homopolymer);
 testcase!(test_nanopore_04, homopolymer);
 testcase!(test_nanopore_05, homopolymer);
 
+
+
 testcase!(test_haplotype_absent, exact);
 testcase!(test_haplotype_present, exact);
 testcase!(test_haplotype_singleton, exact);
