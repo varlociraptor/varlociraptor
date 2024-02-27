@@ -100,9 +100,6 @@ impl RecordBuffer {
         if let Some(methylation_probs) = &mut self.methylation_probs {
             for rec in self.inner.iter() {
                 let record = SingleEndEvidence::new(rec.to_owned());
-                if rec.inner.core.pos == 17374194 {
-                    warn!("Debug");
-                }
                 let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + "_" +
                     &rec.inner.core.pos.to_string() + "_" +
                     &rec.inner.core.flag.to_string() + "_" +
@@ -117,24 +114,24 @@ impl RecordBuffer {
                 }
             }
             // Delete all reads on methylation_probs that are not considered anymore
-            // let buffer_tid = self.inner.tid().unwrap();
-            // let buffer_start = self.inner.start().unwrap() as i32;
-            // if let Some(methylation_probs_map) = &mut self.methylation_probs {
-            //     let keys_to_remove: Vec<_> = methylation_probs_map
-            //         .iter()
-            //         .filter(|(key, _value)| {
-            //             let key_parts: Vec<_> = key.split('_').collect();
-            //             let rec_tid = key_parts[3].parse::<i32>().unwrap_or_default();
-            //             let rec_pos = key_parts[1].parse::<i32>().unwrap_or_default();
-            //             rec_tid != buffer_tid || rec_pos < buffer_start
-            //         })
-            //         .map(|(key, _value)| key.clone())
-            //         .collect();
+            let buffer_tid = self.inner.tid().unwrap();
+            let buffer_start = self.inner.start().unwrap() as i32;
+            if let Some(methylation_probs_map) = &mut self.methylation_probs {
+                let keys_to_remove: Vec<_> = methylation_probs_map
+                    .iter()
+                    .filter(|(key, _value)| {
+                        let key_parts: Vec<_> = key.split('_').collect();
+                        let rec_tid = key_parts[3].parse::<i32>().unwrap_or_default();
+                        let rec_pos = key_parts[1].parse::<i32>().unwrap_or_default();
+                        rec_tid != buffer_tid || rec_pos < buffer_start
+                    })
+                    .map(|(key, _value)| key.clone())
+                    .collect();
             
-            //     for key in keys_to_remove {
-            //         methylation_probs_map.remove(&key);
-            //     }
-            // }
+                for key in keys_to_remove {
+                    methylation_probs_map.remove(&key);
+                }
+            }
         }
         
         Ok(())
@@ -343,7 +340,6 @@ impl Sample {
         } else {
             None
         };
-        // warn!("Wie oft");
         let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
@@ -379,10 +375,10 @@ impl Sample {
     EnumVariantNames,
 )]
 pub enum Readtype {
+    #[strum(serialize = "Nanopore")]
+    Nanopore,
     #[strum(serialize = "Illumina")]
     Illumina,
     #[strum(serialize = "PacBio")]
     PacBio,
-    #[strum(serialize = "Nanopore")]
-    Nanopore,
 }

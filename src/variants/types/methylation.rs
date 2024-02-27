@@ -72,7 +72,7 @@ pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
                 pos_read_base.reverse()
             }
             
-            // Compute which Cs are methylated with help of mmtag
+            // Compute which Cs are methylated with help of the MM-tag
             mm.pop();
             if let Some(methylated_part) = mm.strip_prefix("C+m,") {
                 let mut meth_pos = 0;
@@ -85,7 +85,6 @@ pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
                             meth_pos
                         }) // methylated Cs
                     })
-                    // .filter(|&pos| pos <= pos_read_base.len())// If last C is not methylated, there has been added one C to much (lass ich erstmal noch drin)
                     .map(|pos| pos_read_base[pos - 1])// Chose only the positions of methylated Cs out of all Cs
                     .collect();
 
@@ -132,21 +131,12 @@ pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
 fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) -> (LogProb, LogProb) {
     let prob_alt;
     let prob_ref;
- 
-    let mut vec: Vec<_> = pos_to_probs.clone().into_iter().collect();
-    // Sortiere den Vektor nach der ersten Zahl in jedem Tupel
-    vec.sort_by(|a, b| a.0.cmp(&b.0));
-
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
         prob_alt = *value;
         prob_ref = LogProb(1_f64 - *prob_alt);
-        // warn!("modified, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
-        // prob_ref = LogProb::from(Prob(0.99));
-        
     } else {
         prob_alt = LogProb::from(Prob(0.01));
         prob_ref = LogProb::from(Prob(0.99));
-        // warn!("unmodified, {:?}, {:?}, {:?}", read_id, qpos, read_reverse_strand(record.inner.core.flag));
     }
     (prob_alt, prob_ref)
 }
@@ -190,10 +180,6 @@ fn compute_probs_illumina(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -
 
 fn process_read(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
-    if read.inner.core.pos == 44672446 {
-        warn!("debug");
-    }
-    warn!("{:?}", read.inner.core.pos);
     let reverse_read = read_reverse_strand(read.inner.core.flag);
     let is_invalid = read_invalid(read.inner.core.flag);
     let mutation_occurred = mutation_occurred(reverse_read, read, qpos);
