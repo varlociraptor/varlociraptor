@@ -93,6 +93,10 @@ pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
                 } 
                 return Ok(pos_methylated_cs);
             }
+            // No methylation info in this read
+            else {
+                return Ok(Vec::new());
+            }
         }
     } else {
         error!("MM tag in bam file is not valid");
