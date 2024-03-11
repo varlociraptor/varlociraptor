@@ -96,13 +96,9 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-// 17374194
         if let Some(methylation_probs) = &mut self.methylation_probs {
             for rec in self.inner.iter() {
                 let record = SingleEndEvidence::new(rec.to_owned());
-                if rec.inner.core.pos == 804364{
-                    warn!("Debug")
-                }
                 let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + "_" +
                     &rec.inner.core.pos.to_string() + "_" +
                     &rec.inner.core.flag.to_string() + "_" +
@@ -110,7 +106,6 @@ impl RecordBuffer {
                     &rec.cigar_cached().unwrap().to_string();
                 // Compute methylation probs out of MM and ML tag and save in methylation_probs
                 if methylation_probs.get(&rec_id).is_none() {
-                    warn!("{:?}", rec_id);
                     let meth_pos = meth_pos(&record).unwrap();
                     let meth_probs = meth_probs(&record).unwrap();
                     let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();

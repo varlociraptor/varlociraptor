@@ -114,7 +114,7 @@ pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
     let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
-        let mut ml: Vec<LogProb> = tag_value.iter().map(|val| LogProb((f64::from(val) + 0.5) / 256.0)).collect();
+        let mut ml: Vec<LogProb> = tag_value.iter().map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0))).collect();
         if read_reverse{
             ml.reverse();
         }
@@ -136,8 +136,8 @@ fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) 
     let prob_alt;
     let prob_ref;
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
-        prob_alt = *value;
-        prob_ref = LogProb(1_f64 - *prob_alt);
+        prob_alt = value.to_owned();
+        prob_ref = LogProb::from(Prob(1 as f64 - prob_alt.0.exp()));
     } else {
         prob_alt = LogProb::from(Prob(0.01));
         prob_ref = LogProb::from(Prob(0.99));
