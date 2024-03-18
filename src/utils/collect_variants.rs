@@ -35,7 +35,7 @@ pub(crate) struct VariantInfo {
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub(crate) fn collect_variants(
+pub fn collect_variants(
     record: &mut bcf::Record,
     skip_imprecise: bool,
     skips: Option<&mut SimpleCounter<SkipReason>>,
