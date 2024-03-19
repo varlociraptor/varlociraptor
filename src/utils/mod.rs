@@ -30,7 +30,7 @@ use crate::Event;
 pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod aux_info;
-pub(crate) mod collect_variants;
+pub mod collect_variants;
 pub(crate) mod comparison;
 pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
