@@ -39,7 +39,11 @@ impl VAFTree {
         }
     }
 
-    pub(crate) fn contains(&self, operands: &LikelihoodOperands, exclude_sample: Option<usize>) -> bool {
+    pub(crate) fn contains(
+        &self,
+        operands: &LikelihoodOperands,
+        exclude_sample: Option<usize>,
+    ) -> bool {
         self.inner.iter().any(|node| {
             let mut lfcs = operands.lfcs().iter().collect();
             node.contains(operands, &mut lfcs, exclude_sample)
@@ -161,7 +165,11 @@ impl Node {
 }
 
 impl VAFTree {
-    pub(crate) fn new(formula: &NormalizedFormula, scenario: &Scenario, contig: &str) -> Result<Self> {
+    pub(crate) fn new(
+        formula: &NormalizedFormula,
+        scenario: &Scenario,
+        contig: &str,
+    ) -> Result<Self> {
         fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Node>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
