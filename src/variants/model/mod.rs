@@ -33,10 +33,10 @@ pub(crate) struct Contamination {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub(crate) struct Event {
-    pub(crate) name: String,
-    pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Vec<Artifacts>,
+pub struct Event {
+    pub name: String,
+    pub vafs: grammar::VAFTree,
+    pub biases: Vec<Artifacts>,
 }
 
 impl Event {
