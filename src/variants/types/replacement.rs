@@ -19,7 +19,6 @@ use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
-use crate::variants::evidence::observations::read_observation::Evidence;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };

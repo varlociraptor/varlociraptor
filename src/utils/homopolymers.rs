@@ -12,7 +12,6 @@ use crate::{estimation::alignment_properties::AlignmentProperties, variants::typ
 pub(crate) struct HomopolymerIndelOperation {
     len: i8,
     text_pos: usize,
-    base: u8,
 }
 
 impl HomopolymerIndelOperation {
@@ -58,7 +57,6 @@ impl HomopolymerIndelOperation {
         let mut rpos = 0;
         let mut qpos = 0;
         let mut homopolymer_indel_len = None;
-        let mut homopolymer_base = None;
         let mut text_pos = 0;
 
         let is_extendable_stretch = |rpos, base| {
@@ -91,7 +89,6 @@ impl HomopolymerIndelOperation {
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(-(len as i8));
-                            homopolymer_base = Some(text[rpos]);
                             text_pos = rpos;
                         } else {
                             // METHOD: more complex indel situation, not considered for homopolymer error handling.
@@ -107,7 +104,6 @@ impl HomopolymerIndelOperation {
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(len as i8);
-                            homopolymer_base = Some(pattern[qpos]);
                             text_pos = rpos;
                         } else {
                             // METHOD: more complex indel situation, not considered for homopolymer error handling.
@@ -127,11 +123,7 @@ impl HomopolymerIndelOperation {
             }
         }
 
-        homopolymer_indel_len.map(|len| HomopolymerIndelOperation {
-            len,
-            text_pos,
-            base: homopolymer_base.unwrap(),
-        })
+        homopolymer_indel_len.map(|len| HomopolymerIndelOperation { len, text_pos })
     }
 }
 

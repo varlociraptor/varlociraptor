@@ -16,6 +16,7 @@ pub(crate) struct Buffer {
 }
 
 impl Buffer {
+    #[allow(dead_code)]
     pub(crate) fn new(fasta: fasta::IndexedReader<fs::File>, capacity: usize) -> Self {
         Buffer {
             reader: RwLock::new(fasta),

@@ -178,7 +178,7 @@ pub trait Testcase {
     }
 
     fn sample_observations_path(&self, sample_name: &str) -> PathBuf {
-        let mut path = self.path().join("observations").join(sample_name);
+        let path = self.path().join("observations").join(sample_name);
 
         path
     }

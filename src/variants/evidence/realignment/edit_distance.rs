@@ -398,10 +398,9 @@ impl EditDistanceCalculation {
             // relative position in the emission snippet we have aligned against
             let mut pos_ref = alignment.start;
             let mut pos_read = 0; // semiglobal alignment
-            let mut end_reduce = 0;
 
             let mut allele = Vec::new();
-            let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
+            let _opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
 
@@ -426,7 +425,6 @@ impl EditDistanceCalculation {
                     AlignmentOperation::Del => {
                         if is_in_range {
                             pos_ref += 1;
-                            end_reduce += 1;
                         } else {
                             emission_params.ref_base(pos_ref);
                             pos_ref += 1;

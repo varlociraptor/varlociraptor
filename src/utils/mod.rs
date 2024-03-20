@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::{AddAssign, Deref};
 use std::path::PathBuf;
@@ -650,33 +650,4 @@ where
             *self.inner.entry(k).or_insert(0) += v;
         });
     }
-}
-
-/// Format to given precision
-/// Taken from https://stackoverflow.com/a/60498499/7070491
-pub(crate) fn signif(float: f64, precision: usize) -> String {
-    // compute absolute value
-    let a = float.abs();
-
-    // if abs value is greater than 1, then precision becomes less than "standard"
-    let precision = if a >= 1. {
-        // reduce by number of digits, minimum 0
-        let n = (1. + a.log10().floor()) as usize;
-        if n <= precision {
-            precision - n
-        } else {
-            0
-        }
-    // if precision is less than 1 (but non-zero), then precision becomes greater than "standard"
-    } else if a > 0. {
-        // increase number of digits
-        let n = -(1. + a.log10().floor()) as usize;
-        precision + n
-    // special case for 0
-    } else {
-        0
-    };
-
-    // format with the given computed precision
-    format!("{0:.1$}", float, precision)
 }

@@ -24,7 +24,7 @@
 ##INFO=<ID=HOMOPOLYMER_INDEL_LEN,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
 ##INFO=<ID=IS_MAX_MAPQ,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
 ##INFO=<ID=ALT_LOCUS,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
-##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"ref.fa","candidates":"candidates.vcf","bam":"normal.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"NA12878-minion-ul_GRCh38.alignment-properties.json","output":null,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"homopolymer","log_mode":"default","output_raw_observations":null}}}}
+##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"ref.fa","candidates":"candidates.vcf","bam":"normal.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"NA12878-minion-ul_GRCh38.alignment-properties.json","output":null,"_protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"homopolymer","log_mode":"default","output_raw_observations":null}}}}
 ##varlociraptor_observation_format_version=13
 ##bcftools_viewVersion=1.10.2+htslib-1.10.2
 ##bcftools_viewCommand=view candidates.preprocessed.homopolymer.bcf; Date=Thu Mar 10 12:05:02 2022
