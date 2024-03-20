@@ -10,12 +10,12 @@ use crate::variants::model::modes::generic::{LikelihoodOperands, VafLfc};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct VAFTree {
+pub struct VAFTree {
     inner: Vec<Node>,
 }
 
 impl VAFTree {
-    pub(crate) fn absent(n_samples: usize) -> Self {
+    pub fn absent(n_samples: usize) -> Self {
         assert!(n_samples > 0, "bug: n_samples must be > 0");
 
         fn absent(sample: usize, n_samples: usize) -> Node {
@@ -39,7 +39,7 @@ impl VAFTree {
         }
     }
 
-    pub(crate) fn contains(
+    pub fn contains(
         &self,
         operands: &LikelihoodOperands,
         exclude_sample: Option<usize>,
