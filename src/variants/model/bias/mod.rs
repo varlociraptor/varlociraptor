@@ -112,7 +112,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
 }
 
 #[derive(Builder, CopyGetters, Getters, Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct Artifacts {
+pub struct Artifacts {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
     #[getset(get = "pub(crate)")]

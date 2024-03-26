@@ -33,10 +33,10 @@ pub(crate) struct Contamination {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub(crate) struct Event {
-    pub(crate) name: String,
-    pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Vec<Artifacts>,
+pub struct Event {
+    pub name: String,
+    pub vafs: grammar::VAFTree,
+    pub biases: Vec<Artifacts>,
 }
 
 impl Event {
@@ -151,13 +151,13 @@ impl Deref for ContinuousAlleleFreqs {
 }
 
 #[derive(Hash, Debug, Eq, PartialEq, Clone)]
-pub(crate) enum HaplotypeIdentifier {
+pub enum HaplotypeIdentifier {
     Event(Vec<u8>),
     //PhaseSet { phase_set: u32, genotype: Genotype },
 }
 
 impl HaplotypeIdentifier {
-    pub(crate) fn from(record: &mut bcf::Record) -> Result<Option<Self>> {
+    pub fn from(record: &mut bcf::Record) -> Result<Option<Self>> {
         if let Ok(Some(event)) = record.info(b"EVENT").string() {
             let event = event[0];
             return Ok(Some(HaplotypeIdentifier::Event(event.to_owned())));

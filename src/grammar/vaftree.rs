@@ -10,12 +10,12 @@ use crate::variants::model::modes::generic::{LikelihoodOperands, VafLfc};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct VAFTree {
+pub struct VAFTree {
     inner: Vec<Node>,
 }
 
 impl VAFTree {
-    pub(crate) fn absent(n_samples: usize) -> Self {
+    pub fn absent(n_samples: usize) -> Self {
         assert!(n_samples > 0, "bug: n_samples must be > 0");
 
         fn absent(sample: usize, n_samples: usize) -> Node {
@@ -61,7 +61,7 @@ impl<'a> IntoIterator for &'a VAFTree {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum NodeKind {
+pub enum NodeKind {
     Variant {
         refbase: Iupac,
         altbase: Iupac,
@@ -82,14 +82,14 @@ pub(crate) enum NodeKind {
 
 #[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
 #[get = "pub"]
-pub(crate) struct Node {
+pub struct Node {
     kind: NodeKind,
     #[new(default)]
     children: Vec<Node>,
 }
 
 impl Node {
-    pub(crate) fn leafs(&mut self) -> Vec<&mut Node> {
+    pub fn leafs(&mut self) -> Vec<&mut Node> {
         fn collect_leafs<'a>(node: &'a mut Node, leafs: &mut Vec<&'a mut Node>) {
             if node.children.is_empty() {
                 leafs.push(node);
@@ -105,15 +105,15 @@ impl Node {
         leafs
     }
 
-    pub(crate) fn is_leaf(&self) -> bool {
+    pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
 
-    pub(crate) fn is_branching(&self) -> bool {
+    pub fn is_branching(&self) -> bool {
         self.children.len() > 1
     }
 
-    pub(crate) fn contains(
+    pub fn contains(
         &self,
         operands: &LikelihoodOperands,
         lfcs: &mut Vec<&VafLfc>,

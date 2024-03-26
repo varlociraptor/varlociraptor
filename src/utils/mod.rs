@@ -587,7 +587,7 @@ mod tests {
 }
 
 #[derive(CopyGetters, Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct SimpleCounter<T>
+pub struct SimpleCounter<T>
 where
     T: Eq + Hash + Debug,
 {
@@ -654,7 +654,7 @@ where
 
 /// Format to given precision
 /// Taken from https://stackoverflow.com/a/60498499/7070491
-pub(crate) fn signif(float: f64, precision: usize) -> String {
+pub fn signif(float: f64, precision: usize) -> String {
     // compute absolute value
     let a = float.abs();
 
