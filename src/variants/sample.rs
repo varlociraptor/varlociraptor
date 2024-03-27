@@ -277,6 +277,7 @@ impl Sample {
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
+        dbg!(major_pos);
         let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
         let mut observations: Vec<_> = observations
             .iter()
