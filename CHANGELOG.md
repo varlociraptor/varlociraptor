@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.6](https://github.com/varlociraptor/varlociraptor/compare/v8.4.5...v8.4.6) (2024-03-27)
+
+
+### Bug Fixes
+
+* fix bug during calculation of read position bias ([#422](https://github.com/varlociraptor/varlociraptor/issues/422)) ([33d98b6](https://github.com/varlociraptor/varlociraptor/commit/33d98b6f26e56fc8cfbc40db718805200674d196))
+* fix decompression of CRAM files that rely on an external reference FASTA. Varlociraptor now uses the given reference FASTA for this decompression ([#420](https://github.com/varlociraptor/varlociraptor/issues/420)) ([75810c6](https://github.com/varlociraptor/varlociraptor/commit/75810c603b7fd3d0fc7b9926c75c28686b7f80c8))
+
 ## [8.4.5](https://github.com/varlociraptor/varlociraptor/compare/v8.4.4...v8.4.5) (2024-02-21)
 
 
