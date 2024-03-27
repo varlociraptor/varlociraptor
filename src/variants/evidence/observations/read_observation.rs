@@ -532,6 +532,7 @@ pub(crate) fn major_alt_locus(
     calc_major_feature(
         pileup
             .iter()
+            // TODO filter for alt obs only?
             //.filter(|obs| obs.prob_alt > obs.prob_ref)
             .flat_map(|obs| {
                 obs.alt_locus
