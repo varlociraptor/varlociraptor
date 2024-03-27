@@ -516,18 +516,29 @@ where
 pub(crate) fn major_read_position(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
 ) -> Option<u32> {
-    calc_major_feature(pileup.iter().filter_map(|obs| obs.read_position))
+    calc_major_feature(pileup.iter().filter_map(|obs| {
+        if obs.prob_alt > obs.prob_ref {
+            obs.read_position
+        } else {
+            None
+        }
+    }))
 }
 
 pub(crate) fn major_alt_locus(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
     alignment_properties: &AlignmentProperties,
 ) -> Option<genome::Locus> {
-    calc_major_feature(pileup.iter().flat_map(|obs| {
-        obs.alt_locus
+    calc_major_feature(
+        pileup
             .iter()
-            .map(|locus| locus_to_bucket(locus, alignment_properties))
-    }))
+            //.filter(|obs| obs.prob_alt > obs.prob_ref)
+            .flat_map(|obs| {
+                obs.alt_locus
+                    .iter()
+                    .map(|locus| locus_to_bucket(locus, alignment_properties))
+            }),
+    )
 }
 
 pub(crate) fn locus_to_bucket(
