@@ -50,7 +50,15 @@ impl Methylation {
 ///
 /// pos_methylated_cs: Vector of positions of methylated Cs in Read
 pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
-    let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
+    let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
+        (Ok(tag), _) => tag,
+        (_, Ok(tag)) => tag,
+        _ => {
+            panic!("MM value not found");
+        }
+    };
+    
+    // let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
     if let Aux::String(tag_value) = mm_tag {
         let mut mm = tag_value.to_owned();
         
@@ -111,7 +119,14 @@ pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
 ///
 /// ml: Vector of methylation probabilities
 pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
-    let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
+    let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
+        (Ok(tag), _) => tag,
+        (_, Ok(tag)) => tag,
+        _ => {
+            panic!("ML value not found");
+        }
+    };
+    // let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
         let mut ml: Vec<LogProb> = tag_value.iter().map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0))).collect();
@@ -164,7 +179,7 @@ fn get_qpos(read: &Rc<Record> , locus: &SingleLocus) -> Option<i32> {
 /// # Returns
 ///
 /// prob_alt: Probability of methylation (alternative)
-/// prob_ref: Probaability of no methylation (reference)
+/// prob_ref: Probability of no methylation (reference)
 fn compute_probs_illumina(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -> (LogProb, LogProb){
     let (pos_in_read, ref_base, bisulfite_base) = if !reverse_read {
         (qpos, b'C', b'T')
@@ -178,9 +193,9 @@ fn compute_probs_illumina(reverse_read: bool, record:  &Rc<Record>, qpos: i32) -
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let no_c = if read_base != ref_base { read_base } else { bisulfite_base };
     let prob_ref = prob_read_base(read_base, no_c, base_qual);
-    
     (prob_alt, prob_ref)
 }
+
 
 fn process_read(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
