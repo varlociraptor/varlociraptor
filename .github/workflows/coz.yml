@@ -22,8 +22,8 @@ jobs:
         git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
         git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
     - name: Build with debug information
-      run: cargo build --verbose -g -gdwarf-3
+      run: cargo build --verbose
     - name: Varlociraptor help
       run: cargo run --release -- --help
     - name: Run Coz
-      run: coz run --release -- ./path/to/your/program
+      run: coz run --release -- 
