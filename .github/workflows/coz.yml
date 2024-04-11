@@ -14,7 +14,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
+    - name: Install Coz
+      run: |
+        sudo apt-get update
+        sudo apt-get install libdwarf-dev
+        sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
+        git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
+        git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+    - name: Build with debug information
+      run: cargo build --verbose -g -gdwarf-3
     - name: Varlociraptor help
       run: cargo run --release -- --help
+    - name: Run Coz
+      run: coz run --release -- ./path/to/your/program
