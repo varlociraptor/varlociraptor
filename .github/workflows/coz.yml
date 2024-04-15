@@ -14,7 +14,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install Dependencies
+    # - name: Install Dependencies
     #   run: |
     #     sudo apt-get update
     #     sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
