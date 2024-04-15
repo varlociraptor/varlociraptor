@@ -26,7 +26,8 @@ jobs:
     - name: Check Installation
       run: |
         coz run --help
-        sudo find / -name "libdwarf++.so.0" -type f
+        cargo rustc --release -- -C debuginfo=2 -C debug-assertions=on -g -gdwarf-3
+
     # - name: Run Varlo
     #   run : |
     #     pwd
