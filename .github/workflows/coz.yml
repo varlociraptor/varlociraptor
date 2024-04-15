@@ -14,17 +14,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install Coz
+    - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install libdwarf-dev
-        sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
+        sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
+    - name: Install Coz
+      run: |
         git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
         git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
     - name: Prepare Coz
       run: |
         sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
-        sudo apt-get install libbz2-dev libsqlite3-dev
         cd coz/benchmarks && cmake . && make && cd ../..
         coz run --- ./coz/benchmarks/toy/toy
         
