@@ -27,8 +27,10 @@ jobs:
     - name: Check Installation
       run: |
         coz run --help
-
-
+    - name: Build varlo
+      run: |
+        export RUSTFLAGS="-C link-arg=-gdwarf-3"
+        cargo build --release
     # - name: Run Varlo
     #   run : |
     #     pwd
