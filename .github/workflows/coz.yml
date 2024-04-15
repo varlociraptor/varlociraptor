@@ -26,4 +26,4 @@ jobs:
     - name: Varlociraptor help
       run: cargo run --release -- --help
     - name: Run Coz
-      run: coz run --release -- 
+      run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/ref.fa --candidates /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/candidates.vcf --bam /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/normal.bam --read-type Nanopore
