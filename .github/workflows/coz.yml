@@ -37,7 +37,12 @@ jobs:
     - name: Build varlo
       run: |
         # export RUSTFLAGS="-C link-arg=-gdwarf-3"
-        cargo build --release
+        # cargo build --release
+        ls /usr/lib/libdwarf++.so.0
+        sudo ldconfig
+        echo $LD_LIBRARY_PATH
+        export LD_LIBRARY_PATH=/pfad/zur/libelfin:$LD_LIBRARY_PATH
+
     # - name: Run Varlo
     #   run : |
     #     pwd
