@@ -14,24 +14,24 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    # - name: Install Dependencies
-    #   run: |
-    #     sudo apt-get update
-    #     sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
-    # - name: Install Coz
-    #   run: |
-    #     git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
-    #     git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-    #     sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
-    # - name: Check Installation
-    #   run: coz run --help
-    - name: Run Varlo
-      run : |
-        pwd
-        ls -R tests/resources/coz_profiling
-        cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
-    # - name: Run Coz
-    #   run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
+    - name: Install Coz
+      run: |
+        git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
+        git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+    - name: Check Installation
+      run: coz run --help
+    # - name: Run Varlo
+    #   run : |
+    #     pwd
+    #     ls -R tests/resources/coz_profiling
+    #     cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
+    - name: Run Coz
+      run: coz run --- cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
     
     
     
