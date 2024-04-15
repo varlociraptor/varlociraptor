@@ -28,8 +28,8 @@ jobs:
     - name: Run Varlo
       run : |
         pwd
-        ls -R tests/resources/
-        # cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
+        ls -R tests/resources/coz_profiling
+        cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
     # - name: Run Coz
     #   run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
     
