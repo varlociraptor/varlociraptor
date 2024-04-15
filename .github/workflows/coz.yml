@@ -21,9 +21,16 @@ jobs:
         sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
         git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
         git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-    - name: Build with debug information
-      run: cargo build --verbose
-    - name: Varlociraptor help
-      run: cargo run --release -- --help
-    - name: Run Coz
-      run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/ref.fa --candidates /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/candidates.vcf --bam /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/normal.bam --read-type Nanopore
+    - name: Prepare Coz
+      run: |
+        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+        sudo apt-get install libbz2-dev libsqlite3-dev
+        cd coz/benchmarks && cmake . && make && cd ../..
+        coz run --- ./coz/benchmarks/toy/toy
+        
+    # - name: Build with debug information
+    #   run: cargo build --verbose
+    # - name: Varlociraptor help
+    #   run: cargo run --release -- --help
+    # - name: Run Coz
+      # run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/ref.fa --candidates /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/candidates.vcf --bam /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/normal.bam --read-type Nanopore
