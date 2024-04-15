@@ -21,14 +21,14 @@ jobs:
     - name: Install Coz
       run: |
         # From source: 
-        sudo apt-get update
-        sudo apt-get install libdwarf-dev
-        sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
-        git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
-        git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
-      # Install normal
-      # sudo apt install coz-profiler
+        # sudo apt-get update
+        # sudo apt-get install libdwarf-dev
+        # sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
+        # git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
+        # git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+        # sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+        Install normal
+        sudo apt install coz-profiler
       # Found on: https://github.com/plasma-umass/coz/issues/107#issuecomment-1063169616
       # git clone https://github.com/antoyo/libelfin.git && cd libelfin && make && sudo make install && cd ..
     - name: Check Installation
@@ -38,10 +38,10 @@ jobs:
       run: |
         # export RUSTFLAGS="-C link-arg=-gdwarf-3"
         # cargo build --release
-        ls /usr/lib/libdwarf++.so.0
-        sudo ldconfig
-        echo $LD_LIBRARY_PATH
-        export LD_LIBRARY_PATH=/pfad/zur/libelfin:$LD_LIBRARY_PATH
+        # ls /usr/lib/libdwarf++.so.0
+        # sudo ldconfig
+        # echo $LD_LIBRARY_PATH
+        # export LD_LIBRARY_PATH=/pfad/zur/libelfin:$LD_LIBRARY_PATH
 
     # - name: Run Varlo
     #   run : |
