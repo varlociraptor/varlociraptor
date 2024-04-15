@@ -20,17 +20,23 @@ jobs:
       #   sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
     - name: Install Coz
       run: |
-        sudo apt install coz-profiler
-        git clone https://github.com/antoyo/libelfin.git && cd libelfin && make && sudo make install && cd ..
-        # git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
-        # git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-        # sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+        # From source: 
+        sudo apt-get update
+        sudo apt-get install libdwarf-dev
+        sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
+        git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
+        git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+      # Install normal
+      # sudo apt install coz-profiler
+      # Found on: https://github.com/plasma-umass/coz/issues/107#issuecomment-1063169616
+      # git clone https://github.com/antoyo/libelfin.git && cd libelfin && make && sudo make install && cd ..
     - name: Check Installation
       run: |
         coz run --help
     - name: Build varlo
       run: |
-        export RUSTFLAGS="-C link-arg=-gdwarf-3"
+        # export RUSTFLAGS="-C link-arg=-gdwarf-3"
         cargo build --release
     # - name: Run Varlo
     #   run : |
