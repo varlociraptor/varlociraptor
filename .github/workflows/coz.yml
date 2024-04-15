@@ -15,18 +15,19 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
+      # run: |
+      #   sudo apt-get update
+      #   sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
     - name: Install Coz
       run: |
-        git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
-        git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+        sudo apt install coz-profiler
+        # git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
+        # git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+        # sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
     - name: Check Installation
       run: |
         coz run --help
-        cargo rustc --release -- -C debuginfo=2 -C debug-assertions=on -g -gdwarf-3
+        # cargo rustc --release -- -C debuginfo=2 -C debug-assertions=on -g -gdwarf-3
 
     # - name: Run Varlo
     #   run : |
