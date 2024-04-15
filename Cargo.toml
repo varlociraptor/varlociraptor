@@ -81,6 +81,7 @@ uuid = { version = "0.8", features = ["v4"] }
 vec_map = "0.8"
 yaml-rust = ">=0.4.1,<0.5"
 linear-map = "1.2"
+coz = "0.1"
 
 [dev-dependencies]
 env_logger = "0.9.0"
@@ -95,6 +96,7 @@ use-intrinsics = ["half/use-intrinsics"]
 [profile.release]
 codegen-units = 1
 lto = "fat"
+debug = 1
 
 [profile.develop]
 codegen-units = 128

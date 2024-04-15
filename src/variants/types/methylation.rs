@@ -146,7 +146,7 @@ pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
 /// # Returns
 ///
 /// prob_alt: Probability of methylation (alternative)
-/// prob_ref: Probaability of no methylation (reference)
+/// prob_ref: Probability of no methylation (reference)
 fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) -> (LogProb, LogProb) {
     let prob_alt;
     let prob_ref;
@@ -322,6 +322,8 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
+        coz::scope!("compute_meth");
+
         let qpos = match read {
             PairedEndEvidence::SingleEnd(record) => {
                 get_qpos(record.record(), &self.locus)
@@ -396,6 +398,7 @@ impl Variant for Methylation {
                     }      
                 }
             }
+
             
           
             let strand = if prob_ref != prob_alt {
