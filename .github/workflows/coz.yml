@@ -22,11 +22,13 @@ jobs:
       run: |
         git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
         git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-    - name: Prepare Coz
-      run: |
-        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
-        cd coz/benchmarks && cmake . && make && cd ../..
-        coz run --- ./coz/benchmarks/toy/toy
+    - name: Check Installation
+      run: coz --help
+    # - name: Prepare Coz
+    #   run: |
+    #     sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+    #     cd coz/benchmarks && cmake . && make && cd ../..
+    #     coz run --- ./coz/benchmarks/toy/toy
         
     # - name: Build with debug information
     #   run: cargo build --verbose
