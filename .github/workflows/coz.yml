@@ -21,6 +21,7 @@ jobs:
     - name: Install Coz
       run: |
         sudo apt install coz-profiler
+        git clone git@github.com:antoyo/libelfin.git && cd libelfin && make && sudo make install && cd ..
         # git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
         # git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
         # sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
