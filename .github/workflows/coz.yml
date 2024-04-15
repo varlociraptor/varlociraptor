@@ -22,8 +22,13 @@ jobs:
       run: |
         git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
         git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
     - name: Check Installation
-      run: coz --help
+      run: coz run --help
+    - name: Run Varlo
+      run : cargo run --release -- preprocess variants /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/ref.fa --candidates /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/candidates.vcf --bam /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/normal.bam --read-type Nanopore
+    - name: Run Coz
+      run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/ref.fa --candidates /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/candidates.vcf --bam /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/normal.bam --read-type Nanopore
     # - name: Prepare Coz
     #   run: |
     #     sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
@@ -34,5 +39,3 @@ jobs:
     #   run: cargo build --verbose
     # - name: Varlociraptor help
     #   run: cargo run --release -- --help
-    # - name: Run Coz
-      # run: coz run -g -gdwarf-3 --- cargo run --release -- preprocess variants /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/ref.fa --candidates /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/candidates.vcf --bam /projects/koesterlab/benchmark-methylation/varlociraptor/coz_profiling/normal.bam --read-type Nanopore
