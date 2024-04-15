@@ -27,9 +27,8 @@ jobs:
     - name: Check Installation
       run: |
         coz run --help
-        cargo build --release -g -C debuginfo=2
+        cargo build --release -C debuginfo=2
 
-        # cargo rustc --release -- -C debuginfo=2 -C debug-assertions=on -g -gdwarf-3
 
     # - name: Run Varlo
     #   run : |
