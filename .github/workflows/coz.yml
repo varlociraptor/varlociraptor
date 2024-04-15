@@ -40,7 +40,7 @@ jobs:
     - name: Build varlo
       run: |
         # export RUSTFLAGS="-C link-arg=-gdwarf-3"
-        cargo build --release -C link-arg=-gdwarf-3
+        cargo rustc --release -- -C link-arg=-gdwarf-3
         # ls /usr/lib/libdwarf++.so.0
         # sudo ldconfig
         # echo $LD_LIBRARY_PATH
