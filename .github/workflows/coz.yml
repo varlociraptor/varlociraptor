@@ -21,24 +21,24 @@ jobs:
     - name: Install Coz
       run: |
         # Install normal
-        sudo apt update
-        sudo apt install coz-profiler
+        # sudo apt update
+        # sudo apt install coz-profiler
 
 
         
         # From source: 
-        # sudo apt-get update
-        # sudo apt-get install libdwarf-dev
-        # sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
-        # sudo apt install libelfin-dev
+        sudo apt-get update
+        sudo apt-get install libdwarf-dev
+        sudo apt-get install build-essential cmake docutils-common git python3 pkg-config
+        git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
+        git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
+        sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
+        sudo apt-get install libbz2-dev libsqlite3-dev
+        cd coz/benchmarks && cmake . && make && cd ../..
+        coz run --- ./coz/benchmarks/toy/toy
+        coz plot
 
-        # git clone https://github.com/antoyo/libelfin && cd libelfin && make && sudo make install && cd ..
-        # git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
-        # sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
-        # sudo apt-get install libbz2-dev libsqlite3-dev
-        # cd coz/benchmarks && cmake . && make && cd ../..
-        # coz run --- ./coz/benchmarks/toy/toy
-        # coz plot
+        # sudo apt install libelfin-dev
         
         # Downgrade gcc
         # sudo apt install gcc-10 g++-10
