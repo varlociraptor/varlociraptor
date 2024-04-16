@@ -44,6 +44,21 @@ impl Methylation {
     }
 }
 
+
+/// Looks if the read has MM information
+///
+/// # Returns
+///
+/// bool: Read has MM information
+pub fn mm_exist(read: &SingleEndEvidence) -> bool {
+    let mm_tag_exists = match (read.aux(b"Mm"), read.aux(b"MM")) {
+        (Ok(_), _) | (_, Ok(_)) => true,  // True, wenn einer der Tags existiert
+        _ => false,  // False, wenn keiner der Tags existiert
+    };
+    mm_tag_exists
+}
+    
+
 /// Computes the positions of methylated Cs in PacBio and Nanopore read data
 ///
 /// # Returns
@@ -297,8 +312,8 @@ impl Variant for Methylation {
             if match self.readtype {
                     // Some single PacBio reads don't have an MM:Z value and are therefore not legal
                     Readtype::Illumina => {true},
-                    Readtype::PacBio => {meth_pos(&evidence.into_single_end_evidence()[0]).is_ok()},
-                    Readtype::Nanopore => {meth_pos(&evidence.into_single_end_evidence()[0]).is_ok()},
+                    Readtype::PacBio => {mm_exist(&evidence.into_single_end_evidence()[0])},
+                    Readtype::Nanopore => {mm_exist(&evidence.into_single_end_evidence()[0])},
 
                 } {
                     Some(vec![0])
