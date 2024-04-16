@@ -22,8 +22,12 @@ jobs:
     - name: Install Flamegraph
       run: |
         cargo install flamegraph  
+        echo debug_1
         ls /proc/sys/kernel/
+        echo debug_2
         cat  /etc/sysctl.conf
+        echo debug_3
+        echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
     - name: Run Flamegraph
       run: |
         cargo flamegraph -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore
