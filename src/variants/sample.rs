@@ -38,7 +38,24 @@ pub(crate) struct RecordBuffer {
     #[getset(get = "pub")]
     read_pair_window: u64,
     #[getset(get = "pub")]
-    methylation_probs: Option<HashMap<String, HashMap<usize, LogProb>>>,
+    methylation_probs: Option<HashMap<RecId, HashMap<usize, LogProb>>>,
+}
+
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct RecId {
+    qname: String,
+    pos: i64,
+    flag: u16,
+    tid: i32,
+    cigar: String,
+}
+
+impl RecId {
+    // Eine Hilfsmethode, um eine neue RecId-Instanz aus den Einzelteilen zu erstellen
+    fn new(qname: String, pos: i64, flag: u16, tid: i32, cigar: String) -> Self {
+        RecId { qname, pos, flag, tid, cigar }
+    }
 }
 
 impl RecordBuffer {
@@ -67,14 +84,16 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(&self, record: Rc<Record>) -> Option<HashMap<usize, LogProb>>{
+    pub(crate) fn get_methylation_probs(&self, rec: Rc<Record>) -> Option<HashMap<usize, LogProb>>{
         match self.methylation_probs() {
             Some(meth_probs) => {
-                let rec_id = String::from_utf8(record.qname().to_vec()).unwrap() + "_" +
-                    &record.inner.core.pos.to_string() + "_" +
-                    &record.inner.core.flag.to_string() + "_" +
-                    &record.tid().to_string() + "_" +
-                    &record.cigar_cached().unwrap().to_string();
+                let rec_id = RecId::new(
+                    String::from_utf8(rec.qname().to_vec()).unwrap(),
+                    rec.inner.core.pos,
+                    rec.inner.core.flag,
+                    rec.tid(),
+                    rec.cigar_cached().unwrap().to_string(),
+                );
                 meth_probs.get(&rec_id).cloned()
             }
             None => {
@@ -82,6 +101,8 @@ impl RecordBuffer {
             }
         }
     }
+
+
 
     pub(crate) fn fetch(
         &mut self,
@@ -98,38 +119,30 @@ impl RecordBuffer {
         )?;
         if let Some(methylation_probs) = &mut self.methylation_probs {
             for rec in self.inner.iter() {
-                let record = SingleEndEvidence::new(rec.to_owned());
-                let rec_id = String::from_utf8(rec.qname().to_vec()).unwrap() + "_" +
-                    &rec.inner.core.pos.to_string() + "_" +
-                    &rec.inner.core.flag.to_string() + "_" +
-                    &rec.tid().to_string() + "_" +
-                    &rec.cigar_cached().unwrap().to_string();
+                // let record = SingleEndEvidence::new(rec.to_owned());
+                let rec_id = RecId::new(
+                    String::from_utf8(rec.qname().to_vec()).unwrap(),
+                    rec.inner.core.pos,
+                    rec.inner.core.flag,
+                    rec.tid(),
+                    rec.cigar_cached().unwrap().to_string(),
+                );
                 // Compute methylation probs out of MM and ML tag and save in methylation_probs
                 if methylation_probs.get(&rec_id).is_none() {
-                    let meth_pos = meth_pos(&record).unwrap();
-                    let meth_probs = meth_probs(&record).unwrap();
+                    let meth_pos = meth_pos(
+                        rec).unwrap();
+                    let meth_probs = meth_probs(rec).unwrap();
                     let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
                     methylation_probs.insert(rec_id, pos_to_probs.clone());     
                 }
             }
             // Delete all reads on methylation_probs that are not considered anymore
             if let Some(buffer_tid) = self.inner.tid() {
-                let buffer_start = self.inner.start().unwrap() as i32;
+                let buffer_start = self.inner.start().unwrap() as i64;
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
-                    let keys_to_remove: Vec<_> = methylation_probs_map
-                        .iter()
-                        .filter(|(key, _value)| {
-                            let key_parts: Vec<_> = key.split('_').collect();
-                            let rec_tid = key_parts[3].parse::<i32>().unwrap_or_default();
-                            let rec_pos = key_parts[1].parse::<i32>().unwrap_or_default();
-                            rec_tid != buffer_tid || rec_pos < buffer_start
-                        })
-                        .map(|(key, _value)| key.clone())
-                        .collect();
-                
-                    for key in keys_to_remove {
-                        methylation_probs_map.remove(&key);
-                    }
+                    methylation_probs_map.retain(|key, _value| {
+                        key.tid == buffer_tid && key.pos >= buffer_start
+                    });
                 }
             }
         }

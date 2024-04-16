@@ -64,7 +64,7 @@ pub fn mm_exist(read: &SingleEndEvidence) -> bool {
 /// # Returns
 ///
 /// pos_methylated_cs: Vector of positions of methylated Cs in Read
-pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
+pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -133,7 +133,7 @@ pub fn meth_pos(read: &SingleEndEvidence) -> Result<Vec<usize>, String> {
 /// # Returns
 ///
 /// ml: Vector of methylation probabilities
-pub fn meth_probs(read: &SingleEndEvidence) -> Result<Vec<LogProb>, String> {
+pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
     let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
