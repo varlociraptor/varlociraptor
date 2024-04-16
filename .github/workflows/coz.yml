@@ -35,7 +35,7 @@ jobs:
         
         # git clone https://github.com/plasma-umass/coz && cd coz && cmake . && make && sudo make install && cd ..
         git clone https://github.com/plasma-umass/coz 
-        cd coz && pkg_check_modules(libelfxx REQUIRED libelf++>=0.1) && pkg_check_modules(libdwarfxx REQUIRED libdwarf++>=0.1) && cd ..
+        cd coz && pkg_check_modules(libelf REQUIRED libelf++>=0.1) && pkg_check_modules(libdwarf REQUIRED libdwarf++>=0.1) && cd ..
         cd coz/build && cmake .. && make
         sudo sh -c 'echo 1 >/proc/sys/kernel/perf_event_paranoid'
         # sudo apt-get install libbz2-dev libsqlite3-dev
