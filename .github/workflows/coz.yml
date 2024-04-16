@@ -36,7 +36,7 @@ jobs:
       uses: actions/upload-artifact@v2.2.0
       with:
         name: flamegraph
-        path: ci_results
+        path: tests/resources/coz_profiling/
         if-no-files-found: error
         retention-days: 90
     # sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
