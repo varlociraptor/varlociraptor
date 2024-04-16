@@ -22,23 +22,22 @@ jobs:
     - name: Install Flamegraph
       run: |
         cargo install flamegraph  
-        echo debug_1
-        ls /proc/sys/kernel/
-        echo debug_2
-        cat  /etc/sysctl.conf
-        echo debug_3
         echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
     - name: Run Flamegraph
       run: |
-        cargo flamegraph --output tests/resources/coz_profiling/flamegraph.svg -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore > tests/resources/coz_profiling/normal.bcf
+        cargo flamegraph --output tests/resources/flamegraph_profiling/flamegraph.svg -- preprocess variants tests/resources/flamegraph_profiling/ref.fa --candidates tests/resources/flamegraph_profiling/candidates.vcf --bam tests/resources/flamegraph_profiling/alignment.bam --read-type Nanopore > tests/resources/flamegraph_profiling/normal.bcf
         
     - name: Upload result as artifact
       uses: actions/upload-artifact@v2.2.0
       with:
         name: flamegraph
-        path: tests/resources/coz_profiling/
+        path: tests/resources/flamegraph_profiling/
         if-no-files-found: error
         retention-days: 90
+
+
+
+    # Coz:
     # sudo apt-get install libdwarf-dev build-essential cmake docutils-common git python3 pkg-config libbz2-dev libsqlite3-dev
     # - name: Install Coz
     #   run: |
