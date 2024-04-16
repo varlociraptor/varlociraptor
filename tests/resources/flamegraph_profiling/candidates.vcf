@@ -1,0 +1,17 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##contig=<ID=1>
+##bcftools_viewVersion=1.16+htslib-1.16
+##bcftools_viewCommand=view -o /projects/koesterlab/benchmark-methylation/varlociraptor-methylation-evaluation/resources/1/candidates.vcf /projects/koesterlab/benchmark-methylation/varlociraptor-methylation-evaluation/resources/1/candidates.bcf; Date=Tue Feb 20 10:49:17 2024
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+1	10469	.	CG	<METH>	.	.	.
+1	10471	.	CG	<METH>	.	.	.
+1	10484	.	CG	<METH>	.	.	.
+1	10489	.	CG	<METH>	.	.	.
+1	10493	.	CG	<METH>	.	.	.
+1	10497	.	CG	<METH>	.	.	.
+1	10525	.	CG	<METH>	.	.	.
+1	10542	.	CG	<METH>	.	.	.
+1	10563	.	CG	<METH>	.	.	.
+1	10571	.	CG	<METH>	.	.	.
+1	10577	.	CG	<METH>	.	.	.
