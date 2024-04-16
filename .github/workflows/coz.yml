@@ -30,7 +30,7 @@ jobs:
         echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
     - name: Run Flamegraph
       run: |
-        cargo flamegraph --output ci_results/flamegraph.svg -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore > ci_results/normal.bcf
+        cargo flamegraph --output tests/resources/coz_profiling/flamegraph.svg -- preprocess variants tests/resources/coz_profiling/ref.fa --candidates tests/resources/coz_profiling/candidates.vcf --bam tests/resources/coz_profiling/normal.bam --read-type Nanopore > tests/resources/coz_profiling/normal.bcf
         
     - name: Upload result as artifact
       uses: actions/upload-artifact@v2.2.0
