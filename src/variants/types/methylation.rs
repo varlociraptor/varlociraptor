@@ -337,7 +337,6 @@ impl Variant for Methylation {
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        coz::scope!("compute_meth");
 
         let qpos = match read {
             PairedEndEvidence::SingleEnd(record) => {
