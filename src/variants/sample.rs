@@ -43,7 +43,7 @@ pub(crate) struct RecordBuffer {
 
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-struct RecId {
+pub struct RecId {
     qname: String,
     pos: i64,
     flag: u16,
