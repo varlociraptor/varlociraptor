@@ -314,6 +314,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "by_address"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64fa3c856b712db6612c019f14756e64e4bcea13337a6b33b696333a9eaa2d06"
+
+[[package]]
 name = "bytecount"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2347,6 +2353,7 @@ dependencies = [
  "bio-types",
  "boolean_expression",
  "bv",
+ "by_address",
  "byteorder",
  "cached",
  "clap",
