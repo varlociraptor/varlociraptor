@@ -48,13 +48,13 @@ struct RecId {
     pos: i64,
     flag: u16,
     tid: i32,
-    cigar: String,
+    // cigar: String,
 }
 
 impl RecId {
     // Eine Hilfsmethode, um eine neue RecId-Instanz aus den Einzelteilen zu erstellen
-    fn new(qname: String, pos: i64, flag: u16, tid: i32, cigar: String) -> Self {
-        RecId { qname, pos, flag, tid, cigar }
+    fn new(qname: String, pos: i64, flag: u16, tid: i32) -> Self {
+        RecId { qname, pos, flag, tid }
     }
 }
 
@@ -92,7 +92,7 @@ impl RecordBuffer {
                     rec.inner.core.pos,
                     rec.inner.core.flag,
                     rec.tid(),
-                    rec.cigar_cached().unwrap().to_string(),
+                    // rec.cigar_cached().unwrap().to_string(),
                 );
                 meth_probs.get(&rec_id).cloned()
             }
@@ -125,7 +125,7 @@ impl RecordBuffer {
                     rec.inner.core.pos,
                     rec.inner.core.flag,
                     rec.tid(),
-                    rec.cigar_cached().unwrap().to_string(),
+                    // rec.cigar_cached().unwrap().to_string(),
                 );
                 // Compute methylation probs out of MM and ML tag and save in methylation_probs
                 if methylation_probs.get(&rec_id).is_none() {
