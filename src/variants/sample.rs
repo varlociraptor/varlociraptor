@@ -85,24 +85,8 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(&self, rec: Rc<Record>) -> Option<HashMap<usize, LogProb>>{
-        match self.methylation_probs() {
-            Some(meth_probs) => {
-                // let rec_id = RecId::new(
-                //     String::from_utf8(rec.qname().to_vec()).unwrap(),
-                //     rec.inner.core.pos,
-                //     rec.inner.core.flag,
-                //     rec.tid(),
-                    // rec.cigar_cached().unwrap().to_string(),
-                    let rec_id = ByAddress(rec.clone()
-
-                );
-                meth_probs.get(&rec_id).cloned()
-            }
-            None => {
-                None
-            }
-        }
+    pub(crate) fn get_methylation_probs(&self, rec: Rc<Record>) -> Option<&HashMap<usize, LogProb>>{
+        self.methylation_probs().map(|meth_probs| meth_probs.get(&ByAddress(rec.clone()))).unwrap()
     }
 
 
@@ -122,14 +106,6 @@ impl RecordBuffer {
         )?;
         if let Some(methylation_probs) = &mut self.methylation_probs {
             for rec in self.inner.iter() {
-                // let record = SingleEndEvidence::new(rec.to_owned());
-                // let rec_id = RecId::new(
-                //     String::from_utf8(rec.qname().to_vec()).unwrap(),
-                //     rec.inner.core.pos,
-                //     rec.inner.core.flag,
-                //     rec.tid(),
-                //     // rec.cigar_cached().unwrap().to_string(),
-                // );
                 let rec_id = ByAddress(rec.clone());
                 // Compute methylation probs out of MM and ML tag and save in methylation_probs
                 if methylation_probs.get(&rec_id).is_none() {
@@ -141,14 +117,9 @@ impl RecordBuffer {
                 }
             }
             // Delete all reads on methylation_probs that are not considered anymore
-
             let buffer_ids: HashSet<_> = self.inner.iter().map(|rec| ByAddress(rec.clone())).collect();
-
-            // let addresses: HashSet<RecId> = ;
-            // let buffer_start = self.inner.start().unwrap() as i64;
             if let Some(methylation_probs_map) = &mut self.methylation_probs {
                 methylation_probs_map.retain(|key, _value| {
-                    // key.tid == buffer_tid && key.pos >= buffer_start
                     buffer_ids.contains(key)
                 });
             }
