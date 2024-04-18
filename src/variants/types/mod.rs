@@ -404,8 +404,8 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())),
-                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right.clone())),
+                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()),
+                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(&right).cloned()),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -413,7 +413,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())));
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
@@ -545,8 +545,8 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())),
-                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right.clone())),
+                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()),
+                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right).cloned()),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -554,7 +554,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(candidate.left.clone())));
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
