@@ -65,6 +65,7 @@ pub fn mm_exist(read: &SingleEndEvidence) -> bool {
 ///
 /// pos_methylated_cs: Vector of positions of methylated Cs in Read
 pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
+
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -116,10 +117,10 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
                 } 
                 return Ok(pos_methylated_cs);
             }
-            // No methylation info in this read
-            else {
-                return Ok(Vec::new());
-            }
+        }
+        // No methylation info in this read
+        else {
+            return Ok(Vec::new());
         }
     } else {
         error!("MM tag in bam file is not valid");
