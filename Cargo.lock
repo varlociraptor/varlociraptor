@@ -1839,8 +1839,7 @@ dependencies = [
 [[package]]
 name = "rust-htslib"
 version = "0.46.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aec6f9ca4601beb4ae75ff8c99144dd15de5a873f6adf058da299962c760968e"
+source = "git+https://github.com/Addimator/rust-htslib?branch=fix-buffer-start#283fd214a003bd40d10950f23cc03c03c6639637"
 dependencies = [
  "bio-types",
  "byteorder",
