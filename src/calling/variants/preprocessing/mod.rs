@@ -499,7 +499,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
-            println!("{:?}", locus);
+            // println!("{:?}", locus);
             let readtype = self.readtype;
             Ok(variants::types::Methylation::new(locus, readtype))
         };

@@ -104,20 +104,19 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-        println!("Interval start: {:?}", interval.range().start);
-        println!();
+        // println!("Interval start: {:?}", interval.range().start);
+        // println!();
         if let Some(methylation_probs) = &mut self.methylation_probs {
-            let mut first_it = true;
+            // let mut first_it = true;
             for rec in self.inner.iter() {
                 let rec_id = ByAddress(rec.clone());
-                let rec_id1 = ByAddress(rec.clone());
                 // Compute methylation probs out of MM and ML tag and save in methylation_probs
-                println!("{:?}, {:?}", rec_id1, rec.inner.core.pos);
+                // println!("{:?}, {:?}", rec_id1, rec.inner.core.pos);
 
-                if first_it && rec.inner.core.pos != 18895331 {
-                    println!("Debug");
-                }
-                first_it = false;
+                // if first_it && rec.inner.core.pos != 18895331 {
+                //     println!("Debug");
+                // }
+                // first_it = false;
                 if methylation_probs.get(&rec_id).is_none() {
                     let meth_pos = meth_pos(
                         rec).unwrap();
