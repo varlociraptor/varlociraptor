@@ -117,6 +117,9 @@ impl RecordBuffer {
                 //     println!("Debug");
                 // }
                 // first_it = false;
+                if rec.inner.core.pos == 21562650 {
+                    // warn!("Debug: {:?}", rec_id);
+                }
                 if methylation_probs.get(&rec_id).is_none() {
                     let meth_pos = meth_pos(
                         rec).unwrap();
@@ -127,6 +130,8 @@ impl RecordBuffer {
             }
             // Delete all reads on methylation_probs that are not considered anymore
             let buffer_ids: HashSet<_> = self.inner.iter().map(|rec| ByAddress(rec.clone())).collect();
+            // warn!("Buffer: {:?}", buffer_ids);
+
             if let Some(methylation_probs_map) = &mut self.methylation_probs {
                 methylation_probs_map.retain(|key, _value| {
                     buffer_ids.contains(key)

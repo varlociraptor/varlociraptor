@@ -70,7 +70,9 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            panic!("MM value not found");
+            warn!("MM value not found");
+            return Ok(Vec::new());
+
         }
     };
     
@@ -135,11 +137,17 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
 ///
 /// ml: Vector of methylation probabilities
 pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
+    // warn!("Pos: {:?}", read.inner.core.pos);
+    if read.inner.core.pos == 21562650 {
+        warn!("Debug");
+    }
     let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            panic!("ML value not found");
+            warn!("ML value not found");
+            return Ok(Vec::new());
+
         }
     };
     // let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
