@@ -125,9 +125,12 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
             return Ok(Vec::new());
         }
     } else {
-        error!("MM tag in bam file is not valid");
+        warn!("MM tag in bam file is not valid");
+        return Ok(Vec::new());
     }
-    Err("Error while obtaining MM:Z tag".to_string())
+    warn!("Error while obtaining MM:Z tag");
+    Ok(Vec::new())
+    // Err("Error while obtaining MM:Z tag".to_string())
 }
 
 
@@ -137,10 +140,6 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
 ///
 /// ml: Vector of methylation probabilities
 pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
-    // warn!("Pos: {:?}", read.inner.core.pos);
-    if read.inner.core.pos == 21562650 {
-        warn!("Debug");
-    }
     let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -157,12 +156,11 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         if read_reverse{
             ml.reverse();
         }
-        return Ok(ml);
-
+        Ok(ml)
     } else {
-        error!("Tag is not of type String");
+        warn!("MM tag in bam file is not valid");
+        Ok(Vec::new())
     }
-    Err("Error while obtaining ML:B tag".to_string())
 }
 
 /// Computes the probability of methylation/no methylation of a given position in an PacBio/ Nanopore read. Takes mapping probability into account
