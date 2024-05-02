@@ -792,14 +792,14 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl PairedEndEvidence {
-    pub(crate) fn get_methylation_probs(&self) -> Vec<Option<HashMap<usize, LogProb>>> {
+    pub(crate) fn get_methylation_probs(&self) -> Vec<&Option<HashMap<usize, LogProb>>> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
-                vec![record.prob_methylation]
+                vec![&record.prob_methylation]
             }
             PairedEndEvidence::PairedEnd { left, right } => vec![
-                left.prob_methylation,
-                right.prob_methylation
+                &left.prob_methylation,
+                &right.prob_methylation
             ],
         }
     }
