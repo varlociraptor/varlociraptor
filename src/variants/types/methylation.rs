@@ -70,7 +70,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("MM value not found on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
+            warn!("MM value not found on chrom {:?}, pos {:?}", read.inner.core.tid, read);
             return Ok(Vec::new());
         }
     };
@@ -99,7 +99,15 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
             
             // Compute which Cs are methylated with help of the MM-tag
             mm.pop();
-            if let Some(methylated_part) = mm.strip_prefix("C+m,") {
+            if let Some(remaining) = mm.strip_prefix("C+m") {
+                // There is no convention if the MM tag starts with C+m, or C+m.,
+                let methylated_part = if remaining.starts_with(',') {
+                    remaining.strip_prefix(',').unwrap_or("")
+                } else {
+                    remaining.strip_prefix(".,").unwrap_or("")
+                };
+                // Jetzt kannst du etwas mit methylated_part machen
+            
                 let mut meth_pos = 0;
                 
                 let mut pos_methylated_cs: Vec<usize> = methylated_part
