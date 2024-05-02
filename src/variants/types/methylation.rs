@@ -106,20 +106,29 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
                 } else {
                     remaining.strip_prefix(".,").unwrap_or("")
                 };
-                // Jetzt kannst du etwas mit methylated_part machen
             
                 let mut meth_pos = 0;
+
+                let mut pos_methylated_cs: Vec<usize> = Vec::new(); // Initialize empty vector
+
+                for position_str in methylated_part.split(',') {
+                    let position: usize = match position_str.parse::<usize>() {
+                        Ok(position) => position,
+                        Err(_) => {
+                            warn!("Invalid position format: {}", position_str);
+                            return Ok(Vec::new()); // Return empty vector on invalid format
+                        },
+                    };
                 
-                let mut pos_methylated_cs: Vec<usize> = methylated_part
-                    .split(',')
-                    .filter_map(|position_str| {
-                        position_str.parse::<usize>().ok().map(|position| {
-                            meth_pos += position + 1;
-                            meth_pos
-                        }) // methylated Cs
-                    })
-                    .map(|pos| pos_read_base[pos - 1])// Chose only the positions of methylated Cs out of all Cs
-                    .collect();
+                    meth_pos += position + 1;
+                
+                    if meth_pos <= pos_read_base.len() {
+                        pos_methylated_cs.push(pos_read_base[meth_pos - 1] as usize);
+                    } else {
+                        warn!("MM tag too long for read on id {:?}, chrom {:?}, pos {:?}", String::from_utf8_lossy(read.qname()), read.inner.core.tid, read.inner.core.pos);
+                        return Ok(Vec::new()); // Return empty vector on out-of-bounds index
+                    }
+                }
 
                 if read_reverse {
                     pos_methylated_cs.reverse();
