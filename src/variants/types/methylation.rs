@@ -70,7 +70,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("MM value not found on pos {:?}", read.inner.core.flag);
+            warn!("MM value not found on pos {:?}", read.inner.core.pos);
             return Ok(Vec::new());
 
         }
@@ -125,12 +125,11 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
             return Ok(Vec::new());
         }
     } else {
-        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.flag);
+        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.pos);
         return Ok(Vec::new());
     }
-    warn!("Error while obtaining MM:Z tag on pos {:?}", read.inner.core.flag);
+    warn!("Error while obtaining MM:Z tag on pos {:?}", read.inner.core.pos);
     Ok(Vec::new())
-    // Err("Error while obtaining MM:Z tag".to_string())
 }
 
 
@@ -144,13 +143,13 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("ML value not found on pos {:?}", read.inner.core.flag);
+            warn!("ML value not found on pos {:?}", read.inner.core.pos);
             return Ok(Vec::new());
 
         }
     };
     // let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
-    let read_reverse = read_reverse_strand(read.inner.core.flag);
+    let read_reverse = read_reverse_strand(read.inner.core.pos);
     if let Aux::ArrayU8(tag_value) = ml_tag {
         let mut ml: Vec<LogProb> = tag_value.iter().map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0))).collect();
         if read_reverse{
@@ -158,7 +157,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         }
         Ok(ml)
     } else {
-        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.flag);
+        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.pos);
         Ok(Vec::new())
     }
 }
