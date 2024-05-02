@@ -70,9 +70,8 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("MM value not found on pos {:?}", read.inner.core.pos);
+            warn!("MM value not found on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
             return Ok(Vec::new());
-
         }
     };
     
@@ -125,10 +124,10 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
             return Ok(Vec::new());
         }
     } else {
-        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.pos);
+        warn!("MM tag in bam file is not valid on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
         return Ok(Vec::new());
     }
-    warn!("Error while obtaining MM:Z tag on pos {:?}", read.inner.core.pos);
+    warn!("Error while obtaining MM:Z tag on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
     Ok(Vec::new())
 }
 
@@ -143,7 +142,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("ML value not found on pos {:?}", read.inner.core.pos);
+            warn!("ML value not found on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
             return Ok(Vec::new());
 
         }
@@ -157,7 +156,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         }
         Ok(ml)
     } else {
-        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.pos);
+        warn!("MM tag in bam file is not valid on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
         Ok(Vec::new())
     }
 }

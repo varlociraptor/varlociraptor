@@ -67,11 +67,11 @@
             "args": [
                 "preprocess",
                 "variants",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-genome.fasta",
+                "/home/adrian/Documents/Promotion/debug/varlo/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates.bcf",
+                "/home/adrian/Documents/Promotion/debug/varlo/candidates_7-of-20.bcf",
                 "--bam",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam",
+                "/home/adrian/Documents/Promotion/debug/varlo/alignment_valid_7-of-20_new.bam",
                 "--read-type",
                 "PacBio"
             ],
