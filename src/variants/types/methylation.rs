@@ -70,7 +70,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("MM value not found");
+            warn!("MM value not found on pos {:?}", read.inner.core.flag);
             return Ok(Vec::new());
 
         }
@@ -125,10 +125,10 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
             return Ok(Vec::new());
         }
     } else {
-        warn!("MM tag in bam file is not valid");
+        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.flag);
         return Ok(Vec::new());
     }
-    warn!("Error while obtaining MM:Z tag");
+    warn!("Error while obtaining MM:Z tag on pos {:?}", read.inner.core.flag);
     Ok(Vec::new())
     // Err("Error while obtaining MM:Z tag".to_string())
 }
@@ -144,7 +144,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
-            warn!("ML value not found");
+            warn!("ML value not found on pos {:?}", read.inner.core.flag);
             return Ok(Vec::new());
 
         }
@@ -158,7 +158,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         }
         Ok(ml)
     } else {
-        warn!("MM tag in bam file is not valid");
+        warn!("MM tag in bam file is not valid on pos {:?}", read.inner.core.flag);
         Ok(Vec::new())
     }
 }
