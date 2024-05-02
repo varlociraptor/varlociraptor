@@ -114,7 +114,7 @@ impl RecordBuffer {
                         rec).unwrap();
                     let meth_probs = meth_probs(rec).unwrap();
                     let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                    methylation_probs.insert(rec_id, pos_to_probs.clone());     
+                    methylation_probs.insert(rec_id, pos_to_probs);     
                 }
             }
             // Delete all reads on methylation_probs that are not considered anymore

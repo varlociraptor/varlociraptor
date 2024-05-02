@@ -795,11 +795,11 @@ impl PairedEndEvidence {
     pub(crate) fn get_methylation_probs(&self) -> Vec<Option<HashMap<usize, LogProb>>> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
-                vec![record.prob_methylation.clone()]
+                vec![record.prob_methylation]
             }
             PairedEndEvidence::PairedEnd { left, right } => vec![
-                left.prob_methylation.clone(),
-                right.prob_methylation.clone()
+                left.prob_methylation,
+                right.prob_methylation
             ],
         }
     }

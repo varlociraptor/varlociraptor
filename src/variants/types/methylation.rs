@@ -149,7 +149,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         }
     };
     // let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
-    let read_reverse = read_reverse_strand(read.inner.core.pos);
+    let read_reverse = read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
         let mut ml: Vec<LogProb> = tag_value.iter().map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0))).collect();
         if read_reverse{
@@ -168,7 +168,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
-fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: HashMap<usize, LogProb>) -> (LogProb, LogProb) {
+fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: &HashMap<usize, LogProb>) -> (LogProb, LogProb) {
     let prob_alt;
     let prob_ref;
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
@@ -386,7 +386,7 @@ impl Variant for Methylation {
                             if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].clone().unwrap());  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].as_ref().unwrap());  
                         }
                     } 
                 }      
@@ -413,7 +413,7 @@ impl Variant for Methylation {
                             if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].clone().unwrap());  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].as_ref().expect("No meth value"));  
                         } 
                     }      
                 }
