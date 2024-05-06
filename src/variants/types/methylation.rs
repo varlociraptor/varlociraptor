@@ -133,8 +133,6 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
                 if read_reverse {
                     pos_methylated_cs.reverse();
                 } 
-                warn!("MM tag perfect for read on id {:?}, chrom {:?}, pos {:?}", String::from_utf8_lossy(read.qname()), read.inner.core.tid, read.inner.core.pos);
-
                 return Some(pos_methylated_cs);
             }
         }
