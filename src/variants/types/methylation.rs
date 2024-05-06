@@ -64,14 +64,14 @@ pub fn mm_exist(read: &SingleEndEvidence) -> bool {
 /// # Returns
 ///
 /// pos_methylated_cs: Vector of positions of methylated Cs in Read
-pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
+pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
 
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
             warn!("MM value not found on chrom {:?}, pos {:?}", read.inner.core.tid, read);
-            return Ok(Vec::new());
+            return None;
         }
     };
     
@@ -116,7 +116,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
                         Ok(position) => position,
                         Err(_) => {
                             warn!("Invalid position format: {}", position_str);
-                            return Ok(Vec::new()); // Return empty vector on invalid format
+                            return None; // Return empty vector on invalid format
                         },
                     };
                 
@@ -126,26 +126,28 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
                         pos_methylated_cs.push(pos_read_base[meth_pos - 1] as usize);
                     } else {
                         warn!("MM tag too long for read on id {:?}, chrom {:?}, pos {:?}", String::from_utf8_lossy(read.qname()), read.inner.core.tid, read.inner.core.pos);
-                        return Ok(Vec::new()); // Return empty vector on out-of-bounds index
+                        return None; // Return empty vector on out-of-bounds index
                     }
                 }
 
                 if read_reverse {
                     pos_methylated_cs.reverse();
                 } 
-                return Ok(pos_methylated_cs);
+                warn!("MM tag perfect for read on id {:?}, chrom {:?}, pos {:?}", String::from_utf8_lossy(read.qname()), read.inner.core.tid, read.inner.core.pos);
+
+                return Some(pos_methylated_cs);
             }
         }
         // No methylation info in this read
         else {
-            return Ok(Vec::new());
+            return Some(Vec::new());
         }
     } else {
         warn!("MM tag in bam file is not valid on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
-        return Ok(Vec::new());
+        return None;
     }
     warn!("Error while obtaining MM:Z tag on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
-    Ok(Vec::new())
+    None
 }
 
 
@@ -154,13 +156,13 @@ pub fn meth_pos(read: &Rc<Record>) -> Result<Vec<usize>, String> {
 /// # Returns
 ///
 /// ml: Vector of methylation probabilities
-pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
+pub fn meth_probs(read: &Rc<Record>) -> Option<Vec<LogProb>> {
     let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
         _ => {
             warn!("ML value not found on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
-            return Ok(Vec::new());
+            return None;
 
         }
     };
@@ -171,10 +173,10 @@ pub fn meth_probs(read: &Rc<Record>) -> Result<Vec<LogProb>, String> {
         if read_reverse{
             ml.reverse();
         }
-        Ok(ml)
+        Some(ml)
     } else {
         warn!("MM tag in bam file is not valid on chrom {:?}, pos {:?}", read.inner.core.tid, read.inner.core.pos);
-        Ok(Vec::new())
+        None
     }
 }
 
@@ -398,11 +400,12 @@ impl Variant for Methylation {
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
+                            let meth_info = read.get_methylation_probs()[0].as_ref().unwrap();
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status  
-                            if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
+                            if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) || meth_info.is_none() {    
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].as_ref().unwrap());  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, meth_info.as_ref().unwrap());  
                         }
                     } 
                 }      
@@ -426,10 +429,11 @@ impl Variant for Methylation {
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };                              
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status  
-                            if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) {    
+                            let meth_info = read.get_methylation_probs()[0].as_ref().expect("No meth value");
+                            if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) || meth_info.is_none() {    
                                 return Ok(None)
                             }
-                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, read.get_methylation_probs()[0].as_ref().expect("No meth value"));  
+                            (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, meth_info.as_ref().unwrap());  
                         } 
                     }      
                 }

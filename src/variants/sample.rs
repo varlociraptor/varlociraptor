@@ -39,7 +39,7 @@ pub(crate) struct RecordBuffer {
     #[getset(get = "pub")]
     read_pair_window: u64,
     #[getset(get = "pub")]
-    methylation_probs: Option<HashMap<ByAddress<Rc<Record>>, HashMap<usize, LogProb>>>,
+    methylation_probs: Option<HashMap<ByAddress<Rc<Record>>, Option<HashMap<usize, LogProb>>>>,
 }
 
 
@@ -85,7 +85,7 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(&self, rec: &Rc<Record>) -> Option<&HashMap<usize, LogProb>>{
+    pub(crate) fn get_methylation_probs(&self, rec: &Rc<Record>) -> Option<&Option<HashMap<usize, LogProb>>>{
         self.methylation_probs().as_ref().map(|meth_probs| meth_probs.get(&ByAddress(rec.clone()))).unwrap()
     }
 
@@ -110,11 +110,13 @@ impl RecordBuffer {
                 let rec_id = ByAddress(rec.clone());
                 // Compute methylation probs out of MM and ML tag and save in methylation_probs
                 if methylation_probs.get(&rec_id).is_none() {
-                    let meth_pos = meth_pos(
-                        rec).unwrap();
-                    let meth_probs = meth_probs(rec).unwrap();
-                    let pos_to_probs: HashMap<usize, LogProb> = meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                    let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
+                        meth_probs(rec).map(|meth_probs| {
+                            meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
+                        })
+                    });
                     methylation_probs.insert(rec_id, pos_to_probs);     
+
                 }
             }
             // Delete all reads on methylation_probs that are not considered anymore
