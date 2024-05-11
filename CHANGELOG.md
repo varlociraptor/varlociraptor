@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.7](https://github.com/varlociraptor/varlociraptor/compare/v8.4.6...v8.4.7) (2024-05-11)
+
+
+### Bug Fixes
+
+* improved specificity of read position bias model by estimating the rate of the predominant read position from the ref supporting observations ([#425](https://github.com/varlociraptor/varlociraptor/issues/425)) ([eea6727](https://github.com/varlociraptor/varlociraptor/commit/eea6727ab0762e5abb752b779be6841cbb3874b7))
+
 ## [8.4.6](https://github.com/varlociraptor/varlociraptor/compare/v8.4.5...v8.4.6) (2024-03-27)
 
 
