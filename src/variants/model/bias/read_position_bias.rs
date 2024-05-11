@@ -109,9 +109,10 @@ impl ReadPositionBias {
 
         if strong_all > 2.0 {
             let major_fraction = strong_major / strong_all;
-            if major_fraction > 0.0 || any_major {
+            if any_major && major_fraction < 1.0 {
                 // METHOD: if there is any read with the major read position in either
-                // the ref or the alt supporting strong evidences, we report a fraction
+                // the ref or the alt supporting strong evidences and not all the reads 
+                // supporting ref do that at the major position, we report a fraction
                 // and consider the read position bias.
                 return Some(NotNan::new(major_fraction).unwrap());
             }
