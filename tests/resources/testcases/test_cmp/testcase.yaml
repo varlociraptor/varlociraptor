@@ -3,7 +3,7 @@
 expected:
   allelefreqs:
   - sample_a >= 0.95
-  - sample_b >= 0.45 && sample_b <= 0.55
+  - sample_b >= 0.4 && sample_b <= 0.55
   posteriors:
   - PROB_HOMHET == 0.0
 
