@@ -41,11 +41,12 @@
             "args": [
                 "preprocess",
                 "variants",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-genome.fasta",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-candidates-snv.bcf",
+                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/candidates_4-of-7.bcf",
                 "--bam",
-                "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam"
+                // "/home/adrian/Documents/Promotion/varlociraptor-methylation-evaluation/resources/example-reads.bam"
+                "/home/adrian/Documents/Promotion/data_analysis/compare_meth/resources/alignments/BC03-ref-sorted.bam"
             ],
             "cwd": "${workspaceFolder}"
         },
@@ -69,11 +70,11 @@
                 "variants",
                 "/home/adrian/Documents/Promotion/debug/varlo/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/debug/varlo/candidates_1-of-7.bcf",
+                "/home/adrian/Documents/Promotion/debug/varlo/candidates.bcf",
                 "--bam",
-                "/home/adrian/Documents/Promotion/debug/varlo/BC03-ref-sorted_debug.bam",
+                "/home/adrian/Documents/Promotion/debug/varlo/alignment_focused_downsampled_dedup_renamed_debug.bam",
                 "--read-type",
-                "PacBio"
+                "Nanopore"
             ],
             "cwd": "${workspaceFolder}"
         },

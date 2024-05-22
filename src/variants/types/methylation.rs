@@ -191,8 +191,8 @@ fn compute_probs_pb_np(pos_in_read: i32, pos_to_probs: &HashMap<usize, LogProb>)
         prob_alt = value.to_owned();
         prob_ref = LogProb::from(Prob(1 as f64 - prob_alt.0.exp()));
     } else {
-        prob_alt = LogProb::from(Prob(0.01));
-        prob_ref = LogProb::from(Prob(0.99));
+        prob_alt = LogProb::from(Prob(0.0));
+        prob_ref = LogProb::from(Prob(1.0));
     }
     (prob_alt, prob_ref)
 }
