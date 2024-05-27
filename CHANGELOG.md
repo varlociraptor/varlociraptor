@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.8](https://github.com/varlociraptor/varlociraptor/compare/v8.4.7...v8.4.8) (2024-05-27)
+
+
+### Performance Improvements
+
+* update to rust-htslib 0.47 ([#427](https://github.com/varlociraptor/varlociraptor/issues/427)) ([180acd5](https://github.com/varlociraptor/varlociraptor/commit/180acd5268be4e5d2c98d8f65e7b39b6541ff8be))
+
 ## [8.4.7](https://github.com/varlociraptor/varlociraptor/compare/v8.4.6...v8.4.7) (2024-05-11)
 
 
