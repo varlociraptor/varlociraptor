@@ -225,6 +225,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         while let Some(variants) = variant_buffer.next()? {
             let calls = self.process_variant(variants, &mut sample)?;
             for call in calls {
+                warn!("Completed: {:?}", call.pos);
                 call.write_preprocessed_record(&mut bcf_writer)?;
             }
         }

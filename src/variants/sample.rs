@@ -40,6 +40,8 @@ pub(crate) struct RecordBuffer {
     read_pair_window: u64,
     #[getset(get = "pub")]
     methylation_probs: Option<HashMap<ByAddress<Rc<Record>>, Option<HashMap<usize, LogProb>>>>,
+    #[getset(get = "pub")]
+    failed_reads: Option<Vec<ByAddress<Rc<Record>>>>,
 }
 
 
@@ -71,6 +73,7 @@ impl RecordBuffer {
             single_read_window,
             read_pair_window,
             methylation_probs: if collect_methylation_probs { Some(HashMap::new()) } else { None },
+            failed_reads: if collect_methylation_probs { Some(Vec::new()) } else { None },
         }
     }
 
@@ -96,6 +99,7 @@ impl RecordBuffer {
         interval: &genome::Interval,
         read_pair_mode: bool,
     ) -> Result<()> {
+        warn!("\nWindow: {:?}, {:?},{:?}", interval.range().start.saturating_sub(self.window(read_pair_mode, true)), interval.range().end + self.window(read_pair_mode, false), self.window(read_pair_mode, false));
         self.inner.fetch(
             interval.contig().as_bytes(),
             interval
@@ -104,29 +108,45 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-        if let Some(methylation_probs) = &mut self.methylation_probs {
-            // let mut first_it = true;
-            for rec in self.inner.iter() {
-                let rec_id = ByAddress(rec.clone());
-                // Compute methylation probs out of MM and ML tag and save in methylation_probs
-                if methylation_probs.get(&rec_id).is_none() {
-                    let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
-                        meth_probs(rec).map(|meth_probs| {
-                            meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
-                        })
-                    });
-                    methylation_probs.insert(rec_id, pos_to_probs);     
 
+        if let Some(methylation_probs) = &mut self.methylation_probs {
+            if let Some(failed_reads) = &mut self.failed_reads {
+                // let mut first_it = true;
+                let mut rec_debug = Vec::new();
+                for rec in self.inner.iter() {
+                    let rec_id = ByAddress(rec.clone());
+                    rec_debug.push((rec.inner.core.pos));
+                    // Compute methylation probs out of MM and ML tag and save in methylation_probs
+                    if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id){
+                        println!("Inserted: {:?}", rec.inner.core.pos);
+                        let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
+                            meth_probs(rec).map(|meth_probs| {
+                                meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
+                            })
+                        });
+                        if pos_to_probs.is_none(){
+                            failed_reads.push(rec_id.clone());
+                        }    
+                        else {
+                            methylation_probs.insert(rec_id, pos_to_probs);
+                        }
+                    }
                 }
+                // warn!("Records fetched: {:?}", rec_debug);
+
+                // warn!("########################################################");
+                // warn!("Record done: {:?}", methylation_probs.keys());
+                // warn!("Records fetched: {:?}", rec_debug);
+                // warn!("########################################################");
+                // Delete all reads on methylation_probs that are not considered anymore
+                let buffer_ids: HashSet<_> = self.inner.iter().map(|rec| ByAddress(rec.clone())).collect();
+                if let Some(methylation_probs_map) = &mut self.methylation_probs {
+                    methylation_probs_map.retain(|key, _value| {
+                        buffer_ids.contains(key)
+                    });
+                }
+
             }
-            // Delete all reads on methylation_probs that are not considered anymore
-            let buffer_ids: HashSet<_> = self.inner.iter().map(|rec| ByAddress(rec.clone())).collect();
-            if let Some(methylation_probs_map) = &mut self.methylation_probs {
-                methylation_probs_map.retain(|key, _value| {
-                    buffer_ids.contains(key)
-                });
-            }
-            
         }
         
         Ok(())

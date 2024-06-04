@@ -85,7 +85,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
             
             // Compute the positions of all Cs (or Gs for reverse strand) in the read
             // With MM tags it is important to know whether it is a forward or reverse strand. With forward, you go from front to back and count the Cs. With reverse, you go from back to front in the sequence, in the MM tag from front to back and count the Gs
-
+            // TODO: read_seq auf [0:len(read_seq)-max_window_pos] begranzen, dann haben wir weniger zu suchen
             let mut pos_read_base: Vec<usize> = read_seq
                 .chars()
                 .enumerate()
@@ -125,6 +125,8 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
                     if meth_pos <= pos_read_base.len() {
                         pos_methylated_cs.push(pos_read_base[meth_pos - 1] as usize);
                     } else {
+                        // TODO Ist das echt richtig? Die MEldung gebe ich ja bei hardclipped aus. So werden die Anfaenge von hardclipped beachtet und reingepackt. sollte der ganze read dann nicht betrachtet werden?
+                        // TODO Hier andere Fehlermeludung ausgeben, da jetzt immer laenger, da read nur nochkuerzer betrachtet wird
                         warn!("MM tag too long for read on id {:?}, chrom {:?}, pos {:?}", String::from_utf8_lossy(read.qname()), read.inner.core.tid, read.inner.core.pos);
                         return None; // Return empty vector on out-of-bounds index
                     }
@@ -380,7 +382,6 @@ impl Variant for Methylation {
             let prob_ref;
             // TODO Do something, if the next base is no G
 
-            
             match read {
                 PairedEndEvidence::SingleEnd(record) => {
                     match self.readtype {
@@ -394,11 +395,16 @@ impl Variant for Methylation {
                         }
 
                         Readtype::PacBio | Readtype::Nanopore=> {
+                            
                             let record = &read.into_single_end_evidence()[0];  
+                            // println!("{:?}", record.inner.core.pos);            
+
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
-                            let meth_info = read.get_methylation_probs()[0].as_ref().unwrap();
+                            // let meth_info = read.get_methylation_probs().map(|probs| probs[0].as_ref()).unwrap_or(None);
+
+                            let meth_info = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status  
                             if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) || meth_info.is_none() {    
                                 return Ok(None)

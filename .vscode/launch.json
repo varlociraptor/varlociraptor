@@ -70,9 +70,9 @@
                 "variants",
                 "/home/adrian/Documents/Promotion/debug/varlo/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/debug/varlo/candidates.bcf",
+                "/home/adrian/Documents/Promotion/debug/varlo/candidates_47-of-100.bcf",
                 "--bam",
-                "/home/adrian/Documents/Promotion/debug/varlo/alignment_focused_downsampled_dedup_renamed_debug.bam",
+                "/home/adrian/Documents/Promotion/debug/varlo/BC04-ref-sorted_debug.bam",
                 "--read-type",
                 "Nanopore"
             ],
