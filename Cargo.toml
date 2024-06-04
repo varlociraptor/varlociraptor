@@ -63,8 +63,8 @@ rayon = "1"
 regex = "1"
 ring = "0.16"
 # rust-htslib = "0.46.0"
-# rust-htslib = { git = "https://github.com/Addimator/rust-htslib", branch = "fix-buffer-start" }
-rust-htslib = { path = "/home/adrian/Documents/Promotion/rust-htslib" }
+rust-htslib = { git = "https://github.com/Addimator/rust-htslib", branch = "fix-buffer-start" }
+# rust-htslib = { path = "/home/adrian/Documents/Promotion/rust-htslib" }
 rusty-machine = "0.5"
 serde = "1"
 serde_derive = "1"

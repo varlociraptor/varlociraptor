@@ -132,7 +132,7 @@ impl RecordBuffer {
                         }
                     }
                 }
-                // warn!("Records fetched: {:?}", rec_debug);
+                warn!("Records fetched: {:?}, ..., {:?}", rec_debug.first(), rec_debug.last());
 
                 // warn!("########################################################");
                 // warn!("Record done: {:?}", methylation_probs.keys());
