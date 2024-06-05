@@ -118,21 +118,25 @@ impl RecordBuffer {
                     rec_debug.push((rec.inner.core.pos));
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id){
-                        println!("Inserted: {:?}", rec.inner.core.pos);
+                        // println!("Inserted: {:?}, {:?}", rec.inner.core.pos, String::from_utf8_lossy(rec.qname()));
+
                         let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
                             meth_probs(rec).map(|meth_probs| {
                                 meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
                             })
                         });
                         if pos_to_probs.is_none(){
-                            failed_reads.push(rec_id.clone());
+                            failed_reads.push(rec_id);
                         }    
                         else {
                             methylation_probs.insert(rec_id, pos_to_probs);
                         }
+                        if rec.inner.core.pos == 25635441 {
+                            warn!("Debug");
+                        }
                     }
                 }
-                warn!("Records fetched: {:?}, ..., {:?}", rec_debug.first(), rec_debug.last());
+                // warn!("Records fetched: {:?}, ..., {:?}", rec_debug.first(), rec_debug.last());
 
                 // warn!("########################################################");
                 // warn!("Record done: {:?}", methylation_probs.keys());
