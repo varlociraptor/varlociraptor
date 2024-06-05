@@ -119,7 +119,6 @@ impl RecordBuffer {
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id){
                         // println!("Inserted: {:?}, {:?}", rec.inner.core.pos, String::from_utf8_lossy(rec.qname()));
-
                         let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
                             meth_probs(rec).map(|meth_probs| {
                                 meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
@@ -127,22 +126,13 @@ impl RecordBuffer {
                         });
                         if pos_to_probs.is_none(){
                             failed_reads.push(rec_id);
+
                         }    
                         else {
                             methylation_probs.insert(rec_id, pos_to_probs);
                         }
-                        if rec.inner.core.pos == 25635441 {
-                            warn!("Debug");
-                        }
                     }
                 }
-                // warn!("Records fetched: {:?}, ..., {:?}", rec_debug.first(), rec_debug.last());
-
-                // warn!("########################################################");
-                // warn!("Record done: {:?}", methylation_probs.keys());
-                // warn!("Records fetched: {:?}", rec_debug);
-                // warn!("########################################################");
-                // Delete all reads on methylation_probs that are not considered anymore
                 let buffer_ids: HashSet<_> = self.inner.iter().map(|rec| ByAddress(rec.clone())).collect();
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
                     methylation_probs_map.retain(|key, _value| {

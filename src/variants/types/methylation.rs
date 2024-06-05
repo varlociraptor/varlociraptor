@@ -432,12 +432,13 @@ impl Variant for Methylation {
                             let read_reverse = read_reverse_strand(record.inner.core.flag);
                             let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
                             let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };                              
+                            let meth_probs = read.get_methylation_probs();
+                            
                             // If the base of the read under consideration is not a C we can't say anything about the methylation status 
-                            warn!("{:?}", record.inner.core.pos); 
-                            let meth_info = read.get_methylation_probs()[0].as_ref().expect("No meth value");
-                            if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) || meth_info.is_none() {    
+                            if !((read_base == b'C' && !read_reverse) || (read_base == b'G' && read_reverse)) || meth_probs.is_empty() || meth_probs[0].is_none() {    
                                 return Ok(None)
                             }
+                            let meth_info = meth_probs[0].as_ref().expect("No meth value");
                             (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, meth_info.as_ref().unwrap());  
                         } 
                     }      
