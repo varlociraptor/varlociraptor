@@ -1902,6 +1902,7 @@ dependencies = [
 [[package]]
 name = "rust-htslib"
 version = "0.46.0"
+source = "git+https://github.com/Addimator/rust-htslib?branch=fix-buffer-start#aac4b907e7eb3ac88485a2aad392d36136cfa019"
 dependencies = [
  "bio-types",
  "byteorder",

@@ -70,13 +70,40 @@
                 "variants",
                 "/home/adrian/Documents/Promotion/debug/varlo/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/debug/varlo/candidates_47-of-100.bcf",
+                "/home/adrian/Documents/Promotion/debug/varlo/candidates.bcf",
                 "--bam",
-                "/home/adrian/Documents/Promotion/debug/varlo/BC04-ref-sorted_debug.bam",
+                "/home/adrian/Documents/Promotion/debug/varlo/26002208_debug.bam",
                 "--read-type",
                 "Nanopore"
             ],
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "call Meth",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor",
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "call",
+                "variants",
+                "--omit-strand-bias",
+                "generic",
+                "--scenario",
+                "/home/adrian/Documents/Promotion/debug/varlo/scenario.yaml",
+                "--obs",
+                "normal=/home/adrian/Documents/Promotion/debug/varlo/normal_old.bcf",
+            ],
+            "cwd": "${workspaceFolder}",
         },
         {
             "type": "lldb",

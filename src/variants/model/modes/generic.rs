@@ -331,8 +331,7 @@ impl GenericPosterior {
                                 **resolution,
                             )
                         };
-
-                        p
+                                                p
                     }
                 }
             }
