@@ -198,7 +198,7 @@ fn get_qpos(read: &Rc<Record> , locus: &SingleLocus) -> Option<i32> {
 fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
-    let mutation_occurred = mutation_occurred(read_reverse, read, qpos);
+    let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
 
     // If locus is on the last position of the read and reverse, the C of the CG is not included
@@ -236,7 +236,7 @@ fn process_read_pb_np(read: &Rc<Record>, locus: &SingleLocus, meth_info: &Option
     let qpos = get_qpos(read, locus)?;
     // let record = &read.into_single_end_evidence()[0];  
     let read_reverse = read_reverse_strand(read.inner.core.flag);
-    let mutation_occurred = mutation_occurred(read_reverse, read, qpos);
+    let mutation_occurred = mutation_occurred_pb_np(read_reverse, read, qpos);
     // If locus is on the last position of the read and reverse, the C of the CG is not included
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
     
@@ -295,7 +295,7 @@ pub fn read_reverse_strand(flag:u16) -> bool {
 /// # Returns
 ///
 /// bool: True, if mutation occured
-fn mutation_occurred(read_reverse: bool, record:  &Rc<Record>, qpos: i32) -> bool {
+fn mutation_occurred_illumina(read_reverse: bool, record:  &Rc<Record>, qpos: i32) -> bool {
     if read_reverse {
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         if read_base == b'C' || read_base == b'T' {
@@ -311,6 +311,26 @@ fn mutation_occurred(read_reverse: bool, record:  &Rc<Record>, qpos: i32) -> boo
     false
 }
 
+/// Computes if a mutation occured at the C of a CpG position
+///
+/// # Returns
+///
+/// bool: True, if mutation occured
+fn mutation_occurred_pb_np(read_reverse: bool, record:  &Rc<Record>, qpos: i32) -> bool {
+    if read_reverse {
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        if read_base == b'C' || read_base == b'T' || read_base == b'A' {
+            return  true
+        }
+    }
+    else {
+        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        if read_base == b'A' || read_base == b'G' || read_base == b'T' {
+            return  true
+        }
+    }
+    false
+}
 
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;
@@ -401,22 +421,7 @@ impl Variant for Methylation {
                         Readtype::PacBio | Readtype::Nanopore=> {
                             let meth_probs = read.get_methylation_probs();
                             let meth_info = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
-                            
                             (prob_alt, prob_ref) = process_read_pb_np(record.record(), &self.locus, meth_info).unwrap_or((LogProb(0.0), LogProb(0.0)));
-                            // let record = &read.into_single_end_evidence()[0];  
-                            // // println!("{:?}", record.inner.core.pos);            
-
-                            // let read_reverse = read_reverse_strand(record.inner.core.flag);
-                            // let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
-                            // let read_base = unsafe { record.seq().decoded_base_unchecked((pos_in_read) as usize) };  
-                            // // let meth_info = read.get_methylation_probs().map(|probs| probs[0].as_ref()).unwrap_or(None);
-
-                            // let meth_info = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
-                            // // If the base of the read under consideration is not a C we can't say anything about the methylation status  
-                            // if !mutation_occurred(read_reverse, read, qpos) || meth_info.is_none() {    
-                            //     return Ok(None)
-                            // }
-                            // (prob_alt, prob_ref) = compute_probs_pb_np(pos_in_read, meth_info.as_ref().unwrap());  
                         }
                     } 
                 }      
