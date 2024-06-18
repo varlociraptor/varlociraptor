@@ -397,7 +397,7 @@ pub(crate) trait Realigner {
 
                 if homopolymer_indel_len.is_none() {
                     // METHOD: Only record homopolymer indel len if there is a single locus,
-                    // otherwise we omit it because we have a compley multi-locus event.
+                    // otherwise we omit it because we have a complex multi-locus event.
                     homopolymer_indel_len = alt_hit.homopolymer_indel_len();
                 }
             }

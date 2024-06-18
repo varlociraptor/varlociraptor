@@ -634,37 +634,13 @@ where
                                 .prob_observable_at_homopolymer_artifact(None)
                                 .prob_observable_at_homopolymer_variant(None);
                         } else {
-                            obs.homopolymer_indel_len(Some(alt_indel_len));
-                            assert!(ref_indel_len != 0); // caught above
-                            if ref_indel_len > 0 {
-                                // insertion
-                                obs.prob_observable_at_homopolymer_artifact(Some(
-                                    homopolymer_error_model.prob_homopolymer_artifact_insertion(),
+                            obs.homopolymer_indel_len(Some(ref_indel_len))
+                                .prob_observable_at_homopolymer_artifact(Some(
+                                    homopolymer_error_model.prob_homopolymer_error(ref_indel_len as i16),
                                 ))
-                                .prob_observable_at_homopolymer_variant(if alt_indel_len == 0 {
-                                    Some(
-                                        homopolymer_error_model.prob_homopolymer_variant_no_indel(),
-                                    )
-                                } else {
-                                    Some(
-                                        homopolymer_error_model
-                                            .prob_homopolymer_variant_insertion(),
-                                    )
-                                });
-                            } else {
-                                obs.prob_observable_at_homopolymer_artifact(Some(
-                                    homopolymer_error_model.prob_homopolymer_artifact_deletion(),
-                                ))
-                                .prob_observable_at_homopolymer_variant(if alt_indel_len == 0 {
-                                    Some(
-                                        homopolymer_error_model.prob_homopolymer_variant_no_indel(),
-                                    )
-                                } else {
-                                    Some(
-                                        homopolymer_error_model.prob_homopolymer_variant_deletion(),
-                                    )
-                                });
-                            }
+                                .prob_observable_at_homopolymer_variant(Some(
+                                    if alt_indel_len != 0 { homopolymer_error_model.prob_homopolymer_error(alt_indel_len as i16) } else { LogProb::ln_one() }
+                                ));
                         }
                     } else {
                         obs.homopolymer_indel_len(None)

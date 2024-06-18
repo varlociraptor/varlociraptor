@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bio::{
     alignment::{pairwise::Aligner, pairwise::Scoring, AlignmentOperation},
     stats::{LogProb, Prob},
@@ -171,13 +173,9 @@ pub(crate) fn extend_homopolymer_stretch(base: u8, seq: &mut dyn Iterator<Item =
 }
 
 #[derive(Debug, Clone, CopyGetters)]
-#[getset(get_copy = "pub(crate)")]
 pub(crate) struct HomopolymerErrorModel {
-    prob_homopolymer_artifact_insertion: LogProb,
-    prob_homopolymer_artifact_deletion: LogProb,
-    prob_homopolymer_variant_deletion: LogProb,
-    prob_homopolymer_variant_insertion: LogProb,
-    prob_homopolymer_variant_no_indel: LogProb,
+    prob_homopolymer_errors: HashMap<i16, LogProb>,
+    #[getset(get_copy = "pub(crate)")]
     variant_homopolymer_indel_len: i8,
 }
 
@@ -187,57 +185,58 @@ impl HomopolymerErrorModel {
         V: Variant,
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
-            let prob_homopolymer_error = |condition: &dyn Fn(i16) -> bool| {
-                LogProb::ln_sum_exp(
-                    &alignment_properties
-                        .wildtype_homopolymer_error_model
-                        .iter()
-                        .filter_map(|(item_len, prob)| {
-                            if condition(*item_len) {
-                                Some(LogProb::from(Prob(*prob)))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect_vec(),
-                )
-            };
             let is_insertion = variant_homopolymer_indel_len > 0;
 
-            let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
-            let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
-            let mut prob_homopolymer_artifact_deletion = prob_homopolymer_deletion;
-            let mut prob_homopolymer_artifact_insertion = prob_homopolymer_insertion;
-            let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
-            if prob_total != LogProb::ln_zero() {
-                if (is_insertion
-                    && variant_homopolymer_indel_len
-                        <= alignment_properties.max_homopolymer_insertion_len() as i8)
-                    || (!is_insertion
-                        && variant_homopolymer_indel_len.abs()
-                            <= alignment_properties.max_homopolymer_deletion_len() as i8)
-                {
-                    prob_homopolymer_artifact_insertion -= prob_total;
-                    prob_homopolymer_artifact_deletion -= prob_total;
-                } else {
-                    // insertion or deletion is too long to be an artifact. There is no scenario with such a long homopolymer error.
-                    prob_homopolymer_artifact_insertion = LogProb::ln_zero();
-                    prob_homopolymer_artifact_deletion = LogProb::ln_zero();
-                }
-            } // else both of them are already zero, nothing to do.
+            if (is_insertion
+                && variant_homopolymer_indel_len
+                    > alignment_properties.max_homopolymer_insertion_len() as i8)
+                || (!is_insertion
+                    && variant_homopolymer_indel_len.abs()
+                        > alignment_properties.max_homopolymer_deletion_len() as i8)
+            {
+                // METHOD: variant is considered too big to be a homopolymer error
+                return None;
+            }
+
+            // METHOD: normalize error probabilities by the total probability of all homopolymer errors
+            let prob_total = LogProb::ln_sum_exp(&alignment_properties
+                .wildtype_homopolymer_error_model
+                .iter()
+                .filter_map(|(item_len, prob)| {
+                    if *item_len != 0 {
+                        Some(LogProb::from(Prob(*prob)))
+                    } else {
+                        None
+                    }
+                })
+                .collect_vec());
+
+            let prob_homopolymer_errors = alignment_properties
+                .wildtype_homopolymer_error_model
+                .iter()
+                .filter_map(|(item_len, prob)| {
+                    if *item_len != 0 {
+                        Some((*item_len, LogProb::from(Prob(*prob)) - prob_total))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
             Some(HomopolymerErrorModel {
-                prob_homopolymer_artifact_insertion,
-                prob_homopolymer_artifact_deletion,
-                prob_homopolymer_variant_insertion: prob_homopolymer_insertion,
-                prob_homopolymer_variant_deletion: prob_homopolymer_deletion,
-                prob_homopolymer_variant_no_indel: prob_homopolymer_error(&|item_len| {
-                    item_len == 0
-                }),
+                prob_homopolymer_errors,
                 variant_homopolymer_indel_len,
             })
         } else {
             None
+        }
+    }
+
+    pub(crate) fn prob_homopolymer_error(&self, indel_len: i16) -> LogProb {
+        if let Some(prob) = self.prob_homopolymer_errors.get(&indel_len) {
+            *prob
+        } else {
+            LogProb::ln_zero()
         }
     }
 }

@@ -33,8 +33,9 @@ impl Bias for HomopolymerError {
             (Some(_len), HomopolymerError::None) => {
                 observation.prob_observable_at_homopolymer_variant.unwrap()
             }
-            (None, HomopolymerError::None) => LogProb::ln_one(), // No error, and also no observed homopolymer indel
-            (None, HomopolymerError::Some) => LogProb::ln_one(), // ignore observations without homopolymer indel
+            // METHOD: we ignore observations that do not have a homopolymer indel
+            (None, HomopolymerError::None) => LogProb::ln_one(),
+            (None, HomopolymerError::Some) => LogProb::ln_one(),
         }
     }
 
