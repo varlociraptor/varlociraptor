@@ -27,13 +27,17 @@ impl Default for HomopolymerError {
 impl Bias for HomopolymerError {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (observation.homopolymer_indel_len, self) {
+            (Some(0), HomopolymerError::None) => {
+                LogProb::ln_one()
+            }
+            (Some(alt_indel_len), HomopolymerError::None) => {
+                // METHOD: no homopolymer error is only possible if all alt allele
+                // does not exhibit homopolymer indels
+                LogProb::ln_zero()
+            }
             (Some(_), HomopolymerError::Some) => {
-                observation.prob_observable_at_homopolymer_artifact.unwrap()
+                LogProb::ln_one()
             }
-            (Some(_len), HomopolymerError::None) => {
-                observation.prob_observable_at_homopolymer_variant.unwrap()
-            }
-            // METHOD: we ignore observations that do not have a homopolymer indel
             (None, HomopolymerError::None) => LogProb::ln_one(),
             (None, HomopolymerError::Some) => LogProb::ln_one(),
         }

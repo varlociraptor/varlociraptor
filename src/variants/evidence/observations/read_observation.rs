@@ -268,10 +268,7 @@ where
     pub paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub read_position: P,
-    /// Probability to make this observation at a homopolymer artifact
-    pub prob_observable_at_homopolymer_artifact: Option<LogProb>,
-    pub prob_observable_at_homopolymer_variant: Option<LogProb>,
-    /// Homopolymer indel length (None if there is no homopolymer indel compared to reference)
+    /// Homopolymer indel length on alt allele (None if there is no homopolymer indel compared to reference)
     pub homopolymer_indel_len: Option<i8>,
     pub is_max_mapq: bool,
     pub alt_locus: A,
@@ -330,8 +327,6 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
                     ReadPosition::Some
                 }
             }),
-            prob_observable_at_homopolymer_artifact: self.prob_observable_at_homopolymer_artifact,
-            prob_observable_at_homopolymer_variant: self.prob_observable_at_homopolymer_variant,
             homopolymer_indel_len: self.homopolymer_indel_len,
             is_max_mapq: self.is_max_mapq,
             alt_locus: if let Some(major_alt_locus) = major_alt_locus {
@@ -630,22 +625,12 @@ where
 
                         if ref_indel_len == 0 {
                             // no homopolymer indel in read compared to reference
-                            obs.homopolymer_indel_len(None)
-                                .prob_observable_at_homopolymer_artifact(None)
-                                .prob_observable_at_homopolymer_variant(None);
+                            obs.homopolymer_indel_len(None);
                         } else {
-                            obs.homopolymer_indel_len(Some(ref_indel_len))
-                                .prob_observable_at_homopolymer_artifact(Some(
-                                    homopolymer_error_model.prob_homopolymer_error(ref_indel_len as i16),
-                                ))
-                                .prob_observable_at_homopolymer_variant(Some(
-                                    if alt_indel_len != 0 { homopolymer_error_model.prob_homopolymer_error(alt_indel_len as i16) } else { LogProb::ln_one() }
-                                ));
+                            obs.homopolymer_indel_len(Some(alt_indel_len));
                         }
                     } else {
-                        obs.homopolymer_indel_len(None)
-                            .prob_observable_at_homopolymer_artifact(None)
-                            .prob_observable_at_homopolymer_variant(None);
+                        obs.homopolymer_indel_len(None);
                     }
 
                     Some(obs.build().unwrap())
