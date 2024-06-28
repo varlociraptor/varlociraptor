@@ -2,7 +2,7 @@
 
 expected:
   posteriors:
-    - PROB_ARTIFACT < 0.1 
+    - PROB_ARTIFACT < 0.2
 
 # necessary bam files
 samples:

@@ -628,43 +628,15 @@ where
                         let ref_indel_len =
                             alt_indel_len + homopolymer_error_model.variant_homopolymer_indel_len();
 
-                        if ref_indel_len == 0 {
+                        obs.homopolymer_indel_len(Some(ref_indel_len));
+
+                        if ref_indel_len == 0 || alt_indel_len == 0 {
                             // no homopolymer indel in read compared to reference
-                            obs.homopolymer_indel_len(None)
-                                .prob_observable_at_homopolymer_artifact(None)
-                                .prob_observable_at_homopolymer_variant(None);
+                            obs.prob_observable_at_homopolymer_artifact(None)
+                               .prob_observable_at_homopolymer_variant(None);
                         } else {
-                            obs.homopolymer_indel_len(Some(alt_indel_len));
-                            assert!(ref_indel_len != 0); // caught above
-                            if ref_indel_len > 0 {
-                                // insertion
-                                obs.prob_observable_at_homopolymer_artifact(Some(
-                                    homopolymer_error_model.prob_homopolymer_artifact_insertion(),
-                                ))
-                                .prob_observable_at_homopolymer_variant(if alt_indel_len == 0 {
-                                    Some(
-                                        homopolymer_error_model.prob_homopolymer_variant_no_indel(),
-                                    )
-                                } else {
-                                    Some(
-                                        homopolymer_error_model
-                                            .prob_homopolymer_variant_insertion(),
-                                    )
-                                });
-                            } else {
-                                obs.prob_observable_at_homopolymer_artifact(Some(
-                                    homopolymer_error_model.prob_homopolymer_artifact_deletion(),
-                                ))
-                                .prob_observable_at_homopolymer_variant(if alt_indel_len == 0 {
-                                    Some(
-                                        homopolymer_error_model.prob_homopolymer_variant_no_indel(),
-                                    )
-                                } else {
-                                    Some(
-                                        homopolymer_error_model.prob_homopolymer_variant_deletion(),
-                                    )
-                                });
-                            }
+                            obs.prob_observable_at_homopolymer_variant(Some(homopolymer_error_model.prob_observable(alt_indel_len)))
+                               .prob_observable_at_homopolymer_artifact(Some(homopolymer_error_model.prob_observable(ref_indel_len)));
                         }
                     } else {
                         obs.homopolymer_indel_len(None)
