@@ -185,7 +185,9 @@ impl HomopolymerErrorModel {
         V: Variant,
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
-            let is_valid = |item_len| item_len != 0 && item_len <= i8::MAX as i16 && item_len >= i8::MIN as i16;
+            let is_valid = |item_len| {
+                item_len != 0 && item_len <= i8::MAX as i16 && item_len >= i8::MIN as i16
+            };
 
             let prob_total = LogProb::ln_sum_exp(
                 &alignment_properties
@@ -202,15 +204,16 @@ impl HomopolymerErrorModel {
             );
 
             let error_model = alignment_properties
-            .wildtype_homopolymer_error_model
-            .iter()
-            .filter_map(|(item_len, prob)| {
-                if is_valid(*item_len) {
-                    Some((*item_len as i8, LogProb::from(Prob(*prob)) - prob_total))
-                } else {
-                    None
-                }
-            }).collect();
+                .wildtype_homopolymer_error_model
+                .iter()
+                .filter_map(|(item_len, prob)| {
+                    if is_valid(*item_len) {
+                        Some((*item_len as i8, LogProb::from(Prob(*prob)) - prob_total))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
             Some(HomopolymerErrorModel {
                 error_model,
