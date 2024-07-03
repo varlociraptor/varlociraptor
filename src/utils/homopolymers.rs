@@ -236,7 +236,7 @@ impl HomopolymerErrorModel {
 #[cfg(test)]
 mod test_homopolymer {
     use crate::utils::homopolymers::HomopolymerIndelOperation;
-    use bio_types::alignment::AlignmentOperation::*;
+    use bio::alignment::AlignmentOperation::*;
     #[test]
     fn test_homopolymer_indel_operation() {
         // Insertion after identical base
