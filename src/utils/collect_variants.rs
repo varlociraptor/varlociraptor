@@ -50,6 +50,7 @@ pub fn collect_variants(
     // let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false)
     //     || (!record.info(b"PRECISE").flag().ok().unwrap_or(false)
     //         && (nonzero_bounds(b"CIPOS") || nonzero_bounds(b"CIEND")));
+    
     let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
 
     let skip_incr = |reason| {

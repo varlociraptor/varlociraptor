@@ -261,6 +261,7 @@ where
         buffer.fetch(locus, false)?;
 
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
+        
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
@@ -282,6 +283,7 @@ where
             .collect();
 
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+        
         let mut observations = Vec::new();
         for evidence in candidates {
             if subsampler.keep() {
@@ -300,11 +302,9 @@ where
     }
 }
 
-
-
 impl<V> Observable<PairedEndEvidence, MultiLocus> for V
 where
-    V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>
+    V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
 {
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
@@ -409,6 +409,7 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
+                    // Probleme
                     left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()),
                     right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(&right).cloned()),
                 };
@@ -677,7 +678,6 @@ pub(crate) struct MultiLocus {
     #[deref(mutable)]
     loci: Vec<SingleLocus>,
 }
-
 
 impl Loci for MultiLocus {
     fn first_pos(&self) -> u64 {

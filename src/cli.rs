@@ -8,6 +8,7 @@ use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
 use anyhow::{bail, Context, Result};
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};

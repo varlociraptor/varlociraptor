@@ -99,7 +99,6 @@ impl RecordBuffer {
         interval: &genome::Interval,
         read_pair_mode: bool,
     ) -> Result<()> {
-        warn!("\nWindow: {:?}, {:?},{:?}", interval.range().start.saturating_sub(self.window(read_pair_mode, true)), interval.range().end + self.window(read_pair_mode, false), self.window(read_pair_mode, false));
         self.inner.fetch(
             interval.contig().as_bytes(),
             interval

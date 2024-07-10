@@ -32,6 +32,7 @@ pub(crate) struct Methylation {
     readtype: Readtype,
 }
 
+
 impl Methylation {
     pub(crate) fn new(locus: genome::Locus, readtype: Readtype) -> Self {
         Methylation {
@@ -333,6 +334,7 @@ fn mutation_occurred_pb_np(read_reverse: bool, record:  &Rc<Record>, qpos: i32) 
     }
     false
 }
+
 
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;

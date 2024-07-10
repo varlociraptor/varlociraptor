@@ -37,13 +37,11 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
-
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
 use crate::variants::sample::Readtype;
-
 
 pub(crate) mod haplotype_feature_index;
 
