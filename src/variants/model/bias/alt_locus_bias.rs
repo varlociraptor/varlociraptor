@@ -36,7 +36,7 @@ impl Bias for AltLocusBias {
     fn prob_ref(&self, observation: &ProcessedReadObservation) -> LogProb {
         // METHOD: ref reads should not point to the alt locus. The reason is that in that case,
         // the homology does not appear to be variant specific, and hence the normal MAPQs
-        // should be able to capure it.
+        // should be able to capture it.
         match (self, observation.is_max_mapq, observation.alt_locus) {
             (AltLocusBias::None, _, _) => *PROB_05, // normal
             (AltLocusBias::Some, true, AltLocus::Some | AltLocus::None) => LogProb::ln_one(), // no bias

@@ -408,7 +408,8 @@ pub trait Testcase {
     }
 
     fn index_reference(&self, path: &dyn AsRef<Path>) {
-        let fasta_path = "/home/adrian/Documents/Promotion/varlociraptor/".to_owned() + path.as_ref().to_str().unwrap();
+        // Das koennte Probleme geben
+        // let fasta_path = "/home/adrian/Documents/Promotion/varlociraptor/".to_owned() + path.as_ref().to_str().unwrap();
         Command::new("samtools")
             .args(&["faidx", &fasta_path])
             .status()

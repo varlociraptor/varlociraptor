@@ -58,13 +58,10 @@ where
     let mut first_middle = None;
     let mut middle = None;
 
-
-
 while (((right - left) >= max_resolution) && left < right) || middle.is_none() {
     middle = Some(grid_point(middle_grid_point(left, right), &mut probs));
     let middle1 = grid_point(middle_grid_point(left, middle.unwrap()), &mut probs);
     let middle2 = grid_point(middle_grid_point(middle.unwrap(), right), &mut probs);
-
 
     if first_middle.is_none() {
         first_middle = middle;
@@ -93,10 +90,7 @@ while (((right - left) >= max_resolution) && left < right) || middle.is_none() {
         right = x_values[max_idx1 + 1];
     } else {
         right = x_values[max_idx1];
-    }
-
-
-   
+    }   
     
     // Old Code with binary search -> Did not find the best results 
     // else {

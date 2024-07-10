@@ -294,7 +294,7 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
-        let aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
+        let mut aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
 
         // Check observation format.
         for obs_reader in observations.iter_not_none() {
@@ -414,6 +414,7 @@ where
                     work_item.check_homopolymer_artifact_detection,
                     work_item.check_alt_locus_bias,
                 )?;
+
                 self.call_record(&mut work_item, _model, _events);
 
                 self.call_processor
@@ -911,7 +912,7 @@ impl CallProcessor for CallWriter {
     fn process_call(
         &mut self,
         call: Call,
-        _sample_names: &grammar::SampleInfo<String>,
+        sample_names: &grammar::SampleInfo<String>,
     ) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
     }
@@ -930,7 +931,7 @@ pub(crate) trait CandidateFilter {
 pub(crate) struct DefaultCandidateFilter;
 
 impl CandidateFilter for DefaultCandidateFilter {
-    fn filter(&self, _work_item: &WorkItem, _sample_names: &grammar::SampleInfo<String>) -> bool {
+    fn filter(&self, work_item: &WorkItem, sample_names: &grammar::SampleInfo<String>) -> bool {
         true
     }
 }

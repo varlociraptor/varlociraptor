@@ -40,6 +40,16 @@ pub(crate) fn collect_variants(
     skip_imprecise: bool,
     skips: Option<&mut SimpleCounter<SkipReason>>,
 ) -> Result<Vec<VariantInfo>> {
+    // TODO ignore imprecise variants for now?
+    // let nonzero_bounds = |tag| {
+    //     record.info(tag).integer().ok().map_or(false, |ci| {
+    //         ci.map_or(false, |ci| ci.iter().any(|bound| *bound != 0))
+    //     })
+    // };
+
+    // let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false)
+    //     || (!record.info(b"PRECISE").flag().ok().unwrap_or(false)
+    //         && (nonzero_bounds(b"CIPOS") || nonzero_bounds(b"CIEND")));
     let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
 
     let skip_incr = |reason| {

@@ -614,7 +614,6 @@ impl VariantBuilder {
                 self
                 .ref_allele(b"CG".to_ascii_uppercase())
                 .alt_allele(b"<METH>".to_ascii_uppercase())
-
             }
             model::Variant::Snv(base) => {
                 self

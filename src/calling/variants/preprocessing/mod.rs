@@ -10,6 +10,16 @@ use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
+use anyhow::{bail, Context, Result};
+use bio_types::genome::{self, AbstractLocus};
+use bio_types::sequence::SequenceReadPairOrientation;
+use bv::BitVec;
+use byteorder::{ByteOrder, LittleEndian};
+use itertools::Itertools;
+use progress_logger::ProgressLogger;
+use rust_htslib::bam::{self, Read as BAMRead};
+use rust_htslib::bcf::{self, Read as BCFRead};
+
 use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
@@ -27,21 +37,13 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
-use crate::variants::sample::Readtype;
 
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
-use anyhow::{bail, Context, Result};
-use bio_types::genome::{self, AbstractLocus};
-use bio_types::sequence::SequenceReadPairOrientation;
-use bv::BitVec;
-use byteorder::{ByteOrder, LittleEndian};
-use itertools::Itertools;
-use progress_logger::ProgressLogger;
-use rust_htslib::bam::{self, Read as BAMRead};
-use rust_htslib::bcf::{self, Read as BCFRead};
+use crate::variants::sample::Readtype;
+
 
 pub(crate) mod haplotype_feature_index;
 
@@ -206,8 +208,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         bam_reader.set_threads(1)?;
         let collect_methylation_probs = matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
 
-
-
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
             .protocol_strandedness(self.protocol_strandedness)
@@ -225,7 +225,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         while let Some(variants) = variant_buffer.next()? {
             let calls = self.process_variant(variants, &mut sample)?;
             for call in calls {
-                warn!("Completed: {:?}", call.pos);
                 call.write_preprocessed_record(&mut bcf_writer)?;
             }
         }
@@ -536,7 +535,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     .to_owned(),
                 alt.to_owned(),
                 self.realigner.clone(),
-                true
+                !self.atomic_candidate_variants,
             ))
         };
 
@@ -792,7 +791,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Snv(alt) => {
                         sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
                     }
-
                     model::Variant::Mnv(alt) => {
                         sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
                     }

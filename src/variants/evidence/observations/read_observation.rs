@@ -771,7 +771,6 @@ impl ExtendedRecord {
     }
 }
 
-
 impl PartialEq for ExtendedRecord {
     fn eq(&self, other: &Self) -> bool {
         self.record == other.record
@@ -779,7 +778,6 @@ impl PartialEq for ExtendedRecord {
 }
 
 impl Eq for ExtendedRecord {
-
 }
 
 #[derive(Clone, Debug, Eq)]
