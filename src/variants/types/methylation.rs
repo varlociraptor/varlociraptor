@@ -327,8 +327,7 @@ fn mutation_occurred_pb_np(read_reverse: bool, record:  &Rc<Record>, qpos: i32) 
     else {
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         if read_base == b'A' || read_base == b'G' || read_base == b'T' {
-            warn!("{:?}", String::from_utf8_lossy(record.qname()));
-
+            warn!("The record {:?} is not considered because a mutation occured", String::from_utf8_lossy(record.qname()));
             return  true
         }
     }
