@@ -110,7 +110,12 @@ impl StrandBias {
 
         if strong_all > 2.0 {
             let forward_fraction = strong_forward / strong_all;
-            if (0.4..=0.6).contains(&forward_fraction) {
+            if strong_all > 100.0 && forward_fraction > 0.0 && forward_fraction < 1.0 {
+                // METHOD: if there are enough observations, accept and return any fraction
+                // that is different from 0.0 and 1.0
+                return Some(NotNan::new(forward_fraction).unwrap());
+            } else if (0.4..=0.6).contains(&forward_fraction) {
+                // METHOD: otherwise, accept fractions around 0.5 as evidence for 0.5
                 return Some(NotNan::new(0.5).unwrap());
             }
         }

@@ -202,6 +202,7 @@ impl SampleLikelihoodModel {
                 + observation.prob_missed_allele
                 + biases.prob_any(observation),
         );
+
         assert!(!total.is_nan());
         total
     }

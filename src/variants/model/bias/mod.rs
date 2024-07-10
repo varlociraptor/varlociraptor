@@ -112,7 +112,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
 }
 
 #[derive(Builder, CopyGetters, Getters, Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct Artifacts {
+pub struct Artifacts {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
     #[getset(get = "pub(crate)")]
@@ -154,7 +154,7 @@ impl Artifacts {
         let read_position_biases = if consider_read_position_bias {
             ReadPositionBias::iter().collect_vec()
         } else {
-            vec![ReadPositionBias::None]
+            vec![ReadPositionBias::default()]
         };
         let read_orientation_biases = if consider_read_orientation_bias {
             ReadOrientationBias::iter().collect_vec()
@@ -221,7 +221,7 @@ impl Artifacts {
         ArtifactsBuilder::default()
             .strand_bias(StrandBias::default())
             .read_orientation_bias(ReadOrientationBias::None)
-            .read_position_bias(ReadPositionBias::None)
+            .read_position_bias(ReadPositionBias::default())
             .softclip_bias(SoftclipBias::None)
             .homopolymer_error(HomopolymerError::default())
             .alt_locus_bias(AltLocusBias::None)
@@ -295,5 +295,6 @@ impl Artifacts {
     pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) {
         self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
+        self.read_position_bias.learn_parameters(pileups);
     }
 }

@@ -12,7 +12,7 @@ use crate::variants::model::{self, HaplotypeIdentifier, VariantPrecision};
 #[derive(
     Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, EnumVariantNames, Display, Debug,
 )]
-pub(crate) enum SkipReason {
+pub enum SkipReason {
     #[strum(serialize = "imprecise variants (will be supported in a future release)")]
     Imprecise,
     #[strum(serialize = "inversions with missing END tag")]
@@ -29,13 +29,13 @@ pub(crate) enum SkipReason {
 
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub(crate)")]
-pub(crate) struct VariantInfo {
-    pub(crate) variant: model::Variant,
-    pub(crate) haplotype: Option<HaplotypeIdentifier>,
+pub struct VariantInfo {
+    pub variant: model::Variant,
+    pub haplotype: Option<HaplotypeIdentifier>,
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub(crate) fn collect_variants(
+pub fn collect_variants(
     record: &mut bcf::Record,
     skip_imprecise: bool,
     skips: Option<&mut SimpleCounter<SkipReason>>,

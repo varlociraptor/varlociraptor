@@ -2,6 +2,42 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.9](https://github.com/varlociraptor/varlociraptor/compare/v8.4.8...v8.4.9) (2024-07-01)
+
+
+### Bug Fixes
+
+* complete overhaul of homopolymer error model (to be more specific) and fix for strand bias model (to be more sensitive) ([b615a7f](https://github.com/varlociraptor/varlociraptor/commit/b615a7fc42c97c5dae1d67c8811f7665803d8161))
+
+## [8.4.8](https://github.com/varlociraptor/varlociraptor/compare/v8.4.7...v8.4.8) (2024-05-27)
+
+
+### Performance Improvements
+
+* update to rust-htslib 0.47 ([#427](https://github.com/varlociraptor/varlociraptor/issues/427)) ([180acd5](https://github.com/varlociraptor/varlociraptor/commit/180acd5268be4e5d2c98d8f65e7b39b6541ff8be))
+
+## [8.4.7](https://github.com/varlociraptor/varlociraptor/compare/v8.4.6...v8.4.7) (2024-05-11)
+
+
+### Bug Fixes
+
+* improved specificity of read position bias model by estimating the rate of the predominant read position from the ref supporting observations ([#425](https://github.com/varlociraptor/varlociraptor/issues/425)) ([eea6727](https://github.com/varlociraptor/varlociraptor/commit/eea6727ab0762e5abb752b779be6841cbb3874b7))
+
+## [8.4.6](https://github.com/varlociraptor/varlociraptor/compare/v8.4.5...v8.4.6) (2024-03-27)
+
+
+### Bug Fixes
+
+* fix bug during calculation of read position bias ([#422](https://github.com/varlociraptor/varlociraptor/issues/422)) ([33d98b6](https://github.com/varlociraptor/varlociraptor/commit/33d98b6f26e56fc8cfbc40db718805200674d196))
+* fix decompression of CRAM files that rely on an external reference FASTA. Varlociraptor now uses the given reference FASTA for this decompression ([#420](https://github.com/varlociraptor/varlociraptor/issues/420)) ([75810c6](https://github.com/varlociraptor/varlociraptor/commit/75810c603b7fd3d0fc7b9926c75c28686b7f80c8))
+
+## [8.4.5](https://github.com/varlociraptor/varlociraptor/compare/v8.4.4...v8.4.5) (2024-02-21)
+
+
+### Bug Fixes
+
+* fail if insert size standard deviation is zero, because that is unrealistic and causes numeric issues ([#410](https://github.com/varlociraptor/varlociraptor/issues/410)) ([cf6eead](https://github.com/varlociraptor/varlociraptor/commit/cf6eead3601819089a3c8172fce84ff06c2d4fca))
+
 ## [8.4.4](https://github.com/varlociraptor/varlociraptor/compare/v8.4.3...v8.4.4) (2024-01-30)
 
 

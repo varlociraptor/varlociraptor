@@ -210,7 +210,7 @@ impl Call {
                 read_position_bias.insert(
                     i,
                     match sample_info.artifacts.read_position_bias() {
-                        ReadPositionBias::None => b'.',
+                        ReadPositionBias::None { .. } => b'.',
                         ReadPositionBias::Some => b'^',
                     },
                 );

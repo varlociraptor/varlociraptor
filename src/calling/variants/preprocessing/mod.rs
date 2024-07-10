@@ -206,6 +206,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
         bam_reader.set_threads(1)?;
+        bam_reader
+            .set_reference(
+                self.reference_buffer.reference_path().expect(
+                    "bug: reference buffer seemingly has not been created from reference file",
+                ),
+            )
+            .context("Unable to read reference FASTA")?;
         let collect_methylation_probs = matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
 
         let mut sample = SampleBuilder::default()

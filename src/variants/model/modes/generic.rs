@@ -267,6 +267,7 @@ impl GenericPosterior {
                                 likelihood_operands,
                                 true,
                             );
+
                             subdensity(likelihood_operands)
                         } else {
                             LogProb::ln_sum_exp(

@@ -30,7 +30,7 @@ use crate::Event;
 pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod aux_info;
-pub(crate) mod collect_variants;
+pub mod collect_variants;
 pub(crate) mod comparison;
 pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
@@ -587,7 +587,7 @@ mod tests {
 }
 
 #[derive(CopyGetters, Debug, Serialize, Deserialize, Clone)]
-pub(crate) struct SimpleCounter<T>
+pub struct SimpleCounter<T>
 where
     T: Eq + Hash + Debug,
 {
@@ -654,7 +654,7 @@ where
 
 /// Format to given precision
 /// Taken from https://stackoverflow.com/a/60498499/7070491
-pub(crate) fn _signif(float: f64, precision: usize) -> String {
+pub fn signif(float: f64, precision: usize) -> String {
     // compute absolute value
     let a = float.abs();
 
