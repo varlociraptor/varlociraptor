@@ -198,11 +198,11 @@ fn get_qpos(read: &Rc<Record> , locus: &SingleLocus) -> Option<i32> {
 fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
-    let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
+    // let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
 
     // If locus is on the last position of the read and reverse, the C of the CG is not included
-    if c_not_included || mutation_occurred {
+    if c_not_included {
         return None;
     }
 
@@ -326,6 +326,8 @@ fn mutation_occurred_pb_np(read_reverse: bool, record:  &Rc<Record>, qpos: i32) 
     else {
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         if read_base == b'A' || read_base == b'G' || read_base == b'T' {
+            warn!("{:?}", String::from_utf8_lossy(record.qname()));
+
             return  true
         }
     }
@@ -419,7 +421,6 @@ impl Variant for Methylation {
                         }
 
                         Readtype::PacBio | Readtype::Nanopore=> {
-                            let meth_probs = read.get_methylation_probs();
                             let meth_info = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
                             (prob_alt, prob_ref) = process_read_pb_np(record.record(), &self.locus, meth_info).unwrap_or((LogProb(0.0), LogProb(0.0)));
                         }
@@ -440,7 +441,6 @@ impl Variant for Methylation {
                         // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
                         // In this case we just chose the first alignment
                         Readtype::PacBio | Readtype::Nanopore => {
-                            let meth_probs = read.get_methylation_probs();
                             let meth_info_left = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
                             let meth_info_right = read.get_methylation_probs()[1].as_ref().unwrap_or(&None);
                             
