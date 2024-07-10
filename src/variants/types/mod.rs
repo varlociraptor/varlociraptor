@@ -409,9 +409,9 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    // Probleme
+                    // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
                     left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()),
-                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(&right).cloned()),
+                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right).cloned()),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);

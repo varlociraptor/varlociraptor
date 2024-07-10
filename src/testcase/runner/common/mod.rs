@@ -408,10 +408,8 @@ pub trait Testcase {
     }
 
     fn index_reference(&self, path: &dyn AsRef<Path>) {
-        // Das koennte Probleme geben
-        // let fasta_path = "/home/adrian/Documents/Promotion/varlociraptor/".to_owned() + path.as_ref().to_str().unwrap();
         Command::new("samtools")
-            .args(&["faidx", &fasta_path])
+            .args(["faidx", path.as_ref().to_str().unwrap()])
             .status()
             .expect("failed to create fasta index");
     }
