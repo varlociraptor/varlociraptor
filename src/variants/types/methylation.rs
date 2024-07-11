@@ -4,7 +4,7 @@ use crate::variants::model;
 use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
 
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observations::read_observation::{ExtendedRecord, Strand};
+use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, SingleEndEvidence, PairedEndEvidence, SingleLocus, Variant,
 };
@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
-use log::{error, warn};
+use log::warn;
 use rust_htslib::bam::record::Aux;
 use std::sync::Mutex;
 use lazy_static::lazy_static;
@@ -124,7 +124,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
                     meth_pos += position + 1;
                 
                     if meth_pos <= pos_read_base.len() {
-                        pos_methylated_cs.push(pos_read_base[meth_pos - 1] as usize);
+                        pos_methylated_cs.push(pos_read_base[meth_pos - 1]);
                     } else {
                         // TODO Ist das echt richtig? Die MEldung gebe ich ja bei hardclipped aus. So werden die Anfaenge von hardclipped beachtet und reingepackt. sollte der ganze read dann nicht betrachtet werden?
                         // TODO Hier andere Fehlermeludung ausgeben, da jetzt immer laenger, da read nur nochkuerzer betrachtet wird
@@ -263,7 +263,7 @@ fn compute_probs_pb_np(read_reverse: bool, pos_to_probs: &HashMap<usize, LogProb
     let prob_ref;
     if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
         prob_alt = value.to_owned();
-        prob_ref = LogProb::from(Prob(1 as f64 - prob_alt.0.exp()));
+        prob_ref = LogProb::from(Prob(1_f64 - prob_alt.0.exp()));
     } else {
         prob_alt = LogProb::from(Prob(0.0));
         prob_ref = LogProb::from(Prob(1.0));
@@ -291,7 +291,7 @@ pub fn read_reverse_strand(flag:u16) -> bool {
     false
 }
 
-/// Computes if a mutation occured at the C of a CpG position
+/// Computes if a mutation occured at the C of a CpG position (Not used right now but good for debugging)
 ///
 /// # Returns
 ///

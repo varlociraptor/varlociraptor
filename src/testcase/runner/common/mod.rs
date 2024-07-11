@@ -10,7 +10,6 @@ pub use crate::testcase::runner::common::version2::TestcaseVersion2;
 pub use crate::testcase::runner::common::version3::TestcaseVersion3;
 pub use crate::testcase::runner::common::version4::TestcaseVersion4;
 
-use crate::variants::sample::Readtype;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};

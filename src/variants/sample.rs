@@ -21,8 +21,7 @@ use bio::stats::LogProb;
 use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::read_observation::{
-    self, major_read_position, Observable, ReadObservation, SingleEndEvidence,
-};
+    self, major_read_position, Observable, ReadObservation};
 use crate::variants::{self, types::Variant};
 use super::types::methylation::{meth_pos, meth_probs};
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
@@ -44,7 +43,6 @@ pub(crate) struct RecordBuffer {
     failed_reads: Option<Vec<ByAddress<Rc<Record>>>>,
 }
 
-
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct RecId {
     qname: String,
@@ -55,10 +53,6 @@ pub struct RecId {
 }
 
 impl RecId {
-    // Eine Hilfsmethode, um eine neue RecId-Instanz aus den Einzelteilen zu erstellen
-    fn new(qname: String, pos: i64, flag: u16, tid: i32) -> Self {
-        RecId { qname, pos, flag, tid }
-    }
 }
 
 impl RecordBuffer {
@@ -114,7 +108,7 @@ impl RecordBuffer {
                 let mut rec_debug = Vec::new();
                 for rec in self.inner.iter() {
                     let rec_id = ByAddress(rec.clone());
-                    rec_debug.push((rec.inner.core.pos));
+                    rec_debug.push(rec.inner.core.pos);
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id){
                         // println!("Inserted: {:?}, {:?}", rec.inner.core.pos, String::from_utf8_lossy(rec.qname()));
