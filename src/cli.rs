@@ -337,7 +337,7 @@ pub enum PreprocessKind {
             required = false,
             default_value = "PacBio",
             possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
-            help = "Sequencing method used to gain the reads, important for chosing methylation method. Chose 'Illumina', 'PacBio' or 'Nanopore' ."
+            help = "Sequencing method used to gain the reads, important for chosing methylation method."
         )]
         read_type: Readtype,
     },
