@@ -296,7 +296,7 @@ pub fn read_reverse_strand(flag:u16) -> bool {
 /// # Returns
 ///
 /// bool: True, if mutation occured
-fn mutation_occurred_illumina(read_reverse: bool, record:  &Rc<Record>, qpos: i32) -> bool {
+fn _mutation_occurred_illumina(read_reverse: bool, record:  &Rc<Record>, qpos: i32) -> bool {
     if read_reverse {
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         if read_base == b'C' || read_base == b'T' {
