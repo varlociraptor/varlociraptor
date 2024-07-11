@@ -169,6 +169,10 @@ fn default_min_bam_refetch_distance() -> u64 {
     1
 }
 
+fn default_read_type() -> Readtype {
+    Readtype::PacBio
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -339,6 +343,7 @@ pub enum PreprocessKind {
             possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
             help = "Sequencing method used to gain the reads, important for chosing methylation method."
         )]
+        #[serde(default = "default_read_type")]
         read_type: Readtype,
     },
 

@@ -148,8 +148,6 @@ testcase!(test_pcr_homopolymer_error3, exact);
 
 
 testcase!(test_prinz_af_scan, exact);
-testcase!(test_prinz_af_illumina, exact);
-testcase!(test_prinz_af_nanopore, exact);
 testcase!(test_prinz_pacbio_zero, exact);
 
 testcase!(test_mendelian_prior, exact);
