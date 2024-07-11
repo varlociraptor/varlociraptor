@@ -2,12 +2,8 @@
 # This is indicated by the fact that we see both deletions and insertions of different lengths in a poly-A stretch.
 
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - NA12878 == 0.0
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_ARTIFACT < 1.0
+    - PROB_PRESENT >= 10.0
 
 # necessary bam files
 samples:

@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.9](https://github.com/varlociraptor/varlociraptor/compare/v8.4.8...v8.4.9) (2024-07-01)
+
+
+### Bug Fixes
+
+* complete overhaul of homopolymer error model (to be more specific) and fix for strand bias model (to be more sensitive) ([b615a7f](https://github.com/varlociraptor/varlociraptor/commit/b615a7fc42c97c5dae1d67c8811f7665803d8161))
+
 ## [8.4.8](https://github.com/varlociraptor/varlociraptor/compare/v8.4.7...v8.4.8) (2024-05-27)
 
 

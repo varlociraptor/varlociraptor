@@ -215,9 +215,9 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "1.6.0"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a72cb93babf08c85b375c2938ac678cc637936b3ebb72266d433cec2577f6c2"
+checksum = "77ffe04b598449a4486a45bc15884537a01cb2015d978ce66e51a47b2740ddbe"
 dependencies = [
  "anyhow",
  "approx",
@@ -230,7 +230,7 @@ dependencies = [
  "editdistancek",
  "enum-map",
  "fxhash",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "itertools-num",
  "lazy_static",
  "multimap",
@@ -238,7 +238,7 @@ dependencies = [
  "newtype_derive",
  "num-integer",
  "num-traits",
- "ordered-float 3.9.2",
+ "ordered-float 4.2.1",
  "petgraph",
  "rand 0.8.5",
  "regex",
@@ -246,7 +246,7 @@ dependencies = [
  "serde_derive",
  "statrs",
  "strum",
- "strum_macros",
+ "strum_macros 0.26.4",
  "thiserror",
  "triple_accel",
  "vec_map",
@@ -262,7 +262,7 @@ dependencies = [
  "lazy_static",
  "regex",
  "serde",
- "strum_macros",
+ "strum_macros 0.25.3",
  "thiserror",
 ]
 
@@ -975,6 +975,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
+name = "heck"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1092,18 +1098,18 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
 dependencies = [
  "either",
 ]
 
 [[package]]
 name = "itertools"
-version = "0.12.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -1316,9 +1322,9 @@ dependencies = [
 
 [[package]]
 name = "multimap"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1a5d38b9b352dbd913288736af36af41c48d61b1a8cd34bcecd727561b7d511"
+checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
 dependencies = [
  "serde",
 ]
@@ -1509,9 +1515,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.9.2"
+version = "4.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1e1c390732d15f1d48471625cd92d154e66db2c56645e29a9cd26f4699f72dc"
+checksum = "19ff2cf528c6c03d9ed653d6c4ce1dc0582dc4af309790ad92f07c1cd551b0be"
 dependencies = [
  "num-traits",
 ]
@@ -2123,6 +2129,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum_macros"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "rustversion",
+ "syn 2.0.70",
+]
+
+[[package]]
 name = "syn"
 version = "0.15.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2392,7 +2411,7 @@ dependencies = [
 
 [[package]]
 name = "varlociraptor"
-version = "8.4.8"
+version = "8.4.9"
 dependencies = [
  "GSL",
  "anyhow",
@@ -2448,7 +2467,7 @@ dependencies = [
  "statrs",
  "structopt",
  "strum",
- "strum_macros",
+ "strum_macros 0.25.3",
  "tempfile",
  "thiserror",
  "time",
