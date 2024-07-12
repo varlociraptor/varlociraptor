@@ -31,6 +31,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam::{self, Record};
 use std::collections::{HashMap, HashSet};
 
+type MethylationPosToProbs = HashMap<usize, LogProb>;
+type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<MethylationPosToProbs>>;
+
 #[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
@@ -39,7 +42,7 @@ pub(crate) struct RecordBuffer {
     #[getset(get = "pub")]
     read_pair_window: u64,
     #[getset(get = "pub")]
-    methylation_probs: Option<HashMap<ByAddress<Rc<Record>>, Option<HashMap<usize, LogProb>>>>,
+    methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
     failed_reads: Option<Vec<ByAddress<Rc<Record>>>>,
 }

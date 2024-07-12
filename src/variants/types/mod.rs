@@ -177,10 +177,6 @@ pub(crate) trait Variant {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer_indel_len().is_some()
     }
-
-    fn is_meth(&self) -> bool {
-        false
-    }
 }
 
 pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
