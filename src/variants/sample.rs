@@ -101,7 +101,7 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-
+        // If we are interested in methylation on PacBio or Nanopore data we need to compute the methylation probabilities 
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 // let mut first_it = true;
