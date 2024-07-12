@@ -178,7 +178,7 @@ pub trait Testcase {
     }
 
     fn sample_observations_path(&self, sample_name: &str) -> PathBuf {
-        let path = self.path().join("observations").join(sample_name);
+        let mut path = self.path().join("observations").join(sample_name);
 
         path
     }
@@ -408,7 +408,7 @@ pub trait Testcase {
 
     fn index_reference(&self, path: &dyn AsRef<Path>) {
         Command::new("samtools")
-            .args(["faidx", path.as_ref().to_str().unwrap()])
+            .args(&["faidx", path.as_ref().to_str().unwrap()])
             .status()
             .expect("failed to create fasta index");
     }

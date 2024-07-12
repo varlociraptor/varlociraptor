@@ -62,7 +62,7 @@ impl VariantObservation {
             return None;
         }
 
-        let vaf_dist = sample_info
+        let mut vaf_dist = sample_info
             .vaf_dist()
             .as_ref()
             .unwrap()
@@ -98,7 +98,7 @@ impl VariantObservation {
                         + (vaf - *infimum).ln(),
                 ))
             }
-            (Some((_infimum, _count)), None) => {
+            (Some((infimum, count)), None) => {
                 // case 3: right of highest value, return zero
                 LogProb::ln_zero()
             }
@@ -163,7 +163,7 @@ impl bio::stats::bayesian::model::Likelihood for Likelihood {
     type Event = Event;
     type Data = Vec<VariantObservation>;
 
-    fn compute(&self, event: &Self::Event, data: &Self::Data, _payload: &mut ()) -> LogProb {
+    fn compute(&self, event: &Self::Event, data: &Self::Data, payload: &mut ()) -> LogProb {
         let purity = AlleleFreq(1.0) - event.contamination;
         data.iter()
             .map(|obs| {
@@ -344,7 +344,7 @@ impl ContaminationEstimator {
                 spec["datasets"]["empirical_vaf_dist"] = vaf_dist.hist_as_json();
                 spec["datasets"]["densities"] = densities;
 
-                let outfile = File::create(outpath)?;
+                let mut outfile = File::create(outpath)?;
                 serde_json::to_writer_pretty(outfile, &spec)?;
             } else {
                 unreachable!();
@@ -380,7 +380,7 @@ impl ContaminationEstimator {
 impl CallProcessor for ContaminationEstimator {
     fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
         &mut self,
-        _caller: &Caller<Pr, Self, CF>,
+        caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>> {
         Ok(None)
     }

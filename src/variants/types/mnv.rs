@@ -13,6 +13,7 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
+use itertools::Itertools;
 
 use crate::default_ref_base_emission;
 use crate::errors::Error;
