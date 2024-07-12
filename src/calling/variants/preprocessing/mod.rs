@@ -37,11 +37,11 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
+use crate::variants::sample::Readtype;
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
-use crate::variants::sample::Readtype;
 
 pub(crate) mod haplotype_feature_index;
 
@@ -211,7 +211,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let collect_methylation_probs = matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
+        let collect_methylation_probs =
+            matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -222,7 +223,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
-                collect_methylation_probs
+                collect_methylation_probs,
             )
             .build()
             .unwrap();

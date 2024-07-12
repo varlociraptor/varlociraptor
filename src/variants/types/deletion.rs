@@ -14,12 +14,10 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
-
 use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
-
 
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
@@ -27,9 +25,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::types::{
-    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
-};
+use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 use super::{IsizeObservable, ToVariantRepresentation};
 
@@ -259,8 +255,12 @@ impl<R: Realigner> Variant for Deletion<R> {
                 support.merge(&right_support);
 
                 if alignment_properties.insert_size.is_some() {
-                    let isize_support =
-                        self.allele_support_isize(left.record(), right.record(), alignment_properties, self.len())?;
+                    let isize_support = self.allele_support_isize(
+                        left.record(),
+                        right.record(),
+                        alignment_properties,
+                        self.len(),
+                    )?;
                     support.merge(&isize_support);
                 }
 
@@ -286,10 +286,16 @@ impl<R: Realigner> Variant for Deletion<R> {
                     // METHOD: we do not require the fragment to enclose the variant.
                     // Hence, we treat both reads independently.
                     (self
-                        .prob_sample_alt_read(left.record().seq().len() as u64, alignment_properties)
+                        .prob_sample_alt_read(
+                            left.record().seq().len() as u64,
+                            alignment_properties,
+                        )
                         .ln_one_minus_exp()
                         + self
-                            .prob_sample_alt_read(right.record().seq().len() as u64, alignment_properties)
+                            .prob_sample_alt_read(
+                                right.record().seq().len() as u64,
+                                alignment_properties,
+                            )
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }

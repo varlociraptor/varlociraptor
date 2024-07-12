@@ -18,7 +18,8 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, PairedEndEvidence, ExtendedRecord, ReadObservation, SingleEndEvidence, Strand,
+    Evidence, ExtendedRecord, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence,
+    Strand,
 };
 use crate::variants::sample;
 
@@ -261,7 +262,7 @@ where
         buffer.fetch(locus, false)?;
 
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-        
+
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
@@ -283,7 +284,7 @@ where
             .collect();
 
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
-        
+
         let mut observations = Vec::new();
         for evidence in candidates {
             if subsampler.keep() {
@@ -328,7 +329,9 @@ where
     fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
         match evidence {
             PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.record().mapq(), right.record().mapq()),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                cmp::min(left.record().mapq(), right.record().mapq())
+            }
         }
     }
 
@@ -410,8 +413,14 @@ where
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
                     // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
-                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()),
-                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right).cloned()),
+                    left: ExtendedRecord::new(
+                        Rc::clone(&candidate.left),
+                        buffer.get_methylation_probs(&candidate.left).cloned(),
+                    ),
+                    right: ExtendedRecord::new(
+                        Rc::clone(right),
+                        buffer.get_methylation_probs(right).cloned(),
+                    ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -419,7 +428,10 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()));
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
+                    Rc::clone(&candidate.left),
+                    buffer.get_methylation_probs(&candidate.left).cloned(),
+                ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
@@ -452,7 +464,7 @@ where
 
 impl<V> Observable<PairedEndEvidence, SingleLocus> for V
 where
-    V: Variant<Evidence = PairedEndEvidence, Loci = SingleLocus>
+    V: Variant<Evidence = PairedEndEvidence, Loci = SingleLocus>,
 {
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
@@ -476,7 +488,9 @@ where
     fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
         match evidence {
             PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.record().mapq(), right.record().mapq()),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                cmp::min(left.record().mapq(), right.record().mapq())
+            }
         }
     }
 
@@ -493,7 +507,6 @@ where
         // in slightly different probabilities each time.
         let mut candidate_records = BTreeMap::new();
 
-        
         let locus = self.loci();
         buffer.fetch(locus, true)?;
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
@@ -531,7 +544,6 @@ where
                 candidate.right = Some(record);
             }
         }
-        
 
         let mut candidates = Vec::new();
         let mut locus_depth = VecMap::new();
@@ -551,8 +563,14 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()),
-                    right: ExtendedRecord::new(Rc::clone(right), buffer.get_methylation_probs(right).cloned()),
+                    left: ExtendedRecord::new(
+                        Rc::clone(&candidate.left),
+                        buffer.get_methylation_probs(&candidate.left).cloned(),
+                    ),
+                    right: ExtendedRecord::new(
+                        Rc::clone(right),
+                        buffer.get_methylation_probs(right).cloned(),
+                    ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -560,7 +578,10 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(Rc::clone(&candidate.left), buffer.get_methylation_probs(&candidate.left).cloned()));
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
+                    Rc::clone(&candidate.left),
+                    buffer.get_methylation_probs(&candidate.left).cloned(),
+                ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
@@ -589,8 +610,6 @@ where
         Ok(observations)
     }
 }
-
-
 
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
@@ -651,10 +670,12 @@ impl SingleLocus {
 
     fn outside_overlap(&self, record: &bam::Record) -> bool {
         // let reverse_read =  (evidence.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
-        let reverse_read = record.inner.core.flag == 163 || record.inner.core.flag == 83 || record.inner.core.flag == 16;
+        let reverse_read = record.inner.core.flag == 163
+            || record.inner.core.flag == 83
+            || record.inner.core.flag == 16;
         let pos = record.pos() as u64;
         if pos == self.range().start + 1 && reverse_read {
-            return true
+            return true;
         }
         false
     }

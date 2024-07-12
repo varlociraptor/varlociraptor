@@ -17,7 +17,7 @@ use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use itertools::Itertools;
 use regex::Regex;
-use rust_htslib::{bam};
+use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::default_ref_base_emission;
@@ -386,7 +386,9 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, locus)| {
-                            if is_valid_overlap(locus, left.record()) || is_valid_overlap(locus, right.record()) {
+                            if is_valid_overlap(locus, left.record())
+                                || is_valid_overlap(locus, right.record())
+                            {
                                 Some(i)
                             } else {
                                 None
@@ -554,16 +556,21 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                     // METHOD: we do not require the fragment to enclose the breakend group.
                     // Hence, we treat both reads independently.
                     (self
-                        .prob_sample_alt_read(left.record().seq().len() as u64, alignment_properties)
+                        .prob_sample_alt_read(
+                            left.record().seq().len() as u64,
+                            alignment_properties,
+                        )
                         .ln_one_minus_exp()
                         + self
-                            .prob_sample_alt_read(right.record().seq().len() as u64, alignment_properties)
+                            .prob_sample_alt_read(
+                                right.record().seq().len() as u64,
+                                alignment_properties,
+                            )
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }
-                PairedEndEvidence::SingleEnd(read) => {
-                    self.prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties)
-                }
+                PairedEndEvidence::SingleEnd(read) => self
+                    .prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties),
             }
         }
     }

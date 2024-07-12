@@ -146,7 +146,6 @@ testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
 testcase!(test_pcr_homopolymer_error3, exact);
 
-
 testcase!(test_prinz_af_scan, exact);
 testcase!(test_prinz_pacbio_zero, exact);
 
@@ -170,8 +169,6 @@ testcase!(test_nanopore_02, homopolymer);
 testcase!(test_nanopore_03, homopolymer);
 testcase!(test_nanopore_04, homopolymer);
 testcase!(test_nanopore_05, homopolymer);
-
-
 
 testcase!(test_haplotype_absent, exact);
 testcase!(test_haplotype_present, exact);

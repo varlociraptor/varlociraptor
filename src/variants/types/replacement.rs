@@ -160,7 +160,9 @@ impl<R: Realigner> Variant for Replacement<R> {
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
-            PairedEndEvidence::SingleEnd(read) => !self.locus().overlap(read.record(), true).is_none(),
+            PairedEndEvidence::SingleEnd(read) => {
+                !self.locus().overlap(read.record(), true).is_none()
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
                 !self.locus().overlap(left.record(), true).is_none()
                     || !self.locus().overlap(right.record(), true).is_none()
@@ -232,7 +234,10 @@ impl<R: Realigner> Variant for Replacement<R> {
                     .prob_sample_alt_read(left.record().seq().len() as u64, alignment_properties)
                     .ln_one_minus_exp()
                     + self
-                        .prob_sample_alt_read(right.record().seq().len() as u64, alignment_properties)
+                        .prob_sample_alt_read(
+                            right.record().seq().len() as u64,
+                            alignment_properties,
+                        )
                         .ln_one_minus_exp())
                 .ln_one_minus_exp()
             }

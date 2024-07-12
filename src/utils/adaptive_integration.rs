@@ -84,13 +84,13 @@ where
         if max_idx1 > 0 {
             left = x_values[max_idx1 - 1];
         } else {
-            left = x_values[max_idx1]; 
+            left = x_values[max_idx1];
         }
         if max_idx1 < 3 {
             right = x_values[max_idx1 + 1];
         } else {
             right = x_values[max_idx1];
-        }   
+        }
     }
     // METHOD: add additional grid point in the initially abandoned arm
     if middle < first_middle {

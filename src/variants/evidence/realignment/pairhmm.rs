@@ -9,7 +9,6 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
-
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
 use num_traits::Zero;

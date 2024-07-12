@@ -4,12 +4,12 @@
 // except according to those terms.
 
 use std::char;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
-use std::collections::HashMap;
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -744,7 +744,7 @@ pub struct ExtendedRecord {
     #[getset(get = "pub")]
     record: Rc<bam::Record>,
     #[getset(get = "pub")]
-    prob_methylation: Option<Option<HashMap<usize, LogProb>>>
+    prob_methylation: Option<Option<HashMap<usize, LogProb>>>,
 }
 
 impl ExtendedRecord {
@@ -754,7 +754,7 @@ impl ExtendedRecord {
     ) -> Self {
         ExtendedRecord {
             record,
-            prob_methylation
+            prob_methylation,
         }
     }
 }
@@ -765,8 +765,7 @@ impl PartialEq for ExtendedRecord {
     }
 }
 
-impl Eq for ExtendedRecord {
-}
+impl Eq for ExtendedRecord {}
 
 #[derive(Clone, Debug, Eq)]
 pub(crate) enum PairedEndEvidence {
@@ -783,10 +782,9 @@ impl PairedEndEvidence {
             PairedEndEvidence::SingleEnd(record) => {
                 vec![&record.prob_methylation]
             }
-            PairedEndEvidence::PairedEnd { left, right } => vec![
-                &left.prob_methylation,
-                &right.prob_methylation
-            ],
+            PairedEndEvidence::PairedEnd { left, right } => {
+                vec![&left.prob_methylation, &right.prob_methylation]
+            }
         }
     }
 
@@ -838,7 +836,9 @@ impl Evidence for PairedEndEvidence {
     fn len(&self) -> usize {
         match self {
             PairedEndEvidence::SingleEnd(rec) => rec.record.seq_len(),
-            PairedEndEvidence::PairedEnd { left, right } => left.record.seq_len() + right.record.seq_len(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                left.record.seq_len() + right.record.seq_len()
+            }
         }
     }
 
@@ -854,7 +854,8 @@ impl Evidence for PairedEndEvidence {
             PairedEndEvidence::SingleEnd(rec) => ExactAltLoci::from(rec.record.as_ref()),
             PairedEndEvidence::PairedEnd { left, right } => {
                 let mut left = ExactAltLoci::from(left.record.as_ref());
-                left.inner.extend(ExactAltLoci::from(right.record.as_ref()).inner);
+                left.inner
+                    .extend(ExactAltLoci::from(right.record.as_ref()).inner);
                 left
             }
         }

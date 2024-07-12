@@ -346,7 +346,6 @@ pub enum PreprocessKind {
         #[serde(default = "default_read_type")]
         read_type: Readtype,
     },
-
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -840,7 +839,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
-                    read_type
+                    read_type,
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {

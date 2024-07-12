@@ -9,26 +9,27 @@ use std::path::Path;
 use std::rc::Rc;
 use std::str;
 
+use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
+use super::evidence::observations::read_observation::major_alt_locus;
+use super::evidence::realignment::Realignable;
+use super::types::methylation::{meth_pos, meth_probs};
+use crate::estimation::alignment_properties;
+use crate::reference;
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::{
+    self, major_read_position, Observable, ReadObservation,
+};
+use crate::variants::{self, types::Variant};
 use anyhow::Result;
+use bio::stats::LogProb;
 use bio_types::{genome, genome::AbstractInterval};
+use by_address::ByAddress;
 use derive_builder::Builder;
 use rand::distributions;
 use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam::{self, Record};
 use std::collections::{HashMap, HashSet};
-use bio::stats::LogProb;
-use crate::estimation::alignment_properties;
-use crate::reference;
-use crate::variants::evidence::observations::read_observation::{
-    self, major_read_position, Observable, ReadObservation};
-use crate::variants::{self, types::Variant};
-use super::types::methylation::{meth_pos, meth_probs};
-use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
-use super::evidence::observations::read_observation::major_alt_locus;
-use super::evidence::realignment::Realignable;
-use crate::variants::evidence::observations::pileup::Pileup;
-use by_address::ByAddress;
 
 #[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -52,8 +53,7 @@ pub struct RecId {
     // cigar: String,
 }
 
-impl RecId {
-}
+impl RecId {}
 
 impl RecordBuffer {
     pub(crate) fn new(
@@ -66,11 +66,18 @@ impl RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
-            methylation_probs: if collect_methylation_probs { Some(HashMap::new()) } else { None },
-            failed_reads: if collect_methylation_probs { Some(Vec::new()) } else { None },
+            methylation_probs: if collect_methylation_probs {
+                Some(HashMap::new())
+            } else {
+                None
+            },
+            failed_reads: if collect_methylation_probs {
+                Some(Vec::new())
+            } else {
+                None
+            },
         }
     }
-
 
     pub(crate) fn window(&self, read_pair_mode: bool, left: bool) -> u64 {
         if read_pair_mode {
@@ -82,11 +89,15 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(&self, rec: &Rc<Record>) -> Option<&Option<HashMap<usize, LogProb>>>{
-        self.methylation_probs().as_ref().map(|meth_probs| meth_probs.get(&ByAddress(rec.clone()))).unwrap_or_default()
+    pub(crate) fn get_methylation_probs(
+        &self,
+        rec: &Rc<Record>,
+    ) -> Option<&Option<HashMap<usize, LogProb>>> {
+        self.methylation_probs()
+            .as_ref()
+            .map(|meth_probs| meth_probs.get(&ByAddress(rec.clone())))
+            .unwrap_or_default()
     }
-
-
 
     pub(crate) fn fetch(
         &mut self,
@@ -101,7 +112,7 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-        // If we are interested in methylation on PacBio or Nanopore data we need to compute the methylation probabilities 
+        // If we are interested in methylation on PacBio or Nanopore data we need to compute the methylation probabilities
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 // let mut first_it = true;
@@ -110,32 +121,31 @@ impl RecordBuffer {
                     let rec_id = ByAddress(rec.clone());
                     rec_debug.push(rec.inner.core.pos);
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs
-                    if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id){
+                    if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         // println!("Inserted: {:?}, {:?}", rec.inner.core.pos, String::from_utf8_lossy(rec.qname()));
                         let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
                             meth_probs(rec).map(|meth_probs| {
                                 meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
                             })
                         });
-                        if pos_to_probs.is_none(){
+                        if pos_to_probs.is_none() {
                             failed_reads.push(rec_id);
-
-                        }    
-                        else {
+                        } else {
                             methylation_probs.insert(rec_id, pos_to_probs);
                         }
                     }
                 }
-                let buffer_ids: HashSet<_> = self.inner.iter().map(|rec| ByAddress(rec.clone())).collect();
+                let buffer_ids: HashSet<_> = self
+                    .inner
+                    .iter()
+                    .map(|rec| ByAddress(rec.clone()))
+                    .collect();
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
-                    methylation_probs_map.retain(|key, _value| {
-                        buffer_ids.contains(key)
-                    });
+                    methylation_probs_map.retain(|key, _value| buffer_ids.contains(key));
                 }
-
             }
         }
-        
+
         Ok(())
     }
 
@@ -325,7 +335,7 @@ impl Sample {
     where
         E: read_observation::Evidence + Eq + Hash,
         L: variants::types::Loci,
-        V: Variant<Loci = L, Evidence = E> + Observable<E,L>,
+        V: Variant<Loci = L, Evidence = E> + Observable<E, L>,
     {
         let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
             if self.report_fragment_ids {
