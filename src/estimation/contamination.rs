@@ -1,3 +1,4 @@
+use crate::variants::sample::Readtype;
 use std::{
     collections::BTreeMap,
     convert::TryFrom,
@@ -389,6 +390,7 @@ impl CallProcessor for ContaminationEstimator {
         &mut self,
         call: Call,
         sample_names: &grammar::SampleInfo<String>,
+        _readtype: Option<Readtype>,
     ) -> Result<()> {
         let obs = VariantObservation::new(&call, sample_names);
         if let Some(obs) = obs {

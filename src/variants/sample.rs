@@ -388,7 +388,10 @@ impl Sample {
     EnumIter,
     IntoStaticStr,
     EnumVariantNames,
+    PartialEq,
+    Eq,
 )]
+
 pub enum Readtype {
     #[strum(serialize = "Nanopore")]
     Nanopore,

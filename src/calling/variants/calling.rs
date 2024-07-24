@@ -1,11 +1,3 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::convert::TryFrom;
-use std::path::PathBuf;
-use std::rc::Rc;
-use std::str;
-use std::sync::RwLock;
-
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb, Prob};
 use bio_types::genome;
@@ -13,8 +5,17 @@ use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
+use pest::pratt_parser::Op;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
+use serde_json::Value;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::str;
+use std::sync::RwLock;
 
 use crate::calling::variants::preprocessing::{
     read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
@@ -37,6 +38,7 @@ use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{self, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
+use crate::variants::sample::Readtype;
 
 use super::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use super::preprocessing::Observations;
@@ -295,7 +297,7 @@ where
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
         let mut aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
-
+        let mut readtype: Option<Readtype> = None;
         // Check observation format.
         for obs_reader in observations.iter_not_none() {
             let mut valid = false;
@@ -305,6 +307,22 @@ where
                         && value == OBSERVATION_FORMAT_VERSION
                     {
                         valid = true;
+                    }
+                    if key == "varlociraptor_preprocess_args" {
+                        let json_value: Value = serde_json::from_str(&value)?;
+                        if let Some(read_type) =
+                            json_value.pointer("/Preprocess/kind/Variants/read_type")
+                        {
+                            if let Some(read_type_str) = read_type.as_str() {
+                                // Convert the read_type_str to the Readtype enum
+                                match read_type_str.parse::<Readtype>() {
+                                    Ok(rt) => {
+                                        readtype = Some(rt);
+                                    }
+                                    Err(_) => println!("Invalid read_type: {}", read_type_str),
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -417,9 +435,11 @@ where
 
                 self.call_record(&mut work_item, _model, _events);
 
-                self.call_processor
-                    .borrow_mut()
-                    .process_call(work_item.call, &self.samplenames)?;
+                self.call_processor.borrow_mut().process_call(
+                    work_item.call,
+                    &self.samplenames,
+                    readtype,
+                )?;
             }
             progress_logger.update(1u64);
 
@@ -888,6 +908,7 @@ pub(crate) trait CallProcessor: Sized {
         &mut self,
         call: Call,
         sample_names: &grammar::SampleInfo<String>,
+        readtype: Option<Readtype>,
     ) -> Result<()>;
     fn finalize(&mut self) -> Result<()>;
 }
@@ -913,8 +934,9 @@ impl CallProcessor for CallWriter {
         &mut self,
         call: Call,
         sample_names: &grammar::SampleInfo<String>,
+        readtype: Option<Readtype>,
     ) -> Result<()> {
-        call.write_final_record(self.bcf_writer.as_mut().unwrap())
+        call.write_final_record(self.bcf_writer.as_mut().unwrap(), readtype)
     }
 
     fn finalize(&mut self) -> Result<()> {

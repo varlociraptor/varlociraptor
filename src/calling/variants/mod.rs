@@ -39,6 +39,7 @@ use crate::variants::model::{
     bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
+use crate::variants::sample::Readtype;
 
 lazy_static! {
     static ref OMIT_AUX_INFO: HashSet<Vec<u8>> = HashSet::from([
@@ -138,7 +139,11 @@ impl Call {
         Ok(())
     }
 
-    pub(crate) fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
+    pub(crate) fn write_final_record(
+        &self,
+        bcf_writer: &mut bcf::Writer,
+        readtype: Option<Readtype>,
+    ) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
 
         let variant = self.variant.as_ref().unwrap();
@@ -405,7 +410,7 @@ impl Call {
             |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &[prob]);
         if is_missing_data {
             // missing data
-            for (event, _) in event_probs {
+            for (event, _) in event_probs.iter() {
                 push_prob(event, f32::missing())?;
             }
         } else {
@@ -415,8 +420,8 @@ impl Call {
                 str::from_utf8(&self.chrom).unwrap(),
                 self.pos + 1,
             );
-            for (event, prob) in event_probs {
-                let prob = PHREDProb::from(prob).abs() as f32;
+            for (event, prob) in event_probs.iter() {
+                let prob = PHREDProb::from(*prob).abs() as f32;
                 push_prob(event, prob)?;
             }
         }
@@ -526,6 +531,23 @@ impl Call {
             record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
 
+        if readtype.unwrap() == Readtype::Illumina {
+            let af = allelefreq_estimates.values().cloned().collect_vec();
+            if af != [1.0] {
+                // Divide probs by 2
+                for (event, prob) in event_probs {
+                    let prob = PHREDProb::from(prob).abs() as f32 / 2.0;
+                    record.push_info_float(event_tag_name(event).as_bytes(), &[prob])?;
+                }
+                // Write meth record
+                bcf_writer.write(&record)?;
+                // Change ref and alt for SNV
+                let alleles_snv: &[&[u8]] = &[b"CG", b"TG"];
+                record.set_alleles(alleles_snv)?;
+                // Change AF to 1 - AF for SNV
+                record.push_format_float(b"AF", &[1.0 - af[0]])?;
+            }
+        }
         bcf_writer.write(&record)?;
         Ok(())
     }
