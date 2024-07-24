@@ -91,7 +91,7 @@ impl Testcase for TestcaseVersion0 {
                         protocol_strandedness,
                         realignment_window: indel_window as u64,
                         max_depth,
-                        read_type: Readtype::PacBio,
+                        read_type: Some(Readtype::PacBio),
                         // The rest will be overwritten.
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),

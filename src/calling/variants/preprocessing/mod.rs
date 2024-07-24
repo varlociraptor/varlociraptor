@@ -3,14 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use std::str;
-use std::sync::{Arc, Mutex, RwLock};
-
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
@@ -19,6 +12,12 @@ use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::str;
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -76,7 +75,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
-    readtype: Readtype,
+    readtype: Option<Readtype>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -211,8 +210,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let collect_methylation_probs =
-            matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
+        let collect_methylation_probs = matches!(
+            self.readtype,
+            Some(Readtype::PacBio) | Some(Readtype::Nanopore)
+        );
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -505,8 +506,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
-            // println!("{:?}", locus);
-            let readtype = self.readtype;
+            let readtype = self.readtype.ok_or_else(|| anyhow!("Readtype is None. Please specify the sequencing platform used to sequence your data (e.g --read-type Illumina)"))?;
             Ok(variants::types::Methylation::new(locus, readtype))
         };
 

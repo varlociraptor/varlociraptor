@@ -338,13 +338,11 @@ pub enum PreprocessKind {
         output_raw_observations: Option<PathBuf>,
         #[structopt(
             long = "read-type",
-            required = false,
-            default_value = "Illumina",
             possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
-            help = "Sequencing method used to gain the reads, important for chosing methylation method."
+            help = "Sequencing method used to gain the reads, important for choosing methylation method."
         )]
-        #[serde(default = "default_read_type")]
-        read_type: Readtype,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        read_type: Option<Readtype>,
     },
 }
 
