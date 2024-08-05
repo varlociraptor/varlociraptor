@@ -665,7 +665,7 @@ impl SingleLocus {
     }
 
     fn outside_overlap(&self, record: &bam::Record) -> bool {
-        let reverse_read = read_reverse_strand(record.inner.core.flag);
+        let reverse_read = Self::read_reverse_strand(record.inner.core.flag);
         let pos = record.pos() as u64;
         if pos == self.range().start + 1 && reverse_read {
             return true;
