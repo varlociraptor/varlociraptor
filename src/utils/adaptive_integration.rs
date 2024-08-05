@@ -91,17 +91,6 @@ where
         } else {
             right = x_values[max_idx1];
         }
-
-        // Old Code with binary search -> Did not find the best results
-        // else {
-        //     if left_prob > right_prob {
-        //         // investigate left window more closely
-        //         right = middle.unwrap();
-        //     } else {
-        //         // investigate right window more closely
-        //         left = middle.unwrap();
-        //     }
-        // }
     }
     // METHOD: add additional grid point in the initially abandoned arm
     if middle < first_middle {

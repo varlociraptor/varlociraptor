@@ -18,7 +18,8 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence, Strand,
+    Evidence, ExtendedRecord, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence,
+    Strand,
 };
 use crate::variants::sample;
 
@@ -28,6 +29,7 @@ pub(crate) mod duplication;
 pub(crate) mod haplotype_block;
 pub(crate) mod insertion;
 pub(crate) mod inversion;
+pub(crate) mod methylation;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod replacement;
@@ -37,6 +39,7 @@ pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;
 pub(crate) use inversion::Inversion;
+pub(crate) use methylation::Methylation;
 pub(crate) use mnv::Mnv;
 pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
@@ -230,7 +233,7 @@ pub(crate) trait ToVariantRepresentation {
     fn to_variant_representation(&self) -> model::Variant;
 }
 
-impl<V> Observable<SingleEndEvidence> for V
+impl<V> Observable<SingleEndEvidence, SingleLocus> for V
 where
     V: Variant<Evidence = SingleEndEvidence, Loci = SingleLocus>,
 {
@@ -296,21 +299,21 @@ where
     }
 }
 
-impl<V> Observable<PairedEndEvidence> for V
+impl<V> Observable<PairedEndEvidence, MultiLocus> for V
 where
     V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
 {
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
+            PairedEndEvidence::SingleEnd(record) => prob(record.record()).ln_one_minus_exp(),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
                 // make a conservative choice (since 1-mapq is the mapping probability).
-                let mut p = prob(left);
-                let mut q = prob(right);
+                let mut p = prob(left.record());
+                let mut q = prob(right.record());
                 if p < q {
                     std::mem::swap(&mut p, &mut q);
                 }
@@ -321,8 +324,10 @@ where
 
     fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => record.mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+            PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                cmp::min(left.record().mapq(), right.record().mapq())
+            }
         }
     }
 
@@ -403,8 +408,15 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: Rc::clone(&candidate.left),
-                    right: Rc::clone(right),
+                    // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
+                    left: ExtendedRecord::new(
+                        Rc::clone(&candidate.left),
+                        buffer.get_methylation_probs(&candidate.left).cloned(),
+                    ),
+                    right: ExtendedRecord::new(
+                        Rc::clone(right),
+                        buffer.get_methylation_probs(right).cloned(),
+                    ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -412,7 +424,10 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
+                    Rc::clone(&candidate.left),
+                    buffer.get_methylation_probs(&candidate.left).cloned(),
+                ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
@@ -424,6 +439,155 @@ where
         let subsample = locus_depth.values().all(|depth| *depth > max_depth);
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
+        let mut observations = Vec::new();
+        for evidence in &candidates {
+            if !subsample || subsampler.keep() {
+                if let Some(obs) = self.evidence_to_observation(
+                    evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                    alt_variants,
+                    observation_id_factory,
+                )? {
+                    observations.push(obs);
+                }
+            }
+        }
+
+        Ok(observations)
+    }
+}
+
+impl<V> Observable<PairedEndEvidence, SingleLocus> for V
+where
+    V: Variant<Evidence = PairedEndEvidence, Loci = SingleLocus>,
+{
+    fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
+        let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => prob(record.record()).ln_one_minus_exp(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
+                // In BWA, MAPQ is influenced by the mate, hence they are not independent
+                // and we can therefore not multiply them. By taking the maximum, we
+                // make a conservative choice (since 1-mapq is the mapping probability).
+                let mut p = prob(left.record());
+                let mut q = prob(right.record());
+                if p < q {
+                    std::mem::swap(&mut p, &mut q);
+                }
+                p.ln_one_minus_exp()
+            }
+        }
+    }
+
+    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                cmp::min(left.record().mapq(), right.record().mapq())
+            }
+        }
+    }
+
+    fn extract_observations(
+        &self,
+        buffer: &mut sample::RecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
+        max_depth: usize,
+        alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+    ) -> Result<Vec<ReadObservation>> {
+        // We cannot use a hash function here because candidates have to be considered
+        // in a deterministic order. Otherwise, subsampling high-depth regions will result
+        // in slightly different probabilities each time.
+        let mut candidate_records = BTreeMap::new();
+
+        let locus = self.loci();
+        buffer.fetch(locus, true)?;
+        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
+        for record in buffer.iter() {
+            // METHOD: First, we check whether the record contains an indel in the cigar.
+            // We store the maximum indel size to update the global estimates, in case
+            // it is larger in this region.
+            alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
+
+            // We look at the whole fragment at once.
+
+            // TODO move this text to the right place:
+            // We ensure fair sampling by checking if the whole fragment overlaps the
+            // centerpoint. Only taking the internal segment would not be fair,
+            // because then the second read of reference fragments tends to cross
+            // the centerpoint and the fragment would be discarded.
+            // The latter would not happen for alt (deletion) fragments, because the second
+            // read would map right of the variant in that case.
+
+            // We always choose the leftmost and the rightmost alignment, thereby also
+            // considering supplementary alignments.
+
+            if !candidate_records.contains_key(record.qname()) {
+                // this is the first (primary or supplementary alignment in the pair
+                candidate_records.insert(record.qname().to_owned(), Candidate::new(record));
+            } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
+                // this is either the last alignment or one in the middle
+                if (candidate.left.is_first_in_template() && record.is_first_in_template())
+                    && (candidate.left.is_last_in_template() && record.is_last_in_template())
+                {
+                    // Ignore another partial alignment right of the first.
+                    continue;
+                }
+                // replace right record (we seek for the rightmost (partial) alignment)
+                candidate.right = Some(record);
+            }
+        }
+
+        let mut candidates = Vec::new();
+        let mut locus_depth = VecMap::new();
+        let mut push_evidence = |evidence: PairedEndEvidence, idx| {
+            candidates.push(evidence);
+            for i in idx {
+                let count = locus_depth.entry(i).or_insert(0);
+                *count += 1;
+            }
+        };
+
+        for candidate in candidate_records.values() {
+            if let Some(ref right) = candidate.right {
+                if candidate.left.mapq() == 0 || right.mapq() == 0 {
+                    // Ignore pairs with ambiguous alignments.
+                    // The statistical model does not consider them anyway.
+                    continue;
+                }
+                let evidence = PairedEndEvidence::PairedEnd {
+                    left: ExtendedRecord::new(
+                        Rc::clone(&candidate.left),
+                        buffer.get_methylation_probs(&candidate.left).cloned(),
+                    ),
+                    right: ExtendedRecord::new(
+                        Rc::clone(right),
+                        buffer.get_methylation_probs(right).cloned(),
+                    ),
+                };
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    push_evidence(evidence, idx);
+                }
+            } else {
+                // this is a single alignment with unmapped mate or mate outside of the
+                // region of interest
+                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
+                    Rc::clone(&candidate.left),
+                    buffer.get_methylation_probs(&candidate.left).cloned(),
+                ));
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    push_evidence(evidence, idx);
+                }
+            }
+        }
+
+        // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
+        // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
+        let subsample = locus_depth.values().all(|depth| *depth > max_depth);
+        let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
         let mut observations = Vec::new();
         for evidence in &candidates {
             if !subsample || subsampler.keep() {
@@ -498,6 +662,43 @@ impl SingleLocus {
         }
 
         Overlap::None
+    }
+
+    fn outside_overlap(&self, record: &bam::Record) -> bool {
+        let reverse_read = Self::read_reverse_strand(record.inner.core.flag);
+        let pos = record.pos() as u64;
+        if pos == self.range().start + 1 && reverse_read {
+            return true;
+        }
+        false
+    }
+
+    /// Finds out whether the given string is a forward or reverse string.
+    ///
+    /// # Returns
+    ///
+    /// True if read given read is a reverse read, false if it is a forward read
+    pub fn read_reverse_strand(flag: u16) -> bool {
+        let read_paired = 0b1;
+        let read_mapped_porper_pair = 0b01;
+        let read_reverse = 0b10000;
+        let mate_reverse = 0b100000;
+        let first_in_pair = 0b1000000;
+        let second_in_pair = 0b10000000;
+        if (flag & read_paired != 0
+            && flag & read_mapped_porper_pair != 0
+            && flag & read_reverse != 0
+            && flag & first_in_pair != 0)
+            || (flag & read_paired != 0
+                && flag & read_mapped_porper_pair != 0
+                && flag & mate_reverse != 0
+                && flag & second_in_pair != 0)
+            || (flag & read_reverse != 0
+                && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0))
+        {
+            return true;
+        }
+        false
     }
 }
 

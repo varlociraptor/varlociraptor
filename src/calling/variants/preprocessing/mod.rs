@@ -37,6 +37,7 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
+use crate::variants::sample::Readtype;
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
@@ -75,6 +76,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
+    readtype: Readtype,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -209,6 +211,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
+        let collect_methylation_probs =
+            matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -219,6 +223,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
+                collect_methylation_probs,
             )
             .build()
             .unwrap();
@@ -498,6 +503,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })
         };
 
+        let parse_meth = || -> Result<variants::types::Methylation> {
+            let locus = variants.locus().clone();
+            let readtype = self.readtype;
+            Ok(variants::types::Methylation::new(locus, readtype))
+        };
+
         let parse_snv = |alt| -> Result<variants::types::Snv<R>> {
             let locus = variants.locus().clone();
             Ok(variants::types::Snv::new(
@@ -588,6 +599,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             })
             .map(|variant_info| -> Result<Box<dyn Realignable>> {
                 Ok(match variant_info.variant() {
+                    model::Variant::Methylation() => unreachable!(),
                     model::Variant::Snv(alt) => Box::new(parse_snv(*alt)?),
                     model::Variant::Mnv(alt) => Box::new(parse_mnv(alt)?),
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
@@ -720,6 +732,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
                         match variant {
+                            model::Variant::Methylation() => haplotype_block
+                                // .push_single_locus_single_end_evidence_variant(Box::new(
+                                //     parse_meth()?,
+                                .push_single_locus_paired_end_evidence_variant(Box::new(
+                                    parse_meth()?,
+                                )),
                             model::Variant::Snv(alt) => haplotype_block
                                 .push_single_locus_single_end_evidence_variant(Box::new(
                                     parse_snv(*alt)?,
@@ -806,6 +824,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Breakend { .. } => unimplemented!(
                         "bug: breakends without haplotype events should be ignored for now"
                     ),
+                    model::Variant::Methylation() => {
+                        sample.extract_observations(&parse_meth()?, &Vec::new())?
+                    }
                 }
             },
         ))
