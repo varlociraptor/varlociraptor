@@ -665,12 +665,37 @@ impl SingleLocus {
     }
 
     fn outside_overlap(&self, record: &bam::Record) -> bool {
-        // let reverse_read =  (evidence.inner.core.flag & 0x10) != 0; // If the Flag Contains 16 (in hex 0x10), the read is a revers read
-        let reverse_read = record.inner.core.flag == 163
-            || record.inner.core.flag == 83
-            || record.inner.core.flag == 16;
+        let reverse_read = read_reverse_strand(record.inner.core.flag);
         let pos = record.pos() as u64;
         if pos == self.range().start + 1 && reverse_read {
+            return true;
+        }
+        false
+    }
+
+    /// Finds out whether the given string is a forward or reverse string.
+    ///
+    /// # Returns
+    ///
+    /// True if read given read is a reverse read, false if it is a forward read
+    pub fn read_reverse_strand(flag: u16) -> bool {
+        let read_paired = 0b1;
+        let read_mapped_porper_pair = 0b01;
+        let read_reverse = 0b10000;
+        let mate_reverse = 0b100000;
+        let first_in_pair = 0b1000000;
+        let second_in_pair = 0b10000000;
+        if (flag & read_paired != 0
+            && flag & read_mapped_porper_pair != 0
+            && flag & read_reverse != 0
+            && flag & first_in_pair != 0)
+            || (flag & read_paired != 0
+                && flag & read_mapped_porper_pair != 0
+                && flag & mate_reverse != 0
+                && flag & second_in_pair != 0)
+            || (flag & read_reverse != 0
+                && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0))
+        {
             return true;
         }
         false

@@ -75,17 +75,15 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
         }
     };
 
-    // let mm_tag = read.aux(b"Mm").map_err(|e| e.to_string())?;
     if let Aux::String(tag_value) = mm_tag {
         let mut mm = tag_value.to_owned();
 
         if !mm.is_empty() {
-            let read_reverse = read_reverse_strand(read.inner.core.flag);
+            let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
             let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
 
             // Compute the positions of all Cs (or Gs for reverse strand) in the read
             // With MM tags it is important to know whether it is a forward or reverse strand. With forward, you go from front to back and count the Cs. With reverse, you go from back to front in the sequence, in the MM tag from front to back and count the Gs
-            // TODO: read_seq auf [0:len(read_seq)-max_window_pos] begranzen, dann haben wir weniger zu suchen
             let mut pos_read_base: Vec<usize> = read_seq
                 .chars()
                 .enumerate()
@@ -125,8 +123,6 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
                     if meth_pos <= pos_read_base.len() {
                         pos_methylated_cs.push(pos_read_base[meth_pos - 1]);
                     } else {
-                        // TODO Ist das echt richtig? Die MEldung gebe ich ja bei hardclipped aus. So werden die Anfaenge von hardclipped beachtet und reingepackt. sollte der ganze read dann nicht betrachtet werden?
-                        // TODO Hier andere Fehlermeludung ausgeben, da jetzt immer laenger, da read nur nochkuerzer betrachtet wird
                         warn!(
                             "MM tag too long for read on id {:?}, chrom {:?}, pos {:?}",
                             String::from_utf8_lossy(read.qname()),
@@ -178,8 +174,7 @@ pub fn meth_probs(read: &Rc<Record>) -> Option<Vec<LogProb>> {
             return None;
         }
     };
-    // let ml_tag = read.aux(b"Ml").map_err(|e| e.to_string())?;
-    let read_reverse = read_reverse_strand(read.inner.core.flag);
+    let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
     if let Aux::ArrayU8(tag_value) = ml_tag {
         let mut ml: Vec<LogProb> = tag_value
             .iter()
@@ -214,8 +209,7 @@ fn get_qpos(read: &Rc<Record>, locus: &SingleLocus) -> Option<i32> {
 
 fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
-    let read_reverse = read_reverse_strand(read.inner.core.flag);
-    // let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
+    let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
 
     // If locus is on the last position of the read and reverse, the C of the CG is not included
@@ -264,7 +258,7 @@ fn process_read_pb_np(
 ) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
     // let record = &read.into_single_end_evidence()[0];
-    let read_reverse = read_reverse_strand(read.inner.core.flag);
+    let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
     let mutation_occurred = mutation_occurred_pb_np(read_reverse, read, qpos);
     // If locus is on the last position of the read and reverse, the C of the CG is not included
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
@@ -303,34 +297,6 @@ fn compute_probs_pb_np(
         prob_ref = LogProb::from(Prob(1.0));
     }
     (prob_alt, prob_ref)
-}
-
-/// Finds out whether the given string is a forward or reverse string.
-///
-/// # Returns
-///
-/// True if read given read is a reverse read, false if it is a forward read
-pub fn read_reverse_strand(flag: u16) -> bool {
-    let read_paired = 0b1;
-    let read_mapped_porper_pair = 0b01;
-    let read_reverse = 0b10000;
-    let mate_reverse = 0b100000;
-    let first_in_pair = 0b1000000;
-    let second_in_pair = 0b10000000;
-    if (flag & read_paired != 0
-        && flag & read_mapped_porper_pair != 0
-        && flag & read_reverse != 0
-        && flag & first_in_pair != 0)
-        || (flag & read_paired != 0
-            && flag & read_mapped_porper_pair != 0
-            && flag & mate_reverse != 0
-            && flag & second_in_pair != 0)
-        || (flag & read_reverse != 0
-            && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0))
-    {
-        return true;
-    }
-    false
 }
 
 /// Computes if a mutation occured at the C of a CpG position (Not used right now but good for debugging)
@@ -397,7 +363,10 @@ impl Variant for Methylation {
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
-            // TODO maybe problems, if CpG position starts just at the beginning/end of the read (Ich habe mich eigentlich darum gekuemmert, wenn das C der CpG Position die letzte Stelle des Reads is und es ein reverse Read ist (dann ist es nicht abgesdeckt.) Was fehlt: Wenn die erste Position das G einer CpG Stelle ist und der Read reverse ist.)
+            // TODO: Potential issues if the CpG position is at the start or end of the read.
+            // This has been addressed when the C of the CpG position is at the last position of the read
+            // and it's a reverse read (in which case it's not covered).
+            // What still needs to be handled: when the G of a CpG position is at the first position of the read and the read is reverse.
             PairedEndEvidence::SingleEnd(read) => {
                 !self.locus.overlap(read.record(), true).is_none()
             }
@@ -451,7 +420,6 @@ impl Variant for Methylation {
             let prob_alt;
             let prob_ref;
             // TODO Do something, if the next base is no G
-
             match read {
                 PairedEndEvidence::SingleEnd(record) => match self.readtype {
                     Readtype::Illumina => {
