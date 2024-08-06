@@ -15,7 +15,7 @@ use std::str;
 use std::u8;
 
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb};
+use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::sequence::SequenceReadPairOrientation;
 use derive_builder::Builder;
 use itertools::Itertools;
@@ -533,20 +533,19 @@ impl Call {
 
         if readtype.unwrap() == Readtype::Illumina {
             let af = allelefreq_estimates.values().cloned().collect_vec();
-            if af != [1.0] {
-                // Divide probs by 2
-                for (event, prob) in event_probs {
-                    let prob = PHREDProb::from(prob).abs() as f32 / 2.0;
-                    record.push_info_float(event_tag_name(event).as_bytes(), &[prob])?;
-                }
-                // Write meth record
-                bcf_writer.write(&record)?;
-                // Change ref and alt for SNV
-                let alleles_snv: &[&[u8]] = &[b"CG", b"TG"];
-                record.set_alleles(alleles_snv)?;
-                // Change AF to 1 - AF for SNV
-                record.push_format_float(b"AF", &[1.0 - af[0]])?;
+
+            // Divide probs by 2
+            for (event, prob) in event_probs {
+                let prob = PHREDProb::from(prob - LogProb::from(2.0f64.ln())).abs() as f32;
+                record.push_info_float(event_tag_name(event).as_bytes(), &[prob])?;
             }
+            // Write meth record
+            bcf_writer.write(&record)?;
+            // Change ref and alt for SNV
+            let alleles_snv: &[&[u8]] = &[b"CG", b"TG"];
+            record.set_alleles(alleles_snv)?;
+            // Change AF to 1 - AF for SNV
+            record.push_format_float(b"AF", &[1.0 - af[0]])?;
         }
         bcf_writer.write(&record)?;
         Ok(())
