@@ -515,16 +515,15 @@ impl Call {
             record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
 
-        // if readtype.unwrap() == Readtype::BaseConversion {
-        if true {
+        if readtype.unwrap() == Readtype::Illumina {
             let af = allelefreq_estimates.values().cloned().collect_vec();
             // Divide event probs by 2
             for (event, prob) in event_probs {
                 let prob = PHREDProb::from(prob - LogProb::from(2.0f64.ln())).abs() as f32;
                 record.push_info_float(event_tag_name(event).as_bytes(), &[prob])?;
 
-                // let vaf_densities = Self::compute_vaf_densities(&vaf_densities, true, false);
-                // record.push_format_string(b"AFD", &vaf_densities)?;
+                let vaf_densities = Self::compute_vaf_densities(&vaf_densities, true, false);
+                record.push_format_string(b"AFD", &vaf_densities)?;
             }
             // Write meth record
             bcf_writer.write(&record)?;
@@ -533,8 +532,8 @@ impl Call {
             record.set_alleles(alleles_snv)?;
             // Change AF to 1 - AF for SNV
             record.push_format_float(b"AF", &[1.0 - af[0]])?;
-            // let vaf_densities = Self::compute_vaf_densities(&vaf_densities, true, true);
-            // record.push_format_string(b"AFD", &vaf_densities)?;
+            let vaf_densities = Self::compute_vaf_densities(&vaf_densities, true, true);
+            record.push_format_string(b"AFD", &vaf_densities)?;
         }
         bcf_writer.write(&record)?;
         Ok(())
