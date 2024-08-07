@@ -184,6 +184,7 @@ testcase!(test_uzuner_clonal_2, exact);
 testcase!(test_uzuner_clonal_3, exact);
 testcase!(test_uzuner_fp_snv_on_ins, exact);
 testcase!(test_false_negative_indel_call, exact);
+testcase!(test_hiv_vaf_higher_than_expected, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

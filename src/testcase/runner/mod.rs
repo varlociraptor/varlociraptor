@@ -23,7 +23,7 @@ macro_rules! testcase {
                             .join("resources/testcases")
                             .join(name),
                     )
-                    .unwrap();
+                    .expect("Failed to load testcase");
                     let mode = stringify!($pairhmm_mode);
 
                     // setup logger
@@ -33,7 +33,7 @@ macro_rules! testcase {
                     // .apply()
                     // .unwrap();
 
-                    testcase.run(mode).unwrap();
+                    testcase.run(mode).expect("Failed to run testcase");
                     testcase.check();
                 }
             )*
