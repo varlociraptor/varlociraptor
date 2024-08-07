@@ -39,7 +39,7 @@ use crate::variants::model::{
     bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
-use crate::variants::sample::Readtype;
+use crate::variants::sample::MethylationEncoding;
 
 lazy_static! {
     static ref OMIT_AUX_INFO: HashSet<Vec<u8>> = HashSet::from([
@@ -142,7 +142,7 @@ impl Call {
     pub(crate) fn write_final_record(
         &self,
         bcf_writer: &mut bcf::Writer,
-        readtype: Option<Readtype>,
+        methylation_encoding: Option<MethylationEncoding>,
     ) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
 
@@ -514,8 +514,7 @@ impl Call {
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
-
-        if readtype.unwrap() == Readtype::Illumina {
+        if methylation_encoding == Some(MethylationEncoding::BaseConversion) {
             let af = allelefreq_estimates.values().cloned().collect_vec();
             // Divide event probs by 2
             for (event, prob) in event_probs {

@@ -36,7 +36,7 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
-use crate::variants::sample::Readtype;
+use crate::variants::sample::MethylationEncoding;
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::haplotype_block::HaplotypeBlock;
@@ -75,7 +75,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
-    readtype: Option<Readtype>,
+    methylation_encoding: Option<MethylationEncoding>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -210,10 +210,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let collect_methylation_probs = matches!(
-            self.readtype,
-            Some(Readtype::PacBio) | Some(Readtype::Nanopore)
-        );
+        let collect_methylation_probs =
+            matches!(self.methylation_encoding, Some(MethylationEncoding::MmTag));
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -506,8 +504,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
-            let readtype = self.readtype.ok_or_else(|| anyhow!("Readtype is None. Please specify the sequencing platform used to sequence your data (e.g --read-type Illumina)"))?;
-            Ok(variants::types::Methylation::new(locus, readtype))
+            let methylation_encoding = self.methylation_encoding.ok_or_else(|| anyhow!("MethylationEncoding is None. Please specify which method can be used to read methylation from your reads. Choose between \"--methylation-encoding BaseConversion\" and \"--methylation-encoding MmTag\"."))?;
+            Ok(variants::types::Methylation::new(
+                locus,
+                methylation_encoding,
+            ))
         };
 
         let parse_snv = |alt| -> Result<variants::types::Snv<R>> {

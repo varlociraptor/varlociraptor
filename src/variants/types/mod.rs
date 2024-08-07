@@ -408,7 +408,7 @@ where
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
+                    // buffer.get_methylation_probs returns None if we do not deal with reads with methylation info in the mm-tag
                     left: ExtendedRecord::new(
                         Rc::clone(&candidate.left),
                         buffer.get_methylation_probs(&candidate.left).cloned(),

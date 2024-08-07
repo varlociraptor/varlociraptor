@@ -1,7 +1,9 @@
 use super::ToVariantRepresentation;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
-use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
+use crate::{
+    estimation::alignment_properties::AlignmentProperties, variants::sample::MethylationEncoding,
+};
 
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::Strand;
@@ -20,7 +22,7 @@ use log::warn;
 use rust_htslib::bam::record::Aux;
 use std::sync::Mutex;
 
-// We save methylation info of the single reads for PacBio and Nanopore in order to not recompute the information for every candidate
+// Save the methylation info of reads with methylation info in the mm-tag in order to not recompute the information for every candidate
 lazy_static! {
     static ref READ_TO_METH_PROBS: Mutex<HashMap<String, HashMap<usize, f64>>> =
         Mutex::new(HashMap::new());
@@ -29,17 +31,17 @@ lazy_static! {
 #[derive(Debug)]
 pub(crate) struct Methylation {
     locus: SingleLocus,
-    readtype: Readtype,
+    methylation_encoding: MethylationEncoding,
 }
 
 impl Methylation {
-    pub(crate) fn new(locus: genome::Locus, readtype: Readtype) -> Self {
+    pub(crate) fn new(locus: genome::Locus, methylation_encoding: MethylationEncoding) -> Self {
         Methylation {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 2,
             )),
-            readtype,
+            methylation_encoding,
         }
     }
 }
@@ -57,7 +59,7 @@ pub fn mm_exist(read: &SingleEndEvidence) -> bool {
     mm_tag_exists
 }
 
-/// Computes the positions of methylated Cs in PacBio and Nanopore read data
+/// Computes the positions of methylated Cs in reads with methylation info in the mm-tag
 ///
 /// # Returns
 ///
@@ -161,7 +163,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
     None
 }
 
-/// Computes the probability of methylation in PacBio and Nanopore read data
+/// Computes the probability of methylation in reads with methylation info in the mm-tag
 ///
 /// # Returns
 ///
@@ -212,10 +214,12 @@ fn get_qpos(read: &Rc<Record>, locus: &SingleLocus) -> Option<i32> {
         .map(|qpos| qpos as i32)
 }
 
-fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
+fn process_read_base_conversion(
+    read: &Rc<Record>,
+    locus: &SingleLocus,
+) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
     let read_reverse = read_reverse_strand(read.inner.core.flag);
-    // let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
 
     // If locus is on the last position of the read and reverse, the C of the CG is not included
@@ -223,16 +227,16 @@ fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogP
         return None;
     }
 
-    Some(compute_probs_illumina(read_reverse, read, qpos))
+    Some(compute_probs_base_conversion(read_reverse, read, qpos))
 }
 
-/// Computes the probability of methylation/no methylation of a given position in an Illumina read. Takes mapping probability into account
+/// Computes the probability of methylation/no methylation of a given position in a read with methylated data determined by base conversion. Takes mapping probability into account
 ///
 /// # Returns
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
-fn compute_probs_illumina(
+fn compute_probs_base_conversion(
     read_reverse: bool,
     record: &Rc<Record>,
     qpos: i32,
@@ -281,7 +285,7 @@ fn process_read_pb_np(
     ))
 }
 
-/// Computes the probability of methylation/no methylation of a given position in an PacBio/ Nanopore read. Takes mapping probability into account
+/// Computes the probability of methylation/no methylation of a given position in an reads with methylation info in the mm-tag. Takes mapping probability into account
 ///
 /// # Returns
 ///
@@ -338,7 +342,7 @@ pub fn read_reverse_strand(flag: u16) -> bool {
 /// # Returns
 ///
 /// bool: True, if mutation occured
-fn _mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
+fn _mutation_occurred_base_conversion(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
     if read_reverse {
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         if read_base == b'C' || read_base == b'T' {
@@ -408,11 +412,10 @@ impl Variant for Methylation {
                     || !self.locus.outside_overlap(right.record())
             }
         } {
-            if match self.readtype {
-                // Some single PacBio reads don't have an MM:Z value and are therefore not legal
-                Readtype::Illumina => true,
-                Readtype::PacBio => mm_exist(&evidence.into_single_end_evidence()[0]),
-                Readtype::Nanopore => mm_exist(&evidence.into_single_end_evidence()[0]),
+            if match self.methylation_encoding {
+                // Some reads with methylation info in the mm-tag reads don't have an MM:Z value and are therefore not legal
+                MethylationEncoding::BaseConversion => true,
+                MethylationEncoding::MmTag => mm_exist(&evidence.into_single_end_evidence()[0]),
             } {
                 Some(vec![0])
             } else {
@@ -453,13 +456,14 @@ impl Variant for Methylation {
             // TODO Do something, if the next base is no G
 
             match read {
-                PairedEndEvidence::SingleEnd(record) => match self.readtype {
-                    Readtype::Illumina => {
-                        (prob_alt, prob_ref) = process_read_illumina(record.record(), &self.locus)
-                            .unwrap_or((LogProb(0.0), LogProb(0.0)));
+                PairedEndEvidence::SingleEnd(record) => match self.methylation_encoding {
+                    MethylationEncoding::BaseConversion => {
+                        (prob_alt, prob_ref) =
+                            process_read_base_conversion(record.record(), &self.locus)
+                                .unwrap_or((LogProb(0.0), LogProb(0.0)));
                     }
 
-                    Readtype::PacBio | Readtype::Nanopore => {
+                    MethylationEncoding::MmTag => {
                         let meth_info = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
                         (prob_alt, prob_ref) =
                             process_read_pb_np(record.record(), &self.locus, meth_info)
@@ -468,22 +472,22 @@ impl Variant for Methylation {
                 },
 
                 PairedEndEvidence::PairedEnd { left, right } => {
-                    match self.readtype {
-                        Readtype::Illumina => {
+                    match self.methylation_encoding {
+                        MethylationEncoding::BaseConversion => {
                             // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
                             let (prob_alt_left, prob_ref_left) =
-                                process_read_illumina(left.record(), &self.locus)
+                                process_read_base_conversion(left.record(), &self.locus)
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
                             let (prob_alt_right, prob_ref_right) =
-                                process_read_illumina(right.record(), &self.locus)
+                                process_read_base_conversion(right.record(), &self.locus)
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
                             prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
                         }
-                        // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
+                        // Reads with methylation info in the mm-tag are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
                         // In this case we just chose the first alignment
-                        Readtype::PacBio | Readtype::Nanopore => {
+                        MethylationEncoding::MmTag => {
                             let meth_info_left =
                                 read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
                             let meth_info_right =

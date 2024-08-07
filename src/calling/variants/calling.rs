@@ -38,7 +38,7 @@ use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{self, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
-use crate::variants::sample::Readtype;
+use crate::variants::sample::MethylationEncoding;
 
 use super::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use super::preprocessing::Observations;
@@ -297,7 +297,7 @@ where
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
         let mut aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
-        let mut readtype: Option<Readtype> = None;
+        let mut methylation_encoding: Option<MethylationEncoding> = None;
         // Check observation format.
         for obs_reader in observations.iter_not_none() {
             let mut valid = false;
@@ -310,16 +310,22 @@ where
                     }
                     if key == "varlociraptor_preprocess_args" {
                         let json_value: Value = serde_json::from_str(&value)?;
-                        if let Some(read_type) =
-                            json_value.pointer("/Preprocess/kind/Variants/read_type")
+                        if let Some(meth_enc) =
+                            json_value.pointer("/Preprocess/kind/Variants/meth_enc")
                         {
-                            if let Some(read_type_str) = read_type.as_str() {
-                                // Convert the read_type_str to the Readtype enum
-                                match read_type_str.parse::<Readtype>() {
-                                    Ok(rt) => {
-                                        readtype = Some(rt);
+                            if let Some(meth_enc_str) = meth_enc.as_str() {
+                                // Convert the meth_enc_str to the MethylationEncoding enum
+                                warn!("Meth encoding string {:?}", meth_enc_str);
+                                match meth_enc_str.parse::<MethylationEncoding>() {
+                                    Ok(me) => {
+                                        methylation_encoding = Some(me);
+                                        warn!("Meth encoding string {:?}", methylation_encoding);
                                     }
-                                    Err(_) => println!("Invalid read_type: {}", read_type_str),
+                                    Err(_) => {
+                                        warn!("Meth encoding string {:?}", methylation_encoding);
+
+                                        warn!("Invalid methylation encoding: {}", meth_enc_str)
+                                    }
                                 }
                             }
                         }
@@ -438,7 +444,7 @@ where
                 self.call_processor.borrow_mut().process_call(
                     work_item.call,
                     &self.samplenames,
-                    readtype,
+                    methylation_encoding,
                 )?;
             }
             progress_logger.update(1u64);
@@ -908,7 +914,7 @@ pub(crate) trait CallProcessor: Sized {
         &mut self,
         call: Call,
         sample_names: &grammar::SampleInfo<String>,
-        readtype: Option<Readtype>,
+        methylation_encoding: Option<MethylationEncoding>,
     ) -> Result<()>;
     fn finalize(&mut self) -> Result<()>;
 }
@@ -934,9 +940,10 @@ impl CallProcessor for CallWriter {
         &mut self,
         call: Call,
         sample_names: &grammar::SampleInfo<String>,
-        readtype: Option<Readtype>,
+        methylation_encoding: Option<MethylationEncoding>,
     ) -> Result<()> {
-        call.write_final_record(self.bcf_writer.as_mut().unwrap(), readtype)
+        warn!("Process  {:?}", methylation_encoding);
+        call.write_final_record(self.bcf_writer.as_mut().unwrap(), methylation_encoding)
     }
 
     fn finalize(&mut self) -> Result<()> {
