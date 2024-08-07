@@ -5,7 +5,7 @@
 
 pub(crate) mod calling;
 pub mod preprocessing;
-
+use ordered_float::NotNan;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryFrom;
@@ -500,24 +500,8 @@ impl Call {
             let alb = alt_locus_bias.values().map(|alb| vec![*alb]).collect_vec();
             record.push_format_string(b"ALB", &alb)?;
 
-            let vaf_densities = vaf_densities
-                .values()
-                .map(|vaf_dist| {
-                    vaf_dist.as_ref().map_or_else(
-                        || b".".to_vec(),
-                        |dist| {
-                            dist.iter()
-                                .sorted_by_key(|(vaf, _)| *vaf)
-                                .map(|(vaf, prob)| {
-                                    format!("{:.3}={:.2}", **vaf, *PHREDProb::from(*prob))
-                                })
-                                .join(",")
-                                .into_bytes()
-                        },
-                    )
-                })
-                .collect_vec();
-            record.push_format_string(b"AFD", &vaf_densities)?;
+            let vaf_densities_list = Self::compute_vaf_densities(&vaf_densities, false, false);
+            record.push_format_string(b"AFD", &vaf_densities_list)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
@@ -531,13 +515,16 @@ impl Call {
             record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
 
-        if readtype.unwrap() == Readtype::Illumina {
+        // if readtype.unwrap() == Readtype::BaseConversion {
+        if true {
             let af = allelefreq_estimates.values().cloned().collect_vec();
-
-            // Divide probs by 2
+            // Divide event probs by 2
             for (event, prob) in event_probs {
                 let prob = PHREDProb::from(prob - LogProb::from(2.0f64.ln())).abs() as f32;
                 record.push_info_float(event_tag_name(event).as_bytes(), &[prob])?;
+
+                // let vaf_densities = Self::compute_vaf_densities(&vaf_densities, true, false);
+                // record.push_format_string(b"AFD", &vaf_densities)?;
             }
             // Write meth record
             bcf_writer.write(&record)?;
@@ -546,9 +533,54 @@ impl Call {
             record.set_alleles(alleles_snv)?;
             // Change AF to 1 - AF for SNV
             record.push_format_float(b"AF", &[1.0 - af[0]])?;
+            // let vaf_densities = Self::compute_vaf_densities(&vaf_densities, true, true);
+            // record.push_format_string(b"AFD", &vaf_densities)?;
         }
         bcf_writer.write(&record)?;
         Ok(())
+    }
+
+    fn compute_vaf_densities(
+        vaf_densities: &VecMap<Option<HashMap<NotNan<f64>, LogProb>>>,
+        methylation_data: bool,
+        snv_uncertainty: bool,
+    ) -> Vec<Vec<u8>> {
+        return vaf_densities
+            .values()
+            .map(|vaf_dist| {
+                vaf_dist.as_ref().map_or_else(
+                    || b".".to_vec(),
+                    |dist| {
+                        let mut dist_vec: Vec<_> = dist
+                            .iter()
+                            .sorted_by_key(|(vaf, _)| *vaf)
+                            .map(|(vaf, prob)| {
+                                // Adjust prob in case of methylation data
+                                let adjusted_prob = if methylation_data {
+                                    *prob - LogProb::from(2.0f64.ln())
+                                } else {
+                                    *prob
+                                };
+                                // Adjust VAF in case of SNV read
+                                let adjusted_vaf =
+                                    if snv_uncertainty { 1.0 - **vaf } else { **vaf };
+                                format!(
+                                    "{:.3}={:.2}",
+                                    adjusted_vaf,
+                                    *PHREDProb::from(adjusted_prob)
+                                )
+                            })
+                            .collect_vec();
+                        // Reverse the vector if SNV read is true
+                        if snv_uncertainty {
+                            dist_vec.reverse();
+                        }
+
+                        dist_vec.join(",").into_bytes()
+                    },
+                )
+            })
+            .collect_vec();
     }
 }
 
