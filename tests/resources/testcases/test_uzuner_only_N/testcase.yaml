@@ -1,11 +1,9 @@
+# a former false positive where the alt allele has actually no support, just an N in one read.
+# This test case uncovered a bug with missing N handling in the function prob_read_base and SNV::allele_support.
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - sample == 0.0
 
 # necessary bam files
 samples:

@@ -168,10 +168,11 @@ impl<R: Realigner> Variant for Mnv<R> {
                         // set first MNV position as read position
                         read_position = Some(qpos);
                     }
-                    let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+                    let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
                     let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
 
-                    if read_base != *alt_base {
+                    // N bases do not count as additional edits
+                    if read_base != b'N' && read_base != *alt_base {
                         alt_edit_dist += 1;
                     }
 

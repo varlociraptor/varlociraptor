@@ -148,6 +148,7 @@ impl<R: Realigner> Variant for Snv<R> {
             // However, the approximation is pretty accurate, because it will only matter for true
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
+            // Here, N bases do not count as additional edits that would indicate a third allele.
             let non_alt_base = if read_base != b'N' && read_base != self.alt_base {
                 is_third_allele = read_base != self.ref_base;
                 read_base
