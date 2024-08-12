@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.10](https://github.com/varlociraptor/varlociraptor/compare/v8.4.9...v8.4.10) (2024-08-12)
+
+
+### Bug Fixes
+
+* fix handling of N-bases in reads (so far, they could have yielded wrong likelihoods) ([#444](https://github.com/varlociraptor/varlociraptor/issues/444)) ([deb3d66](https://github.com/varlociraptor/varlociraptor/commit/deb3d664cb6a4b117fec22cd3cb6b6df36b4df31))
+
 ## [8.4.9](https://github.com/varlociraptor/varlociraptor/compare/v8.4.8...v8.4.9) (2024-07-01)
 
 
