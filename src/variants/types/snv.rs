@@ -133,7 +133,7 @@ impl<R: Realigner> Variant for Snv<R> {
             // TODO expect u64 in read_pos
             .read_pos(self.locus.range().start as u32, false, false)?
         {
-            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             let mut is_third_allele = false;
@@ -147,7 +147,7 @@ impl<R: Realigner> Variant for Snv<R> {
             // However, the approximation is pretty accurate, because it will only matter for true
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
-            let non_alt_base = if read_base != self.alt_base {
+            let non_alt_base = if read_base != b'N' && read_base != self.alt_base {
                 is_third_allele = read_base != self.ref_base;
                 read_base
             } else {
