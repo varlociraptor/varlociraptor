@@ -64,7 +64,7 @@ where
 
     // skip events that are not present in the header
     let cleaned_events = events
-        .into_iter()
+        .iter()
         .filter(|event| {
             inbcf_reader
                 .header()

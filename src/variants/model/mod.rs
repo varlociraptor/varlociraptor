@@ -157,7 +157,7 @@ impl HaplotypeIdentifier {
                 let mateid = mateid[0].to_owned();
                 let mut ids = [recid.as_slice(), mateid.as_slice()];
                 ids.sort();
-                let event: Vec<u8> = ids.join(b"-".as_slice()).into();
+                let event: Vec<u8> = ids.join(b"-".as_slice());
                 return Ok(Some(HaplotypeIdentifier::Event(event)));
             } else {
                 bail!(Error::BreakendMateidWithoutRecid);

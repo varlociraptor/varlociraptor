@@ -236,7 +236,7 @@ impl AlignmentProperties {
         // HPHMM's transition probabilities to a certain precision.
         // These are currently hardcoded, but could be made configurable.
         let est_params = EstimationParams {
-            num_alignments: (num_alignments > 0).then(|| num_alignments),
+            num_alignments: (num_alignments > 0).then_some(num_alignments),
             precision: 1e-5,
             precision_is_relative: true,
             confidence_level: 0.1,
@@ -659,7 +659,7 @@ impl AddAssign for CigarStats {
         self.num_del_bases += rhs.num_del_bases;
         self.gap_counts += rhs.gap_counts;
         for (base, counts) in rhs.hop_counts {
-            *self.hop_counts.entry(base).or_insert_with(Default::default) += counts;
+            *self.hop_counts.entry(base).or_default() += counts;
         }
         self.match_counts += rhs.match_counts;
     }
@@ -759,7 +759,7 @@ fn cigar_stats(
                         cigar_stats.gap_counts.incr(-(isize::try_from(l).unwrap()));
                     }
                 }
-                rpos += l as usize;
+                rpos += l;
             }
             Cigar::Ins(l) => {
                 cigar_stats.max_ins = OptionMax::max(cigar_stats.max_ins, Some(l));
@@ -809,7 +809,7 @@ fn cigar_stats(
                         cigar_stats.gap_counts.incr(isize::try_from(l).unwrap());
                     }
                 }
-                qpos += l as usize;
+                qpos += l;
             }
             Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
                 cigar_stats.num_match_bases += l as u64;
@@ -834,8 +834,8 @@ fn cigar_stats(
                 for (r1, r2) in refseq[rpos..rpos + l].iter().tuple_windows() {
                     transition_stats.increment(State::match_(*r1), State::match_(*r2));
                 }
-                qpos += l as usize;
-                rpos += l as usize;
+                qpos += l;
+                rpos += l;
             }
             Cigar::SoftClip(l) => {
                 let s = norm(l);

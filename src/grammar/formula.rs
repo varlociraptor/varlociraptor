@@ -368,15 +368,15 @@ impl From<Expr<FormulaTerminal>> for Formula {
     }
 }
 
-impl Into<Expr<FormulaTerminal>> for Formula {
-    fn into(self) -> Expr<FormulaTerminal> {
-        if self.is_terminal_false() {
+impl From<Formula> for Expr<FormulaTerminal> {
+    fn from(val: Formula) -> Self {
+        if val.is_terminal_false() {
             return Expr::Const(false);
         }
-        if self.is_terminal_true() {
+        if val.is_terminal_true() {
             return Expr::Const(true);
         }
-        match self {
+        match val {
             Formula::Terminal(terminal) => Expr::Terminal(terminal),
             Formula::Conjunction { mut operands } => {
                 let mut expr = operands.pop().unwrap().into();
@@ -619,13 +619,11 @@ impl Formula {
                     }
                 }
 
-                let operands = grouped_operands
-                    .into_iter()
-                    .map(|(_, statements)| statements)
+                let operands = grouped_operands.into_values()
                     .flatten()
                     .collect();
 
-                Formula::Conjunction { operands: operands }
+                Formula::Conjunction { operands }
             }
             Formula::Disjunction { operands } => {
                 // collect statements per sample

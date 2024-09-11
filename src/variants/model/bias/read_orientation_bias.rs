@@ -7,17 +7,14 @@ use crate::variants::evidence::observations::read_observation::ProcessedReadObse
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
+#[derive(Default)]
 pub(crate) enum ReadOrientationBias {
+    #[default]
     None,
     F1R2,
     F2R1,
 }
 
-impl Default for ReadOrientationBias {
-    fn default() -> Self {
-        ReadOrientationBias::None
-    }
-}
 
 impl Bias for ReadOrientationBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {

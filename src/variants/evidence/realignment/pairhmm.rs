@@ -146,7 +146,7 @@ where
     D: serde::Deserializer<'de>,
 {
     serde::Deserialize::deserialize(d)
-        .map(|x: Option<f64>| x.map(|v| LogProb(v)).unwrap_or(LogProb::zero()))
+        .map(|x: Option<f64>| x.map(LogProb).unwrap_or(LogProb::zero()))
 }
 
 fn parse_vec_of_float_or_null<'de, D>(d: D) -> Result<Vec<LogProb>, D::Error>
@@ -156,7 +156,7 @@ where
     serde::Deserialize::deserialize(d).map(|values: Vec<Option<f64>>| {
         values
             .into_iter()
-            .map(|x| x.map(|v| LogProb(v)).unwrap_or(LogProb::zero()))
+            .map(|x| x.map(LogProb).unwrap_or(LogProb::zero()))
             .collect()
     })
 }

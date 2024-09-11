@@ -116,12 +116,12 @@ impl<R: Realigner> Variant for Snv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if self.realign_indel_reads && utils::contains_indel_op(&**read) {
+        if self.realign_indel_reads && utils::contains_indel_op(read) {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the SNV might be an artifact
             // of the aligner.
             Ok(Some(self.realigner.borrow_mut().allele_support(
-                &**read,
+                read,
                 [&self.locus].iter(),
                 self,
                 alt_variants,

@@ -364,20 +364,17 @@ pub trait Testcase {
                     let mut expr = Expr::new(expr.as_str().unwrap());
 
                     for rec in reader.header().header_records() {
-                        match rec {
-                            bcf::HeaderRecord::Info { values, .. } => {
-                                let id = values.get("ID").unwrap().clone();
-                                if id.starts_with("PROB_") {
-                                    if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
-                                        expr = expr.value(id.clone(), values[0]);
-                                        expr = expr.value(
-                                            format!("PLAIN_{id}"),
-                                            Prob::from(PHREDProb(values[0] as f64)),
-                                        );
-                                    }
+                        if let bcf::HeaderRecord::Info { values, .. } = rec {
+                            let id = values.get("ID").unwrap().clone();
+                            if id.starts_with("PROB_") {
+                                if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
+                                    expr = expr.value(id.clone(), values[0]);
+                                    expr = expr.value(
+                                        format!("PLAIN_{id}"),
+                                        Prob::from(PHREDProb(values[0] as f64)),
+                                    );
                                 }
                             }
-                            _ => (), // ignore other tags
                         }
                     }
                     assert!(
@@ -408,7 +405,7 @@ pub trait Testcase {
 
     fn index_reference(&self, path: &dyn AsRef<Path>) {
         Command::new("samtools")
-            .args(&["faidx", path.as_ref().to_str().unwrap()])
+            .args(["faidx", path.as_ref().to_str().unwrap()])
             .status()
             .expect("failed to create fasta index");
     }

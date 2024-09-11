@@ -287,14 +287,12 @@ impl<R: Realigner> BreakendGroup<R> {
                                 return Some(ImpreciseEvidence::NotSupporting);
                             }
                         }
-                    } else {
-                        if is_match(bnd, right) {
-                            // METHOD: right record matches, let's see what the left record does.
-                            if is_match(other_bnd, left) {
-                                return Some(ImpreciseEvidence::Supporting);
-                            } else {
-                                return Some(ImpreciseEvidence::NotSupporting);
-                            }
+                    } else if is_match(bnd, right) {
+                        // METHOD: right record matches, let's see what the left record does.
+                        if is_match(other_bnd, left) {
+                            return Some(ImpreciseEvidence::Supporting);
+                        } else {
+                            return Some(ImpreciseEvidence::NotSupporting);
                         }
                     }
                 }
@@ -322,8 +320,8 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             // METHOD: imprecise (for now) means that we have a breakend pair.
             // We only support paired end evidence, and just check whether the pair starts
             // either left of the left or right of the right breakend.
-            if let Some(_) = self.classify_imprecise_evidence(evidence) {
-                Some((0..2).into_iter().collect_vec())
+            if self.classify_imprecise_evidence(evidence).is_some() {
+                Some((0..2).collect_vec())
             } else {
                 None
             }

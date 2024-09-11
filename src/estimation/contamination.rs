@@ -346,10 +346,10 @@ impl ContaminationEstimator {
 
         if let Some(ref path) = self.output_max_vaf_variants {
             let mut writer = csv::Writer::from_path(path)?;
-            writer.write_record(&["chrom", "pos"])?;
+            writer.write_record(["chrom", "pos"])?;
             for obs in &self.variant_observations {
                 if obs.max_posterior_vaf == vaf_dist.max_vaf {
-                    writer.write_record(&[
+                    writer.write_record([
                         std::str::from_utf8(&obs.chrom).unwrap(),
                         &format!("{pos}", pos = obs.pos),
                     ])?;
@@ -358,7 +358,7 @@ impl ContaminationEstimator {
         }
 
         // write into table
-        writer.write_record(&["maximum somatic VAF", "contamination", "posterior density"])?;
+        writer.write_record(["maximum somatic VAF", "contamination", "posterior density"])?;
         for (event, density) in model_instance.event_posteriors() {
             writer.write_record(&[
                 format!("{}", *event.expected_max_somatic_vaf),

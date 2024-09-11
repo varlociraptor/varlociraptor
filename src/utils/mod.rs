@@ -319,7 +319,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
 
         Ok(probs_events
             .into_iter()
-            .zip(probs_absent_or_artifact.into_iter())
+            .zip(probs_absent_or_artifact)
             .map(|(prob_events, prob_absent_or_artifact)| {
                 if let Some(keep) = keep {
                     // already know decision from previous breakend

@@ -66,7 +66,7 @@ pub fn collect_variants(
                 .iter()
                 .map(|l| {
                     if !l.is_missing() {
-                        Some(l.abs() as u64)
+                        Some(l.unsigned_abs() as u64)
                     } else {
                         None
                     }

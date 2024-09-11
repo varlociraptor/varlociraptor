@@ -7,7 +7,9 @@ use crate::variants::evidence::observations::read_observation::ProcessedReadObse
 use crate::variants::model::bias::Bias;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Default)]
 pub(crate) enum HomopolymerError {
+    #[default]
     None,
     Some,
 }
@@ -18,11 +20,6 @@ impl HomopolymerError {
     }
 }
 
-impl Default for HomopolymerError {
-    fn default() -> Self {
-        HomopolymerError::None
-    }
-}
 
 impl Bias for HomopolymerError {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {

@@ -45,10 +45,12 @@ pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
 
 /// Strand support for observation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Strand {
     Forward,
     Reverse,
     Both,
+    #[default]
     None,
 }
 
@@ -105,11 +107,6 @@ impl Strand {
     }
 }
 
-impl Default for Strand {
-    fn default() -> Self {
-        Strand::None
-    }
-}
 
 impl ops::BitOrAssign for Strand {
     fn bitor_assign(&mut self, rhs: Self) {
@@ -124,16 +121,13 @@ impl ops::BitOrAssign for Strand {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum ReadPosition {
     Major,
+    #[default]
     Some,
 }
 
-impl Default for ReadPosition {
-    fn default() -> Self {
-        ReadPosition::Some
-    }
-}
 
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Ok(bam::record::Aux::String(ro)) = record.aux(b"RO") {

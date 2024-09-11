@@ -11,7 +11,7 @@ macro_rules! testcase {
             $(
                 #[test]
                 fn [<$name _ $pairhmm_mode _mode>]() {
-                    use crate::testcase::runner::common::load_testcase;
+                    use $crate::testcase::runner::common::load_testcase;
                     // Poison error can be ignored here, because it just means that the other test failed
                     // and we are safe to go on.
                     let _guard = [<$name:upper _MUTEX>].lock();
@@ -53,7 +53,7 @@ macro_rules! testcase_should_panic {
                 #[should_panic]
                 #[test]
                 fn [<$name _ $pairhmm_mode _mode>]() {
-                    use crate::testcase::runner::common::load_testcase;
+                    use $crate::testcase::runner::common::load_testcase;
                     // Poison error can be ignored here, because it just means that the other test failed
                     // and we are safe to go on.
                     let _guard = [<$name:upper _MUTEX>].lock();
