@@ -17,7 +17,7 @@ use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use itertools::Itertools;
 use regex::Regex;
-use rust_htslib::{bam, bcf};
+use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::default_ref_base_emission;
@@ -25,7 +25,6 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::aux_info::AuxInfo;
-use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,

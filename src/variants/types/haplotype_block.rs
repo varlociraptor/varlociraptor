@@ -286,7 +286,7 @@ impl Variant for HaplotypeBlock {
                     .map(|variant| variant.allele_support(evidence, alignment_properties, &[])),
             )
             .collect::<Result<Vec<Option<AlleleSupport>>>>()?;
-        let mut support = support
+        let support = support
             .into_iter()
             .filter_map(|support| support)
             .collect_vec();

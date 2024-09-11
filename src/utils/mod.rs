@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::ops::{AddAssign, Deref};
 use std::path::PathBuf;

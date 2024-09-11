@@ -62,7 +62,7 @@ impl VariantObservation {
             return None;
         }
 
-        let mut vaf_dist = sample_info
+        let vaf_dist = sample_info
             .vaf_dist()
             .as_ref()
             .unwrap()
@@ -344,7 +344,7 @@ impl ContaminationEstimator {
                 spec["datasets"]["empirical_vaf_dist"] = vaf_dist.hist_as_json();
                 spec["datasets"]["densities"] = densities;
 
-                let mut outfile = File::create(outpath)?;
+                let outfile = File::create(outpath)?;
                 serde_json::to_writer_pretty(outfile, &spec)?;
             } else {
                 unreachable!();
