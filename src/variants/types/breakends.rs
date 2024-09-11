@@ -252,15 +252,6 @@ impl<R: Realigner> BreakendGroup<R> {
         false
     }
 
-    fn deletion_len(&self) -> Option<u64> {
-        if self.is_deletion() {
-            let (left, right) = self.breakend_pair().unwrap();
-            Some(right.locus.pos() - left.locus.pos() - 1)
-        } else {
-            None
-        }
-    }
-
     fn classify_imprecise_evidence(
         &self,
         evidence: &PairedEndEvidence,
@@ -1219,30 +1210,6 @@ pub(crate) struct Join {
     locus: genome::Locus,
     side: Side,
     extension_modification: ExtensionModification,
-}
-
-struct LocusPlusOne<'a>(&'a genome::Locus);
-
-impl<'a> AbstractLocus for LocusPlusOne<'a> {
-    fn contig(&self) -> &str {
-        self.0.contig()
-    }
-
-    fn pos(&self) -> u64 {
-        self.0.pos() + 1
-    }
-}
-
-struct LocusMinusOne<'a>(&'a genome::Locus);
-
-impl<'a> AbstractLocus for LocusMinusOne<'a> {
-    fn contig(&self) -> &str {
-        self.0.contig()
-    }
-
-    fn pos(&self) -> u64 {
-        self.0.pos() - 1
-    }
 }
 
 #[derive(Debug, Clone)]

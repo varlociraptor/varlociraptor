@@ -78,8 +78,6 @@ impl<V> MultiLocusPairedEndVariant for V where
 {
 }
 
-pub(crate) trait HaplotypeVariant: Variant + ToVariantRepresentation {}
-
 #[derive(Default, Getters)]
 pub(crate) struct HaplotypeBlock {
     #[getset(get = "pub(crate)")]

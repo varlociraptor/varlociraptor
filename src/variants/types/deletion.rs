@@ -24,9 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::types::{
-    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
-};
+use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 use super::{IsizeObservable, ToVariantRepresentation};
 

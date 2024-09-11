@@ -170,10 +170,6 @@ pub(crate) trait Variant {
     fn homopolymer_indel_len(&self) -> Option<i8> {
         None
     }
-
-    fn is_homopolymer_indel(&self) -> bool {
-        self.homopolymer_indel_len().is_some()
-    }
 }
 
 pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
@@ -445,7 +441,6 @@ where
 
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
-    fn is_single_contig(&self) -> bool;
     fn first_pos(&self) -> u64;
 }
 
@@ -508,10 +503,6 @@ impl Loci for SingleLocus {
     fn contig(&self) -> Option<&str> {
         Some(self.interval.contig())
     }
-
-    fn is_single_contig(&self) -> bool {
-        true
-    }
 }
 
 #[derive(new, Default, Debug, Derefable, Clone)]
@@ -535,9 +526,6 @@ impl Loci for MultiLocus {
         } else {
             None
         }
-    }
-    fn is_single_contig(&self) -> bool {
-        self.contig().is_some()
     }
 }
 
