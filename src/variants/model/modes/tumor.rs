@@ -14,19 +14,3 @@ impl<T> From<TumorNormalPair<T>> for Vec<T> {
         vec![tnp.tumor, tnp.normal]
     }
 }
-
-pub(crate) trait TumorNormalPairView<T> {
-    fn tumor(&self) -> &T;
-
-    fn normal(&self) -> &T;
-}
-
-impl<T> TumorNormalPairView<T> for Vec<T> {
-    fn tumor(&self) -> &T {
-        &self[0]
-    }
-
-    fn normal(&self) -> &T {
-        &self[1]
-    }
-}

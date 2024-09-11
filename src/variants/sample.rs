@@ -170,14 +170,12 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
     num_records: Option<usize>,
-    epsilon_gap: f64,
 ) -> Result<alignment_properties::AlignmentProperties> {
     alignment_properties::AlignmentProperties::estimate(
         path,
         omit_insert_size,
         reference_buffer,
         num_records,
-        epsilon_gap,
     )
 }
 
@@ -191,6 +189,7 @@ pub(crate) struct Sample {
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
     max_depth: usize,
+    // TODO use this properly for strand bias
     protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
     fragment_id_factory: FragmentIdFactory,

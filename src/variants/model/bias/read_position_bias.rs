@@ -47,7 +47,7 @@ impl Bias for ReadPositionBias {
         }
     }
 
-    fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
         LogProb::ln_one()
     }
 

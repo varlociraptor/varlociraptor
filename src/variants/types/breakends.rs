@@ -623,9 +623,11 @@ impl<R: Realigner> FragmentSamplingBias for BreakendGroup<R> {}
 impl<R: Realigner> IsizeObservable for BreakendGroup<R> {}
 
 impl<R: Realigner> Realignable for BreakendGroup<R> {
-    fn maybe_revcomp(&self) -> bool {
-        self.breakends.values().any(|bnd| bnd.emits_revcomp())
-    }
+    // TODO do we need this for inversions? Does the realigner have to consider that
+    // reads might be from the reverse complement?
+    // fn maybe_revcomp(&self) -> bool {
+    //     self.breakends.values().any(|bnd| bnd.emits_revcomp())
+    // }
 
     fn alt_emission_params(
         &self,

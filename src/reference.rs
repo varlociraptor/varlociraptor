@@ -16,14 +16,6 @@ pub(crate) struct Buffer {
 }
 
 impl Buffer {
-    pub(crate) fn new(fasta: fasta::IndexedReader<fs::File>, capacity: usize) -> Self {
-        Buffer {
-            reader: RwLock::new(fasta),
-            sequences: Mutex::new(LruCache::with_capacity(capacity)),
-            reference_path: None,
-        }
-    }
-
     pub(crate) fn from_path<P: AsRef<Path> + std::fmt::Debug>(
         path: P,
         capacity: usize,

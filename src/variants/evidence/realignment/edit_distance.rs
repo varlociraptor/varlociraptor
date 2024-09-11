@@ -127,10 +127,7 @@ impl Ord for EditOperationCounts {
 }
 
 enum Myers {
-    #[cfg(has_u128)]
-    Short(myers::Myers<u128>),
-    #[cfg(not(has_u128))]
-    Short(myers::Myers<u64>),
+    Short(myers::Myers<u64>), // TODO consider using u128 here
     Long(long::Myers<u64>),
 }
 
@@ -154,11 +151,7 @@ impl EditDistanceCalculation {
     {
         let l = read_seq.len();
         let read_seq = read_seq.collect();
-
-        #[cfg(has_u128)]
-        let num_bits = 128;
-        #[cfg(not(has_u128))]
-        let num_bits = 64;
+        let num_bits = 64; // TODO consider using 128 here in comb with u128 for Myers
         let myers = if l <= num_bits {
             Myers::Short(myers::Myers::new(&read_seq))
         } else {
@@ -398,10 +391,8 @@ impl EditDistanceCalculation {
             // relative position in the emission snippet we have aligned against
             let mut pos_ref = alignment.start;
             let mut pos_read = 0; // semiglobal alignment
-            let mut end_reduce = 0;
 
             let mut allele = Vec::new();
-            let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
 
@@ -426,7 +417,6 @@ impl EditDistanceCalculation {
                     AlignmentOperation::Del => {
                         if is_in_range {
                             pos_ref += 1;
-                            end_reduce += 1;
                         } else {
                             emission_params.ref_base(pos_ref);
                             pos_ref += 1;

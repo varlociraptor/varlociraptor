@@ -13,7 +13,7 @@ use std::str;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
-use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 
@@ -668,10 +668,6 @@ pub(crate) trait Evidence {
     fn len(&self) -> usize;
 
     fn name(&self) -> &[u8];
-
-    fn start_locus(&self) -> genome::Locus;
-
-    fn end_locus(&self) -> genome::Locus;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -715,14 +711,6 @@ impl Evidence for SingleEndEvidence {
 
     fn alt_loci(&self) -> ExactAltLoci {
         ExactAltLoci::from(self.inner.as_ref())
-    }
-
-    fn start_locus(&self) -> genome::Locus {
-        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().start)
-    }
-
-    fn end_locus(&self) -> genome::Locus {
-        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().end)
     }
 }
 
@@ -814,28 +802,6 @@ impl Evidence for PairedEndEvidence {
                 let mut left = ExactAltLoci::from(left.as_ref());
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
-            }
-        }
-    }
-
-    fn start_locus(&self) -> genome::Locus {
-        match self {
-            PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.contig().to_owned(), rec.range().start)
-            }
-            PairedEndEvidence::PairedEnd { left, .. } => {
-                genome::Locus::new(left.contig().to_owned(), left.range().start)
-            }
-        }
-    }
-
-    fn end_locus(&self) -> genome::Locus {
-        match self {
-            PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.contig().to_owned(), rec.range().end)
-            }
-            PairedEndEvidence::PairedEnd { right, .. } => {
-                genome::Locus::new(right.contig().to_owned(), right.range().end)
             }
         }
     }

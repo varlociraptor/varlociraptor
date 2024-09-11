@@ -52,21 +52,6 @@ fn prob_sample_alt(observation: &ProcessedReadObservation, allele_freq: LogProb)
     }
 }
 
-pub(crate) trait ContaminatedSamplePairView<T> {
-    fn primary(&self) -> &T;
-    fn secondary(&self) -> &T;
-}
-
-impl<T> ContaminatedSamplePairView<T> for Vec<T> {
-    fn primary(&self) -> &T {
-        &self[0]
-    }
-
-    fn secondary(&self) -> &T {
-        &self[1]
-    }
-}
-
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,

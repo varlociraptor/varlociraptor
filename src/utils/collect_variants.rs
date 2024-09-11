@@ -30,8 +30,8 @@ pub enum SkipReason {
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub(crate)")]
 pub struct VariantInfo {
-    pub variant: model::Variant,
-    pub haplotype: Option<HaplotypeIdentifier>,
+    pub(crate) variant: model::Variant,
+    pub(crate) haplotype: Option<HaplotypeIdentifier>,
 }
 
 /// Collect variants from a given ´bcf::Record`.

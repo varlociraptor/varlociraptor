@@ -320,7 +320,6 @@ impl Testcase {
                 false,
                 &mut self.reference_buffer,
                 Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
-                0.,
             )?;
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");

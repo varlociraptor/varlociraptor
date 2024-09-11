@@ -405,13 +405,6 @@ pub enum EstimateKind {
 
         #[structopt(long, help = "Number of records to sample from the BAM file")]
         num_records: Option<usize>,
-
-        #[structopt(
-            long,
-            help = "Estimated gap extension probabilities below this threshold will be set to zero.",
-            default_value = "1e-10"
-        )]
-        epsilon_gap: f64,
     },
     #[structopt(
         name = "contamination",
@@ -848,7 +841,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         omit_insert_size,
                         Arc::get_mut(&mut reference_buffer).unwrap(),
                         Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
-                        0.,
                     )?;
 
                     let gap_params = alignment_properties.gap_params.clone();
@@ -1259,16 +1251,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 reference,
                 bam,
                 num_records,
-                epsilon_gap,
             } => {
                 let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
-                let alignment_properties = estimate_alignment_properties(
-                    bam,
-                    false,
-                    &mut reference_buffer,
-                    num_records,
-                    epsilon_gap,
-                )?;
+                let alignment_properties =
+                    estimate_alignment_properties(bam, false, &mut reference_buffer, num_records)?;
                 println!("{}", serde_json::to_string_pretty(&alignment_properties)?);
             }
         },
@@ -1333,19 +1319,12 @@ pub(crate) fn est_or_load_alignment_properties(
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
     num_records: Option<usize>,
-    epsilon_gap: f64,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(
-            bam_file,
-            omit_insert_size,
-            reference_buffer,
-            num_records,
-            epsilon_gap,
-        )
+        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer, num_records)
     }
 }

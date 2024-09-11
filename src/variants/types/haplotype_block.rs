@@ -11,9 +11,7 @@ use bio::stats::LogProb;
 use itertools::Itertools;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, SingleEndEvidence,
-};
+use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
@@ -110,21 +108,21 @@ impl HaplotypeBlock {
         self.single_locus_single_end_evidence_variants.push(variant);
     }
 
-    pub(crate) fn push_single_locus_paired_end_evidence_variant(
-        &mut self,
-        variant: Box<dyn SingleLocusPairedEndVariant>,
-    ) {
-        self.loci.push(variant.loci().to_owned());
-        self.single_locus_paired_end_evidence_variants.push(variant);
-    }
+    // pub(crate) fn push_single_locus_paired_end_evidence_variant(
+    //     &mut self,
+    //     variant: Box<dyn SingleLocusPairedEndVariant>,
+    // ) {
+    //     self.loci.push(variant.loci().to_owned());
+    //     self.single_locus_paired_end_evidence_variants.push(variant);
+    // }
 
-    pub(crate) fn push_multi_locus_single_end_evidence_variant(
-        &mut self,
-        variant: Box<dyn MultiLocusSingleEndVariant>,
-    ) {
-        self.loci.extend(variant.loci().iter().cloned());
-        self.multi_locus_single_end_evidence_variants.push(variant);
-    }
+    // pub(crate) fn push_multi_locus_single_end_evidence_variant(
+    //     &mut self,
+    //     variant: Box<dyn MultiLocusSingleEndVariant>,
+    // ) {
+    //     self.loci.extend(variant.loci().iter().cloned());
+    //     self.multi_locus_single_end_evidence_variants.push(variant);
+    // }
 
     pub(crate) fn push_multi_locus_paired_end_evidence_variant(
         &mut self,
@@ -187,7 +185,7 @@ impl Variant for HaplotypeBlock {
             self.multi_locus_single_end_evidence_variants
                 .iter()
                 .enumerate()
-                .filter_map(|(i, variant)| {
+                .filter_map(|(_i, variant)| {
                     let valid = evidence
                         .into_single_end_evidence()
                         .iter()
