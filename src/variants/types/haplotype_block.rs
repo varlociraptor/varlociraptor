@@ -11,9 +11,7 @@ use bio::stats::LogProb;
 use itertools::Itertools;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, SingleEndEvidence,
-};
+use crate::variants::evidence::observations::read_observation::{Observable, SingleEndEvidence};
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
@@ -78,8 +76,6 @@ impl<V> MultiLocusPairedEndVariant for V where
 {
 }
 
-pub(crate) trait HaplotypeVariant: Variant + ToVariantRepresentation {}
-
 #[derive(Default, Getters)]
 pub(crate) struct HaplotypeBlock {
     #[getset(get = "pub(crate)")]
@@ -112,21 +108,21 @@ impl HaplotypeBlock {
         self.single_locus_single_end_evidence_variants.push(variant);
     }
 
-    pub(crate) fn push_single_locus_paired_end_evidence_variant(
-        &mut self,
-        variant: Box<dyn SingleLocusPairedEndVariant>,
-    ) {
-        self.loci.push(variant.loci().to_owned());
-        self.single_locus_paired_end_evidence_variants.push(variant);
-    }
+    // pub(crate) fn push_single_locus_paired_end_evidence_variant(
+    //     &mut self,
+    //     variant: Box<dyn SingleLocusPairedEndVariant>,
+    // ) {
+    //     self.loci.push(variant.loci().to_owned());
+    //     self.single_locus_paired_end_evidence_variants.push(variant);
+    // }
 
-    pub(crate) fn push_multi_locus_single_end_evidence_variant(
-        &mut self,
-        variant: Box<dyn MultiLocusSingleEndVariant>,
-    ) {
-        self.loci.extend(variant.loci().iter().cloned());
-        self.multi_locus_single_end_evidence_variants.push(variant);
-    }
+    // pub(crate) fn push_multi_locus_single_end_evidence_variant(
+    //     &mut self,
+    //     variant: Box<dyn MultiLocusSingleEndVariant>,
+    // ) {
+    //     self.loci.extend(variant.loci().iter().cloned());
+    //     self.multi_locus_single_end_evidence_variants.push(variant);
+    // }
 
     pub(crate) fn push_multi_locus_paired_end_evidence_variant(
         &mut self,
@@ -155,7 +151,7 @@ impl Variant for HaplotypeBlock {
             .iter()
             .enumerate()
             .filter_map(|(i, variant)| {
-                if evidence.into_single_end_evidence().iter().any(|evidence| {
+                if evidence.to_single_end_evidence().iter().any(|evidence| {
                     variant
                         .is_valid_evidence(evidence, alignment_properties)
                         .is_some()
@@ -188,10 +184,9 @@ impl Variant for HaplotypeBlock {
         valid_indices.extend(
             self.multi_locus_single_end_evidence_variants
                 .iter()
-                .enumerate()
-                .filter_map(|(i, variant)| {
+                .filter_map(|variant| {
                     let valid = evidence
-                        .into_single_end_evidence()
+                        .to_single_end_evidence()
                         .iter()
                         .filter_map(|evidence| {
                             variant.is_valid_evidence(evidence, alignment_properties)
@@ -253,14 +248,13 @@ impl Variant for HaplotypeBlock {
         let support: Vec<Option<AlleleSupport>> = self
             .single_locus_single_end_evidence_variants
             .iter()
-            .map(|variant| {
+            .flat_map(|variant| {
                 evidence
-                    .into_single_end_evidence()
+                    .to_single_end_evidence()
                     .iter()
                     .map(|evidence| variant.allele_support(evidence, alignment_properties, &[]))
                     .collect_vec()
             })
-            .flatten()
             .chain(
                 self.single_locus_paired_end_evidence_variants
                     .iter()
@@ -269,16 +263,15 @@ impl Variant for HaplotypeBlock {
             .chain(
                 self.multi_locus_single_end_evidence_variants
                     .iter()
-                    .map(|variant| {
+                    .flat_map(|variant| {
                         evidence
-                            .into_single_end_evidence()
+                            .to_single_end_evidence()
                             .iter()
                             .map(|evidence| {
                                 variant.allele_support(evidence, alignment_properties, &[])
                             })
                             .collect_vec()
-                    })
-                    .flatten(),
+                    }),
             )
             .chain(
                 self.multi_locus_paired_end_evidence_variants
@@ -286,10 +279,7 @@ impl Variant for HaplotypeBlock {
                     .map(|variant| variant.allele_support(evidence, alignment_properties, &[])),
             )
             .collect::<Result<Vec<Option<AlleleSupport>>>>()?;
-        let mut support = support
-            .into_iter()
-            .filter_map(|support| support)
-            .collect_vec();
+        let support = support.into_iter().flatten().collect_vec();
         if support.is_empty() {
             Ok(None)
         } else {
@@ -319,7 +309,7 @@ fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
             if let Some(ref mut dist) = third_allele_evidence {
                 dist.update(other_dist);
             } else {
-                third_allele_evidence = variant_support.third_allele_evidence.clone();
+                third_allele_evidence = variant_support.third_allele_evidence;
             }
         }
     }

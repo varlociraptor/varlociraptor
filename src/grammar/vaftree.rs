@@ -10,12 +10,12 @@ use crate::variants::model::modes::generic::{LikelihoodOperands, VafLfc};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct VAFTree {
+pub(crate) struct VAFTree {
     inner: Vec<Node>,
 }
 
 impl VAFTree {
-    pub fn absent(n_samples: usize) -> Self {
+    pub(crate) fn absent(n_samples: usize) -> Self {
         assert!(n_samples > 0, "bug: n_samples must be > 0");
 
         fn absent(sample: usize, n_samples: usize) -> Node {
@@ -56,12 +56,12 @@ impl<'a> IntoIterator for &'a VAFTree {
     type IntoIter = std::slice::Iter<'a, Node>;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&self.inner).iter()
+        self.inner.iter()
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum NodeKind {
+pub(crate) enum NodeKind {
     Variant {
         refbase: Iupac,
         altbase: Iupac,
@@ -82,14 +82,14 @@ pub enum NodeKind {
 
 #[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
 #[get = "pub"]
-pub struct Node {
+pub(crate) struct Node {
     kind: NodeKind,
     #[new(default)]
     children: Vec<Node>,
 }
 
 impl Node {
-    pub fn leafs(&mut self) -> Vec<&mut Node> {
+    pub(crate) fn leafs(&mut self) -> Vec<&mut Node> {
         fn collect_leafs<'a>(node: &'a mut Node, leafs: &mut Vec<&'a mut Node>) {
             if node.children.is_empty() {
                 leafs.push(node);
@@ -105,15 +105,15 @@ impl Node {
         leafs
     }
 
-    pub fn is_leaf(&self) -> bool {
+    pub(crate) fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
 
-    pub fn is_branching(&self) -> bool {
+    pub(crate) fn is_branching(&self) -> bool {
         self.children.len() > 1
     }
 
-    pub fn contains(
+    pub(crate) fn contains(
         &self,
         operands: &LikelihoodOperands,
         lfcs: &mut Vec<&VafLfc>,
@@ -247,10 +247,10 @@ impl VAFTree {
             }
         }
 
-        fn add_missing_samples<'a>(
+        fn add_missing_samples(
             node: &mut Node,
             seen: &mut HashSet<usize>,
-            scenario: &'a Scenario,
+            scenario: &Scenario,
             contig: &str,
         ) -> Result<()> {
             if let NodeKind::False = node.kind {

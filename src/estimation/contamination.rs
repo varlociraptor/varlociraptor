@@ -62,7 +62,7 @@ impl VariantObservation {
             return None;
         }
 
-        let mut vaf_dist = sample_info
+        let vaf_dist = sample_info
             .vaf_dist()
             .as_ref()
             .unwrap()
@@ -98,7 +98,7 @@ impl VariantObservation {
                         + (vaf - *infimum).ln(),
                 ))
             }
-            (Some((infimum, count)), None) => {
+            (Some((_infimum, _count)), None) => {
                 // case 3: right of highest value, return zero
                 LogProb::ln_zero()
             }
@@ -163,7 +163,7 @@ impl bio::stats::bayesian::model::Likelihood for Likelihood {
     type Event = Event;
     type Data = Vec<VariantObservation>;
 
-    fn compute(&self, event: &Self::Event, data: &Self::Data, payload: &mut ()) -> LogProb {
+    fn compute(&self, event: &Self::Event, data: &Self::Data, _payload: &mut ()) -> LogProb {
         let purity = AlleleFreq(1.0) - event.contamination;
         data.iter()
             .map(|obs| {
@@ -235,28 +235,21 @@ impl bio::stats::bayesian::model::Marginal for Marginal {
 #[derive(Clone, Debug)]
 struct VAFDist {
     histogram: BTreeMap<AlleleFreq, usize>,
-    total: usize,
     max_vaf: AlleleFreq,
 }
 
 impl VAFDist {
     fn new(variant_observations: &[VariantObservation]) -> Self {
         let mut histogram = BTreeMap::default();
-        let mut total = 0;
         let mut max_vaf = AlleleFreq(0.0);
         for obs in variant_observations {
             let bin = AlleleFreq((*obs.max_posterior_vaf * 100.0).floor() / 100.0);
             *histogram.entry(bin).or_insert(0) += 1;
-            total += 1;
             if obs.max_posterior_vaf > max_vaf {
                 max_vaf = obs.max_posterior_vaf;
             }
         }
-        VAFDist {
-            histogram,
-            total,
-            max_vaf,
-        }
+        VAFDist { histogram, max_vaf }
     }
 
     fn get_expected_vaf(
@@ -344,7 +337,7 @@ impl ContaminationEstimator {
                 spec["datasets"]["empirical_vaf_dist"] = vaf_dist.hist_as_json();
                 spec["datasets"]["densities"] = densities;
 
-                let mut outfile = File::create(outpath)?;
+                let outfile = File::create(outpath)?;
                 serde_json::to_writer_pretty(outfile, &spec)?;
             } else {
                 unreachable!();
@@ -353,10 +346,10 @@ impl ContaminationEstimator {
 
         if let Some(ref path) = self.output_max_vaf_variants {
             let mut writer = csv::Writer::from_path(path)?;
-            writer.write_record(&["chrom", "pos"])?;
+            writer.write_record(["chrom", "pos"])?;
             for obs in &self.variant_observations {
                 if obs.max_posterior_vaf == vaf_dist.max_vaf {
-                    writer.write_record(&[
+                    writer.write_record([
                         std::str::from_utf8(&obs.chrom).unwrap(),
                         &format!("{pos}", pos = obs.pos),
                     ])?;
@@ -365,7 +358,7 @@ impl ContaminationEstimator {
         }
 
         // write into table
-        writer.write_record(&["maximum somatic VAF", "contamination", "posterior density"])?;
+        writer.write_record(["maximum somatic VAF", "contamination", "posterior density"])?;
         for (event, density) in model_instance.event_posteriors() {
             writer.write_record(&[
                 format!("{}", *event.expected_max_somatic_vaf),
@@ -380,7 +373,7 @@ impl ContaminationEstimator {
 impl CallProcessor for ContaminationEstimator {
     fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
         &mut self,
-        caller: &Caller<Pr, Self, CF>,
+        _caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>> {
         Ok(None)
     }

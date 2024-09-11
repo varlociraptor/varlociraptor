@@ -368,15 +368,15 @@ impl From<Expr<FormulaTerminal>> for Formula {
     }
 }
 
-impl Into<Expr<FormulaTerminal>> for Formula {
-    fn into(self) -> Expr<FormulaTerminal> {
-        if self.is_terminal_false() {
+impl From<Formula> for Expr<FormulaTerminal> {
+    fn from(val: Formula) -> Self {
+        if val.is_terminal_false() {
             return Expr::Const(false);
         }
-        if self.is_terminal_true() {
+        if val.is_terminal_true() {
             return Expr::Const(true);
         }
-        match self {
+        match val {
             Formula::Terminal(terminal) => Expr::Terminal(terminal),
             Formula::Conjunction { mut operands } => {
                 let mut expr = operands.pop().unwrap().into();
@@ -481,7 +481,7 @@ impl Formula {
             .simplify();
         simplified.strip_false();
         simplified.sort();
-        Ok(simplified.into_normalized_formula())
+        Ok(simplified.to_normalized_formula())
     }
 
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
@@ -528,23 +528,17 @@ impl Formula {
         })
     }
 
-    fn into_normalized_formula(&self) -> NormalizedFormula {
+    fn to_normalized_formula(&self) -> NormalizedFormula {
         match self {
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => NormalizedFormula::Atom {
                 sample: sample.to_owned(),
                 vafs: vafs.to_owned(),
             },
             Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
-                operands: operands
-                    .iter()
-                    .map(|o| o.into_normalized_formula())
-                    .collect(),
+                operands: operands.iter().map(|o| o.to_normalized_formula()).collect(),
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
-                operands: operands
-                    .iter()
-                    .map(|o| o.into_normalized_formula())
-                    .collect(),
+                operands: operands.iter().map(|o| o.to_normalized_formula()).collect(),
             },
             &Formula::Terminal(FormulaTerminal::Variant {
                 positive,
@@ -619,13 +613,9 @@ impl Formula {
                     }
                 }
 
-                let operands = grouped_operands
-                    .into_iter()
-                    .map(|(_, statements)| statements)
-                    .flatten()
-                    .collect();
+                let operands = grouped_operands.into_values().flatten().collect();
 
-                Formula::Conjunction { operands: operands }
+                Formula::Conjunction { operands }
             }
             Formula::Disjunction { operands } => {
                 // collect statements per sample

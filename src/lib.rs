@@ -64,18 +64,6 @@ pub trait Event {
     }
 }
 
-/// Complement of other given events (i.e. 1 - Pr(other events)).
-pub(crate) struct ComplementEvent {
-    /// event name
-    pub(crate) name: String,
-}
-
-impl Event for ComplementEvent {
-    fn name(&self) -> &str {
-        &self.name
-    }
-}
-
 /// A simple event that just has a name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SimpleEvent {

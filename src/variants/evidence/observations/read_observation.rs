@@ -13,7 +13,7 @@ use std::str;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
-use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 
@@ -44,11 +44,12 @@ pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
 }
 
 /// Strand support for observation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Strand {
     Forward,
     Reverse,
     Both,
+    #[default]
     None,
 }
 
@@ -105,12 +106,6 @@ impl Strand {
     }
 }
 
-impl Default for Strand {
-    fn default() -> Self {
-        Strand::None
-    }
-}
-
 impl ops::BitOrAssign for Strand {
     fn bitor_assign(&mut self, rhs: Self) {
         if let Strand::None = self {
@@ -123,16 +118,11 @@ impl ops::BitOrAssign for Strand {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ReadPosition {
     Major,
+    #[default]
     Some,
-}
-
-impl Default for ReadPosition {
-    fn default() -> Self {
-        ReadPosition::Some
-    }
 }
 
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
@@ -358,13 +348,17 @@ pub(crate) enum MaxBayesFactor {
     Equal,
 }
 
-impl MaxBayesFactor {
-    pub(crate) fn to_string(&self) -> String {
-        match self {
-            MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
-            MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
-            MaxBayesFactor::Equal => "E".to_string(),
-        }
+impl std::fmt::Display for MaxBayesFactor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
+                MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
+                MaxBayesFactor::Equal => "E".to_string(),
+            }
+        )
     }
 }
 
@@ -668,10 +662,6 @@ pub(crate) trait Evidence {
     fn len(&self) -> usize;
 
     fn name(&self) -> &[u8];
-
-    fn start_locus(&self) -> genome::Locus;
-
-    fn end_locus(&self) -> genome::Locus;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -716,14 +706,6 @@ impl Evidence for SingleEndEvidence {
     fn alt_loci(&self) -> ExactAltLoci {
         ExactAltLoci::from(self.inner.as_ref())
     }
-
-    fn start_locus(&self) -> genome::Locus {
-        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().start)
-    }
-
-    fn end_locus(&self) -> genome::Locus {
-        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().end)
-    }
 }
 
 impl PartialEq for SingleEndEvidence {
@@ -748,7 +730,7 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl PairedEndEvidence {
-    pub(crate) fn into_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
+    pub(crate) fn to_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
                 vec![SingleEndEvidence::new(Rc::clone(record))]
@@ -814,28 +796,6 @@ impl Evidence for PairedEndEvidence {
                 let mut left = ExactAltLoci::from(left.as_ref());
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
-            }
-        }
-    }
-
-    fn start_locus(&self) -> genome::Locus {
-        match self {
-            PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.contig().to_owned(), rec.range().start)
-            }
-            PairedEndEvidence::PairedEnd { left, .. } => {
-                genome::Locus::new(left.contig().to_owned(), left.range().start)
-            }
-        }
-    }
-
-    fn end_locus(&self) -> genome::Locus {
-        match self {
-            PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.contig().to_owned(), rec.range().end)
-            }
-            PairedEndEvidence::PairedEnd { right, .. } => {
-                genome::Locus::new(right.contig().to_owned(), right.range().end)
             }
         }
     }

@@ -17,7 +17,7 @@ use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use itertools::Itertools;
 use regex::Regex;
-use rust_htslib::{bam, bcf};
+use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::default_ref_base_emission;
@@ -25,7 +25,6 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::aux_info::AuxInfo;
-use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
@@ -253,15 +252,6 @@ impl<R: Realigner> BreakendGroup<R> {
         false
     }
 
-    fn deletion_len(&self) -> Option<u64> {
-        if self.is_deletion() {
-            let (left, right) = self.breakend_pair().unwrap();
-            Some(right.locus.pos() - left.locus.pos() - 1)
-        } else {
-            None
-        }
-    }
-
     fn classify_imprecise_evidence(
         &self,
         evidence: &PairedEndEvidence,
@@ -297,14 +287,12 @@ impl<R: Realigner> BreakendGroup<R> {
                                 return Some(ImpreciseEvidence::NotSupporting);
                             }
                         }
-                    } else {
-                        if is_match(bnd, right) {
-                            // METHOD: right record matches, let's see what the left record does.
-                            if is_match(other_bnd, left) {
-                                return Some(ImpreciseEvidence::Supporting);
-                            } else {
-                                return Some(ImpreciseEvidence::NotSupporting);
-                            }
+                    } else if is_match(bnd, right) {
+                        // METHOD: right record matches, let's see what the left record does.
+                        if is_match(other_bnd, left) {
+                            return Some(ImpreciseEvidence::Supporting);
+                        } else {
+                            return Some(ImpreciseEvidence::NotSupporting);
                         }
                     }
                 }
@@ -332,8 +320,8 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             // METHOD: imprecise (for now) means that we have a breakend pair.
             // We only support paired end evidence, and just check whether the pair starts
             // either left of the left or right of the right breakend.
-            if let Some(_) = self.classify_imprecise_evidence(evidence) {
-                Some((0..2).into_iter().collect_vec())
+            if self.classify_imprecise_evidence(evidence).is_some() {
+                Some((0..2).collect_vec())
             } else {
                 None
             }
@@ -633,9 +621,11 @@ impl<R: Realigner> FragmentSamplingBias for BreakendGroup<R> {}
 impl<R: Realigner> IsizeObservable for BreakendGroup<R> {}
 
 impl<R: Realigner> Realignable for BreakendGroup<R> {
-    fn maybe_revcomp(&self) -> bool {
-        self.breakends.values().any(|bnd| bnd.emits_revcomp())
-    }
+    // TODO do we need this for inversions? Does the realigner have to consider that
+    // reads might be from the reverse complement?
+    // fn maybe_revcomp(&self) -> bool {
+    //     self.breakends.values().any(|bnd| bnd.emits_revcomp())
+    // }
 
     fn alt_emission_params(
         &self,
@@ -1220,30 +1210,6 @@ pub(crate) struct Join {
     locus: genome::Locus,
     side: Side,
     extension_modification: ExtensionModification,
-}
-
-struct LocusPlusOne<'a>(&'a genome::Locus);
-
-impl<'a> AbstractLocus for LocusPlusOne<'a> {
-    fn contig(&self) -> &str {
-        self.0.contig()
-    }
-
-    fn pos(&self) -> u64 {
-        self.0.pos() + 1
-    }
-}
-
-struct LocusMinusOne<'a>(&'a genome::Locus);
-
-impl<'a> AbstractLocus for LocusMinusOne<'a> {
-    fn contig(&self) -> &str {
-        self.0.contig()
-    }
-
-    fn pos(&self) -> u64 {
-        self.0.pos() - 1
-    }
 }
 
 #[derive(Debug, Clone)]

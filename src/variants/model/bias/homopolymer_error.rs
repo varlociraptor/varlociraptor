@@ -6,8 +6,9 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub(crate) enum HomopolymerError {
+    #[default]
     None,
     Some,
 }
@@ -15,12 +16,6 @@ pub(crate) enum HomopolymerError {
 impl HomopolymerError {
     pub(crate) fn values() -> Vec<Self> {
         vec![HomopolymerError::None, HomopolymerError::Some]
-    }
-}
-
-impl Default for HomopolymerError {
-    fn default() -> Self {
-        HomopolymerError::None
     }
 }
 

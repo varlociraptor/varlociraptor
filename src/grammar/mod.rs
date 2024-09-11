@@ -5,7 +5,6 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
-use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
@@ -121,9 +120,9 @@ impl<T> SampleInfoBuilder<T> {
 #[derive(Derefable, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Hash, Deserialize)]
 pub(crate) struct ExpressionIdentifier(#[deref] String);
 
-impl ToString for ExpressionIdentifier {
-    fn to_string(&self) -> String {
-        self.0.clone()
+impl std::fmt::Display for ExpressionIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
