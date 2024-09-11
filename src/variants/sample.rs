@@ -105,32 +105,6 @@ impl Fetches {
     }
 }
 
-/// Strand combination for read pairs as given by the sequencing protocol.
-#[derive(
-    Display,
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    EnumString,
-    EnumIter,
-    IntoStaticStr,
-    EnumVariantNames,
-)]
-pub enum ProtocolStrandedness {
-    #[strum(serialize = "opposite")]
-    Opposite,
-    #[strum(serialize = "same")]
-    Same,
-}
-
-impl Default for ProtocolStrandedness {
-    fn default() -> Self {
-        ProtocolStrandedness::Opposite
-    }
-}
-
 pub(crate) enum SubsampleCandidates {
     Necessary {
         rng: StdRng,
@@ -189,8 +163,6 @@ pub(crate) struct Sample {
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
     max_depth: usize,
-    // TODO use this properly for strand bias
-    protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
     fragment_id_factory: FragmentIdFactory,
     report_fragment_ids: bool,
