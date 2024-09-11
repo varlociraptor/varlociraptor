@@ -24,6 +24,8 @@ pub(crate) struct VariantBuffer {
     record_index: isize,
     state: State,
     aux_info_collector: AuxInfoCollector,
+    variant_heterozygosity_field: Option<Vec<u8>>,
+    variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
 
 impl VariantBuffer {
@@ -32,6 +34,8 @@ impl VariantBuffer {
         progress_logger: ProgressLogger,
         log_each_record: bool,
         aux_info_collector: AuxInfoCollector,
+        variant_heterozygosity_field: Option<Vec<u8>>,
+        variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
     ) -> Self {
         VariantBuffer {
             reader,
@@ -46,6 +50,8 @@ impl VariantBuffer {
             record_index: -1,
             state: State::Init,
             aux_info_collector,
+            variant_heterozygosity_field,
+            variant_somatic_effective_mutation_rate_field,
         }
     }
 
@@ -157,7 +163,13 @@ impl VariantBuffer {
 
     fn add_variants(&mut self) -> Result<()> {
         let record = self.current_record.as_mut().unwrap();
-        let variants = utils::collect_variants(record, true, Some(&mut self.skips))?;
+        let variants = utils::collect_variants(
+            record,
+            true,
+            Some(&mut self.skips),
+            self.variant_heterozygosity_field.as_ref(),
+            self.variant_somatic_effective_mutation_rate_field.as_ref(),
+        )?;
         let record_info = RecordInfo::new(
             self.record_index as usize,
             record.id(),

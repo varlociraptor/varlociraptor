@@ -75,6 +75,8 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
+    variant_heterozygosity_field: Option<Vec<u8>>,
+    variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -112,6 +114,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         );
         header.push_record(
             b"##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END for imprecise variants\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">"
         );
 
         // register sequences
@@ -197,6 +205,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             progress_logger,
             self.log_each_record,
             aux_info_collector,
+            self.variant_heterozygosity_field.clone(),
+            self.variant_somatic_effective_mutation_rate_field.clone(),
         );
 
         let mut bam_reader =
@@ -267,13 +277,22 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     fn process_variant(&self, variants: Variants, sample: &mut Sample) -> Result<Vec<Call>> {
         let call_builder = |chrom, start, id| {
             let mut builder = CallBuilder::default();
-            builder.chrom(chrom).pos(start).id({
-                if id == b"." {
-                    None
-                } else {
-                    Some(id)
-                }
-            });
+            builder
+                .chrom(chrom)
+                .pos(start)
+                .id({
+                    if id == b"." {
+                        None
+                    } else {
+                        Some(id)
+                    }
+                })
+                .heterozygosity(variants.variant_of_interest().heterozygosity)
+                .somatic_effective_mutation_rate(
+                    variants
+                        .variant_of_interest()
+                        .somatic_effective_mutation_rate,
+                );
             builder
         };
 

@@ -27,6 +27,9 @@ pub(crate) trait UpdatablePrior {
         ploidies: grammar::SampleInfo<Option<u32>>,
     );
 
+    fn set_variant_heterozygosity(&mut self, value: Option<LogProb>);
+    fn set_variant_somatic_effective_mutation_rate(&mut self, value: Option<LogProb>);
+
     fn set_variant_type(&mut self, variant_type: VariantType);
 }
 
@@ -62,7 +65,9 @@ pub(crate) struct Prior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
     germline_mutation_rate: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
+    variant_somatic_effective_mutation_rate: Option<LogProb>,
     heterozygosity: Option<LogProb>,
+    variant_heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     variant_type_fractions: grammar::VariantTypeFraction,
     #[builder(default)]
@@ -80,7 +85,9 @@ impl Clone for Prior {
             universe: self.universe.clone(),
             germline_mutation_rate: self.germline_mutation_rate.clone(),
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
+            variant_somatic_effective_mutation_rate: self.variant_somatic_effective_mutation_rate,
             heterozygosity: self.heterozygosity,
+            variant_heterozygosity: self.variant_heterozygosity,
             inheritance: self.inheritance.clone(),
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
@@ -239,17 +246,26 @@ impl Prior {
         )
     }
 
-    fn vartype_somatic_effective_mutation_rate(&self, sample: usize) -> Option<f64> {
-        self.somatic_effective_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
+    fn variant_or_vartype_somatic_effective_mutation_rate(&self, sample: usize) -> Option<LogProb> {
+        if self.variant_somatic_effective_mutation_rate.is_some() {
+            self.variant_somatic_effective_mutation_rate
+        } else {
+            self.somatic_effective_mutation_rate[sample]
+                .map(|rate| LogProb::from(Prob(rate * self.variant_type_fraction())))
+        }
     }
 
     fn vartype_germline_mutation_rate(&self, sample: usize) -> Option<f64> {
         self.germline_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
     }
 
-    fn vartype_heterozygosity(&self) -> Option<LogProb> {
-        self.heterozygosity
-            .map(|het| LogProb((het.exp() * self.variant_type_fraction()).ln()))
+    fn variant_or_vartype_heterozygosity(&self) -> Option<LogProb> {
+        if self.variant_heterozygosity.is_some() {
+            self.variant_heterozygosity
+        } else {
+            self.heterozygosity
+                .map(|het| LogProb((het.exp() * self.variant_type_fraction()).ln()))
+        }
     }
 
     fn has_somatic_variation(&self, sample: usize) -> bool {
@@ -282,7 +298,7 @@ impl Prior {
             // recursion end
 
             // step 1: population
-            let mut prob = if let Some(heterozygosity) = self.vartype_heterozygosity() {
+            let mut prob = if let Some(heterozygosity) = self.variant_or_vartype_heterozygosity() {
                 // calculate population prior
                 let population_samples = self
                     .inheritance
@@ -421,7 +437,7 @@ impl Prior {
 
     fn prob_somatic_mutation(
         &self,
-        somatic_effective_mutation_rate: f64,
+        somatic_effective_mutation_rate: LogProb,
         somatic_vaf: AlleleFreq,
     ) -> LogProb {
         // METHOD: we do not apply the model of Williams et al. The reason is that
@@ -431,9 +447,9 @@ impl Prior {
         // models the rate of loci with somatic mutations, but for those, any VAFs >0.0
         // are a priori equally possible.
         if relative_eq!(*somatic_vaf, 0.0) {
-            LogProb(somatic_effective_mutation_rate.ln()).ln_one_minus_exp()
+            somatic_effective_mutation_rate.ln_one_minus_exp()
         } else {
-            LogProb(somatic_effective_mutation_rate.ln())
+            somatic_effective_mutation_rate
         }
     }
 
@@ -450,7 +466,7 @@ impl Prior {
         } else {
             match (
                 somatic,
-                self.vartype_somatic_effective_mutation_rate(sample),
+                self.variant_or_vartype_somatic_effective_mutation_rate(sample),
             ) {
                 (true, Some(somatic_mutation_rate)) => {
                     // METHOD: de novo somatic variation in the sample, anything is possible.
@@ -753,6 +769,14 @@ impl UpdatablePrior for Prior {
         self.cache.borrow_mut().clear();
         self.universe = Some(universe);
         self.ploidies = Some(ploidies);
+    }
+
+    fn set_variant_heterozygosity(&mut self, value: Option<LogProb>) {
+        self.variant_heterozygosity = value;
+    }
+
+    fn set_variant_somatic_effective_mutation_rate(&mut self, value: Option<LogProb>) {
+        self.variant_somatic_effective_mutation_rate = value;
     }
 
     fn set_variant_type(&mut self, variant_type: VariantType) {
