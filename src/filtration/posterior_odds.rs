@@ -63,22 +63,19 @@ where
         let target_probs = utils::tags_prob_sum(record, &event_tags, None)?;
         let other_probs = utils::tags_prob_sum(record, &other_event_tags, None)?;
 
-        Ok(target_probs
-            .into_iter()
-            .zip(other_probs)
-            .map(|probs| {
-                match probs {
-                    (Some(tp), Some(op)) => {
-                        // If the odds for the other events are barely more likely or
-                        // not at all more likely than the target event, keep the allele.
-                        BayesFactor::new(op, tp).evidence_kass_raftery() < min_evidence
-                    }
-                    // Variant does not fit in given vartype.
-                    (None, None) => false,
-                    // in case some are none, this is because of missing data
-                    _ => false,
+        Ok(target_probs.into_iter().zip(other_probs).map(|probs| {
+            match probs {
+                (Some(tp), Some(op)) => {
+                    // If the odds for the other events are barely more likely or
+                    // not at all more likely than the target event, keep the allele.
+                    BayesFactor::new(op, tp).evidence_kass_raftery() < min_evidence
                 }
-            }))
+                // Variant does not fit in given vartype.
+                (None, None) => false,
+                // in case some are none, this is because of missing data
+                _ => false,
+            }
+        }))
     };
 
     utils::filter_calls(&mut inbcf_reader, &mut outbcf, filter)

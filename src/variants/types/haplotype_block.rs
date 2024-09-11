@@ -151,7 +151,7 @@ impl Variant for HaplotypeBlock {
             .iter()
             .enumerate()
             .filter_map(|(i, variant)| {
-                if evidence.into_single_end_evidence().iter().any(|evidence| {
+                if evidence.to_single_end_evidence().iter().any(|evidence| {
                     variant
                         .is_valid_evidence(evidence, alignment_properties)
                         .is_some()
@@ -186,7 +186,7 @@ impl Variant for HaplotypeBlock {
                 .iter()
                 .filter_map(|variant| {
                     let valid = evidence
-                        .into_single_end_evidence()
+                        .to_single_end_evidence()
                         .iter()
                         .filter_map(|evidence| {
                             variant.is_valid_evidence(evidence, alignment_properties)
@@ -250,7 +250,7 @@ impl Variant for HaplotypeBlock {
             .iter()
             .flat_map(|variant| {
                 evidence
-                    .into_single_end_evidence()
+                    .to_single_end_evidence()
                     .iter()
                     .map(|evidence| variant.allele_support(evidence, alignment_properties, &[]))
                     .collect_vec()
@@ -265,7 +265,7 @@ impl Variant for HaplotypeBlock {
                     .iter()
                     .flat_map(|variant| {
                         evidence
-                            .into_single_end_evidence()
+                            .to_single_end_evidence()
                             .iter()
                             .map(|evidence| {
                                 variant.allele_support(evidence, alignment_properties, &[])
@@ -279,10 +279,7 @@ impl Variant for HaplotypeBlock {
                     .map(|variant| variant.allele_support(evidence, alignment_properties, &[])),
             )
             .collect::<Result<Vec<Option<AlleleSupport>>>>()?;
-        let support = support
-            .into_iter()
-            .flatten()
-            .collect_vec();
+        let support = support.into_iter().flatten().collect_vec();
         if support.is_empty() {
             Ok(None)
         } else {

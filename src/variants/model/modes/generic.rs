@@ -304,8 +304,6 @@ impl GenericPosterior {
                             subdensity(&mut likelihood_operands)
                         };
 
-                        
-
                         if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.

@@ -124,8 +124,7 @@ impl<R: Realigner> Variant for Mnv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if self.realign_indel_reads
-            && (utils::contains_indel_op(read) || !alt_variants.is_empty())
+        if self.realign_indel_reads && (utils::contains_indel_op(read) || !alt_variants.is_empty())
         {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the MNV might be an artifact

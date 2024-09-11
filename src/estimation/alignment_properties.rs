@@ -11,7 +11,6 @@ use std::f64;
 use std::ops::AddAssign;
 use std::path::Path;
 use std::str;
-use std::u32;
 
 use anyhow::{anyhow, Result};
 use bio::stats::{LogProb, Prob};

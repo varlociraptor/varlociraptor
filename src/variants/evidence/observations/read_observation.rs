@@ -44,8 +44,7 @@ pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
 }
 
 /// Strand support for observation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Strand {
     Forward,
     Reverse,
@@ -107,7 +106,6 @@ impl Strand {
     }
 }
 
-
 impl ops::BitOrAssign for Strand {
     fn bitor_assign(&mut self, rhs: Self) {
         if let Strand::None = self {
@@ -120,14 +118,12 @@ impl ops::BitOrAssign for Strand {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ReadPosition {
     Major,
     #[default]
     Some,
 }
-
 
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Ok(bam::record::Aux::String(ro)) = record.aux(b"RO") {
@@ -352,13 +348,17 @@ pub(crate) enum MaxBayesFactor {
     Equal,
 }
 
-impl MaxBayesFactor {
-    pub(crate) fn to_string(&self) -> String {
-        match self {
-            MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
-            MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
-            MaxBayesFactor::Equal => "E".to_string(),
-        }
+impl std::fmt::Display for MaxBayesFactor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
+                MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
+                MaxBayesFactor::Equal => "E".to_string(),
+            }
+        )
     }
 }
 
@@ -730,7 +730,7 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl PairedEndEvidence {
-    pub(crate) fn into_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
+    pub(crate) fn to_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
                 vec![SingleEndEvidence::new(Rc::clone(record))]

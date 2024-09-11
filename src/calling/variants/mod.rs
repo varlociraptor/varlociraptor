@@ -12,7 +12,6 @@ use std::convert::TryFrom;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::str;
-use std::u8;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
@@ -246,7 +245,7 @@ impl Call {
                     i,
                     utils::generalized_cigar(
                         sample_info.pileup.read_observations().iter().map(|obs| {
-                            let score = obs.max_bayes_factor().to_string();
+                            let score = format!("{}", obs.max_bayes_factor());
                             format!(
                                 "{}{}{}{}{}{}{}{}{}",
                                 if obs.is_max_mapq {

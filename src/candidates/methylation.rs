@@ -14,7 +14,8 @@ use std::path::PathBuf;
 // TODO: add implementation for other methylation types (CHH, ..., given via a pattern arg)
 pub fn find_candidates(infasta: PathBuf, outbcf: Option<PathBuf>) -> Result<()> {
     // Open FASTA File
-    let reader = Reader::from_file(infasta).with_context(|| "error reading FASTA file".to_string())?;
+    let reader =
+        Reader::from_file(infasta).with_context(|| "error reading FASTA file".to_string())?;
     let mut data: Vec<(String, i64)> = vec![];
 
     // Collect all chromosomes and positions of candidates

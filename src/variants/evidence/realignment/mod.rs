@@ -8,7 +8,6 @@ use std::cmp::Ordering;
 use std::ops::Range;
 use std::str;
 use std::sync::Arc;
-use std::usize;
 
 use anyhow::Result;
 use bio::alignment::AlignmentOperation;
