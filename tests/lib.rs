@@ -394,7 +394,7 @@ fn control_meth_candidates(test: &str) -> Result<()> {
         PathBuf::from(format!("{}/genome.fasta", basedir)),
         Some(PathBuf::from(output)),
     )
-    .with_context(|| format!("error computing methylation candidates"))?;
+    .with_context(|| "error computing methylation candidates".to_string())?;
     Ok(())
 }
 
@@ -402,7 +402,7 @@ fn assert_candidates_number(test: &str, expected_calls: usize) -> Result<()> {
     let basedir = basedir(test);
 
     let mut reader = Reader::from_path(format!("{}/candidates.bcf", basedir))
-        .with_context(|| format!("error reading BCF file"))?;
+        .with_context(|| "error reading BCF file".to_string())?;
     let calls = reader.records().map(|record| record.unwrap()).collect_vec();
 
     let ok = calls.len() == expected_calls;

@@ -105,32 +105,27 @@ impl EditOperationCounts {
 
 impl PartialOrd for EditOperationCounts {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.is_explainable_by_error_rates && !other.is_explainable_by_error_rates {
-            return Some(Ordering::Less);
-        } else if !self.is_explainable_by_error_rates && other.is_explainable_by_error_rates {
-            return Some(Ordering::Greater);
-        } else {
-            Some(
-                self.substitutions
-                    .cmp(&other.substitutions)
-                    .then(self.insertions.cmp(&other.insertions))
-                    .then(self.deletions.cmp(&other.deletions)),
-            )
-        }
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for EditOperationCounts {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        if self.is_explainable_by_error_rates && !other.is_explainable_by_error_rates {
+            Ordering::Less
+        } else if !self.is_explainable_by_error_rates && other.is_explainable_by_error_rates {
+            return Ordering::Greater;
+        } else {
+            self.substitutions
+                .cmp(&other.substitutions)
+                .then(self.insertions.cmp(&other.insertions))
+                .then(self.deletions.cmp(&other.deletions))
+        }
     }
 }
 
 enum Myers {
-    #[cfg(has_u128)]
-    Short(myers::Myers<u128>),
-    #[cfg(not(has_u128))]
-    Short(myers::Myers<u64>),
+    Short(myers::Myers<u64>), // TODO consider using u128 here
     Long(long::Myers<u64>),
 }
 
@@ -154,11 +149,7 @@ impl EditDistanceCalculation {
     {
         let l = read_seq.len();
         let read_seq = read_seq.collect();
-
-        #[cfg(has_u128)]
-        let num_bits = 128;
-        #[cfg(not(has_u128))]
-        let num_bits = 64;
+        let num_bits = 64; // TODO consider using 128 here in comb with u128 for Myers
         let myers = if l <= num_bits {
             Myers::Short(myers::Myers::new(&read_seq))
         } else {
@@ -180,7 +171,7 @@ impl EditDistanceCalculation {
         let ref_seq = || {
             (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase())
         };
-        let mut best_dist = usize::max_value();
+        let mut best_dist = usize::MAX;
         let mut positions = Vec::new();
         let max_dist = max_dist.unwrap_or(self.read_seq.len());
 
@@ -243,7 +234,7 @@ impl EditDistanceCalculation {
             let start = alignments[0].start();
             // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
             let end = cmp::min(
-                alignments.last().unwrap().start() + self.read_seq.len() + best_dist as usize,
+                alignments.last().unwrap().start() + self.read_seq.len() + best_dist,
                 emission_params.len_x(),
             );
 
@@ -313,47 +304,47 @@ impl EditDistanceCalculation {
             };
 
             // METHOD: obtain indel operations for homopolymer error model
-            let homopolymer_indel_len = if !is_patched_allele
-                && emission_params.is_homopolymer_indel()
-            {
-                alignments
-                    .iter()
-                    .filter_map(|alignment| {
-                        if let Some(operation) = HomopolymerIndelOperation::from_alignment(
-                            &ref_seq().skip(alignment.start).collect::<Vec<_>>(),
-                            &self.read_seq,
-                            &alignment.operations,
-                        ) {
-                            if let Some(variant_ref_range) =
-                                emission_params.variant_homopolymer_ref_range()
-                            {
-                                let ref_pos = (emission_params.ref_offset()
-                                    + alignment.start
-                                    + operation.text_pos())
-                                    as u64;
-                                // METHOD: check whether the operation is within the homopolymer variant range.
-                                // In case of a deletion (operation.len() < 0) we also check whether the
-                                // end of the deletion is within the variant ref range.
-                                if variant_ref_range.contains(&(ref_pos))
-                                    && (operation.len() > 0
-                                        || variant_ref_range
-                                            .contains(&(ref_pos + operation.len().abs() as u64)))
+            let homopolymer_indel_len =
+                if !is_patched_allele && emission_params.is_homopolymer_indel() {
+                    alignments
+                        .iter()
+                        .filter_map(|alignment| {
+                            if let Some(operation) = HomopolymerIndelOperation::from_alignment(
+                                &ref_seq().skip(alignment.start).collect::<Vec<_>>(),
+                                &self.read_seq,
+                                &alignment.operations,
+                            ) {
+                                if let Some(variant_ref_range) =
+                                    emission_params.variant_homopolymer_ref_range()
                                 {
-                                    Some(operation.len())
+                                    let ref_pos = (emission_params.ref_offset()
+                                        + alignment.start
+                                        + operation.text_pos())
+                                        as u64;
+                                    // METHOD: check whether the operation is within the homopolymer variant range.
+                                    // In case of a deletion (operation.len() < 0) we also check whether the
+                                    // end of the deletion is within the variant ref range.
+                                    if variant_ref_range.contains(&(ref_pos))
+                                        && (operation.len() > 0
+                                            || variant_ref_range.contains(
+                                                &(ref_pos + operation.len().unsigned_abs() as u64),
+                                            ))
+                                    {
+                                        Some(operation.len())
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
                             } else {
                                 None
                             }
-                        } else {
-                            None
-                        }
-                    })
-                    .min_by_key(|indel_len| *indel_len)
-            } else {
-                None
-            };
+                        })
+                        .min_by_key(|indel_len| *indel_len)
+                } else {
+                    None
+                };
 
             Some(EditDistanceHit {
                 start,
@@ -398,10 +389,8 @@ impl EditDistanceCalculation {
             // relative position in the emission snippet we have aligned against
             let mut pos_ref = alignment.start;
             let mut pos_read = 0; // semiglobal alignment
-            let mut end_reduce = 0;
 
             let mut allele = Vec::new();
-            let opcounts = edit_distance_hit.edit_operation_counts().as_ref().unwrap();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
 
@@ -426,7 +415,6 @@ impl EditDistanceCalculation {
                     AlignmentOperation::Del => {
                         if is_in_range {
                             pos_ref += 1;
-                            end_reduce += 1;
                         } else {
                             emission_params.ref_base(pos_ref);
                             pos_ref += 1;
@@ -446,7 +434,7 @@ impl EditDistanceCalculation {
                 }
             }
 
-            let del_len = cmp::min(emission_params.alt_vs_ref_len_diff(), 0).abs() as usize;
+            let del_len = cmp::min(emission_params.alt_vs_ref_len_diff(), 0).unsigned_abs();
             // add the remaining sequence
             // be robust to del_len being too large (can happen when the encoding in the VCF is wrong)
             allele.extend(
@@ -505,7 +493,7 @@ pub(crate) struct EditDistanceHit {
 
 impl EditDistanceHit {
     pub(crate) fn dist_upper_bound(&self) -> usize {
-        self.dist as usize + EDIT_BAND
+        self.dist + EDIT_BAND
     }
 
     /// Return the best alignment or any one if this cannot be decided.

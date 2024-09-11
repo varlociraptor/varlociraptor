@@ -4,16 +4,11 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash, Default)]
 pub(crate) enum SoftclipBias {
+    #[default]
     None,
     Some,
-}
-
-impl Default for SoftclipBias {
-    fn default() -> Self {
-        SoftclipBias::None
-    }
 }
 
 impl Bias for SoftclipBias {

@@ -9,7 +9,6 @@ use std::ops::Range;
 
 use std::sync::Arc;
 
-use bio::alignment::AlignmentOperation;
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
@@ -147,7 +146,7 @@ where
     D: serde::Deserializer<'de>,
 {
     serde::Deserialize::deserialize(d)
-        .map(|x: Option<f64>| x.map(|v| LogProb(v)).unwrap_or(LogProb::zero()))
+        .map(|x: Option<f64>| x.map(LogProb).unwrap_or(LogProb::zero()))
 }
 
 fn parse_vec_of_float_or_null<'de, D>(d: D) -> Result<Vec<LogProb>, D::Error>
@@ -157,7 +156,7 @@ where
     serde::Deserialize::deserialize(d).map(|values: Vec<Option<f64>>| {
         values
             .into_iter()
-            .map(|x| x.map(|v| LogProb(v)).unwrap_or(LogProb::zero()))
+            .map(|x| x.map(LogProb).unwrap_or(LogProb::zero()))
             .collect()
     })
 }
@@ -483,11 +482,6 @@ impl<'a> ReadEmission<'a> {
     #[inline]
     pub(crate) fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
-    }
-
-    /// Calculate probability that none of the bases is miscalled.
-    pub(crate) fn certainty_est(&self) -> LogProb {
-        self.no_miscall.iter().sum()
     }
 }
 

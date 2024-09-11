@@ -77,7 +77,7 @@ impl<R: Realigner> Realignable for Insertion<R> {
         _: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
-        let l = self.ins_seq.len() as usize;
+        let l = self.ins_seq.len();
         let start = self.locus().range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus().contig())?;

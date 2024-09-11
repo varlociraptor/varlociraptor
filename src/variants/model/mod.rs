@@ -7,7 +7,7 @@ use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::{self, Debug};
 use std::ops::{Deref, Range, RangeInclusive};
-use std::{mem, str};
+use std::str;
 
 use anyhow::{bail, Result};
 use bio_types::genome::AbstractLocus;
@@ -33,10 +33,10 @@ pub(crate) struct Contamination {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub struct Event {
-    pub name: String,
-    pub vafs: grammar::VAFTree,
-    pub biases: Vec<Artifacts>,
+pub(crate) struct Event {
+    pub(crate) name: String,
+    pub(crate) vafs: grammar::VAFTree,
+    pub(crate) biases: Vec<Artifacts>,
 }
 
 impl Event {
@@ -65,32 +65,19 @@ pub(crate) fn AlleleFreq(af: f64) -> AlleleFreq {
     NotNan::new(af).unwrap()
 }
 
-pub(crate) trait AlleleFreqs: Debug {
-    fn is_absent(&self) -> bool;
-}
-impl AlleleFreqs for DiscreteAlleleFreqs {
-    fn is_absent(&self) -> bool {
-        self.inner.len() == 1 && self.inner[0] == AlleleFreq(0.0)
-    }
-}
-impl AlleleFreqs for ContinuousAlleleFreqs {
-    fn is_absent(&self) -> bool {
-        self.is_singleton() && self.start == AlleleFreq(0.0)
-    }
-}
+// TODO enable set of VAFs in grammar and use this type if necessary
+// #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+// pub(crate) struct DiscreteAlleleFreqs {
+//     inner: Vec<AlleleFreq>,
+// }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct DiscreteAlleleFreqs {
-    inner: Vec<AlleleFreq>,
-}
+// impl Deref for DiscreteAlleleFreqs {
+//     type Target = Vec<AlleleFreq>;
 
-impl Deref for DiscreteAlleleFreqs {
-    type Target = Vec<AlleleFreq>;
-
-    fn deref(&self) -> &Vec<AlleleFreq> {
-        &self.inner
-    }
-}
+//     fn deref(&self) -> &Vec<AlleleFreq> {
+//         &self.inner
+//     }
+// }
 
 /// An allele frequency range
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,9 +103,10 @@ impl ContinuousAlleleFreqs {
         }
     }
 
-    pub(crate) fn is_singleton(&self) -> bool {
-        self.start == self.end
-    }
+    // TODO maybe use this where appropriate
+    // pub(crate) fn is_singleton(&self) -> bool {
+    //     self.start == self.end
+    // }
 }
 
 impl Default for ContinuousAlleleFreqs {
@@ -169,7 +157,7 @@ impl HaplotypeIdentifier {
                 let mateid = mateid[0].to_owned();
                 let mut ids = [recid.as_slice(), mateid.as_slice()];
                 ids.sort();
-                let event: Vec<u8> = ids.join(b"-".as_slice()).into();
+                let event: Vec<u8> = ids.join(b"-".as_slice());
                 return Ok(Some(HaplotypeIdentifier::Event(event)));
             } else {
                 bail!(Error::BreakendMateidWithoutRecid);

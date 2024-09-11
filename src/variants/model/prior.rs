@@ -575,7 +575,7 @@ impl Prior {
                 .iter()
                 .map(|sample| self.ploidies.as_ref().unwrap()[*sample].unwrap())
                 .sum();
-            LogProb::ln_sum_exp(&(1..=n).into_iter().map(prob_m).collect_vec()).ln_one_minus_exp()
+            LogProb::ln_sum_exp(&(1..=n).map(prob_m).collect_vec()).ln_one_minus_exp()
         }
     }
 
@@ -605,7 +605,6 @@ impl Prior {
     ) -> LogProb {
         let prob_after_meiotic_split = |first_split_ploidy, second_split_ploidy| {
             (0..=cmp::min(source_alt.0, first_split_ploidy))
-                .into_iter()
                 .cartesian_product(0..=cmp::min(source_alt.1, second_split_ploidy))
                 .filter_map(|(alt_from_first, alt_from_second)| {
                     // There may not be more alts from first and second than in the target
@@ -645,7 +644,7 @@ impl Prior {
         let inheritance_cases = |p1, p2| {
             parent_inheritance_cases(p1)
                 .into_iter()
-                .cartesian_product(parent_inheritance_cases(p2).into_iter())
+                .cartesian_product(parent_inheritance_cases(p2))
         };
         let is_valid_inheritance =
             |p1, p2, c| inheritance_cases(p1, p2).any(|(p1, p2)| c == p1 + p2);
@@ -749,13 +748,11 @@ impl bayesian::model::Prior for Prior {
             } else {
                 compute_with_cache(event)
             }
+        } else if event.is_discrete() {
+            compute_with_cache(event)
         } else {
-            if event.is_discrete() {
-                compute_with_cache(event)
-            } else {
-                // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
-                self.calc_prob(event, Vec::with_capacity(event.len()))
-            }
+            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+            self.calc_prob(event, Vec::with_capacity(event.len()))
         }
     }
 }

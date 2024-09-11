@@ -38,7 +38,7 @@ use crate::variants::evidence::observations::read_observation::{
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
-use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
+use crate::variants::sample::SampleBuilder;
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
 
@@ -50,7 +50,6 @@ use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeF
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
     alignment_properties: AlignmentProperties,
     max_depth: usize,
-    protocol_strandedness: ProtocolStrandedness,
     reference_buffer: Arc<reference::Buffer>,
     realigner: R,
     inbcf: PathBuf,
@@ -222,7 +221,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
-            .protocol_strandedness(self.protocol_strandedness)
             .report_fragment_ids(self.report_fragment_ids)
             .adjust_prob_mapping(self.adjust_prob_mapping)
             .alignments(
@@ -635,88 +633,83 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         spec,
                         precision,
                     } => {
-                        if let HaplotypeIdentifier::Event(event) = haplotype {
+                        let HaplotypeIdentifier::Event(event) = haplotype;
+                        {
+                            if !self
+                                .breakend_group_builders
+                                .read()
+                                .unwrap()
+                                .contains_key(event)
                             {
-                                if !self
-                                    .breakend_group_builders
-                                    .read()
+                                let mut builder =
+                                    variants::types::breakends::BreakendGroupBuilder::new();
+                                builder.realigner(self.realigner.clone());
+                                self.breakend_group_builders
+                                    .write()
                                     .unwrap()
-                                    .contains_key(event)
-                                {
-                                    let mut builder =
-                                        variants::types::breakends::BreakendGroupBuilder::new();
-                                    builder.realigner(self.realigner.clone());
-                                    self.breakend_group_builders
-                                        .write()
-                                        .unwrap()
-                                        .insert(event.to_owned(), Mutex::new(Some(builder)));
-                                }
+                                    .insert(event.to_owned(), Mutex::new(Some(builder)));
                             }
-                            let group_builders = self.breakend_group_builders.read().unwrap();
+                        }
+                        let group_builders = self.breakend_group_builders.read().unwrap();
 
-                            let mut group = group_builders.get(event).unwrap().lock().unwrap();
+                        let mut group = group_builders.get(event).unwrap().lock().unwrap();
 
-                            if let Some(group) = group.as_mut() {
-                                if let Some(breakend) = Breakend::new(
-                                    variants.locus().clone(),
-                                    ref_allele,
-                                    spec,
-                                    variants.record_info().id(),
-                                    variants.record_info().mateid().clone(),
-                                    precision.clone(),
-                                    variants.record_info().aux_info().clone(),
-                                )? {
-                                    group.push_breakend(breakend);
+                        if let Some(group) = group.as_mut() {
+                            if let Some(breakend) = Breakend::new(
+                                variants.locus().clone(),
+                                ref_allele,
+                                spec,
+                                variants.record_info().id(),
+                                variants.record_info().mateid().clone(),
+                                precision.clone(),
+                                variants.record_info().aux_info().clone(),
+                            )? {
+                                group.push_breakend(breakend);
 
-                                    // If this is the last breakend in the group, process!
-                                    if self
-                                        .haplotype_feature_index
-                                        .last_record_index(haplotype)
-                                        .unwrap()
-                                        == variants.record_info().index()
-                                    {
-                                        // METHOD: last record of the breakend event. Hence, we can extract observations.
-                                        if let Some(group) = group.build() {
-                                            let breakend_group = Mutex::new(group);
-                                            self.breakend_groups
-                                                .write()
+                                // If this is the last breakend in the group, process!
+                                if self
+                                    .haplotype_feature_index
+                                    .last_record_index(haplotype)
+                                    .unwrap()
+                                    == variants.record_info().index()
+                                {
+                                    // METHOD: last record of the breakend event. Hence, we can extract observations.
+                                    if let Some(group) = group.build() {
+                                        let breakend_group = Mutex::new(group);
+                                        self.breakend_groups
+                                            .write()
+                                            .unwrap()
+                                            .insert(event.to_owned(), breakend_group);
+                                        sample.extract_observations(
+                                            &*self
+                                                .breakend_groups
+                                                .read()
                                                 .unwrap()
-                                                .insert(event.to_owned(), breakend_group);
-                                            sample.extract_observations(
-                                                &*self
-                                                    .breakend_groups
-                                                    .read()
-                                                    .unwrap()
-                                                    .get(event)
-                                                    .unwrap()
-                                                    .lock()
-                                                    .unwrap(),
-                                                &Vec::new(), // Do not consider alt variants in case of breakends
-                                            )?
-                                        } else {
-                                            // skipped with message in the builder
-                                            return Ok(None);
-                                        }
+                                                .get(event)
+                                                .unwrap()
+                                                .lock()
+                                                .unwrap(),
+                                            &Vec::new(), // Do not consider alt variants in case of breakends
+                                        )?
                                     } else {
-                                        // Not yet the last one, skip.
+                                        // skipped with message in the builder
                                         return Ok(None);
                                     }
                                 } else {
-                                    // Breakend type not supported, remove breakend group.
-                                    self.breakend_group_builders
-                                        .write()
-                                        .unwrap()
-                                        .insert(event.to_owned(), Mutex::new(None));
+                                    // Not yet the last one, skip.
                                     return Ok(None);
                                 }
                             } else {
-                                // Breakend group has been removed before because one breakend was invalid.
+                                // Breakend type not supported, remove breakend group.
+                                self.breakend_group_builders
+                                    .write()
+                                    .unwrap()
+                                    .insert(event.to_owned(), Mutex::new(None));
                                 return Ok(None);
                             }
                         } else {
-                            unreachable!(
-                                "bug: breakend haplotype identifiers have to be EVENT tags"
-                            );
+                            // Breakend group has been removed before because one breakend was invalid.
+                            return Ok(None);
                         }
                     }
                     variant => {

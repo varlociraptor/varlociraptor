@@ -180,11 +180,11 @@ impl Artifacts {
         Box::new(
             strand_biases
                 .into_iter()
-                .cartesian_product(read_orientation_biases.into_iter())
-                .cartesian_product(read_position_biases.into_iter())
-                .cartesian_product(softclip_biases.into_iter())
-                .cartesian_product(homopolymer_error.into_iter())
-                .cartesian_product(alt_locus_bias.into_iter())
+                .cartesian_product(read_orientation_biases)
+                .cartesian_product(read_position_biases)
+                .cartesian_product(softclip_biases)
+                .cartesian_product(homopolymer_error)
+                .cartesian_product(alt_locus_bias)
                 .filter_map(|(((((sb, rob), rpb), scb), dib), alb)| {
                     if [
                         sb.is_artifact(),

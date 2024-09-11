@@ -19,7 +19,6 @@ use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
-use crate::variants::evidence::observations::read_observation::Evidence;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -78,7 +77,7 @@ impl<R: Realigner> Realignable for Replacement<R> {
         _: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
-        let repl_alt_len = self.replacement.len() as usize;
+        let repl_alt_len = self.replacement.len();
         let repl_ref_len = self.ref_len();
 
         let start = self.locus().range().start as usize;

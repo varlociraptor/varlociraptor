@@ -304,7 +304,7 @@ impl GenericPosterior {
                             subdensity(&mut likelihood_operands)
                         };
 
-                        let p = if (max_vaf - min_vaf) < **resolution {
+                        if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.
                             LogProb::ln_simpsons_integrate_exp(
@@ -331,9 +331,7 @@ impl GenericPosterior {
                                 max_vaf,
                                 **resolution,
                             )
-                        };
-
-                        p
+                        }
                     }
                 }
             }
