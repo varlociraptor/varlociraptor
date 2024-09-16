@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
 
 use super::ToVariantRepresentation;
 
@@ -167,15 +167,13 @@ impl<R: Realigner> Variant for Insertion<R> {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEnd(record) => {
-                Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record,
-                    self.locus.iter(),
-                    self,
-                    alt_variants,
-                    alignment_properties,
-                )?))
-            }
+            Evidence::SingleEnd(record) => Ok(Some(self.realigner.borrow_mut().allele_support(
+                record,
+                self.locus.iter(),
+                self,
+                alt_variants,
+                alignment_properties,
+            )?)),
             Evidence::PairedEnd { left, right } => {
                 let left_support = self.realigner.borrow_mut().allele_support(
                     left,

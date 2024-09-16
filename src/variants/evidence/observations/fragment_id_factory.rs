@@ -17,8 +17,7 @@ impl FragmentIdFactory {
             self.current_contig = contig.to_owned();
         }
     }
-    pub(crate) fn register(&mut self, evidence: &Evidence) -> u64
-    {
+    pub(crate) fn register(&mut self, evidence: &Evidence) -> u64 {
         if self.ids.contains_key(evidence.name()) {
             *self.ids.get(evidence.name()).unwrap()
         } else {

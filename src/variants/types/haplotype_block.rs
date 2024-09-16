@@ -14,21 +14,13 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observations::read_observation::Observable;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
-use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, MultiLocus, Evidence, Variant,
-};
+use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, Variant};
 
 use super::ToVariantRepresentation;
 
-pub(crate) trait HaplotypeVariant:
-    Variant
-    + Observable
-    + ToVariantRepresentation
-{
-}
+pub(crate) trait HaplotypeVariant: Variant + Observable + ToVariantRepresentation {}
 
-impl<V> HaplotypeVariant for V where
-    V: Variant + Observable + ToVariantRepresentation {}
+impl<V> HaplotypeVariant for V where V: Variant + Observable + ToVariantRepresentation {}
 
 #[derive(Default, Getters)]
 pub(crate) struct HaplotypeBlock {
@@ -45,10 +37,7 @@ impl HaplotypeBlock {
         }
     }
 
-    pub(crate) fn push_variant(
-        &mut self,
-        variant: Box<dyn HaplotypeVariant>,
-    ) {
+    pub(crate) fn push_variant(&mut self, variant: Box<dyn HaplotypeVariant>) {
         self.loci.extend(variant.loci().iter().cloned());
         self.variants.push(variant);
     }
@@ -65,21 +54,23 @@ impl Variant for HaplotypeBlock {
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         let mut locus_offset = 0;
-        let valid_indices: Vec<usize> = self.variants
-                .iter()
-                .enumerate()
-                .filter_map(|(i, variant)| {
-                    let ret = if variant
-                        .is_valid_evidence(evidence, alignment_properties)
-                        .is_some()
-                    {
-                        Some(i + locus_offset)
-                    } else {
-                        None
-                    };
-                    locus_offset += variant.loci().len();
-                    ret
-                }).collect();
+        let valid_indices: Vec<usize> = self
+            .variants
+            .iter()
+            .enumerate()
+            .filter_map(|(i, variant)| {
+                let ret = if variant
+                    .is_valid_evidence(evidence, alignment_properties)
+                    .is_some()
+                {
+                    Some(i + locus_offset)
+                } else {
+                    None
+                };
+                locus_offset += variant.loci().len();
+                ret
+            })
+            .collect();
 
         if !valid_indices.is_empty() {
             Some(valid_indices)
@@ -98,7 +89,8 @@ impl Variant for HaplotypeBlock {
         alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let support: Vec<Option<_>> = self.variants
+        let support: Vec<Option<_>> = self
+            .variants
             .iter()
             .map(|variant| variant.allele_support(evidence, alignment_properties, &[]))
             .collect::<Result<_>>()?;

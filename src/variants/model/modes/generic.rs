@@ -12,7 +12,7 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
-use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
+use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination};
 use std::ops::Index;
 
 #[derive(new, Clone, Debug)]
@@ -492,39 +492,4 @@ impl Likelihood<Cache> for GenericLikelihood {
 
         p
     }
-}
-
-// TODO: remove the following in favor of the new universal prior.
-
-#[derive(Default, Clone, Debug)]
-pub(crate) struct FlatPrior {
-    universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
-}
-
-impl Prior for FlatPrior {
-    type Event = LikelihoodOperands;
-
-    fn compute(&self, event: &Self::Event) -> LogProb {
-        if event
-            .iter()
-            .zip(self.universe.as_ref().unwrap().iter())
-            .any(|(e, u)| !u.contains(e.allele_freq))
-        {
-            // if any of the events is not allowed in the universe of the corresponding sample, return probability zero.
-            return LogProb::ln_zero();
-        }
-        LogProb::ln_one()
-    }
-}
-
-impl model::prior::UpdatablePrior for FlatPrior {
-    fn set_universe_and_ploidies(
-        &mut self,
-        universe: grammar::SampleInfo<grammar::VAFUniverse>,
-        _ploidies: grammar::SampleInfo<Option<u32>>,
-    ) {
-        self.universe = Some(universe);
-    }
-
-    fn set_variant_type(&mut self, _: VariantType) {}
 }

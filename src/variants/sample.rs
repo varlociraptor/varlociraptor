@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::f64;
-use std::hash::Hash;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
@@ -20,9 +19,9 @@ use rust_htslib::bam;
 use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::read_observation::{
-    self, major_read_position, Observable, ReadObservation,
+    major_read_position, Observable, ReadObservation,
 };
-use crate::variants::{self, types::Variant};
+use crate::variants::types::Variant;
 
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;

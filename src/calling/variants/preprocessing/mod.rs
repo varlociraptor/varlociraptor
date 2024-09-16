@@ -418,9 +418,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     }
                                 }
 
-                                for variant in
-                                    haplotype_block.variants()
-                                {
+                                for variant in haplotype_block.variants() {
                                     calls.push(to_call(
                                         variant.loci(),
                                         variant.to_variant_representation(),
@@ -680,40 +678,32 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
                         match variant {
-                            model::Variant::Snv(alt) => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_snv(*alt)?,
-                                )),
-                            model::Variant::Mnv(alt) => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_mnv(alt)?,
-                                )),
-                            model::Variant::None => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_none()?,
-                                )),
-                            model::Variant::Deletion(l) => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_deletion(*l)?,
-                                )),
-                            model::Variant::Insertion(seq) => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_insertion(seq)?,
-                                )),
-                            model::Variant::Inversion(len) => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_inversion(*len)?,
-                                )),
-                            model::Variant::Duplication(len) => haplotype_block
-                                .push_variant(Box::new(
-                                    parse_duplication(*len)?,
-                                )),
+                            model::Variant::Snv(alt) => {
+                                haplotype_block.push_variant(Box::new(parse_snv(*alt)?))
+                            }
+                            model::Variant::Mnv(alt) => {
+                                haplotype_block.push_variant(Box::new(parse_mnv(alt)?))
+                            }
+                            model::Variant::None => {
+                                haplotype_block.push_variant(Box::new(parse_none()?))
+                            }
+                            model::Variant::Deletion(l) => {
+                                haplotype_block.push_variant(Box::new(parse_deletion(*l)?))
+                            }
+                            model::Variant::Insertion(seq) => {
+                                haplotype_block.push_variant(Box::new(parse_insertion(seq)?))
+                            }
+                            model::Variant::Inversion(len) => {
+                                haplotype_block.push_variant(Box::new(parse_inversion(*len)?))
+                            }
+                            model::Variant::Duplication(len) => {
+                                haplotype_block.push_variant(Box::new(parse_duplication(*len)?))
+                            }
                             model::Variant::Replacement {
                                 ref_allele,
                                 alt_allele,
-                            } => haplotype_block.push_variant(
-                                Box::new(parse_replacement(ref_allele, alt_allele)?),
-                            ),
+                            } => haplotype_block
+                                .push_variant(Box::new(parse_replacement(ref_allele, alt_allele)?)),
                             model::Variant::Breakend { .. } => {
                                 bail!(errors::Error::HaplotypeBlockWithBreakend);
                             }

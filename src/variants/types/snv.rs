@@ -28,7 +28,7 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, Evidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
 
 use super::MultiLocus;
@@ -218,8 +218,10 @@ impl<R: Realigner> Variant for Snv<R> {
                 Ok(self.allele_support_per_read(read, alignment_properties, alt_variants)?)
             }
             Evidence::PairedEnd { left, right } => {
-                let left_support = self.allele_support_per_read(left, alignment_properties, alt_variants)?;
-                let right_support = self.allele_support_per_read(right, alignment_properties, alt_variants)?;
+                let left_support =
+                    self.allele_support_per_read(left, alignment_properties, alt_variants)?;
+                let right_support =
+                    self.allele_support_per_read(right, alignment_properties, alt_variants)?;
 
                 match (left_support, right_support) {
                     (Some(mut left_support), Some(right_support)) => {

@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
 
 use super::{IsizeObservable, ToVariantRepresentation};
 
@@ -208,15 +208,13 @@ impl<R: Realigner> Variant for Deletion<R> {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEnd(record) => {
-                Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record,
-                    &[&self.locus],
-                    self,
-                    alt_variants,
-                    alignment_properties,
-                )?))
-            }
+            Evidence::SingleEnd(record) => Ok(Some(self.realigner.borrow_mut().allele_support(
+                record,
+                &[&self.locus],
+                self,
+                alt_variants,
+                alignment_properties,
+            )?)),
             Evidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.

@@ -6,7 +6,6 @@
 use std::char;
 use std::hash::{Hash, Hasher};
 use std::ops;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
 
@@ -649,7 +648,6 @@ pub(crate) trait Observable: Variant {
     }
 }
 
-
 #[derive(Clone, Eq, Debug)]
 pub(crate) enum Evidence {
     SingleEnd(Rc<bam::Record>),
@@ -720,13 +718,10 @@ impl Evidence {
 impl PartialEq for Evidence {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Evidence::SingleEnd(a), Evidence::SingleEnd(b)) => {
+            (Evidence::SingleEnd(a), Evidence::SingleEnd(b)) => a.qname() == b.qname(),
+            (Evidence::PairedEnd { left: a, .. }, Evidence::PairedEnd { left: b, .. }) => {
                 a.qname() == b.qname()
             }
-            (
-                Evidence::PairedEnd { left: a, .. },
-                Evidence::PairedEnd { left: b, .. },
-            ) => a.qname() == b.qname(),
             _ => false,
         }
     }

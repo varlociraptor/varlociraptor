@@ -31,7 +31,7 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, Evidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
 
 use super::MultiLocus;
@@ -74,7 +74,7 @@ impl<R: Realigner> Mnv<R> {
         &self,
         read: &bam::Record,
         alignment_properties: &AlignmentProperties,
-        alt_variants: &[Box<dyn Realignable>]
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if let Overlap::Enclosing = self.locus().overlap(read, false) {
             return Ok(None);
@@ -275,8 +275,10 @@ impl<R: Realigner> Variant for Mnv<R> {
                 Ok(self.allele_support_per_read(read, alignment_properties, alt_variants)?)
             }
             Evidence::PairedEnd { left, right } => {
-                let mut left_support = self.allele_support_per_read(left, alignment_properties, alt_variants)?;
-                let right_support = self.allele_support_per_read(right, alignment_properties, alt_variants)?;
+                let left_support =
+                    self.allele_support_per_read(left, alignment_properties, alt_variants)?;
+                let right_support =
+                    self.allele_support_per_read(right, alignment_properties, alt_variants)?;
 
                 match (left_support, right_support) {
                     (Some(mut left_support), Some(right_support)) => {

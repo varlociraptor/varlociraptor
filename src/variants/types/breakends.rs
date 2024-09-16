@@ -33,8 +33,8 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model::{self, VariantPrecision};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, MultiLocus, Evidence, SingleLocus,
-    SingleLocusBuilder, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, SingleLocus, SingleLocusBuilder,
+    Variant,
 };
 
 use super::IsizeObservable;
@@ -252,10 +252,7 @@ impl<R: Realigner> BreakendGroup<R> {
         false
     }
 
-    fn classify_imprecise_evidence(
-        &self,
-        evidence: &Evidence,
-    ) -> Option<ImpreciseEvidence> {
+    fn classify_imprecise_evidence(&self, evidence: &Evidence) -> Option<ImpreciseEvidence> {
         // METHOD: imprecise (for now) means that we have a breakend pair.
         // We only support paired end evidence, and just check whether the pair starts
         // either left of the left or right of the right breakend.

@@ -14,7 +14,7 @@ use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, Evidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
 
 use super::{MultiLocus, ToVariantRepresentation};
@@ -36,10 +36,7 @@ impl None {
         }
     }
 
-    fn allele_support_per_read(
-        &self,
-        read: &bam::Record,
-    ) -> Result<Option<AlleleSupport>> {
+    fn allele_support_per_read(&self, read: &bam::Record) -> Result<Option<AlleleSupport>> {
         if let Overlap::Enclosing = self.locus().overlap(read, false) {
             return Ok(None);
         }
@@ -90,7 +87,6 @@ impl None {
 }
 
 impl Variant for None {
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -131,9 +127,7 @@ impl Variant for None {
         _: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEnd(read) => {
-                Ok(self.allele_support_per_read(read)?)
-            }
+            Evidence::SingleEnd(read) => Ok(self.allele_support_per_read(read)?),
             Evidence::PairedEnd { left, right } => {
                 let left_support = self.allele_support_per_read(left)?;
                 let right_support = self.allele_support_per_read(right)?;
