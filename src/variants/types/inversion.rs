@@ -8,7 +8,7 @@ use crate::variants::model;
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
+use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, Variant};
 
 use super::ToVariantRepresentation;
 
@@ -95,7 +95,6 @@ impl<R: Realigner> Inversion<R> {
 }
 
 impl<R: Realigner> Variant for Inversion<R> {
-    type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
     fn is_imprecise(&self) -> bool {
@@ -104,7 +103,7 @@ impl<R: Realigner> Variant for Inversion<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         self.breakends
@@ -117,7 +116,7 @@ impl<R: Realigner> Variant for Inversion<R> {
 
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -130,7 +129,7 @@ impl<R: Realigner> Variant for Inversion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         self.breakends

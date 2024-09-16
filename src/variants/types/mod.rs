@@ -18,7 +18,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence, Strand,
+    Evidence, Observable, ReadObservation, Strand,
 };
 use crate::variants::sample;
 
@@ -131,7 +131,6 @@ impl AlleleSupport {
 }
 
 pub(crate) trait Variant {
-    type Evidence: Evidence;
     type Loci: Loci;
 
     fn is_imprecise(&self) -> bool;
@@ -144,7 +143,7 @@ pub(crate) trait Variant {
     /// The index of the loci for which this evidence is valid, `None` if invalid.
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>>;
 
@@ -154,7 +153,7 @@ pub(crate) trait Variant {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>>;
@@ -162,7 +161,7 @@ pub(crate) trait Variant {
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
 
@@ -226,81 +225,15 @@ pub(crate) trait ToVariantRepresentation {
     fn to_variant_representation(&self) -> model::Variant;
 }
 
-impl<V> Observable<SingleEndEvidence> for V
+impl<V> Observable for V
 where
-    V: Variant<Evidence = SingleEndEvidence, Loci = SingleLocus>,
+    V: Variant<Loci = MultiLocus>,
 {
-    fn prob_mapping(&self, evidence: &SingleEndEvidence) -> LogProb {
-        let prob_mismapping = LogProb::from(PHREDProb(evidence.mapq() as f64));
-        prob_mismapping.ln_one_minus_exp()
-    }
-
-    fn min_mapq(&self, evidence: &SingleEndEvidence) -> u8 {
-        evidence.mapq()
-    }
-
-    fn extract_observations(
-        &self,
-        buffer: &mut sample::RecordBuffer,
-        alignment_properties: &mut AlignmentProperties,
-        max_depth: usize,
-        alt_variants: &[Box<dyn Realignable>],
-        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
-    ) -> Result<Vec<ReadObservation>> {
-        let locus = self.loci();
-        buffer.fetch(locus, false)?;
-
-        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-
-        let candidates: Vec<_> = buffer
-            .iter()
-            .filter_map(|record| {
-                // METHOD: First, we check whether the record contains an indel in the cigar.
-                // We store the maximum indel size to update the global estimates, in case
-                // it is larger in this region.
-                alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
-
-                let evidence = SingleEndEvidence::new(record);
-                if self
-                    .is_valid_evidence(&evidence, alignment_properties)
-                    .is_some()
-                {
-                    Some(evidence)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
-
-        let mut observations = Vec::new();
-        for evidence in candidates {
-            if subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(
-                    &evidence,
-                    alignment_properties,
-                    &homopolymer_error_model,
-                    alt_variants,
-                    observation_id_factory,
-                )? {
-                    observations.push(obs);
-                }
-            }
-        }
-        Ok(observations)
-    }
-}
-
-impl<V> Observable<PairedEndEvidence> for V
-where
-    V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
-{
-    fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
+    fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
+            Evidence::PairedEnd { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
@@ -315,10 +248,10 @@ where
         }
     }
 
-    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+    fn min_mapq(&self, evidence: &Evidence) -> u8 {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => record.mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+            Evidence::SingleEnd(record) => record.mapq(),
+            Evidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
         }
     }
 
@@ -383,7 +316,7 @@ where
 
         let mut candidates = Vec::new();
         let mut locus_depth = VecMap::new();
-        let mut push_evidence = |evidence: PairedEndEvidence, idx| {
+        let mut push_evidence = |evidence: Evidence, idx| {
             candidates.push(evidence);
             for i in idx {
                 let count = locus_depth.entry(i).or_insert(0);
@@ -398,7 +331,7 @@ where
                     // The statistical model does not consider them anyway.
                     continue;
                 }
-                let evidence = PairedEndEvidence::PairedEnd {
+                let evidence = Evidence::PairedEnd {
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
@@ -408,7 +341,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
+                let evidence = Evidence::SingleEnd(Rc::clone(&candidate.left));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }

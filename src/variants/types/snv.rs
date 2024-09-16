@@ -13,6 +13,7 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use rust_htslib::bam;
 
 use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -27,7 +28,7 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Overlap, Evidence, SingleLocus, Variant,
 };
 
 use super::ToVariantRepresentation;
@@ -60,62 +61,17 @@ impl<R: Realigner> Snv<R> {
             realign_indel_reads,
         }
     }
-}
 
-impl<R: Realigner> Realignable for Snv<R> {
-    fn alt_emission_params(
+    fn allele_support_per_read(
         &self,
-        ref_buffer: Arc<reference::Buffer>,
-        _: &genome::Interval,
-        ref_window: usize,
-    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
-        let start = self.locus.range().start as usize;
-
-        let ref_seq = ref_buffer.seq(self.locus.contig())?;
-
-        let ref_seq_len = ref_seq.len();
-        Ok(vec![Box::new(SnvEmissionParams {
-            ref_seq,
-            ref_offset: start.saturating_sub(ref_window),
-            ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
-            alt_start: start,
-            alt_base: self.alt_base,
-            ref_offset_override: None,
-            ref_end_override: None,
-        })])
-    }
-}
-
-impl<R: Realigner> Variant for Snv<R> {
-    type Evidence = SingleEndEvidence;
-    type Loci = SingleLocus;
-
-    fn is_imprecise(&self) -> bool {
-        false
-    }
-
-    fn is_valid_evidence(
-        &self,
-        evidence: &SingleEndEvidence,
-        _: &AlignmentProperties,
-    ) -> Option<Vec<usize>> {
-        if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
-            Some(vec![0])
-        } else {
-            None
-        }
-    }
-
-    fn loci(&self) -> &SingleLocus {
-        &self.locus
-    }
-
-    fn allele_support(
-        &self,
-        read: &SingleEndEvidence,
+        read: &bam::Record,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
+        if self.locus.overlap(read, false) != Overlap::Enclosing {
+            return Ok(None);
+        }
+
         if self.realign_indel_reads && utils::contains_indel_op(read) {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the SNV might be an artifact
@@ -186,8 +142,82 @@ impl<R: Realigner> Variant for Snv<R> {
             Ok(None)
         }
     }
+}
 
-    fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
+impl<R: Realigner> Realignable for Snv<R> {
+    fn alt_emission_params(
+        &self,
+        ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
+        ref_window: usize,
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
+        let start = self.locus.range().start as usize;
+
+        let ref_seq = ref_buffer.seq(self.locus.contig())?;
+
+        let ref_seq_len = ref_seq.len();
+        Ok(vec![Box::new(SnvEmissionParams {
+            ref_seq,
+            ref_offset: start.saturating_sub(ref_window),
+            ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
+            alt_start: start,
+            alt_base: self.alt_base,
+            ref_offset_override: None,
+            ref_end_override: None,
+        })])
+    }
+}
+
+impl<R: Realigner> Variant for Snv<R> {
+    type Loci = SingleLocus;
+
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
+    fn is_valid_evidence(
+        &self,
+        evidence: &Evidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
+            Some(vec![0])
+        } else {
+            None
+        }
+    }
+
+    fn loci(&self) -> &SingleLocus {
+        &self.locus
+    }
+
+    fn allele_support(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Option<AlleleSupport>> {
+        match evidence {
+            Evidence::SingleEnd(read) => {
+                Ok(Some(self.allele_support_per_read(read, alignment_properties, alt_variants)?))
+            }
+            Evidence::PairedEnd { left, right } => {
+                let left_support = self.allele_support_per_read(left, alignment_properties, alt_variants)?;
+                let right_support = self.allele_support_per_read(right, alignment_properties, alt_variants)?;
+
+                match (left_support, right_support) {
+                    (Some(left_support), Some(right_support)) => {
+                        Ok(Some(left_support.merge(right_support)))
+                    }
+                    (Some(left_support), None) => Ok(Some(left_support)),
+                    (None, Some(right_support)) => Ok(Some(right_support)),
+                    (None, None) => Ok(None),
+                }
+            }
+        }
+    }
+
+    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

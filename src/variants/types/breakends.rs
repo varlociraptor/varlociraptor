@@ -33,7 +33,7 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model::{self, VariantPrecision};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus,
+    AlleleSupport, AlleleSupportBuilder, MultiLocus, Evidence, SingleLocus,
     SingleLocusBuilder, Variant,
 };
 
@@ -254,7 +254,7 @@ impl<R: Realigner> BreakendGroup<R> {
 
     fn classify_imprecise_evidence(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
     ) -> Option<ImpreciseEvidence> {
         // METHOD: imprecise (for now) means that we have a breakend pair.
         // We only support paired end evidence, and just check whether the pair starts
@@ -274,7 +274,7 @@ impl<R: Realigner> BreakendGroup<R> {
         };
 
         match evidence {
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::PairedEnd { left, right } => {
                 assert_eq!(self.breakends.len(), 2);
                 for bnds in self.breakends.values().permutations(2) {
                     let (bnd, other_bnd) = (bnds[0], bnds[1]);
@@ -298,13 +298,12 @@ impl<R: Realigner> BreakendGroup<R> {
                 }
                 None
             }
-            PairedEndEvidence::SingleEnd(_) => None,
+            Evidence::SingleEnd(_) => None,
         }
     }
 }
 
 impl<R: Realigner> Variant for BreakendGroup<R> {
-    type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
     fn is_imprecise(&self) -> bool {
@@ -313,7 +312,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if self.imprecise {
@@ -349,7 +348,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             };
 
             let overlapping: Vec<_> = match evidence {
-                PairedEndEvidence::SingleEnd(read) => {
+                Evidence::SingleEnd(read) => {
                     if !is_valid_ref_bases(read) {
                         return None;
                     }
@@ -365,7 +364,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         })
                         .collect()
                 }
-                PairedEndEvidence::PairedEnd { left, right } => {
+                Evidence::PairedEnd { left, right } => {
                     if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
                         return None;
                     }
@@ -400,7 +399,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -408,7 +407,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             if let Some(classification) = self.classify_imprecise_evidence(evidence) {
                 if self.is_deletion() {
                     match evidence {
-                        PairedEndEvidence::PairedEnd { left, right } => {
+                        Evidence::PairedEnd { left, right } => {
                             if let Some((left_bnd, right_bnd)) = self.breakend_pair() {
                                 // METHOD: we consider all possible lengths of the deletion,
                                 // use a uniform prior and sum up the joint probabilities for the alt allele.
@@ -453,7 +452,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                                 )
                             }
                         }
-                        PairedEndEvidence::SingleEnd(_) => unreachable!(
+                        Evidence::SingleEnd(_) => unreachable!(
                             "bug: single end reads cannot be used as evidence for \
                              imprecise breakend groups"
                         ),
@@ -491,7 +490,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             }
         } else {
             match evidence {
-                PairedEndEvidence::SingleEnd(record) => {
+                Evidence::SingleEnd(record) => {
                     Ok(Some(self.realigner.borrow_mut().allele_support(
                         record,
                         self.loci.iter(),
@@ -500,7 +499,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         alignment_properties,
                     )?))
                 }
-                PairedEndEvidence::PairedEnd { left, right } => {
+                Evidence::PairedEnd { left, right } => {
                     let left_support = self.realigner.borrow_mut().allele_support(
                         left,
                         self.loci.iter(),
@@ -529,7 +528,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         if self.imprecise {
@@ -538,7 +537,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             LogProb::ln_one()
         } else {
             match evidence {
-                PairedEndEvidence::PairedEnd { left, right } => {
+                Evidence::PairedEnd { left, right } => {
                     // METHOD: we do not require the fragment to enclose the breakend group.
                     // Hence, we treat both reads independently.
                     (self
@@ -549,7 +548,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }
-                PairedEndEvidence::SingleEnd(read) => {
+                Evidence::SingleEnd(read) => {
                     self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
                 }
             }
