@@ -304,8 +304,6 @@ impl<R: Realigner> BreakendGroup<R> {
 }
 
 impl<R: Realigner> Variant for BreakendGroup<R> {
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         self.imprecise
     }
@@ -392,7 +390,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.loci
     }
 

@@ -99,8 +99,6 @@ impl<R: Realigner> Duplication<R> {
 }
 
 impl<R: Realigner> Variant for Duplication<R> {
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -114,7 +112,7 @@ impl<R: Realigner> Variant for Duplication<R> {
             .is_valid_evidence(evidence, alignment_properties)
     }
 
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         self.breakends.loci()
     }
 

@@ -29,7 +29,7 @@ use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, SingleLocus, V
 
 #[derive(Debug)]
 pub(crate) struct Replacement<R: Realigner> {
-    locus: MultiLocus,
+    loci: MultiLocus,
     ref_seq: Vec<u8>,
     replacement: Rc<Vec<u8>>,
     realigner: RefCell<R>,
@@ -45,7 +45,7 @@ impl<R: Realigner> Replacement<R> {
                 .map(|op| op.len());
 
         Ok(Replacement {
-            locus: MultiLocus::new(vec![SingleLocus::new(locus)]),
+            loci: MultiLocus::from_single_locus(SingleLocus::new(locus)),
             ref_seq,
             replacement: Rc::new(replacement),
             realigner: RefCell::new(realigner),
@@ -54,7 +54,7 @@ impl<R: Realigner> Replacement<R> {
     }
 
     pub(crate) fn locus(&self) -> &SingleLocus {
-        &self.locus[0]
+        &self.loci[0]
     }
 
     fn ref_len(&self) -> usize {
@@ -143,8 +143,6 @@ impl<R: Realigner> SamplingBias for Replacement<R> {
 impl<R: Realigner> ReadSamplingBias for Replacement<R> {}
 
 impl<R: Realigner> Variant for Replacement<R> {
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -172,8 +170,8 @@ impl<R: Realigner> Variant for Replacement<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
-        &self.locus
+    fn loci(&self) -> &MultiLocus {
+        &self.loci
     }
 
     /// Calculate probability for alt and reference allele.
@@ -187,7 +185,7 @@ impl<R: Realigner> Variant for Replacement<R> {
             Evidence::SingleEnd(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
                     record,
-                    self.locus.iter(),
+                    self.loci.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
@@ -196,14 +194,14 @@ impl<R: Realigner> Variant for Replacement<R> {
             Evidence::PairedEnd { left, right } => {
                 let left_support = self.realigner.borrow_mut().allele_support(
                     left,
-                    self.locus.iter(),
+                    self.loci.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
                     right,
-                    self.locus.iter(),
+                    self.loci.iter(),
                     self,
                     alt_variants,
                     alignment_properties,

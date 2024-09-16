@@ -95,8 +95,6 @@ impl<R: Realigner> Inversion<R> {
 }
 
 impl<R: Realigner> Variant for Inversion<R> {
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -110,7 +108,7 @@ impl<R: Realigner> Variant for Inversion<R> {
             .is_valid_evidence(evidence, alignment_properties)
     }
 
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         self.breakends.loci()
     }
 

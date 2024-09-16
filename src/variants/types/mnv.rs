@@ -34,11 +34,12 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, Evidence, SingleLocus, Variant,
 };
 
+use super::MultiLocus;
 use super::ToVariantRepresentation;
 
 #[derive(Debug)]
 pub(crate) struct Mnv<R: Realigner> {
-    locus: SingleLocus,
+    loci: MultiLocus,
     ref_bases: Vec<u8>,
     alt_bases: Rc<Vec<u8>>,
     realigner: RefCell<R>,
@@ -54,10 +55,10 @@ impl<R: Realigner> Mnv<R> {
         realign_indel_reads: bool,
     ) -> Self {
         Mnv {
-            locus: SingleLocus::new(genome::Interval::new(
+            loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + alt_bases.len() as u64,
-            )),
+            ))),
             ref_bases: ref_bases.to_ascii_uppercase(),
             alt_bases: Rc::new(alt_bases.to_ascii_uppercase()),
             realigner: RefCell::new(realigner),
@@ -65,13 +66,17 @@ impl<R: Realigner> Mnv<R> {
         }
     }
 
+    fn locus(&self) -> &SingleLocus {
+        &self.loci[0]
+    }
+
     fn allele_support_per_read(
         &self,
         read: &bam::Record,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>]
-    ) -> Result<AlleleSupport> {
-        if self.locus.overlap(read, false) != Overlap::Enclosing {
+    ) -> Result<Option<AlleleSupport>> {
+        if let Overlap::Enclosing = self.locus().overlap(read, false) {
             return Ok(None);
         }
 
@@ -85,7 +90,7 @@ impl<R: Realigner> Mnv<R> {
             // handling. Check this.
             Ok(Some(self.realigner.borrow_mut().allele_support(
                 read,
-                [&self.locus].iter(),
+                self.loci().iter(),
                 self,
                 alt_variants,
                 alignment_properties,
@@ -105,7 +110,7 @@ impl<R: Realigner> Mnv<R> {
                 .alt_bases
                 .iter()
                 .zip(self.ref_bases.iter())
-                .zip(self.locus.range())
+                .zip(self.locus().range())
             {
                 // TODO remove cast once read_pos uses u64
                 if let Some(qpos) = read
@@ -207,9 +212,9 @@ impl<R: Realigner> Realignable for Mnv<R> {
         _: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
-        let start = self.locus.range().start as usize;
+        let start = self.locus().range().start as usize;
 
-        let ref_seq = ref_buffer.seq(self.locus.contig())?;
+        let ref_seq = ref_buffer.seq(self.locus().contig())?;
 
         let ref_seq_len = ref_seq.len();
         Ok(vec![Box::new(MnvEmissionParams {
@@ -217,7 +222,7 @@ impl<R: Realigner> Realignable for Mnv<R> {
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + self.alt_bases.len() + ref_window, ref_seq_len),
             alt_start: start,
-            alt_end: self.locus.range().end as usize,
+            alt_end: self.locus().range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
             ref_offset_override: None,
             ref_end_override: None,
@@ -226,8 +231,6 @@ impl<R: Realigner> Realignable for Mnv<R> {
 }
 
 impl<R: Realigner> Variant for Mnv<R> {
-    type Loci = SingleLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -239,16 +242,16 @@ impl<R: Realigner> Variant for Mnv<R> {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEnd(read) => {
-                if let Overlap::Enclosing = self.locus.overlap(read, false) {
+                if let Overlap::Enclosing = self.locus().overlap(read, false) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
             Evidence::PairedEnd { left, right } => {
-                if let Overlap::Enclosing = self.locus.overlap(left, false) {
+                if let Overlap::Enclosing = self.locus().overlap(left, false) {
                     Some(vec![0])
-                } else if let Overlap::Enclosing = self.locus.overlap(right, false) {
+                } else if let Overlap::Enclosing = self.locus().overlap(right, false) {
                     Some(vec![0])
                 } else {
                     None
@@ -257,8 +260,8 @@ impl<R: Realigner> Variant for Mnv<R> {
         }
     }
 
-    fn loci(&self) -> &SingleLocus {
-        &self.locus
+    fn loci(&self) -> &MultiLocus {
+        &self.loci
     }
 
     fn allele_support(
@@ -269,15 +272,16 @@ impl<R: Realigner> Variant for Mnv<R> {
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
             Evidence::SingleEnd(read) => {
-                Ok(Some(self.allele_support_per_read(read, alignment_properties, alt_variants)?))
+                Ok(self.allele_support_per_read(read, alignment_properties, alt_variants)?)
             }
             Evidence::PairedEnd { left, right } => {
-                let left_support = self.allele_support_per_read(left, alignment_properties, alt_variants)?;
+                let mut left_support = self.allele_support_per_read(left, alignment_properties, alt_variants)?;
                 let right_support = self.allele_support_per_read(right, alignment_properties, alt_variants)?;
 
                 match (left_support, right_support) {
-                    (Some(left_support), Some(right_support)) => {
-                        Ok(Some(left_support.merge(right_support)))
+                    (Some(mut left_support), Some(right_support)) => {
+                        left_support.merge(&right_support);
+                        Ok(Some(left_support))
                     }
                     (Some(left_support), None) => Ok(Some(left_support)),
                     (None, Some(right_support)) => Ok(Some(right_support)),

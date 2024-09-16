@@ -131,8 +131,6 @@ impl AlleleSupport {
 }
 
 pub(crate) trait Variant {
-    type Loci: Loci;
-
     fn is_imprecise(&self) -> bool;
 
     /// Determine whether the evidence is suitable to assessing probabilities
@@ -148,7 +146,7 @@ pub(crate) trait Variant {
     ) -> Option<Vec<usize>>;
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci;
+    fn loci(&self) -> &MultiLocus;
 
     /// Calculate probability for alt and reference allele.
     fn allele_support(
@@ -227,7 +225,7 @@ pub(crate) trait ToVariantRepresentation {
 
 impl<V> Observable for V
 where
-    V: Variant<Loci = MultiLocus>,
+    V: Variant,
 {
     fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
@@ -442,6 +440,12 @@ impl Loci for SingleLocus {
 pub(crate) struct MultiLocus {
     #[deref(mutable)]
     loci: Vec<SingleLocus>,
+}
+
+impl MultiLocus {
+    pub(crate) fn from_single_locus(locus: SingleLocus) -> Self {
+        MultiLocus::new(vec![locus])
+    }
 }
 
 impl Loci for MultiLocus {

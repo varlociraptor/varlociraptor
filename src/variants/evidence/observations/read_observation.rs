@@ -698,7 +698,7 @@ impl Evidence {
         }
     }
 
-    fn name(&self) -> &[u8] {
+    pub(crate) fn name(&self) -> &[u8] {
         match self {
             Evidence::PairedEnd { left, .. } => left.qname(),
             Evidence::SingleEnd(rec) => rec.qname(),

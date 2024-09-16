@@ -124,8 +124,6 @@ impl<R: Realigner> SamplingBias for Insertion<R> {
 impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 
 impl<R: Realigner> Variant for Insertion<R> {
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -157,7 +155,7 @@ impl<R: Realigner> Variant for Insertion<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.locus
     }
 
