@@ -482,7 +482,7 @@ impl Candidate {
 }
 
 /// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Overlap {
     Enclosing,
     Left,

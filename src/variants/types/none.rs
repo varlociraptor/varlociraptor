@@ -37,7 +37,7 @@ impl None {
     }
 
     fn allele_support_per_read(&self, read: &bam::Record) -> Result<Option<AlleleSupport>> {
-        if let Overlap::Enclosing = self.locus().overlap(read, false) {
+        if self.locus().overlap(read, false) != Overlap::Enclosing {
             return Ok(None);
         }
 
