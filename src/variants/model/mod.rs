@@ -32,6 +32,14 @@ pub(crate) struct Contamination {
     pub(crate) fraction: f64,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct Conversion {
+    from: u8,
+    to: u8,
+}
+// TODO implement deserialize trait for Conversion such that it can be parsed from strings like "C>T"
+
+
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
     pub(crate) name: String,

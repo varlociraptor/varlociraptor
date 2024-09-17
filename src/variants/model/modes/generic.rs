@@ -9,7 +9,7 @@ use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::model;
+use crate::variants::model::{self, Conversion};
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
 use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
@@ -59,6 +59,7 @@ where
 {
     resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
+    conversions: Option<grammar::SampleInfo<Option<Conversion>>>,
     prior: P,
 }
 
@@ -84,6 +85,15 @@ where
         self
     }
 
+    pub(crate) fn conversions(
+        mut self,
+        conversions: grammar::SampleInfo<Option<Conversion>>,
+    ) -> Self {
+        self.conversions = Some(conversions);
+
+        self
+    }
+
     pub(crate) fn prior(mut self, prior: P) -> Self {
         self.prior = prior;
 
@@ -100,7 +110,8 @@ where
         let likelihood = GenericLikelihood::new(
             self.contaminations
                 .expect("GenericModelBuilder: need to call contaminations() before build()"),
-        );
+               self.conversions.expect("GenericModelBuilder: need to call conversions() before build()"),
+            );
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
@@ -405,31 +416,42 @@ enum SampleModel {
     Contaminated {
         likelihood_model: likelihood::ContaminatedSampleLikelihoodModel,
         by: usize,
+        conversion: Option<Conversion>,
     },
-    Normal(likelihood::SampleLikelihoodModel),
+    Normal{
+        likelihood_model: likelihood::SampleLikelihoodModel,
+        conversion: Option<Conversion>,
+    },
 }
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct GenericLikelihood {
-    inner: grammar::SampleInfo<SampleModel>,
+    sample_models: grammar::SampleInfo<SampleModel>,
 }
 
 impl GenericLikelihood {
-    pub(crate) fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
-        let inner = contaminations.map(|contamination| {
+    pub(crate) fn new(
+        contaminations: grammar::SampleInfo<Option<Contamination>>,
+        conversions: grammar::SampleInfo<Option<Conversion>>,
+    ) -> Self {
+        let sample_models = contaminations.zip(&conversions).map(|(contamination, conversion)| {
             if let Some(contamination) = contamination {
                 SampleModel::Contaminated {
                     likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
                         1.0 - contamination.fraction,
                     ),
                     by: contamination.by,
+                    conversion: (*conversion).clone(),
                 }
             } else {
-                SampleModel::Normal(likelihood::SampleLikelihoodModel::new())
+                SampleModel::Normal {
+                    likelihood_model: likelihood::SampleLikelihoodModel::new(),
+                    conversion: (*conversion).clone(),
+                }
             }
         });
 
-        GenericLikelihood { inner }
+        GenericLikelihood { sample_models }
     }
 }
 
@@ -448,24 +470,44 @@ impl Likelihood<Cache> for GenericLikelihood {
             }
         }
 
+        let sample_likelihood = |sample_model: &SampleModel, likelihood_model: &dyn Likelihood, event, pileup, cache| {
+            if let Some(conversion) = sample_model.conversion {
+                if let Some(snv) = data.snv {
+                    if snv.refbase == conversion.from && snv.altbase == conversion.to {
+                        let density = |conversion_rate| {
+                            let event_var_or_conversion = event + conversion_rate;
+                            likelihood_model.compute(event_var_or_conversion, pileup, cache)
+                        };
+                        LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0 - event, 11)
+                    } else {
+                        likelihood_model.compute(event, pileup, cache)
+                    }
+                }
+            }
+        };
+
+
         let mut p = LogProb::ln_one();
 
         // Step 2: Calculate joint likelihood of sample VAFs.
-        for (((sample, event), pileup), inner) in operands
+        for (((sample, event), pileup), sample_model) in operands
             .events
             .iter()
             .zip(data.pileups.iter())
-            .zip(self.inner.iter())
+            .zip(self.sample_models.iter())
         {
-            p += match *inner {
+            p += match *sample_model {
                 SampleModel::Contaminated {
                     ref likelihood_model,
                     by,
+                    conversion,
                 } => {
                     if let CacheEntry::ContaminatedSample(ref mut cache) =
                         cache.entry(sample).or_insert_with(|| CacheEntry::new(true))
                     {
-                        likelihood_model.compute(
+                        sample_likelihood(
+                            sample_model,
+                            likelihood_model,
                             &likelihood::ContaminatedSampleEvent {
                                 primary: event.clone(),
                                 secondary: operands.events[by].clone(),
@@ -477,12 +519,15 @@ impl Likelihood<Cache> for GenericLikelihood {
                         unreachable!();
                     }
                 }
-                SampleModel::Normal(ref likelihood_model) => {
+                SampleModel::Normal {
+                    ref likelihood_model,
+                    conversion,
+                } => {
                     if let CacheEntry::SingleSample(ref mut cache) = cache
                         .entry(sample)
                         .or_insert_with(|| CacheEntry::new(false))
                     {
-                        likelihood_model.compute(event, pileup, cache)
+                        sample_likelihood(sample_model, likelihood_model, event, pileup, cache)
                     } else {
                         unreachable!();
                     }

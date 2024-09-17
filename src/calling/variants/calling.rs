@@ -34,7 +34,7 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::prior::{Inheritance, Prior};
-use crate::variants::model::{self, Event, VariantPrecision};
+use crate::variants::model::{self, Conversion, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
@@ -66,6 +66,7 @@ where
     outbcf: Option<PathBuf>,
     aux_info_fields: Vec<Vec<u8>>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
+    conversions: grammar::SampleInfo<Option<Conversion>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
     haplotype_feature_index: HaplotypeFeatureIndex,
@@ -273,6 +274,7 @@ where
             // TODO allow to define prior in the grammar
             .prior(self.prior.clone())
             .contaminations(self.contaminations.clone())
+            .conversions(self.conversions.clone())
             .resolutions(self.resolutions.clone())
             .build()
             .unwrap()
@@ -1016,6 +1018,7 @@ where
         .scenario(scenario)
         .prior(prior)
         .contaminations(sample_infos.contaminations)
+        .conversions(sample_infos.conversions)
         .resolutions(sample_infos.resolutions)
         .haplotype_feature_index(haplotype_feature_index)
         .outbcf(output)
@@ -1037,6 +1040,7 @@ where
 pub(crate) struct SampleInfos {
     uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
+    conversions: grammar::SampleInfo<Option<Conversion>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
@@ -1049,6 +1053,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
 
     fn try_from(scenario: &grammar::Scenario) -> Result<Self> {
         let mut contaminations = scenario.sample_info();
+        let mut conversions = scenario.sample_info();
         let mut resolutions = scenario.sample_info();
         let mut sample_names = scenario.sample_info();
         let mut germline_mutation_rates = scenario.sample_info();
@@ -1072,6 +1077,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             };
             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
+            // TODO fill conversions analogously to contaminations
             resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
             germline_mutation_rates = germline_mutation_rates.push(

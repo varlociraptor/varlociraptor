@@ -36,6 +36,12 @@ impl<T> SampleInfo<T> {
         }
     }
 
+    pub(crate) fn zip<'a, U>(&'a self, other: &'a SampleInfo<U>) -> SampleInfo<(&'a T, &'a U)> {
+        SampleInfo {
+            inner: self.inner.iter().zip(other.inner.iter()).collect()
+        }
+    }
+
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.inner.iter_mut()
     }
@@ -474,6 +480,7 @@ pub(crate) struct Sample {
     /// optional contamination
     #[get = "pub(crate)"]
     contamination: Option<Contamination>,
+    conversion: Option<Conversion>,
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
     #[get = "pub(crate)"]
