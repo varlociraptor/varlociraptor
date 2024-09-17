@@ -661,7 +661,13 @@ impl Evidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
             Evidence::SingleEnd(read) => read_orientation(read.as_ref()),
-            Evidence::PairedEnd { left, .. } => read_orientation(left.as_ref()),
+            Evidence::PairedEnd { left, right } => {
+                let left_orient = read_orientation(left.as_ref())?;
+                let right_orient = read_orientation(right.as_ref())?;
+                assert_eq!(left_orient, right_orient);
+
+                read_orientation(left.as_ref())
+            },
         }
     }
 
