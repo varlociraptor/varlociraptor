@@ -93,13 +93,6 @@ impl Bias for ReadOrientationBias {
             false
         };
 
-        dbg!((
-            enough_information,
-            uniform_distribution,
-            strong_ref_total_count,
-            strong_ref_f1r2
-        ));
-
         enough_information && uniform_distribution
     }
 }
