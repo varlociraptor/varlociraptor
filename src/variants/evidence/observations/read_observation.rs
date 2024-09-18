@@ -664,10 +664,21 @@ impl Evidence {
             Evidence::PairedEnd { left, right } => {
                 let left_orient = read_orientation(left.as_ref())?;
                 let right_orient = read_orientation(right.as_ref())?;
-                assert_eq!(left_orient, right_orient);
-
-                read_orientation(left.as_ref())
-            },
+                if left_orient != right_orient {
+                    warn!(
+                        "Discordant read orientation in read pair {}, ignoring \
+                        orientation information for this read. This can happen if the \
+                        read mapper does not annotate mate positions of supplementary \
+                        alignments as expected. If you believe this is a bug \
+                        we would be grateful for an issue report with the problematic \
+                        reads at https://github.com/varlociraptor/varlociraptor.",
+                        std::str::from_utf8(left.qname()).unwrap(),
+                    );
+                    Ok(SequenceReadPairOrientation::None)
+                } else {
+                    read_orientation(left.as_ref())
+                }
+            }
         }
     }
 

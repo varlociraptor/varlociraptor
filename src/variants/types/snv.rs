@@ -69,7 +69,7 @@ impl<R: Realigner> Snv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false) != Overlap::Enclosing  {
+        if self.locus().overlap(read, false) != Overlap::Enclosing {
             return Ok(None);
         }
 
