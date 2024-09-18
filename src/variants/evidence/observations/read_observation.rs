@@ -553,13 +553,19 @@ pub(crate) fn locus_to_bucket(
 
 /// Something that can be converted into observations.
 pub(crate) trait Observable: Variant {
-    fn extract_observations(
+    fn extract_sequencing_read_observations(
         &self,
-        buffer: &mut sample::RecordBuffer,
+        buffer: &mut sample::SequencingRecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+    ) -> Result<Vec<ReadObservation>>;
+
+    fn extract_optical_mapping_observations(
+        &self,
+        buffer: &mut sample::OpticalMappingRecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
     ) -> Result<Vec<ReadObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -655,6 +661,9 @@ pub(crate) enum Evidence {
         left: Rc<bam::Record>,
         right: Rc<bam::Record>,
     },
+    // TODO add a proper record type here that contains all info needed to assess
+    // whether the optical mapping record supports the variant or the reference allele
+    OpticalMappingRead(...),
 }
 
 impl Evidence {
@@ -679,6 +688,7 @@ impl Evidence {
                     read_orientation(left.as_ref())
                 }
             }
+            Evidence::OpticalMappingRead(_) => Ok(SequenceReadPairOrientation::None),
         }
     }
 
@@ -686,6 +696,7 @@ impl Evidence {
         match self {
             Evidence::SingleEndSequencingRead(read) => read.is_paired(),
             Evidence::PairedEndSequencingRead { left, .. } => left.is_paired(),
+            Evidence::OpticalMappingRead(_) => false,
         }
     }
 
@@ -703,6 +714,7 @@ impl Evidence {
                     || cigar_right.leading_softclips() > 0
                     || cigar_right.trailing_softclips() > 0
             }
+            Evidence::OpticalMappingRead(_) => false,
         }
     }
 

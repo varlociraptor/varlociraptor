@@ -255,9 +255,9 @@ where
         }
     }
 
-    fn extract_observations(
+    fn extract_sequencing_read_observations(
         &self,
-        buffer: &mut sample::RecordBuffer,
+        buffer: &mut sample::SequencingRecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
@@ -369,6 +369,27 @@ where
         }
 
         Ok(observations)
+    }
+
+    fn extract_optical_mapping_observations(
+        &self,
+        buffer: &mut sample::OpticalMappingRecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
+    ) -> Result<Vec<ReadObservation>> {
+        // TODO implement analogously (but will be much simpler) to extract_sequencing_read_observations
+        // Take self.loci() to get the loci of the variant, fetch overlapping records,
+        // and wrap them as Evidence::OpticalMappingRead.
+        let evidences = ...;
+
+        Ok(evidences.iter().map(|evidence| {
+            self.evidence_to_observation(
+                evidence,
+                alignment_properties,
+                &None,
+                &[],
+                &mut None,
+            )
+        }).collect())
     }
 }
 
