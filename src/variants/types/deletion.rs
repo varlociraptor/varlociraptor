@@ -161,14 +161,14 @@ impl<R: Realigner> Variant for Deletion<R> {
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            Evidence::SingleEnd(read) => {
+            Evidence::SingleEndSequencingRead(read) => {
                 if !self.locus.overlap(read, true).is_none() {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
-            Evidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 if alignment_properties.insert_size.is_some() {
                     let right_cigar = right.cigar_cached().unwrap();
                     let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
@@ -208,14 +208,16 @@ impl<R: Realigner> Variant for Deletion<R> {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEnd(record) => Ok(Some(self.realigner.borrow_mut().allele_support(
-                record,
-                &[&self.locus],
-                self,
-                alt_variants,
-                alignment_properties,
-            )?)),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                    alignment_properties,
+                )?))
+            }
+            Evidence::PairedEndSequencingRead { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.
                 // This has the benefit that the calculation automatically checks for consistence between
@@ -266,7 +268,7 @@ impl<R: Realigner> Variant for Deletion<R> {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            Evidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 if alignment_properties.insert_size.is_some() {
                     self.prob_sample_alt_fragment(
                         left.seq().len() as u64,
@@ -285,7 +287,7 @@ impl<R: Realigner> Variant for Deletion<R> {
                     .ln_one_minus_exp()
                 }
             }
-            Evidence::SingleEnd(read) => {
+            Evidence::SingleEndSequencingRead(read) => {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }

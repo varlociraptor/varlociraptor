@@ -650,8 +650,8 @@ pub(crate) trait Observable: Variant {
 
 #[derive(Clone, Eq, Debug)]
 pub(crate) enum Evidence {
-    SingleEnd(Rc<bam::Record>),
-    PairedEnd {
+    SingleEndSequencingRead(Rc<bam::Record>),
+    PairedEndSequencingRead {
         left: Rc<bam::Record>,
         right: Rc<bam::Record>,
     },
@@ -660,8 +660,8 @@ pub(crate) enum Evidence {
 impl Evidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
-            Evidence::SingleEnd(read) => read_orientation(read.as_ref()),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(read) => read_orientation(read.as_ref()),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let left_orient = read_orientation(left.as_ref())?;
                 let right_orient = read_orientation(right.as_ref())?;
                 if left_orient != right_orient {
@@ -684,18 +684,18 @@ impl Evidence {
 
     fn is_paired(&self) -> bool {
         match self {
-            Evidence::SingleEnd(read) => read.is_paired(),
-            Evidence::PairedEnd { left, .. } => left.is_paired(),
+            Evidence::SingleEndSequencingRead(read) => read.is_paired(),
+            Evidence::PairedEndSequencingRead { left, .. } => left.is_paired(),
         }
     }
 
     fn softclipped(&self) -> bool {
         match self {
-            Evidence::SingleEnd(rec) => {
+            Evidence::SingleEndSequencingRead(rec) => {
                 let cigar = rec.cigar_cached().unwrap();
                 cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
             }
-            Evidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let cigar_left = left.cigar_cached().unwrap();
                 let cigar_right = right.cigar_cached().unwrap();
                 cigar_left.leading_softclips() > 0
@@ -708,22 +708,22 @@ impl Evidence {
 
     fn len(&self) -> usize {
         match self {
-            Evidence::SingleEnd(rec) => rec.seq_len(),
-            Evidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
+            Evidence::SingleEndSequencingRead(rec) => rec.seq_len(),
+            Evidence::PairedEndSequencingRead { left, right } => left.seq_len() + right.seq_len(),
         }
     }
 
     pub(crate) fn name(&self) -> &[u8] {
         match self {
-            Evidence::PairedEnd { left, .. } => left.qname(),
-            Evidence::SingleEnd(rec) => rec.qname(),
+            Evidence::PairedEndSequencingRead { left, .. } => left.qname(),
+            Evidence::SingleEndSequencingRead(rec) => rec.qname(),
         }
     }
 
     fn alt_loci(&self) -> ExactAltLoci {
         match self {
-            Evidence::SingleEnd(rec) => ExactAltLoci::from(rec.as_ref()),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(rec) => ExactAltLoci::from(rec.as_ref()),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let mut left = ExactAltLoci::from(left.as_ref());
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
@@ -735,10 +735,13 @@ impl Evidence {
 impl PartialEq for Evidence {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Evidence::SingleEnd(a), Evidence::SingleEnd(b)) => a.qname() == b.qname(),
-            (Evidence::PairedEnd { left: a, .. }, Evidence::PairedEnd { left: b, .. }) => {
+            (Evidence::SingleEndSequencingRead(a), Evidence::SingleEndSequencingRead(b)) => {
                 a.qname() == b.qname()
             }
+            (
+                Evidence::PairedEndSequencingRead { left: a, .. },
+                Evidence::PairedEndSequencingRead { left: b, .. },
+            ) => a.qname() == b.qname(),
             _ => false,
         }
     }
@@ -747,8 +750,8 @@ impl PartialEq for Evidence {
 impl Hash for Evidence {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Evidence::SingleEnd(a) => a.qname().hash(state),
-            Evidence::PairedEnd { left: a, .. } => a.qname().hash(state),
+            Evidence::SingleEndSequencingRead(a) => a.qname().hash(state),
+            Evidence::PairedEndSequencingRead { left: a, .. } => a.qname().hash(state),
         }
     }
 }
