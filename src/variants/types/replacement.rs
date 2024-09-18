@@ -157,8 +157,8 @@ impl<R: Realigner> Variant for Replacement<R> {
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
-            Evidence::SingleEnd(read) => !self.locus().overlap(read, true).is_none(),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(read) => !self.locus().overlap(read, true).is_none(),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 !self.locus().overlap(left, true).is_none()
                     || !self.locus().overlap(right, true).is_none()
             }
@@ -182,14 +182,16 @@ impl<R: Realigner> Variant for Replacement<R> {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEnd(record) => Ok(Some(self.realigner.borrow_mut().allele_support(
-                record,
-                self.loci.iter(),
-                self,
-                alt_variants,
-                alignment_properties,
-            )?)),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                    alignment_properties,
+                )?))
+            }
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let left_support = self.realigner.borrow_mut().allele_support(
                     left,
                     self.loci.iter(),
@@ -220,7 +222,7 @@ impl<R: Realigner> Variant for Replacement<R> {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            Evidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 // METHOD: we do not require the fragment to enclose the variant.
                 // Hence, we treat both reads independently.
                 (self
@@ -231,7 +233,7 @@ impl<R: Realigner> Variant for Replacement<R> {
                         .ln_one_minus_exp())
                 .ln_one_minus_exp()
             }
-            Evidence::SingleEnd(read) => {
+            Evidence::SingleEndSequencingRead(read) => {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }

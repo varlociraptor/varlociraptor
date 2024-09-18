@@ -97,14 +97,14 @@ impl Variant for None {
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            Evidence::SingleEnd(read) => {
+            Evidence::SingleEndSequencingRead(read) => {
                 if let Overlap::Enclosing = self.locus().overlap(read, false) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
-            Evidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 if let Overlap::Enclosing = self.locus().overlap(left, false) {
                     Some(vec![0])
                 } else if let Overlap::Enclosing = self.locus().overlap(right, false) {
@@ -127,8 +127,8 @@ impl Variant for None {
         _: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEnd(read) => Ok(self.allele_support_per_read(read)?),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(read) => Ok(self.allele_support_per_read(read)?),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let left_support = self.allele_support_per_read(left)?;
                 let right_support = self.allele_support_per_read(right)?;
 

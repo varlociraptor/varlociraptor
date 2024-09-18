@@ -230,8 +230,8 @@ where
     fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            Evidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
-            Evidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(record) => prob(record).ln_one_minus_exp(),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
@@ -248,8 +248,10 @@ where
 
     fn min_mapq(&self, evidence: &Evidence) -> u8 {
         match evidence {
-            Evidence::SingleEnd(record) => record.mapq(),
-            Evidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+            Evidence::SingleEndSequencingRead(record) => record.mapq(),
+            Evidence::PairedEndSequencingRead { left, right } => {
+                cmp::min(left.mapq(), right.mapq())
+            }
         }
     }
 
@@ -329,7 +331,7 @@ where
                     // The statistical model does not consider them anyway.
                     continue;
                 }
-                let evidence = Evidence::PairedEnd {
+                let evidence = Evidence::PairedEndSequencingRead {
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
@@ -339,7 +341,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = Evidence::SingleEnd(Rc::clone(&candidate.left));
+                let evidence = Evidence::SingleEndSequencingRead(Rc::clone(&candidate.left));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
