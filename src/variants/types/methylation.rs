@@ -49,7 +49,7 @@ impl Methylation {
 /// # Returns
 ///
 /// bool: Read has MM information
-pub fn mm_exist(read: &SingleEndEvidence) -> bool {
+fn mm_exist(read: &SingleEndEvidence) -> bool {
     let mm_tag_exists = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(_), _) | (_, Ok(_)) => true, // True, wenn einer der Tags existiert
         _ => false,                      // False, wenn keiner der Tags existiert
@@ -212,8 +212,13 @@ fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogP
     let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
 
+    let is_invalid = read_invalid(read.inner.core.flag);
+    let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
     // If locus is on the last position of the read and reverse, the C of the CG is not included
-    if c_not_included {
+    // TODO: Vermeiden, wenn wir herausfinden, dass der Sequencer sich vertuen koennte.
+    if c_not_included || mutation_occurred || is_invalid {
+        return Some((LogProb::from(Prob(0.5)), LogProb::from(Prob(0.5))));
+
         return None;
     }
 
@@ -304,7 +309,7 @@ fn compute_probs_pb_np(
 /// # Returns
 ///
 /// bool: True, if mutation occured
-fn _mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
+fn mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
     if read_reverse {
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         if read_base == b'C' || read_base == b'T' {
@@ -316,7 +321,19 @@ fn _mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i3
             return true;
         }
     }
-    false
+    return false
+}
+
+/// Computes if a given read is valid (Right now we only accept specific flags)
+///
+/// # Returns
+///
+/// bool: True, if read is valid, else false
+fn read_invalid(flag: u16) -> bool {
+    if flag == 0 || flag == 16 || flag == 99 || flag == 83 || flag == 147 || flag == 163 {
+        return false;
+    }
+    true
 }
 
 /// Computes if a mutation occured at the C of a CpG position
