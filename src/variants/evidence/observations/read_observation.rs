@@ -6,7 +6,6 @@
 use std::char;
 use std::hash::{Hash, Hasher};
 use std::ops;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
 
@@ -35,6 +34,8 @@ use crate::variants::types::Variant;
 use crate::variants::evidence::realignment::Realignable;
 
 use super::fragment_id_factory::FragmentIdFactory;
+
+const INVALID_XA_FORMAT_MSG: &str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
@@ -551,10 +552,7 @@ pub(crate) fn locus_to_bucket(
 }
 
 /// Something that can be converted into observations.
-pub(crate) trait Observable<E>: Variant<Evidence = E>
-where
-    E: Evidence + Eq + Hash,
-{
+pub(crate) trait Observable: Variant {
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
@@ -566,15 +564,15 @@ where
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
     /// correctly.
-    fn prob_mapping(&self, evidence: &E) -> LogProb;
+    fn prob_mapping(&self, evidence: &Evidence) -> LogProb;
 
     /// Return the minimum MAPQ of all records involved in the given evidence.
-    fn min_mapq(&self, evidence: &E) -> u8;
+    fn min_mapq(&self, evidence: &Evidence) -> u8;
 
     /// Calculate an observation from the given evidence.
     fn evidence_to_observation(
         &self,
-        evidence: &E,
+        evidence: &Evidence,
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
@@ -650,78 +648,8 @@ where
     }
 }
 
-pub(crate) trait Evidence {
-    fn alt_loci(&self) -> ExactAltLoci;
-
-    fn read_orientation(&self) -> Result<SequenceReadPairOrientation>;
-
-    fn softclipped(&self) -> bool;
-
-    fn is_paired(&self) -> bool;
-
-    fn len(&self) -> usize;
-
-    fn name(&self) -> &[u8];
-}
-
-#[derive(new, Clone, Eq, Debug)]
-pub(crate) struct SingleEndEvidence {
-    inner: Rc<bam::Record>,
-}
-
-impl Deref for SingleEndEvidence {
-    type Target = bam::Record;
-
-    fn deref(&self) -> &bam::Record {
-        self.inner.as_ref()
-    }
-}
-
-const INVALID_XA_FORMAT_MSG: &str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
-
-impl Evidence for SingleEndEvidence {
-    fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
-        // Single end evidence can just mean that we only need to consider each read alone,
-        // although they are paired. Hence we can still check for read orientation.
-        read_orientation(self.inner.as_ref())
-    }
-
-    fn is_paired(&self) -> bool {
-        self.inner.is_paired()
-    }
-
-    fn softclipped(&self) -> bool {
-        let cigar = self.cigar_cached().unwrap();
-        cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
-    }
-
-    fn len(&self) -> usize {
-        self.inner.seq_len()
-    }
-
-    fn name(&self) -> &[u8] {
-        self.inner.qname()
-    }
-
-    fn alt_loci(&self) -> ExactAltLoci {
-        ExactAltLoci::from(self.inner.as_ref())
-    }
-}
-
-impl PartialEq for SingleEndEvidence {
-    fn eq(&self, other: &Self) -> bool {
-        self.qname() == other.qname()
-    }
-}
-
-impl Hash for SingleEndEvidence {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.qname().hash(state);
-    }
-}
-
 #[derive(Clone, Eq, Debug)]
-pub(crate) enum PairedEndEvidence {
+pub(crate) enum Evidence {
     SingleEnd(Rc<bam::Record>),
     PairedEnd {
         left: Rc<bam::Record>,
@@ -729,42 +657,45 @@ pub(crate) enum PairedEndEvidence {
     },
 }
 
-impl PairedEndEvidence {
-    pub(crate) fn to_single_end_evidence(&self) -> Vec<SingleEndEvidence> {
-        match self {
-            PairedEndEvidence::SingleEnd(record) => {
-                vec![SingleEndEvidence::new(Rc::clone(record))]
-            }
-            PairedEndEvidence::PairedEnd { left, right } => vec![
-                SingleEndEvidence::new(Rc::clone(left)),
-                SingleEndEvidence::new(Rc::clone(right)),
-            ],
-        }
-    }
-}
-
-impl Evidence for PairedEndEvidence {
+impl Evidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
-            PairedEndEvidence::SingleEnd(read) => read_orientation(read.as_ref()),
-            PairedEndEvidence::PairedEnd { left, .. } => read_orientation(left.as_ref()),
+            Evidence::SingleEnd(read) => read_orientation(read.as_ref()),
+            Evidence::PairedEnd { left, right } => {
+                let left_orient = read_orientation(left.as_ref())?;
+                let right_orient = read_orientation(right.as_ref())?;
+                if left_orient != right_orient {
+                    warn!(
+                        "Discordant read orientation in read pair {}, ignoring \
+                        orientation information for this read. This can happen if the \
+                        read mapper does not annotate mate positions of supplementary \
+                        alignments as expected. If you believe this is a bug \
+                        we would be grateful for an issue report with the problematic \
+                        reads at https://github.com/varlociraptor/varlociraptor.",
+                        std::str::from_utf8(left.qname()).unwrap(),
+                    );
+                    Ok(SequenceReadPairOrientation::None)
+                } else {
+                    read_orientation(left.as_ref())
+                }
+            }
         }
     }
 
     fn is_paired(&self) -> bool {
         match self {
-            PairedEndEvidence::SingleEnd(read) => read.is_paired(),
-            PairedEndEvidence::PairedEnd { left, .. } => left.is_paired(),
+            Evidence::SingleEnd(read) => read.is_paired(),
+            Evidence::PairedEnd { left, .. } => left.is_paired(),
         }
     }
 
     fn softclipped(&self) -> bool {
         match self {
-            PairedEndEvidence::SingleEnd(rec) => {
+            Evidence::SingleEnd(rec) => {
                 let cigar = rec.cigar_cached().unwrap();
                 cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
             }
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::PairedEnd { left, right } => {
                 let cigar_left = left.cigar_cached().unwrap();
                 let cigar_right = right.cigar_cached().unwrap();
                 cigar_left.leading_softclips() > 0
@@ -777,22 +708,22 @@ impl Evidence for PairedEndEvidence {
 
     fn len(&self) -> usize {
         match self {
-            PairedEndEvidence::SingleEnd(rec) => rec.seq_len(),
-            PairedEndEvidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
+            Evidence::SingleEnd(rec) => rec.seq_len(),
+            Evidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
         }
     }
 
-    fn name(&self) -> &[u8] {
+    pub(crate) fn name(&self) -> &[u8] {
         match self {
-            PairedEndEvidence::PairedEnd { left, .. } => left.qname(),
-            PairedEndEvidence::SingleEnd(rec) => rec.qname(),
+            Evidence::PairedEnd { left, .. } => left.qname(),
+            Evidence::SingleEnd(rec) => rec.qname(),
         }
     }
 
     fn alt_loci(&self) -> ExactAltLoci {
         match self {
-            PairedEndEvidence::SingleEnd(rec) => ExactAltLoci::from(rec.as_ref()),
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::SingleEnd(rec) => ExactAltLoci::from(rec.as_ref()),
+            Evidence::PairedEnd { left, right } => {
                 let mut left = ExactAltLoci::from(left.as_ref());
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
@@ -801,26 +732,23 @@ impl Evidence for PairedEndEvidence {
     }
 }
 
-impl PartialEq for PairedEndEvidence {
+impl PartialEq for Evidence {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (PairedEndEvidence::SingleEnd(a), PairedEndEvidence::SingleEnd(b)) => {
+            (Evidence::SingleEnd(a), Evidence::SingleEnd(b)) => a.qname() == b.qname(),
+            (Evidence::PairedEnd { left: a, .. }, Evidence::PairedEnd { left: b, .. }) => {
                 a.qname() == b.qname()
             }
-            (
-                PairedEndEvidence::PairedEnd { left: a, .. },
-                PairedEndEvidence::PairedEnd { left: b, .. },
-            ) => a.qname() == b.qname(),
             _ => false,
         }
     }
 }
 
-impl Hash for PairedEndEvidence {
+impl Hash for Evidence {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            PairedEndEvidence::SingleEnd(a) => a.qname().hash(state),
-            PairedEndEvidence::PairedEnd { left: a, .. } => a.qname().hash(state),
+            Evidence::SingleEnd(a) => a.qname().hash(state),
+            Evidence::PairedEnd { left: a, .. } => a.qname().hash(state),
         }
     }
 }

@@ -87,10 +87,18 @@ impl Bias for ReadOrientationBias {
             .count();
         let uniform_distribution = if strong_ref_total_count > 2 {
             let fraction = strong_ref_f1r2 as f64 / strong_ref_total_count as f64;
-            (0.4..=0.6).contains(&fraction)
+            // TODO use strong_ref_total_count and binomial to calculate a confidence interval
+            (0.3..=0.7).contains(&fraction)
         } else {
             false
         };
+
+        dbg!((
+            enough_information,
+            uniform_distribution,
+            strong_ref_total_count,
+            strong_ref_f1r2
+        ));
 
         enough_information && uniform_distribution
     }
