@@ -457,11 +457,12 @@ impl Testcase {
             candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
             let mod_alleles =
                 modify_bnd_alleles(&candidate_record.alleles(), &extended_chromosomal_regions)?;
-            let bla = mod_alleles
-                .iter()
-                .map(|inner_vec| inner_vec.as_slice())
-                .collect_vec();
-            candidate_record.set_alleles(&bla)?;
+            candidate_record.set_alleles(
+                &mod_alleles
+                    .iter()
+                    .map(|inner_vec| inner_vec.as_slice())
+                    .collect_vec(),
+            )?;
             if let Ok(Some(end)) = candidate_record
                 .info(b"END")
                 .integer()
