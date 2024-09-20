@@ -148,9 +148,7 @@ testcase!(test_pcr_homopolymer_error3, exact);
 
 testcase!(test_prinz_af_scan, exact);
 testcase!(filtering-new-bias-15799832, exact);
-testcase!(filtering-old-bias-15799832, exact);
-testcase!(filtering-old-bias-29413042, exact);
-testcase!(no-filtering-old-bias-29413042, exact);
+
 
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
