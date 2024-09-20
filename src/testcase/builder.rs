@@ -342,14 +342,28 @@ impl Testcase {
                     ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
                 }
                 extended_chromosomal_regions.insert(chrom_name.clone(), (ref_start, ref_end));
-
+            }
+            for (chrom, (start, end)) in chromosomal_regions.clone() {
+                let tid: u32 = bam_reader.header().tid(&chrom).unwrap();
                 bam_reader.fetch((tid, start, end))?;
+                let (ref_start, _) = extended_chromosomal_regions.get(&chrom).unwrap().to_owned();
                 for res in bam_reader.records() {
                     let mut rec = res?;
                     // update mapping position to interval
                     rec.set_pos(rec.pos() - ref_start as i64);
-                    rec.set_mpos(rec.mpos() - ref_start as i64);
-                    rec.set_tid(bam_writer.header().tid(&chrom_name).unwrap() as i32);
+                    let mtid = bam_writer.header().tid2name(rec.mtid() as u32);
+                    let ref_start_mate = if mtid == b"=" {
+                        ref_start
+                    } else {
+                        if let Some(chrom_region) = extended_chromosomal_regions.get(mtid) {
+                            chrom_region.0
+                        } else {
+                            //TODO mate records not being on a candidate chromosome are being ignored by setting offset to 0
+                            0
+                        }
+                    };
+                    rec.set_mpos(rec.mpos() - ref_start_mate as i64);
+                    rec.set_tid(bam_writer.header().tid(&chrom).unwrap() as i32);
                     if rec.remove_aux(b"RG").is_err() {
                         debug!("No RG tag to remove in BAM record.");
                     }
