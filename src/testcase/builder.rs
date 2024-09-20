@@ -91,17 +91,16 @@ pub(crate) fn modify_bnd_alleles(
     let mod_alleles = alleles
         .iter()
         .map(|allele| {
-            let a =
-                BND_ALLELE.replace(str::from_utf8(allele).unwrap(), |caps: &regex::Captures| {
+            BND_ALLELE
+                .replace(str::from_utf8(allele).unwrap(), |caps: &regex::Captures| {
                     let chrom = caps[1].as_bytes();
                     let pos: u64 = caps[2].parse().unwrap();
                     let ref_start = chromosomal_regions.get(chrom).unwrap().0;
-                    // Add the offset
                     let mpos = pos - ref_start;
-                    // Format the new string, keeping the colon
                     format!("{}:{}", &caps[1], mpos)
-                });
-            a.as_bytes().to_vec()
+                })
+                .as_bytes()
+                .to_vec()
         })
         .collect();
     Ok(mod_alleles)
@@ -291,6 +290,32 @@ impl Testcase {
         Ok((start, end))
     }
 
+    pub(crate) fn extend_chromosomal_regions(
+        &self,
+        chromosomal_regions: &HashMap<Vec<u8>, (u64, u64)>,
+    ) -> Result<HashMap<Vec<u8>, (u64, u64)>> {
+        let mut extended_chromosomal_regions = HashMap::new();
+        for (_, path) in &self.bams {
+            let mut bam_reader = bam::IndexedReader::from_path(path)?;
+
+            for (chrom_name, (start, end)) in chromosomal_regions.clone() {
+                let mut ref_start = start;
+                let mut ref_end = end;
+                let tid: u32 = bam_reader.header().tid(&chrom_name).unwrap();
+                // first pass, extend reference interval
+                bam_reader.fetch((tid, start, end))?;
+                for res in bam_reader.records() {
+                    let rec = res?;
+                    let seq_len = rec.seq().len() as u64;
+                    ref_start = cmp::min((rec.pos() as u64).saturating_sub(seq_len), ref_start);
+                    ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
+                }
+                extended_chromosomal_regions.insert(chrom_name.clone(), (ref_start, ref_end));
+            }
+        }
+        Ok(extended_chromosomal_regions)
+    }
+
     pub(crate) fn write(&mut self) -> Result<()> {
         let mut anonymizer = Anonymizer::new();
 
@@ -307,7 +332,8 @@ impl Testcase {
                 candidates.push((variant, record.clone()))
             }
         }
-        // get start and end (min, max all start and end pos per chromosome)
+
+        // get start and end (min/max all start and end pos per chromosome)
         let mut chromosomal_regions: HashMap<Vec<u8>, (u64, u64)> = HashMap::new();
         for (candidate_variant_info, candidate_record) in candidates.clone() {
             let chrom = self
@@ -328,9 +354,10 @@ impl Testcase {
                 .or_insert((candidate_start, candidate_end));
         }
 
-        // write samples
+        let extended_chromosomal_regions = self.extend_chromosomal_regions(&chromosomal_regions)?;
+
+        // write bam records
         let mut samples = HashMap::new();
-        let mut extended_chromosomal_regions = HashMap::new();
         for (name, path) in &self.bams {
             let properties = sample::estimate_alignment_properties(
                 path,
@@ -339,11 +366,10 @@ impl Testcase {
                 Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
                 0.,
             )?;
-            let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
             let filename = Path::new(name).with_extension("bam");
 
-            let header = bam::header::Header::from_template(bam_reader.header());
+            let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
             // TODO: create header with just the modified sequence
             // let mut header = bam::header::Header::new();
@@ -353,25 +379,10 @@ impl Testcase {
             //         .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
             // );
 
+            let header = bam::header::Header::from_template(bam_reader.header());
+
             let mut bam_writer =
                 bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::Bam)?;
-
-            // extend reference interval by bam records
-            // TODO Must this be done for all bam files before writing records?
-            for (chrom_name, (start, end)) in chromosomal_regions.clone() {
-                let mut ref_start = start;
-                let mut ref_end = end;
-                let tid: u32 = bam_reader.header().tid(&chrom_name).unwrap();
-                // first pass, extend reference interval
-                bam_reader.fetch((tid, start, end))?;
-                for res in bam_reader.records() {
-                    let rec = res?;
-                    let seq_len = rec.seq().len() as u64;
-                    ref_start = cmp::min((rec.pos() as u64).saturating_sub(seq_len), ref_start);
-                    ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
-                }
-                extended_chromosomal_regions.insert(chrom_name.clone(), (ref_start, ref_end));
-            }
             for (chrom, (start, end)) in chromosomal_regions.clone() {
                 let tid: u32 = bam_reader.header().tid(&chrom).unwrap();
                 bam_reader.fetch((tid, start, end))?;
