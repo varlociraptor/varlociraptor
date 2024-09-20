@@ -1,16 +1,17 @@
+use core::str;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::str;
 
 use anyhow::Result;
 use askama::Template;
 use bio::io::fasta;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
+use itertools::Itertools;
 use regex::Regex;
 use rgsl::util;
 use rust_htslib::bam::{record, Read as BamRead};
@@ -28,6 +29,10 @@ use crate::{cli, reference};
 lazy_static! {
     static ref TESTCASE_RE: Regex =
         Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)(:(?P<idx>\d+))?$").unwrap();
+}
+
+lazy_static! {
+    static ref BND_ALLELE: Regex = Regex::new(r"(\d+):(\d+)").unwrap();
 }
 
 #[derive(Template)]
@@ -77,6 +82,29 @@ pub struct Testcase {
     purity: Option<f64>,
     mode: Mode,
     anonymize: bool,
+}
+
+pub(crate) fn modify_bnd_alleles(
+    alleles: &Vec<&[u8]>,
+    chromosomal_regions: &HashMap<Vec<u8>, (u64, u64)>,
+) -> Result<Vec<Vec<u8>>> {
+    let mod_alleles = alleles
+        .iter()
+        .map(|allele| {
+            let a =
+                BND_ALLELE.replace(str::from_utf8(allele).unwrap(), |caps: &regex::Captures| {
+                    let chrom = caps[1].as_bytes();
+                    let pos: u64 = caps[2].parse().unwrap();
+                    let ref_start = chromosomal_regions.get(chrom).unwrap().0;
+                    // Add the offset
+                    let mpos = pos - ref_start;
+                    // Format the new string, keeping the colon
+                    format!("{}:{}", &caps[1], mpos)
+                });
+            a.as_bytes().to_vec()
+        })
+        .collect();
+    Ok(mod_alleles)
 }
 
 impl TestcaseBuilder {
@@ -329,6 +357,7 @@ impl Testcase {
                 bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::Bam)?;
 
             // extend reference interval by bam records
+            // TODO Must this be done for all bam files before writing records?
             for (chrom_name, (start, end)) in chromosomal_regions.clone() {
                 let mut ref_start = start;
                 let mut ref_end = end;
@@ -415,6 +444,13 @@ impl Testcase {
             let (ref_start, mut ref_end) =
                 extended_chromosomal_regions.get(&chrom).unwrap().to_owned();
             candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
+            let mod_alleles =
+                modify_bnd_alleles(&candidate_record.alleles(), &extended_chromosomal_regions)?;
+            let bla = mod_alleles
+                .iter()
+                .map(|inner_vec| inner_vec.as_slice())
+                .collect_vec();
+            candidate_record.set_alleles(&bla)?;
             if let Ok(Some(end)) = candidate_record
                 .info(b"END")
                 .integer()
