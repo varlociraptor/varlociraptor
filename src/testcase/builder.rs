@@ -13,17 +13,16 @@ use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use itertools::Itertools;
 use regex::Regex;
-use rgsl::util;
-use rust_htslib::bam::{record, Read as BamRead};
+use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+use crate::errors;
 use crate::utils;
 use crate::utils::anonymize::Anonymizer;
 use crate::utils::collect_variants::VariantInfo;
 use crate::variants::model::{HaplotypeIdentifier, Variant};
 use crate::variants::sample;
-use crate::{candidates, errors};
 use crate::{cli, reference};
 
 lazy_static! {
@@ -85,7 +84,7 @@ pub struct Testcase {
 }
 
 pub(crate) fn modify_bnd_alleles(
-    alleles: &Vec<&[u8]>,
+    alleles: &[&[u8]],
     chromosomal_regions: &HashMap<Vec<u8>, (u64, u64)>,
 ) -> Result<Vec<Vec<u8>>> {
     let mod_alleles = alleles
@@ -295,7 +294,7 @@ impl Testcase {
         chromosomal_regions: &HashMap<Vec<u8>, (u64, u64)>,
     ) -> Result<HashMap<Vec<u8>, (u64, u64)>> {
         let mut extended_chromosomal_regions = HashMap::new();
-        for (_, path) in &self.bams {
+        for path in self.bams.values() {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
             for (chrom_name, (start, end)) in chromosomal_regions.clone() {
@@ -394,13 +393,11 @@ impl Testcase {
                     let mtid = bam_writer.header().tid2name(rec.mtid() as u32);
                     let ref_start_mate = if mtid == b"=" {
                         ref_start
+                    } else if let Some(chrom_region) = extended_chromosomal_regions.get(mtid) {
+                        chrom_region.0
                     } else {
-                        if let Some(chrom_region) = extended_chromosomal_regions.get(mtid) {
-                            chrom_region.0
-                        } else {
-                            //TODO mate records not being on a candidate chromosome are being ignored by setting offset to 0
-                            0
-                        }
+                        //TODO mate records not being on a candidate chromosome are being ignored by setting offset to 0
+                        0
                     };
                     rec.set_mpos(rec.mpos() - ref_start_mate as i64);
                     rec.set_tid(bam_writer.header().tid(&chrom).unwrap() as i32);
