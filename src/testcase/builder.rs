@@ -1,16 +1,17 @@
+use core::str;
 use std::cmp;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::str;
 
 use anyhow::Result;
 use askama::Template;
 use bio::io::fasta;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
+use itertools::Itertools;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
@@ -19,6 +20,7 @@ use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeF
 use crate::errors;
 use crate::utils;
 use crate::utils::anonymize::Anonymizer;
+use crate::utils::collect_variants::VariantInfo;
 use crate::variants::model::{HaplotypeIdentifier, Variant};
 use crate::variants::sample;
 use crate::{cli, reference};
@@ -26,6 +28,10 @@ use crate::{cli, reference};
 lazy_static! {
     static ref TESTCASE_RE: Regex =
         Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)(:(?P<idx>\d+))?$").unwrap();
+}
+
+lazy_static! {
+    static ref BND_ALLELE: Regex = Regex::new(r"(\d+):(\d+)").unwrap();
 }
 
 #[derive(Template)]
@@ -39,7 +45,7 @@ struct TestcaseTemplate {
     purity: Option<f64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Sample {
     path: String,
     properties: String,
@@ -75,6 +81,28 @@ pub struct Testcase {
     purity: Option<f64>,
     mode: Mode,
     anonymize: bool,
+}
+
+pub(crate) fn modify_bnd_alleles(
+    alleles: &[&[u8]],
+    chromosomal_regions: &HashMap<Vec<u8>, (u64, u64)>,
+) -> Result<Vec<Vec<u8>>> {
+    let mod_alleles = alleles
+        .iter()
+        .map(|allele| {
+            BND_ALLELE
+                .replace(str::from_utf8(allele).unwrap(), |caps: &regex::Captures| {
+                    let chrom = caps[1].as_bytes();
+                    let pos: u64 = caps[2].parse().unwrap();
+                    let ref_start = chromosomal_regions.get(chrom).unwrap().0;
+                    let mpos = pos - ref_start;
+                    format!("{}:{}", &caps[1], mpos)
+                })
+                .as_bytes()
+                .to_vec()
+        })
+        .collect();
+    Ok(mod_alleles)
 }
 
 impl TestcaseBuilder {
@@ -235,48 +263,11 @@ impl Testcase {
         }
     }
 
-    pub(crate) fn write(&mut self) -> Result<()> {
-        let mut anonymizer = Anonymizer::new();
-
-        fs::create_dir_all(&self.prefix)?;
-
-        let candidate_filename = Path::new("candidates.vcf");
-        let mut skips = utils::SimpleCounter::default();
-
-        // get and write candidate
-        let mut candidate = None;
-        for (i, mut record) in (self.variants()?).into_iter().enumerate() {
-            let variants = utils::collect_variants(&mut record, false, Some(&mut skips))?;
-            for variant in variants {
-                if i == self.idx {
-                    // if no chromosome was specified, we infer the locus from the matching
-                    // variant
-                    if self.chrom_name.is_none() {
-                        self.chrom_name = Some(
-                            self.candidate_reader()?
-                                .header()
-                                .rid2name(record.rid().unwrap())
-                                .unwrap()
-                                .to_owned(),
-                        );
-                        self.pos = Some(record.pos() as u64);
-                    }
-
-                    candidate = Some((variant, record));
-
-                    break;
-                }
-            }
-        }
-        if candidate.is_none() {
-            return Err(errors::Error::InvalidIndex.into());
-        }
-        let (candidate_variant_info, mut candidate_record) = candidate.unwrap();
-
-        let chrom_name = self.chrom_name.as_ref().unwrap();
-        let pos = self.pos.unwrap();
-        let ref_name = str::from_utf8(chrom_name)?;
-
+    pub(crate) fn collect_start_end(
+        &mut self,
+        candidate_variant_info: VariantInfo,
+        pos: u64,
+    ) -> Result<(u64, u64)> {
         let (start, end) = match candidate_variant_info.variant() {
             Variant::Deletion(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
             Variant::Insertion(ref seq) => {
@@ -295,24 +286,76 @@ impl Testcase {
             ),
             Variant::None => (pos.saturating_sub(100), pos + 1 + 100),
         };
+        Ok((start, end))
+    }
 
-        let mut ref_start = start;
-        let mut ref_end = end;
-        // first pass, extend reference interval
+    pub(crate) fn extend_chromosomal_regions(
+        &self,
+        chromosomal_regions: &HashMap<Vec<u8>, (u64, u64)>,
+    ) -> Result<HashMap<Vec<u8>, (u64, u64)>> {
+        let mut extended_chromosomal_regions = HashMap::new();
         for path in self.bams.values() {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
-            let tid = bam_reader.header().tid(chrom_name).unwrap();
-            bam_reader.fetch((tid, start, end))?;
-            for res in bam_reader.records() {
-                let rec = res?;
-                let seq_len = rec.seq().len() as u64;
-                ref_start = cmp::min((rec.pos() as u64).saturating_sub(seq_len), ref_start);
-                ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
+            for (chrom_name, (start, end)) in chromosomal_regions.clone() {
+                let mut ref_start = start;
+                let mut ref_end = end;
+                let tid: u32 = bam_reader.header().tid(&chrom_name).unwrap();
+                // first pass, extend reference interval
+                bam_reader.fetch((tid, start, end))?;
+                for res in bam_reader.records() {
+                    let rec = res?;
+                    let seq_len = rec.seq().len() as u64;
+                    ref_start = cmp::min((rec.pos() as u64).saturating_sub(seq_len), ref_start);
+                    ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
+                }
+                extended_chromosomal_regions.insert(chrom_name.clone(), (ref_start, ref_end));
+            }
+        }
+        Ok(extended_chromosomal_regions)
+    }
+
+    pub(crate) fn write(&mut self) -> Result<()> {
+        let mut anonymizer = Anonymizer::new();
+
+        fs::create_dir_all(&self.prefix)?;
+
+        let candidate_filename = Path::new("candidates.vcf");
+        let mut skips = utils::SimpleCounter::default();
+
+        // get all candidates
+        let mut candidates = Vec::new();
+        for mut record in self.variants()? {
+            let variants = utils::collect_variants(&mut record, false, Some(&mut skips))?;
+            for variant in variants {
+                candidates.push((variant, record.clone()))
             }
         }
 
-        // second pass, write samples
+        // get start and end (min/max all start and end pos per chromosome)
+        let mut chromosomal_regions: HashMap<Vec<u8>, (u64, u64)> = HashMap::new();
+        for (candidate_variant_info, candidate_record) in candidates.clone() {
+            let chrom = self
+                .candidate_reader()?
+                .header()
+                .rid2name(candidate_record.rid().unwrap())
+                .unwrap()
+                .to_owned();
+            let rec_pos = candidate_record.pos() as u64;
+            let (candidate_start, candidate_end) =
+                self.collect_start_end(candidate_variant_info, rec_pos)?;
+            chromosomal_regions
+                .entry(chrom)
+                .and_modify(|e| {
+                    e.0 = e.0.min(candidate_start);
+                    e.1 = e.1.max(candidate_end);
+                })
+                .or_insert((candidate_start, candidate_end));
+        }
+
+        let extended_chromosomal_regions = self.extend_chromosomal_regions(&chromosomal_regions)?;
+
+        // write bam records
         let mut samples = HashMap::new();
         for (name, path) in &self.bams {
             let properties = sample::estimate_alignment_properties(
@@ -321,10 +364,10 @@ impl Testcase {
                 &mut self.reference_buffer,
                 Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
             )?;
-            let mut bam_reader = bam::IndexedReader::from_path(path)?;
+
             let filename = Path::new(name).with_extension("bam");
 
-            let header = bam::header::Header::from_template(bam_reader.header());
+            let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
             // TODO: create header with just the modified sequence
             // let mut header = bam::header::Header::new();
@@ -334,34 +377,46 @@ impl Testcase {
             //         .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
             // );
 
+            let header = bam::header::Header::from_template(bam_reader.header());
+
             let mut bam_writer =
                 bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::Bam)?;
-
-            let tid = bam_reader.header().tid(chrom_name).unwrap();
-
-            bam_reader.fetch((tid, start, end))?;
-            for res in bam_reader.records() {
-                let mut rec = res?;
-                // update mapping position to interval
-                rec.set_pos(rec.pos() - ref_start as i64);
-                rec.set_mpos(rec.mpos() - ref_start as i64);
-                rec.set_tid(bam_writer.header().tid(chrom_name).unwrap() as i32);
-                if rec.remove_aux(b"RG").is_err() {
-                    debug!("No RG tag to remove in BAM record.");
+            for (chrom, (start, end)) in chromosomal_regions.clone() {
+                let tid: u32 = bam_reader.header().tid(&chrom).unwrap();
+                bam_reader.fetch((tid, start, end))?;
+                let (ref_start, _) = extended_chromosomal_regions.get(&chrom).unwrap().to_owned();
+                for res in bam_reader.records() {
+                    let mut rec = res?;
+                    // update mapping position to interval
+                    rec.set_pos(rec.pos() - ref_start as i64);
+                    let mtid = bam_writer.header().tid2name(rec.mtid() as u32);
+                    let ref_start_mate = if mtid == b"=" {
+                        ref_start
+                    } else if let Some(chrom_region) = extended_chromosomal_regions.get(mtid) {
+                        chrom_region.0
+                    } else {
+                        //TODO mate records not being on a candidate chromosome are being ignored by setting offset to 0
+                        0
+                    };
+                    rec.set_mpos(rec.mpos() - ref_start_mate as i64);
+                    rec.set_tid(bam_writer.header().tid(&chrom).unwrap() as i32);
+                    if rec.remove_aux(b"RG").is_err() {
+                        debug!("No RG tag to remove in BAM record.");
+                    }
+                    if self.anonymize {
+                        anonymizer.anonymize_bam_record(&mut rec);
+                    }
+                    bam_writer.write(&rec)?;
                 }
-                if self.anonymize {
-                    anonymizer.anonymize_bam_record(&mut rec);
-                }
-                bam_writer.write(&rec)?;
+                samples.insert(
+                    name.to_owned(),
+                    Sample {
+                        path: filename.to_str().unwrap().to_owned(),
+                        properties: serde_json::to_string(&properties)?,
+                        options: self.options.get(name).unwrap().to_owned(),
+                    },
+                );
             }
-            samples.insert(
-                name.to_owned(),
-                Sample {
-                    path: filename.to_str().unwrap().to_owned(),
-                    properties: serde_json::to_string(&properties)?,
-                    options: self.options.get(name).unwrap().to_owned(),
-                },
-            );
         }
 
         // write candidate
@@ -375,18 +430,6 @@ impl Testcase {
             true,
             bcf::Format::Vcf,
         )?;
-        candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
-        if let Ok(Some(end)) = candidate_record
-            .info(b"END")
-            .integer()
-            .map(|v| v.map(|v| v[0]))
-        {
-            candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
-        }
-        if self.anonymize {
-            anonymizer.anonymize_bcf_record(&mut candidate_record)?;
-        }
-        candidate_writer.write(&candidate_record)?;
 
         // write scenario
         let scenario = if let Some(scenario) = self.scenario.as_ref() {
@@ -396,39 +439,73 @@ impl Testcase {
             None
         };
 
-        // fetch reference
-        // limit ref_end
-        for seq in self.reference_buffer.sequences() {
-            if seq.name == ref_name {
-                ref_end = cmp::min(ref_end, seq.len);
-            }
-        }
-
-        let mut ref_seq =
-            self.reference_buffer.seq(ref_name)?[ref_start as usize..ref_end as usize].to_owned();
-
-        if self.anonymize {
-            anonymizer.anonymize_seq(&mut ref_seq);
-        }
-
-        // write reference
         let ref_filename = "ref.fa";
         let mut ref_writer = fasta::Writer::to_file(self.prefix.join(ref_filename))?;
-        ref_writer.write(ref_name, None, &ref_seq)?;
-
-        let mut desc = File::create(self.prefix.join("testcase.yaml"))?;
-        desc.write_all(
-            TestcaseTemplate {
-                samples,
-                candidate: candidate_filename.to_str().unwrap().to_owned(),
-                ref_path: ref_filename.to_owned(),
-                scenario,
-                mode: self.mode,
-                purity: self.purity,
+        for (_, mut candidate_record) in candidates {
+            let chrom = self
+                .candidate_reader()?
+                .header()
+                .rid2name(candidate_record.rid().unwrap())
+                .unwrap()
+                .to_owned();
+            let (ref_start, mut ref_end) =
+                extended_chromosomal_regions.get(&chrom).unwrap().to_owned();
+            candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
+            let mod_alleles =
+                modify_bnd_alleles(&candidate_record.alleles(), &extended_chromosomal_regions)?;
+            candidate_record.set_alleles(
+                &mod_alleles
+                    .iter()
+                    .map(|inner_vec| inner_vec.as_slice())
+                    .collect_vec(),
+            )?;
+            if let Ok(Some(end)) = candidate_record
+                .info(b"END")
+                .integer()
+                .map(|v| v.map(|v| v[0]))
+            {
+                candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
             }
-            .render()?
-            .as_bytes(),
-        )?;
+            if self.anonymize {
+                anonymizer.anonymize_bcf_record(&mut candidate_record)?;
+            }
+            candidate_writer.write(&candidate_record)?;
+
+            // fetch reference
+            // limit ref_end
+            let ref_name = str::from_utf8(&chrom)?;
+            for seq in self.reference_buffer.sequences() {
+                if seq.name == ref_name {
+                    ref_end = cmp::min(ref_end, seq.len);
+                }
+            }
+
+            let mut ref_seq = self.reference_buffer.seq(ref_name)?
+                [ref_start as usize..ref_end as usize]
+                .to_owned();
+
+            if self.anonymize {
+                anonymizer.anonymize_seq(&mut ref_seq);
+            }
+
+            // write reference
+
+            ref_writer.write(ref_name, None, &ref_seq)?;
+
+            let mut desc = File::create(self.prefix.join("testcase.yaml"))?;
+            desc.write_all(
+                TestcaseTemplate {
+                    samples: samples.clone(),
+                    candidate: candidate_filename.to_str().unwrap().to_owned(),
+                    ref_path: ref_filename.to_owned(),
+                    scenario: scenario.clone(),
+                    mode: self.mode,
+                    purity: self.purity,
+                }
+                .render()?
+                .as_bytes(),
+            )?;
+        }
 
         Ok(())
     }
