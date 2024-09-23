@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.11](https://github.com/varlociraptor/varlociraptor/compare/v8.4.10...v8.4.11) (2024-09-23)
+
+
+### Bug Fixes
+
+* improve code quality using cargo fix ([#449](https://github.com/varlociraptor/varlociraptor/issues/449)) ([c702009](https://github.com/varlociraptor/varlociraptor/commit/c7020095d2ba1c37d5b48a59aac664228e9120e9))
+* testcase subcommand - breakend support ([#453](https://github.com/varlociraptor/varlociraptor/issues/453)) ([4c550fe](https://github.com/varlociraptor/varlociraptor/commit/4c550fef0e744c9e1371d86943f0319d868b0a66))
+
 ## [8.4.10](https://github.com/varlociraptor/varlociraptor/compare/v8.4.9...v8.4.10) (2024-08-12)
 
 
