@@ -9,9 +9,9 @@ use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::model::{self, Conversion};
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
+use crate::variants::model::{self, Conversion};
 use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
 use std::ops::Index;
 
@@ -110,8 +110,9 @@ where
         let likelihood = GenericLikelihood::new(
             self.contaminations
                 .expect("GenericModelBuilder: need to call contaminations() before build()"),
-               self.conversions.expect("GenericModelBuilder: need to call conversions() before build()"),
-            );
+            self.conversions
+                .expect("GenericModelBuilder: need to call conversions() before build()"),
+        );
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
@@ -418,7 +419,7 @@ enum SampleModel {
         by: usize,
         conversion: Option<Conversion>,
     },
-    Normal{
+    Normal {
         likelihood_model: likelihood::SampleLikelihoodModel,
         conversion: Option<Conversion>,
     },
@@ -434,22 +435,24 @@ impl GenericLikelihood {
         contaminations: grammar::SampleInfo<Option<Contamination>>,
         conversions: grammar::SampleInfo<Option<Conversion>>,
     ) -> Self {
-        let sample_models = contaminations.zip(&conversions).map(|(contamination, conversion)| {
-            if let Some(contamination) = contamination {
-                SampleModel::Contaminated {
-                    likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
-                        1.0 - contamination.fraction,
-                    ),
-                    by: contamination.by,
-                    conversion: (*conversion).clone(),
+        let sample_models = contaminations
+            .zip(&conversions)
+            .map(|(contamination, conversion)| {
+                if let Some(contamination) = contamination {
+                    SampleModel::Contaminated {
+                        likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
+                            1.0 - contamination.fraction,
+                        ),
+                        by: contamination.by,
+                        conversion: (*conversion).clone(),
+                    }
+                } else {
+                    SampleModel::Normal {
+                        likelihood_model: likelihood::SampleLikelihoodModel::new(),
+                        conversion: (*conversion).clone(),
+                    }
                 }
-            } else {
-                SampleModel::Normal {
-                    likelihood_model: likelihood::SampleLikelihoodModel::new(),
-                    conversion: (*conversion).clone(),
-                }
-            }
-        });
+            });
 
         GenericLikelihood { sample_models }
     }
@@ -470,22 +473,25 @@ impl Likelihood<Cache> for GenericLikelihood {
             }
         }
 
-        let sample_likelihood = |sample_model: &SampleModel, likelihood_model: &dyn Likelihood, event, pileup, cache| {
-            if let Some(conversion) = sample_model.conversion {
-                if let Some(snv) = data.snv {
-                    if snv.refbase == conversion.from && snv.altbase == conversion.to {
-                        let density = |conversion_rate| {
-                            let event_var_or_conversion = event + conversion_rate;
-                            likelihood_model.compute(event_var_or_conversion, pileup, cache)
-                        };
-                        LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0 - event, 11)
-                    } else {
-                        likelihood_model.compute(event, pileup, cache)
-                    }
-                }
-            }
-        };
-
+        // let sample_likelihood = |conversion: Option<Conversion>,
+        //                          likelihood_model: &dyn Likelihood<Event = _, Data = _>,
+        //                          event,
+        //                          pileup,
+        //                          cache| {
+        //     if let Some(conversion) = conversion {
+        //         if let Some(snv) = data.snv {
+        //             if snv.refbase == conversion.from && snv.altbase == conversion.to {
+        //                 let density = |conversion_rate| {
+        //                     // Frage Johannes: event ist mal normales Event, mal contaminated. Soll ich im contaminated Fall nur auf primary aufrechnen?
+        //                     let event_var_or_conversion = event + conversion_rate;
+        //                     likelihood_model.compute(event_var_or_conversion, pileup, cache)
+        //                 };
+        //                 return LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0 - event, 11);
+        //             }
+        //         }
+        //     }
+        //     likelihood_model.compute(event, pileup, cache)
+        // };
 
         let mut p = LogProb::ln_one();
 
@@ -496,7 +502,7 @@ impl Likelihood<Cache> for GenericLikelihood {
             .zip(data.pileups.iter())
             .zip(self.sample_models.iter())
         {
-            p += match *sample_model {
+            p += match sample_model {
                 SampleModel::Contaminated {
                     ref likelihood_model,
                     by,
@@ -505,16 +511,60 @@ impl Likelihood<Cache> for GenericLikelihood {
                     if let CacheEntry::ContaminatedSample(ref mut cache) =
                         cache.entry(sample).or_insert_with(|| CacheEntry::new(true))
                     {
-                        sample_likelihood(
-                            sample_model,
-                            likelihood_model,
-                            &likelihood::ContaminatedSampleEvent {
-                                primary: event.clone(),
-                                secondary: operands.events[by].clone(),
-                            },
-                            pileup,
-                            cache,
-                        )
+                        // Step 1: Aufruf ohne conversion
+                        // likelihood_model.compute(
+                        //     &likelihood::ContaminatedSampleEvent {
+                        //         primary: event.clone(),
+                        //         secondary: operands.events[by].clone(),
+                        //     },
+                        //     pileup,
+                        //     cache,
+                        // )
+
+                        // Step 2: Aufruf der Closure (Funktioniert zur Zeit noch nicht)
+                        // sample_likelihood(
+                        //     conversion,
+                        //     likelihood_model,
+                        //     &likelihood::ContaminatedSampleEvent {
+                        //         primary: event.clone(),
+                        //         secondary: operands.events[by].clone(),
+                        //     },
+                        //     pileup,
+                        //     cache,
+                        // )
+
+                        // Step 3: Aufruf direkt mit conversion
+                        let contaminated_event = &likelihood::ContaminatedSampleEvent {
+                            primary: event.clone(),
+                            secondary: operands.events[by].clone(),
+                        };
+                        if let Some(conversion) = conversion {
+                            if let Some(snv) = &data.snv {
+                                if snv.refbase == conversion.from && snv.altbase == conversion.to {
+                                    let density = |_, conversion_rate| {
+                                        // Frage Johannes: Soll ich auf primary aufrechnen? Warum reicht es einfach die beiden zu addieren? Die Formel ist doch viel laenger?
+
+                                        let mut event_var_or_conversion =
+                                            contaminated_event.clone();
+                                        event_var_or_conversion.primary.allele_freq +=
+                                            conversion_rate;
+                                        likelihood_model.compute(
+                                            &event_var_or_conversion,
+                                            pileup,
+                                            cache,
+                                        )
+                                    };
+                                    // Frage Johannes: Density braucht nen conversion rate, was soll ich da angeben?
+                                    LogProb::ln_simpsons_integrate_exp(
+                                        density,
+                                        0.0,
+                                        1.0 - contaminated_event.primary.allele_freq.into_inner(),
+                                        11,
+                                    );
+                                }
+                            }
+                        }
+                        likelihood_model.compute(contaminated_event, pileup, cache)
                     } else {
                         unreachable!();
                     }
@@ -527,7 +577,31 @@ impl Likelihood<Cache> for GenericLikelihood {
                         .entry(sample)
                         .or_insert_with(|| CacheEntry::new(false))
                     {
-                        sample_likelihood(sample_model, likelihood_model, event, pileup, cache)
+                        // sample_likelihood(conversion, likelihood_model, event, pileup, cache)
+
+                        if let Some(conversion) = conversion {
+                            if let Some(snv) = &data.snv {
+                                if snv.refbase == conversion.from && snv.altbase == conversion.to {
+                                    let density = |_, conversion_rate| {
+                                        let mut event_var_or_conversion = event.clone();
+                                        event_var_or_conversion.allele_freq += conversion_rate;
+
+                                        likelihood_model.compute(
+                                            &event_var_or_conversion,
+                                            pileup,
+                                            cache,
+                                        )
+                                    };
+                                    LogProb::ln_simpsons_integrate_exp(
+                                        density,
+                                        0.0,
+                                        1.0 - event.allele_freq.into_inner(),
+                                        11,
+                                    );
+                                }
+                            }
+                        }
+                        likelihood_model.compute(event, pileup, cache)
                     } else {
                         unreachable!();
                     }

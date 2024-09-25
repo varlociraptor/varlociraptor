@@ -1075,9 +1075,17 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             } else {
                 None
             };
+            let conversion = if let Some(conversion) = sample.conversion() {
+                Some(Conversion {
+                    from: *conversion.from(),
+                    to: *conversion.to(),
+                })
+            } else {
+                None
+            };
             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
-            // TODO fill conversions analogously to contaminations
+            conversions = conversions.push(sample_name, conversion);
             resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
             germline_mutation_rates = germline_mutation_rates.push(
@@ -1126,6 +1134,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
         Ok(SampleInfos {
             uniform_prior: uniform_prior.build(),
             contaminations: contaminations.build(),
+            conversions: conversions.build(),
             resolutions: resolutions.build(),
             germline_mutation_rates: germline_mutation_rates.build(),
             somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),

@@ -133,6 +133,7 @@ impl<R: Realigner> Variant for Snv<R> {
             // TODO expect u64 in read_pos
             .read_pos(self.locus.range().start as u32, false, false)?
         {
+            // Frage Johannes: Wird nicht auf reverse geachtet? Dann sind die doch an einer anderen Stelle?
             let read_base =
                 unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };

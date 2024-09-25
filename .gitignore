@@ -23,5 +23,5 @@ tests/resources/testcases/*/*
 tests/resources/prior/**
 tests/resources/prior/.snakemake
 tests/resources/prior/.snakemake/**
-
+.vscode
 .micromamba

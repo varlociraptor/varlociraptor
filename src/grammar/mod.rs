@@ -38,7 +38,7 @@ impl<T> SampleInfo<T> {
 
     pub(crate) fn zip<'a, U>(&'a self, other: &'a SampleInfo<U>) -> SampleInfo<(&'a T, &'a U)> {
         SampleInfo {
-            inner: self.inner.iter().zip(other.inner.iter()).collect()
+            inner: self.inner.iter().zip(other.inner.iter()).collect(),
         }
     }
 
@@ -480,6 +480,7 @@ pub(crate) struct Sample {
     /// optional contamination
     #[get = "pub(crate)"]
     contamination: Option<Contamination>,
+    #[get = "pub(crate)"]
     conversion: Option<Conversion>,
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
@@ -628,6 +629,16 @@ pub(crate) struct Contamination {
     by: String,
     /// fraction of contamination
     fraction: f64,
+}
+
+#[derive(Deserialize, Getters)]
+#[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Conversion {
+    /// mutation start
+    from: u8,
+    /// mutation end
+    to: u8,
 }
 
 #[derive(
