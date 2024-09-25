@@ -663,7 +663,7 @@ pub(crate) trait Observable: Variant {
     }
 }
 
-#[derive(Clone, Eq, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Evidence {
     SingleEndSequencingRead(Rc<bam::Record>),
     PairedEndSequencingRead {
