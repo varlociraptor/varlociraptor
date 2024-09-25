@@ -83,17 +83,24 @@ impl SequencingRecordBuffer {
     }
 }
 
-// TODO: What is the meaning of the window here? Needed?
 #[derive(new, Getters, Debug)]
 pub(crate) struct OpticalMappingRecordBuffer {
     xmap: xmap::Container,
     bnx: bnx::Container,
-    #[getset(get = "pub")]
-    read_window: u64,
 }
 
 // TODO
-impl OpticalMappingRecordBuffer {}
+impl OpticalMappingRecordBuffer {
+    pub(crate) fn fetch(&mut self, interval: &genome::Interval) -> Result<()> {
+        self.xmap.fetch(
+            interval.contig().parse::<u32>()?,
+            interval.range().start,
+            interval.range().end,
+        )?;
+
+        Ok(())
+    }
+}
 
 #[derive(Default, Derefable)]
 pub(crate) struct Fetches {

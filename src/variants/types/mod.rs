@@ -384,7 +384,7 @@ where
         let mut candidate_records = BTreeMap::new();
 
         for interval in self.loci().iter() {
-            buffer.fetch(interval, true)?;
+            buffer.fetch(interval)?;
 
             for record in buffer.iter() {
                 if !candidate_records.contains_key(record.id()) {
