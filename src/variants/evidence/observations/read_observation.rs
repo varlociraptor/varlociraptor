@@ -780,6 +780,7 @@ impl Hash for Evidence {
         match self {
             Evidence::SingleEndSequencingRead(a) => a.qname().hash(state),
             Evidence::PairedEndSequencingRead { left: a, .. } => a.qname().hash(state),
+            Evidence::OpticalMappingRead { alignment: a, .. } => a.id().hash(state),
         }
     }
 }
