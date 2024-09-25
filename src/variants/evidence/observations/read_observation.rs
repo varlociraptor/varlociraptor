@@ -700,7 +700,7 @@ impl Evidence {
                     read_orientation(left.as_ref())
                 }
             }
-            Evidence::OpticalMappingRead(_) => Ok(SequenceReadPairOrientation::None),
+            Evidence::OpticalMappingRead { .. } => Ok(SequenceReadPairOrientation::None),
         }
     }
 
@@ -708,7 +708,7 @@ impl Evidence {
         match self {
             Evidence::SingleEndSequencingRead(read) => read.is_paired(),
             Evidence::PairedEndSequencingRead { left, .. } => left.is_paired(),
-            Evidence::OpticalMappingRead(_) => false,
+            Evidence::OpticalMappingRead { .. } => false,
         }
     }
 
@@ -726,7 +726,7 @@ impl Evidence {
                     || cigar_right.leading_softclips() > 0
                     || cigar_right.trailing_softclips() > 0
             }
-            Evidence::OpticalMappingRead(_) => false,
+            Evidence::OpticalMappingRead { .. } => false,
         }
     }
 
