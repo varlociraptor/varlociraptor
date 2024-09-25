@@ -9,6 +9,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
+use bio::io::om::bnx;
+use bio::io::om::xmap;
 use bio_types::{genome, genome::AbstractInterval};
 use derive_builder::Builder;
 use rand::distributions;
@@ -81,13 +83,17 @@ impl SequencingRecordBuffer {
     }
 }
 
-
+// TODO: What is the meaning of the window here? Needed?
+#[derive(new, Getters, Debug)]
 pub(crate) struct OpticalMappingRecordBuffer {
-
+    xmap: xmap::Container,
+    bnx: bnx::Container,
+    #[getset(get = "pub")]
+    read_window: u64,
 }
 
-impl OpticalMappingRecordBuffer {
-}
+// TODO
+impl OpticalMappingRecordBuffer {todo!()}
 
 #[derive(Default, Derefable)]
 pub(crate) struct Fetches {
