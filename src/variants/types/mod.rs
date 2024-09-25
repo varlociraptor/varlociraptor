@@ -382,7 +382,6 @@ where
         // Take self.loci() to get the loci of the variant, fetch overlapping records,
         // and wrap them as Evidence::OpticalMappingRead.
         let mut candidate_records = BTreeMap::new();
-
         for interval in self.loci().iter() {
             buffer.fetch(interval)?;
 
@@ -396,7 +395,6 @@ where
         }
 
         let mut evidences = Vec::new();
-
         for candidate in candidate_records.values() {
             let evidence = Evidence::OpticalMappingRead {
                 read: Rc::clone(&candidate),
@@ -407,12 +405,16 @@ where
             }
         }
 
-        Ok(evidences
-            .iter()
-            .map(|evidence| {
-                self.evidence_to_observation(evidence, alignment_properties, &None, &[], &mut None)
-            })
-            .collect())
+        let mut observations = Vec::new();
+        for evidence in &evidences {
+            if let Some(obs) =
+                self.evidence_to_observation(evidence, alignment_properties, &None, &[], &mut None)?
+            {
+                observations.push(obs);
+            }
+        }
+
+        Ok(observations)
     }
 }
 
