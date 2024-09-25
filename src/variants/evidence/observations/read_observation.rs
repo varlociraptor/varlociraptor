@@ -164,6 +164,13 @@ pub struct ExactAltLoci {
     inner: Vec<genome::Locus>,
 }
 
+impl<'a> From<&'a xmap::Record> for ExactAltLoci {
+    fn from(record: &'a xmap::Record) -> Self {
+        ExactAltLoci::default()
+        // TODO: Check whether this info is available in XMAPs
+    }
+}
+
 impl<'a> From<&'a bam::Record> for ExactAltLoci {
     fn from(record: &'a bam::Record) -> Self {
         match record.aux(b"XA") {
@@ -745,6 +752,7 @@ impl Evidence {
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
             }
+            Evidence::OpticalMappingRead { alignment: rec, .. } => ExactAltLoci::from(rec.as_ref()),
         }
     }
 }
