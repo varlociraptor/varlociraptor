@@ -10,6 +10,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
+use bio::io::om::bnx;
+use bio::io::om::xmap;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractLocus};
@@ -663,7 +665,10 @@ pub(crate) enum Evidence {
     },
     // TODO add a proper record type here that contains all info needed to assess
     // whether the optical mapping record supports the variant or the reference allele
-    OpticalMappingRead(...),
+    OpticalMappingRead {
+        read: Rc<bnx::Record>,
+        alignment: Rc<xmap::Record>,
+    },
 }
 
 impl Evidence {
