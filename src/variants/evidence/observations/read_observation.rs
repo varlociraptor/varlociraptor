@@ -742,6 +742,8 @@ impl Evidence {
         match self {
             Evidence::PairedEndSequencingRead { left, .. } => left.qname(),
             Evidence::SingleEndSequencingRead(rec) => rec.qname(),
+            // TODO: Better solution?
+            Evidence::OpticalMappingRead { alignment: a, .. } => a.id().as_bytes(),
         }
     }
 
