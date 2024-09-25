@@ -770,6 +770,10 @@ impl PartialEq for Evidence {
                 Evidence::PairedEndSequencingRead { left: a, .. },
                 Evidence::PairedEndSequencingRead { left: b, .. },
             ) => a.qname() == b.qname(),
+            (
+                Evidence::OpticalMappingRead { alignment: a, .. },
+                Evidence::OpticalMappingRead { alignment: b, .. },
+            ) => a.id() == b.id(),
             _ => false,
         }
     }
