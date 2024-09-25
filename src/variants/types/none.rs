@@ -113,6 +113,7 @@ impl Variant for None {
                     None
                 }
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -142,6 +143,7 @@ impl Variant for None {
                     (None, None) => Ok(None),
                 }
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 

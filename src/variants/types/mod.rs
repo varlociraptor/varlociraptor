@@ -243,6 +243,7 @@ where
                 }
                 p.ln_one_minus_exp()
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -252,6 +253,7 @@ where
             Evidence::PairedEndSequencingRead { left, right } => {
                 cmp::min(left.mapq(), right.mapq())
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -398,7 +400,7 @@ where
         for candidate in candidate_records.values() {
             let evidence = Evidence::OpticalMappingRead(
                 Rc::clone(&candidate),
-                Rc::clone(buffer.qry_record(candidate.id()))
+                Rc::clone(buffer.qry_record(candidate.id())),
             );
             if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                 evidences.push(evidence);

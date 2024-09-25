@@ -296,6 +296,7 @@ impl<R: Realigner> BreakendGroup<R> {
                 None
             }
             Evidence::SingleEndSequencingRead(_) => None,
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 }
@@ -376,6 +377,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         })
                         .collect()
                 }
+                Evidence::OpticalMappingRead { .. } => todo!(),
             };
 
             if overlapping.is_empty() {
@@ -451,6 +453,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                             "bug: single end reads cannot be used as evidence for \
                              imprecise breakend groups"
                         ),
+                        Evidence::OpticalMappingRead { .. } => todo!(),
                     }
                 }
 
@@ -516,6 +519,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
 
                     Ok(Some(support))
                 }
+                Evidence::OpticalMappingRead { .. } => todo!(),
             }
         }
     }
@@ -546,6 +550,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 Evidence::SingleEndSequencingRead(read) => {
                     self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
                 }
+                Evidence::OpticalMappingRead { .. } => todo!(),
             }
         }
     }

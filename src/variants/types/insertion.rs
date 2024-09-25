@@ -147,6 +147,7 @@ impl<R: Realigner> Variant for Insertion<R> {
                 !self.locus().overlap(left, true).is_none()
                     || !self.locus().overlap(right, true).is_none()
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         } {
             Some(vec![0])
         } else {
@@ -198,6 +199,7 @@ impl<R: Realigner> Variant for Insertion<R> {
 
                 Ok(Some(support))
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -221,6 +223,7 @@ impl<R: Realigner> Variant for Insertion<R> {
             Evidence::SingleEndSequencingRead(read) => {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 }

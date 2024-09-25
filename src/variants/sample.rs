@@ -93,7 +93,7 @@ pub(crate) struct OpticalMappingRecordBuffer {
 }
 
 // TODO
-impl OpticalMappingRecordBuffer {todo!()}
+impl OpticalMappingRecordBuffer {}
 
 #[derive(Default, Derefable)]
 pub(crate) struct Fetches {
