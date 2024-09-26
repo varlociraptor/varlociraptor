@@ -1,6 +1,6 @@
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
+    # Should be 0 with the new version and 1 with the old version
     - normal == 0.0
 
 # necessary bam files

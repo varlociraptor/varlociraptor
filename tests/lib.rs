@@ -191,6 +191,8 @@ testcase!(test_uzuner_clonal_3, exact);
 testcase!(test_uzuner_fp_snv_on_ins, exact);
 testcase!(test_false_negative_indel_call, exact);
 
+testcase!(test_prinz_read_position_bias, exact);
+
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }
