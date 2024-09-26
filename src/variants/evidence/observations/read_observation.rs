@@ -609,7 +609,7 @@ pub(crate) trait Observable: Variant {
                     let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                     let mut obs = ReadObservationBuilder::default();
-                    obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
+                    obs.name(Some(evidence.id().to_string().to_owned()))
                         .fragment_id(id)
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())
@@ -738,12 +738,14 @@ impl Evidence {
         }
     }
 
-    pub(crate) fn name(&self) -> &[u8] {
+    pub(crate) fn id(&self) -> EvidenceIdentifier {
         match self {
-            Evidence::PairedEndSequencingRead { left, .. } => left.qname(),
-            Evidence::SingleEndSequencingRead(rec) => rec.qname(),
-            // TODO: Better solution?
-            Evidence::OpticalMappingRead { alignment: a, .. } => a.id().as_bytes(),
+            Evidence::PairedEndSequencingRead { left, .. } => {
+                EvidenceIdentifier::Bytes(left.qname().to_owned())
+            }
+            Evidence::SingleEndSequencingRead(rec) => {
+                EvidenceIdentifier::Bytes(rec.qname().to_owned())
+            }
         }
     }
 
@@ -785,6 +787,30 @@ impl Hash for Evidence {
             Evidence::SingleEndSequencingRead(a) => a.qname().hash(state),
             Evidence::PairedEndSequencingRead { left: a, .. } => a.qname().hash(state),
             Evidence::OpticalMappingRead { alignment: a, .. } => a.id().hash(state),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(crate) enum EvidenceIdentifier {
+    Bytes(Vec<u8>),
+    Integer(u32),
+}
+
+impl std::fmt::Display for EvidenceIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EvidenceIdentifier::Bytes(id) => write!(f, "{}", str::from_utf8(id).unwrap()),
+            EvidenceIdentifier::Integer(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+impl Hash for EvidenceIdentifier {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            EvidenceIdentifier::Bytes(id) => id.hash(state),
+            EvidenceIdentifier::Integer(id) => id.hash(state),
         }
     }
 }
