@@ -734,7 +734,7 @@ impl Evidence {
         match self {
             Evidence::SingleEndSequencingRead(rec) => rec.seq_len(),
             Evidence::PairedEndSequencingRead { left, right } => left.seq_len() + right.seq_len(),
-            Evidence::OpticalMappingRead { alignment: a, .. } => a.qry_len(),
+            Evidence::OpticalMappingRead { alignment: a, .. } => a.qry_len().round() as usize,
         }
     }
 
