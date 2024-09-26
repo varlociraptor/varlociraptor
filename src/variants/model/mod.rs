@@ -37,7 +37,6 @@ pub(crate) struct Conversion {
     pub(crate) from: u8,
     pub(crate) to: u8,
 }
-// TODO implement deserialize trait for Conversion such that it can be parsed from strings like "C>T"
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
