@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "bio"
 version = "2.0.3"
-source = "git+https://github.com/laurakuehle/rust-bio.git?branch=master#ba9b43d87ec67d78b99407b66a9b62635beec21e"
+source = "git+https://github.com/laurakuehle/rust-bio.git?branch=master#d366a0d8d6e417bcb3b854984dc00007c1729e9c"
 dependencies = [
  "anyhow",
  "approx",

@@ -395,10 +395,10 @@ where
         let mut evidences = Vec::new();
         for candidate in candidate_records.values() {
             let evidence = Evidence::OpticalMappingRead {
-                read: Rc::clone(&candidate),
-                alignment: Rc::clone(buffer.qry_record(candidate.id())),
+                read: Rc::clone(buffer.qry_record(candidate.qry_id())?),
+                alignment: Rc::clone(&candidate),
             };
-            if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+            if let Some(_) = self.is_valid_evidence(&evidence, alignment_properties) {
                 evidences.push(evidence);
             }
         }

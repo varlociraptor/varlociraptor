@@ -89,15 +89,20 @@ pub(crate) struct OpticalMappingRecordBuffer {
     bnx: bnx::Container,
 }
 
-// TODO
 impl OpticalMappingRecordBuffer {
-    pub(crate) fn fetch(&mut self, interval: &genome::Interval) ->
-    Result<impl Iterator<Item = &Rc<xmap::Record>>> {
+    pub(crate) fn fetch(
+        &self,
+        interval: &genome::Interval,
+    ) -> Result<impl Iterator<Item = &Rc<xmap::Record>>> {
         self.xmap.fetch(
             interval.contig().parse::<u32>()?,
             interval.range().start,
             interval.range().end,
         )
+    }
+
+    pub(crate) fn qry_record(&self, bnx_id: &u32) -> Result<&Rc<bnx::Record>> {
+        self.bnx.record(bnx_id.clone())
     }
 }
 
