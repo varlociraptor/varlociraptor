@@ -746,6 +746,9 @@ impl Evidence {
             Evidence::SingleEndSequencingRead(rec) => {
                 EvidenceIdentifier::Bytes(rec.qname().to_owned())
             }
+            Evidence::OpticalMappingRead { alignment: a, .. } => {
+                EvidenceIdentifier::Integer(a.id().clone())
+            }
         }
     }
 
