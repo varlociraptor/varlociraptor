@@ -383,9 +383,7 @@ where
         // and wrap them as Evidence::OpticalMappingRead.
         let mut candidate_records = BTreeMap::new();
         for interval in self.loci().iter() {
-            buffer.fetch(interval)?;
-
-            for record in buffer.iter() {
+            for record in buffer.fetch(interval)? {
                 if !candidate_records.contains_key(record.id()) {
                     // this is the first (primary or supplementary) alignment in the pair
                     candidate_records.insert(record.id().to_owned(), record);

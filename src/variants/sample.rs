@@ -91,14 +91,13 @@ pub(crate) struct OpticalMappingRecordBuffer {
 
 // TODO
 impl OpticalMappingRecordBuffer {
-    pub(crate) fn fetch(&mut self, interval: &genome::Interval) -> Result<()> {
+    pub(crate) fn fetch(&mut self, interval: &genome::Interval) ->
+    Result<impl Iterator<Item = &Rc<xmap::Record>>> {
         self.xmap.fetch(
             interval.contig().parse::<u32>()?,
             interval.range().start,
             interval.range().end,
-        )?;
-
-        Ok(())
+        )
     }
 }
 
