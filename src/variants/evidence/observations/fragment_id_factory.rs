@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use super::read_observation::Evidence;
+use super::read_observation::{Evidence, EvidenceIdentifier};
 
 #[derive(Default, Debug)]
 pub(crate) struct FragmentIdFactory {
-    ids: HashMap<Vec<u8>, u64>,
+    ids: HashMap<EvidenceIdentifier, u64>,
     next_id: u64,
     current_contig: String,
 }
@@ -18,11 +18,11 @@ impl FragmentIdFactory {
         }
     }
     pub(crate) fn register(&mut self, evidence: &Evidence) -> u64 {
-        if self.ids.contains_key(evidence.name()) {
-            *self.ids.get(evidence.name()).unwrap()
+        if self.ids.contains_key(&evidence.id()) {
+            *self.ids.get(&evidence.id()).unwrap()
         } else {
             let id = self.next_id;
-            self.ids.insert(evidence.name().to_vec(), id);
+            self.ids.insert(evidence.id(), id);
             self.next_id += 1;
             id
         }
