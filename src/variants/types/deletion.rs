@@ -193,6 +193,7 @@ impl<R: Realigner> Variant for Deletion<R> {
                     None
                 }
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -259,6 +260,7 @@ impl<R: Realigner> Variant for Deletion<R> {
 
                 Ok(Some(support))
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -290,6 +292,7 @@ impl<R: Realigner> Variant for Deletion<R> {
             Evidence::SingleEndSequencingRead(read) => {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 }

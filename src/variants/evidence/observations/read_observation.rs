@@ -10,6 +10,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
+use bio::io::om::bnx;
+use bio::io::om::xmap;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractLocus};
@@ -160,6 +162,13 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 pub struct ExactAltLoci {
     #[deref]
     inner: Vec<genome::Locus>,
+}
+
+impl<'a> From<&'a xmap::Record> for ExactAltLoci {
+    fn from(record: &'a xmap::Record) -> Self {
+        ExactAltLoci::default()
+        // TODO: Check whether this info is available in XMAPs
+    }
 }
 
 impl<'a> From<&'a bam::Record> for ExactAltLoci {
@@ -654,7 +663,7 @@ pub(crate) trait Observable: Variant {
     }
 }
 
-#[derive(Clone, Eq, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Evidence {
     SingleEndSequencingRead(Rc<bam::Record>),
     PairedEndSequencingRead {
@@ -663,7 +672,10 @@ pub(crate) enum Evidence {
     },
     // TODO add a proper record type here that contains all info needed to assess
     // whether the optical mapping record supports the variant or the reference allele
-    OpticalMappingRead(...),
+    OpticalMappingRead {
+        read: Rc<bnx::Record>,
+        alignment: Rc<xmap::Record>,
+    },
 }
 
 impl Evidence {
@@ -688,7 +700,7 @@ impl Evidence {
                     read_orientation(left.as_ref())
                 }
             }
-            Evidence::OpticalMappingRead(_) => Ok(SequenceReadPairOrientation::None),
+            Evidence::OpticalMappingRead { .. } => Ok(SequenceReadPairOrientation::None),
         }
     }
 
@@ -696,7 +708,7 @@ impl Evidence {
         match self {
             Evidence::SingleEndSequencingRead(read) => read.is_paired(),
             Evidence::PairedEndSequencingRead { left, .. } => left.is_paired(),
-            Evidence::OpticalMappingRead(_) => false,
+            Evidence::OpticalMappingRead { .. } => false,
         }
     }
 
@@ -714,7 +726,7 @@ impl Evidence {
                     || cigar_right.leading_softclips() > 0
                     || cigar_right.trailing_softclips() > 0
             }
-            Evidence::OpticalMappingRead(_) => false,
+            Evidence::OpticalMappingRead { .. } => false,
         }
     }
 
@@ -722,6 +734,7 @@ impl Evidence {
         match self {
             Evidence::SingleEndSequencingRead(rec) => rec.seq_len(),
             Evidence::PairedEndSequencingRead { left, right } => left.seq_len() + right.seq_len(),
+            Evidence::OpticalMappingRead { alignment: a, .. } => a.qry_len().round() as usize,
         }
     }
 
@@ -729,6 +742,8 @@ impl Evidence {
         match self {
             Evidence::PairedEndSequencingRead { left, .. } => left.qname(),
             Evidence::SingleEndSequencingRead(rec) => rec.qname(),
+            // TODO: Better solution?
+            Evidence::OpticalMappingRead { alignment: a, .. } => a.id().as_bytes(),
         }
     }
 
@@ -740,6 +755,7 @@ impl Evidence {
                 left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
                 left
             }
+            Evidence::OpticalMappingRead { alignment: rec, .. } => ExactAltLoci::from(rec.as_ref()),
         }
     }
 }
@@ -754,6 +770,10 @@ impl PartialEq for Evidence {
                 Evidence::PairedEndSequencingRead { left: a, .. },
                 Evidence::PairedEndSequencingRead { left: b, .. },
             ) => a.qname() == b.qname(),
+            (
+                Evidence::OpticalMappingRead { alignment: a, .. },
+                Evidence::OpticalMappingRead { alignment: b, .. },
+            ) => a.id() == b.id(),
             _ => false,
         }
     }
@@ -764,6 +784,7 @@ impl Hash for Evidence {
         match self {
             Evidence::SingleEndSequencingRead(a) => a.qname().hash(state),
             Evidence::PairedEndSequencingRead { left: a, .. } => a.qname().hash(state),
+            Evidence::OpticalMappingRead { alignment: a, .. } => a.id().hash(state),
         }
     }
 }

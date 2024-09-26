@@ -9,6 +9,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
+use bio::io::om::bnx;
+use bio::io::om::xmap;
 use bio_types::{genome, genome::AbstractInterval};
 use derive_builder::Builder;
 use rand::distributions;
@@ -81,12 +83,27 @@ impl SequencingRecordBuffer {
     }
 }
 
-
+#[derive(new, Getters, Debug)]
 pub(crate) struct OpticalMappingRecordBuffer {
-
+    xmap: xmap::Container,
+    bnx: bnx::Container,
 }
 
 impl OpticalMappingRecordBuffer {
+    pub(crate) fn fetch(
+        &self,
+        interval: &genome::Interval,
+    ) -> Result<impl Iterator<Item = &Rc<xmap::Record>>> {
+        self.xmap.fetch(
+            interval.contig().parse::<u32>()?,
+            interval.range().start,
+            interval.range().end,
+        )
+    }
+
+    pub(crate) fn qry_record(&self, bnx_id: &u32) -> Result<&Rc<bnx::Record>> {
+        self.bnx.record(bnx_id.clone())
+    }
 }
 
 #[derive(Default, Derefable)]
