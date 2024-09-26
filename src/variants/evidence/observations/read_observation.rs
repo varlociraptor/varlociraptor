@@ -766,11 +766,11 @@ pub(crate) enum EvidenceIdentifier {
     Integer(u32),
 }
 
-impl ToString for EvidenceIdentifier {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for EvidenceIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EvidenceIdentifier::Bytes(id) => String::from_utf8_lossy(id).to_string(),
-            EvidenceIdentifier::Integer(id) => id.to_string(),
+            EvidenceIdentifier::Bytes(id) => write!(f, "{}", str::from_utf8(id).unwrap()),
+            EvidenceIdentifier::Integer(id) => write!(f, "{}", id),
         }
     }
 }
