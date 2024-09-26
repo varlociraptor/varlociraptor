@@ -1,0 +1,32 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":152.88317458844276,"sd":69.84700632219361},"max_del_cigar_len":32,"max_ins_cigar_len":34,"frac_max_softclip":0.5562913907284768,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.783406018352417,"prob_deletion_artifact":-8.544669202783854,"prob_insertion_extend_artifact":-1.5384932905468405,"prob_deletion_extend_artifact":-1.1250443263199876},"hop_params":{"prob_seq_homopolymer":[-5.818604052887153,-7.365992139340446,-7.325020498796445,-5.951859261710306],"prob_ref_homopolymer":[-6.368391558698296,-9.09317586358533,-8.923573170550876,-6.478092701449729],"prob_seq_extend_homopolymer":[-5.818604052887153,-7.365992139340446,-7.325020498796445,-5.951859261710306],"prob_ref_extend_homopolymer":[-6.368391558698296,-9.09317586358533,-8.923573170550876,-6.478092701449729]},"wildtype_homopolymer_error_model":{"5":0.000019892271221899742,"10":0.000023531101323466767,"0":0.997942605460574,"13":0.000019407093875024137,"1":0.0016195219838707642,"7":0.000029838406832849613,"18":7.762837550009656e-6,"14":0.000013584965712516896,"36":2.4258867343780174e-7,"-3":5.3369508156316374e-6,"2":0.00017854526365022208,"-4":1.4555320406268104e-6,"3":0.00006452858713445526,"4":0.00003371982560785444,"8":0.00001819415050783513,"19":8.248014896885259e-6,"12":0.000015768263773457112,"-5":9.70354693751207e-7,"-6":1.4555320406268104e-6,"20":4.851773468756034e-6,"23":2.6684754078158187e-6,"-2":0.00003420500295473004,"21":4.366596121880431e-6,"-8":2.4258867343780174e-7,"-7":7.277660203134052e-7,"22":5.094362142193836e-6,"-1":0.000014555320406268104,"17":0.00001115907897813888,"25":7.277660203134052e-7,"27":4.851773468756035e-7,"28":2.4258867343780174e-7,"6":0.00003105135020003862,"24":3.638830101567026e-6,"15":6.549894182820646e-6,"35":2.4258867343780174e-7,"16":0.00001261461101876569,"11":0.000015283086426581508,"9":0.000028868052139098403},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"read_type":"Illumina"}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'

@@ -148,6 +148,8 @@ testcase!(test_pcr_homopolymer_error3, exact);
 
 testcase!(test_prinz_af_scan, exact);
 testcase!(filtering-new-bias-15799832, exact);
+testcase!(test_prinz_filtering, exact);
+testcase!(test_prinz_no_filtering, exact);
 
 
 testcase!(test_mendelian_prior, exact);
