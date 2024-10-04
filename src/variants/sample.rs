@@ -9,6 +9,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
+use bio::io::om::bnx;
+use bio::io::om::xmap;
 use bio_types::{genome, genome::AbstractInterval};
 use derive_builder::Builder;
 use rand::distributions;
@@ -30,7 +32,7 @@ use super::types::Loci;
 use crate::variants::evidence::observations::pileup::Pileup;
 
 #[derive(new, Getters, Debug)]
-pub(crate) struct RecordBuffer {
+pub(crate) struct SequencingRecordBuffer {
     inner: bam::RecordBuffer,
     #[getset(get = "pub")]
     single_read_window: u64,
@@ -38,7 +40,7 @@ pub(crate) struct RecordBuffer {
     read_pair_window: u64,
 }
 
-impl RecordBuffer {
+impl SequencingRecordBuffer {
     pub(crate) fn window(&self, read_pair_mode: bool, left: bool) -> u64 {
         if read_pair_mode {
             self.read_pair_window
@@ -78,6 +80,29 @@ impl RecordBuffer {
             .iter()
             .filter(|record| is_valid_record(record.as_ref()))
             .map(Rc::clone)
+    }
+}
+
+#[derive(new, Getters, Debug)]
+pub(crate) struct OpticalMappingRecordBuffer {
+    xmap: xmap::Container,
+    bnx: bnx::Container,
+}
+
+impl OpticalMappingRecordBuffer {
+    pub(crate) fn fetch(
+        &self,
+        interval: &genome::Interval,
+    ) -> Result<impl Iterator<Item = &Rc<xmap::Record>>> {
+        self.xmap.fetch(
+            interval.contig().parse::<u32>()?,
+            interval.range().start,
+            interval.range().end,
+        )
+    }
+
+    pub(crate) fn qry_record(&self, bnx_id: &u32) -> Result<&Rc<bnx::Record>> {
+        self.bnx.record(*bnx_id)
     }
 }
 
@@ -158,7 +183,7 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
 #[builder(pattern = "owned")]
 pub(crate) struct Sample {
     #[builder(private)]
-    record_buffer: RecordBuffer,
+    record_buffer: SequencingRecordBuffer,
     #[builder(private)]
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
@@ -196,7 +221,7 @@ impl SampleBuilder {
         let mut record_buffer = bam::RecordBuffer::new(bam, true);
         record_buffer.set_min_refetch_distance(min_refetch_distance);
         self.alignment_properties(alignment_properties)
-            .record_buffer(RecordBuffer::new(
+            .record_buffer(SequencingRecordBuffer::new(
                 record_buffer,
                 single_read_window,
                 read_pair_window,
@@ -237,7 +262,7 @@ impl Sample {
             None
         };
 
-        let observations = variant.extract_observations(
+        let observations = variant.extract_sequencing_read_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,

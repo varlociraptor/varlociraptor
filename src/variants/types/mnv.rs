@@ -257,6 +257,7 @@ impl<R: Realigner> Variant for Mnv<R> {
                     None
                 }
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -290,6 +291,7 @@ impl<R: Realigner> Variant for Mnv<R> {
                     (None, None) => Ok(None),
                 }
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 

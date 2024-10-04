@@ -243,6 +243,7 @@ where
                 }
                 p.ln_one_minus_exp()
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
@@ -252,12 +253,13 @@ where
             Evidence::PairedEndSequencingRead { left, right } => {
                 cmp::min(left.mapq(), right.mapq())
             }
+            Evidence::OpticalMappingRead { .. } => todo!(),
         }
     }
 
-    fn extract_observations(
+    fn extract_sequencing_read_observations(
         &self,
-        buffer: &mut sample::RecordBuffer,
+        buffer: &mut sample::SequencingRecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
@@ -365,6 +367,47 @@ where
                 )? {
                     observations.push(obs);
                 }
+            }
+        }
+
+        Ok(observations)
+    }
+
+    fn extract_optical_mapping_observations(
+        &self,
+        buffer: &mut sample::OpticalMappingRecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
+    ) -> Result<Vec<ReadObservation>> {
+        let mut candidate_records = BTreeMap::new();
+        for interval in self.loci().iter() {
+            for record in buffer.fetch(interval)? {
+                if !candidate_records.contains_key(record.id()) {
+                    // This is the first (primary or supplementary) alignment.
+                    candidate_records.insert(record.id().to_owned(), record);
+                }
+            }
+        }
+
+        let mut evidences = Vec::new();
+        for candidate in candidate_records.values() {
+            let evidence = Evidence::OpticalMappingRead {
+                read: Rc::clone(buffer.qry_record(candidate.qry_id())?),
+                alignment: Rc::clone(candidate),
+            };
+            if self
+                .is_valid_evidence(&evidence, alignment_properties)
+                .is_some()
+            {
+                evidences.push(evidence);
+            }
+        }
+
+        let mut observations = Vec::new();
+        for evidence in &evidences {
+            if let Some(obs) =
+                self.evidence_to_observation(evidence, alignment_properties, &None, &[], &mut None)?
+            {
+                observations.push(obs);
             }
         }
 
