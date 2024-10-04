@@ -102,7 +102,7 @@ impl OpticalMappingRecordBuffer {
     }
 
     pub(crate) fn qry_record(&self, bnx_id: &u32) -> Result<&Rc<bnx::Record>> {
-        self.bnx.record(bnx_id.clone())
+        self.bnx.record(*bnx_id)
     }
 }
 

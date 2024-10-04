@@ -378,16 +378,12 @@ where
         buffer: &mut sample::OpticalMappingRecordBuffer,
         alignment_properties: &mut AlignmentProperties,
     ) -> Result<Vec<ReadObservation>> {
-        // TODO implement analogously (but will be much simpler) to extract_sequencing_read_observations
-        // Take self.loci() to get the loci of the variant, fetch overlapping records,
-        // and wrap them as Evidence::OpticalMappingRead.
         let mut candidate_records = BTreeMap::new();
         for interval in self.loci().iter() {
             for record in buffer.fetch(interval)? {
                 if !candidate_records.contains_key(record.id()) {
-                    // this is the first (primary or supplementary) alignment in the pair
+                    // This is the first (primary or supplementary) alignment.
                     candidate_records.insert(record.id().to_owned(), record);
-                } else {
                 }
             }
         }
@@ -396,9 +392,9 @@ where
         for candidate in candidate_records.values() {
             let evidence = Evidence::OpticalMappingRead {
                 read: Rc::clone(buffer.qry_record(candidate.qry_id())?),
-                alignment: Rc::clone(&candidate),
+                alignment: Rc::clone(candidate),
             };
-            if let Some(_) = self.is_valid_evidence(&evidence, alignment_properties) {
+            if self.is_valid_evidence(&evidence, alignment_properties).is_some() {
                 evidences.push(evidence);
             }
         }

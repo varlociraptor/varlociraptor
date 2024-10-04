@@ -165,7 +165,7 @@ pub struct ExactAltLoci {
 }
 
 impl<'a> From<&'a xmap::Record> for ExactAltLoci {
-    fn from(record: &'a xmap::Record) -> Self {
+    fn from(_record: &'a xmap::Record) -> Self {
         ExactAltLoci::default()
         // TODO: Check whether this info is available in XMAPs
     }
@@ -670,8 +670,6 @@ pub(crate) enum Evidence {
         left: Rc<bam::Record>,
         right: Rc<bam::Record>,
     },
-    // TODO add a proper record type here that contains all info needed to assess
-    // whether the optical mapping record supports the variant or the reference allele
     OpticalMappingRead {
         read: Rc<bnx::Record>,
         alignment: Rc<xmap::Record>,
@@ -747,7 +745,7 @@ impl Evidence {
                 EvidenceIdentifier::Bytes(rec.qname().to_owned())
             }
             Evidence::OpticalMappingRead { alignment: a, .. } => {
-                EvidenceIdentifier::Integer(a.id().clone())
+                EvidenceIdentifier::Integer(*a.id())
             }
         }
     }
