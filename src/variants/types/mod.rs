@@ -394,7 +394,10 @@ where
                 read: Rc::clone(buffer.qry_record(candidate.qry_id())?),
                 alignment: Rc::clone(candidate),
             };
-            if self.is_valid_evidence(&evidence, alignment_properties).is_some() {
+            if self
+                .is_valid_evidence(&evidence, alignment_properties)
+                .is_some()
+            {
                 evidences.push(evidence);
             }
         }
