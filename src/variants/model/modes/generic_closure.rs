@@ -1,9 +1,3 @@
-use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
-use bio::stats::LogProb;
-use derive_builder::Builder;
-use itertools::Itertools;
-use vec_map::{Values, VecMap};
-
 use crate::grammar;
 use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
@@ -13,7 +7,13 @@ use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
 use crate::variants::model::{self, Conversion};
 use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
+use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
+use bio::stats::LogProb;
+use derive_builder::Builder;
+use itertools::Itertools;
+use lru::LruCache;
 use std::ops::Index;
+use vec_map::{Values, VecMap};
 
 #[derive(new, Clone, Debug)]
 pub(crate) struct Snv {
@@ -473,25 +473,30 @@ impl Likelihood<Cache> for GenericLikelihood {
             }
         }
 
-        // let sample_likelihood = |conversion: Option<Conversion>,
-        //                          likelihood_model: &dyn Likelihood<Event = _, Data = _>,
-        //                          event,
-        //                          pileup,
-        //                          cache| {
-        //     if let Some(conversion) = conversion {
-        //         if let Some(snv) = data.snv {
-        //             if snv.refbase == conversion.from && snv.altbase == conversion.to {
-        //                 let density = |conversion_rate| {
-        //                     // Frage Johannes: event ist mal normales Event, mal contaminated. Soll ich im contaminated Fall nur auf primary aufrechnen?
-        //                     let event_var_or_conversion = event + conversion_rate;
-        //                     likelihood_model.compute(event_var_or_conversion, pileup, cache)
-        //                 };
-        //                 return LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0 - event, 11);
-        //             }
-        //         }
-        //     }
-        //     likelihood_model.compute(event, pileup, cache)
-        // };
+        let sample_likelihood = |conversion: &Option<Conversion>,
+                                 likelihood_model: &dyn Likelihood<Event = _, Data = _>,
+                                 event: Event,
+                                 pileup,
+                                 cache: &mut LruCache<Event, _>| {
+            if let Some(conversion) = conversion {
+                if let Some(snv) = &data.snv {
+                    if snv.refbase == conversion.from && snv.altbase == conversion.to {
+                        let density = |_, conversion_rate| {
+                            let mut event_var_or_conversion = event.clone();
+                            event_var_or_conversion.allele_freq += conversion_rate;
+                            likelihood_model.compute(&event_var_or_conversion, pileup, cache)
+                        };
+                        return LogProb::ln_simpsons_integrate_exp(
+                            density,
+                            0.0,
+                            1.0 - event.allele_freq.into_inner(),
+                            11,
+                        );
+                    }
+                }
+            }
+            likelihood_model.compute(&event, pileup, cache)
+        };
 
         let mut p = LogProb::ln_one();
 
@@ -511,36 +516,18 @@ impl Likelihood<Cache> for GenericLikelihood {
                     if let CacheEntry::ContaminatedSample(ref mut cache) =
                         cache.entry(sample).or_insert_with(|| CacheEntry::new(true))
                     {
-                        let contaminated_event = &likelihood::ContaminatedSampleEvent {
+                        let contaminated_event = likelihood::ContaminatedSampleEvent {
                             primary: event.clone(),
                             secondary: operands.events[by].clone(),
                         };
-                        if let Some(conversion) = conversion {
-                            if let Some(snv) = &data.snv {
-                                if snv.refbase == conversion.from && snv.altbase == conversion.to {
-                                    let density = |_, conversion_rate| {
-                                        // Frage Johannes: Soll ich auf primary aufrechnen? Warum reicht es einfach die beiden zu addieren? Die Formel ist doch viel laenger?
-                                        // Nur auf primary addieren?
-                                        let mut event_var_or_conversion =
-                                            contaminated_event.clone();
-                                        event_var_or_conversion.primary.allele_freq +=
-                                            conversion_rate;
-                                        likelihood_model.compute(
-                                            &event_var_or_conversion,
-                                            pileup,
-                                            cache,
-                                        )
-                                    };
-                                    LogProb::ln_simpsons_integrate_exp(
-                                        density,
-                                        0.0,
-                                        1.0 - contaminated_event.primary.allele_freq.into_inner(),
-                                        11,
-                                    );
-                                }
-                            }
-                        }
-                        likelihood_model.compute(contaminated_event, pileup, cache)
+
+                        sample_likelihood(
+                            conversion,
+                            likelihood_model,
+                            contaminated_event.primary,
+                            pileup,
+                            cache,
+                        )
                     } else {
                         unreachable!();
                     }
@@ -553,40 +540,18 @@ impl Likelihood<Cache> for GenericLikelihood {
                         .entry(sample)
                         .or_insert_with(|| CacheEntry::new(false))
                     {
-                        if let Some(conversion) = conversion {
-                            if let Some(snv) = &data.snv {
-                                if snv.refbase == conversion.from && snv.altbase == conversion.to {
-                                    let density = |_, conversion_rate| {
-                                        let mut event_var_or_conversion = event.clone();
-                                        event_var_or_conversion.allele_freq += conversion_rate;
-
-                                        likelihood_model.compute(
-                                            &event_var_or_conversion,
-                                            pileup,
-                                            cache,
-                                        )
-                                    };
-                                    let prob = LogProb::ln_simpsons_integrate_exp(
-                                        density,
-                                        0.0,
-                                        1.0 - event.allele_freq.into_inner(),
-                                        5,
-                                    );
-                                    warn!("Innen: {:?}", prob);
-                                    return prob;
-                                }
-                            }
-                        }
-                        warn!(
-                            "Aussen: {:?}",
-                            likelihood_model.compute(event, pileup, cache)
-                        );
-                        likelihood_model.compute(event, pileup, cache)
+                        sample_likelihood(
+                            conversion,
+                            likelihood_model,
+                            event.clone(),
+                            pileup,
+                            cache,
+                        )
                     } else {
                         unreachable!();
                     }
                 }
-            }
+            };
         }
         warn!("Ende: {:?}", p);
         p
