@@ -1,9 +1,9 @@
 expected:
   allelefreqs:
     # Activate this if you use the old version in read_position_bias.rs an set filter = true in function process_read_illumina in methylation.rs
-    # - normal == 1.0
+    - normal == 1.0
     # Activate this if you use the new version in read_position_bias.rs an set filter = true in function process_read_illumina in methylation.rs
-    - normal == 0.0
+    # - normal == 0.0
 
 # necessary bam files
 samples:
