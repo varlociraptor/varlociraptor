@@ -572,15 +572,11 @@ impl Likelihood<Cache> for GenericLikelihood {
                                         1.0 - event.allele_freq.into_inner(),
                                         5,
                                     );
-                                    warn!("Innen: {:?}", prob);
                                     return prob;
                                 }
                             }
                         }
-                        warn!(
-                            "Aussen: {:?}",
-                            likelihood_model.compute(event, pileup, cache)
-                        );
+                        warn!(likelihood_model.compute(event, pileup, cache));
                         likelihood_model.compute(event, pileup, cache)
                     } else {
                         unreachable!();
@@ -588,7 +584,6 @@ impl Likelihood<Cache> for GenericLikelihood {
                 }
             }
         }
-        warn!("Ende: {:?}", p);
         p
     }
 }
