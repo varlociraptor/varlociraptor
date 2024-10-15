@@ -576,7 +576,6 @@ impl Likelihood<Cache> for GenericLikelihood {
                                 }
                             }
                         }
-                        warn!(likelihood_model.compute(event, pileup, cache));
                         likelihood_model.compute(event, pileup, cache)
                     } else {
                         unreachable!();
