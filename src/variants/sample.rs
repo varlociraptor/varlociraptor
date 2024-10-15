@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::f64;
-use std::hash::Hash;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
@@ -20,13 +19,14 @@ use rust_htslib::bam;
 use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::read_observation::{
-    self, major_read_position, Observable, ReadObservation,
+    major_read_position, Observable, ReadObservation,
 };
-use crate::variants::{self, types::Variant};
+use crate::variants::types::Variant;
 
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
+use super::types::Loci;
 use crate::variants::evidence::observations::pileup::Pileup;
 
 #[derive(new, Getters, Debug)]
@@ -213,22 +213,20 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub(crate) fn extract_observations<V, E, L>(
+    pub(crate) fn extract_observations<V>(
         &mut self,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Pileup>
     where
-        E: read_observation::Evidence + Eq + Hash,
-        L: variants::types::Loci,
-        V: Variant<Loci = L, Evidence = E> + Observable<E>,
+        V: Variant + Observable,
     {
         let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
             if self.report_fragment_ids {
                 // METHOD: we only report read IDs for single contig variants.
                 // Reason: we expect those to come in sorted, so that we can clear the
                 // read ID registry at each new contig, saving lots of memory.
-                // In the future, we might find a smarter way and thereby also include
+                // TODO: In the future, we might find a smarter way and thereby also include
                 // multi-contig variants into the calculation.
                 self.fragment_id_factory.register_contig(contig);
                 Some(&mut self.fragment_id_factory)
