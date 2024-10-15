@@ -208,6 +208,7 @@ fn get_qpos(read: &Rc<Record>, locus: &SingleLocus) -> Option<i32> {
 }
 
 fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
+    let filter = true;
     let qpos = get_qpos(read, locus)?;
     let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
@@ -216,12 +217,9 @@ fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogP
     let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
     // If locus is on the last position of the read and reverse, the C of the CG is not included
     // TODO: Vermeiden, wenn wir herausfinden, dass der Sequencer sich vertuen koennte.
-    if c_not_included || mutation_occurred || is_invalid {
+    if (c_not_included || mutation_occurred || is_invalid) && filter {
         return Some((LogProb::from(Prob(0.5)), LogProb::from(Prob(0.5))));
-
-        return None;
     }
-
     Some(compute_probs_illumina(read_reverse, read, qpos))
 }
 

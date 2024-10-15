@@ -1,3 +1,5 @@
+// Activate this for old read position bias.
+
 use bio::stats::probs::LogProb;
 
 use crate::variants::evidence::observations::read_observation::{
@@ -34,6 +36,8 @@ impl Bias for ReadPositionBias {
         *self != ReadPositionBias::None
     }
 }
+
+// Activate this for new read position bias
 
 // use bio::stats::probs::LogProb;
 // use bio::stats::Prob;
@@ -84,7 +88,7 @@ impl Bias for ReadPositionBias {
 //         }
 //     }
 
-//     fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
+//     fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
 //         LogProb::ln_one()
 //     }
 
