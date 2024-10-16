@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
@@ -19,7 +20,7 @@ pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniv
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
-use serde::{de, Deserializer};
+use serde::{de, Deserialize, Deserializer};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -33,6 +34,12 @@ impl<T> SampleInfo<T> {
     pub(crate) fn map<U, F: Fn(&T) -> U>(&self, f: F) -> SampleInfo<U> {
         SampleInfo {
             inner: self.inner.iter().map(f).collect(),
+        }
+    }
+
+    pub(crate) fn zip<'a, U>(&'a self, other: &'a SampleInfo<U>) -> SampleInfo<(&'a T, &'a U)> {
+        SampleInfo {
+            inner: self.inner.iter().zip(other.inner.iter()).collect(),
         }
     }
 
@@ -474,6 +481,8 @@ pub(crate) struct Sample {
     /// optional contamination
     #[get = "pub(crate)"]
     contamination: Option<Contamination>,
+    #[get = "pub(crate)"]
+    conversion: Option<Conversion>,
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
     #[get = "pub(crate)"]
@@ -621,6 +630,48 @@ pub(crate) struct Contamination {
     by: String,
     /// fraction of contamination
     fraction: f64,
+}
+
+#[derive(Getters)]
+#[get = "pub(crate)"]
+pub(crate) struct Conversion {
+    /// mutation start
+    from: u8,
+    /// mutation end
+    to: u8,
+}
+
+impl FromStr for Conversion {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = s.split('>').collect();
+        if parts.len() == 2 {
+            let from_char = parts[0].chars().next();
+            let to_char = parts[1].chars().next();
+
+            if let (Some(from), Some(to)) = (from_char, to_char) {
+                Ok(Conversion {
+                    from: from as u8,
+                    to: to as u8,
+                })
+            } else {
+                Err("Conversion string is not in the correct format".to_string())
+            }
+        } else {
+            Err("Expected format 'X>Y' but got something else".to_string())
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Conversion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(
