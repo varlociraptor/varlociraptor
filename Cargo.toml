@@ -1,8 +1,18 @@
 [package]
-authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
+authors = [
+    "Johannes Köster <johannes.koester@tu-dortmund.de>",
+    "David Lähnemann <david.laehnemann@uni-duesseldorf.de>",
+]
 description = "A library for calling of genomic variants using a latent variable model."
 edition = "2018"
-include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "templates/*"]
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE",
+    "templates/*",
+]
 license = "GPL-3.0"
 name = "varlociraptor"
 readme = "README.md"
@@ -61,8 +71,8 @@ serde_yaml = ">=0.8.4,<0.9"
 shrinkwraprs = "0.3.0"
 statrs = "0.16"
 structopt = "0.3"
-strum = ">= 0.16, < 0.26" # Needs to be in sync with rust-bios strum dependency
-strum_macros = ">= 0.16, < 0.26"
+strum = "0.26"                                                        # Needs to be in sync with rust-bios strum dependency
+strum_macros = "0.26"
 tempfile = "3"
 thiserror = "1.0"
 time = "0.3"

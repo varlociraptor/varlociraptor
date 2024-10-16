@@ -176,6 +176,9 @@ testcase!(test_alt_locus_bias_02, exact);
 testcase!(test_uzuner_fn_mnv, exact);
 testcase!(test_uzuner_fp_mnv1, exact);
 
+testcase!(test_prinz_conversion, exact);
+testcase!(test_prinz_no_conversion, exact);
+
 testcase!(test_imprecise_fusion, exact);
 testcase!(test_imprecise_fusion_absent, exact);
 
