@@ -245,12 +245,12 @@ fn compute_probs_illumina(
     let base_qual = unsafe { *record.qual().get_unchecked(pos_in_read as usize) };
 
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
-    let no_c = if read_base != ref_base {
-        read_base
-    } else {
-        bisulfite_base
-    };
-    let prob_ref = prob_read_base(read_base, no_c, base_qual);
+    // let no_c = if read_base != ref_base {
+    //     read_base
+    // } else {
+    //     bisulfite_base
+    // };
+    let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
     (prob_alt, prob_ref)
 }
 
@@ -319,7 +319,7 @@ fn mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i32
             return true;
         }
     }
-    return false
+    return false;
 }
 
 /// Computes if a given read is valid (Right now we only accept specific flags)
