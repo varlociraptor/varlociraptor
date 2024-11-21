@@ -28,7 +28,7 @@ jobs:
         cargo flamegraph --output tests/resources/flamegraph_profiling/flamegraph.svg -- preprocess variants tests/resources/flamegraph_profiling/ref.fa --candidates tests/resources/flamegraph_profiling/candidates.vcf --bam tests/resources/flamegraph_profiling/alignment.bam --read-type Nanopore > tests/resources/flamegraph_profiling/normal.bcf
         
     - name: Upload result as artifact
-      uses: actions/upload-artifact@v2.2.0
+      uses: actions/upload-artifact@v3
       with:
         name: flamegraph
         path: tests/resources/flamegraph_profiling/
