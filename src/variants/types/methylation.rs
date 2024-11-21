@@ -343,14 +343,20 @@ fn mutation_occurred_pb_np(read_reverse: bool, record: &Rc<Record>, qpos: i32) -
     if read_reverse {
         let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
         if read_base == b'C' || read_base == b'T' || read_base == b'A' {
+            warn!(
+                "The record {:?} on position {:?} is not considered because a mutation occured",
+                String::from_utf8_lossy(record.qname()),
+                qpos
+            );
             return true;
         }
     } else {
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         if read_base == b'A' || read_base == b'G' || read_base == b'T' {
             warn!(
-                "The record {:?} is not considered because a mutation occured",
-                String::from_utf8_lossy(record.qname())
+                "The record {:?} on position {:?} is not considered because a mutation occured",
+                String::from_utf8_lossy(record.qname()),
+                qpos
             );
             return true;
         }
