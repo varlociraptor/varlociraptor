@@ -199,18 +199,15 @@ impl Fetches {
     IntoStaticStr,
     EnumVariantNames,
 )]
+#[derive(Default)]
 pub enum ProtocolStrandedness {
     #[strum(serialize = "opposite")]
+    #[default]
     Opposite,
     #[strum(serialize = "same")]
     Same,
 }
 
-impl Default for ProtocolStrandedness {
-    fn default() -> Self {
-        ProtocolStrandedness::Opposite
-    }
-}
 
 pub(crate) enum SubsampleCandidates {
     Necessary {

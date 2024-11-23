@@ -17,7 +17,7 @@ use ordered_float::NotNan;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
-use crate::utils::{event_to_tag, events_to_tags, is_phred_scaled};
+use crate::utils::{event_to_tag, is_phred_scaled};
 use crate::variants::model;
 use crate::{errors, Event};
 use crate::{utils, SimpleEvent};
@@ -64,7 +64,7 @@ where
 
     // skip events that are not present in the header
     let cleaned_events = events
-        .into_iter()
+        .iter()
         .filter(|event| {
             inbcf_reader
                 .header()

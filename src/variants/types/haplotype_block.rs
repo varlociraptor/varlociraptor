@@ -186,8 +186,7 @@ impl Variant for HaplotypeBlock {
         valid_indices.extend(
             self.multi_locus_single_end_evidence_variants
                 .iter()
-                .enumerate()
-                .filter_map(|(_i, variant)| {
+                .filter_map(|variant| {
                     let valid = evidence
                         .into_single_end_evidence()
                         .iter()
@@ -251,14 +250,13 @@ impl Variant for HaplotypeBlock {
         let support: Vec<Option<AlleleSupport>> = self
             .single_locus_single_end_evidence_variants
             .iter()
-            .map(|variant| {
+            .flat_map(|variant| {
                 evidence
                     .into_single_end_evidence()
                     .iter()
                     .map(|evidence| variant.allele_support(evidence, alignment_properties, &[]))
                     .collect_vec()
             })
-            .flatten()
             .chain(
                 self.single_locus_paired_end_evidence_variants
                     .iter()
@@ -267,7 +265,7 @@ impl Variant for HaplotypeBlock {
             .chain(
                 self.multi_locus_single_end_evidence_variants
                     .iter()
-                    .map(|variant| {
+                    .flat_map(|variant| {
                         evidence
                             .into_single_end_evidence()
                             .iter()
@@ -275,8 +273,7 @@ impl Variant for HaplotypeBlock {
                                 variant.allele_support(evidence, alignment_properties, &[])
                             })
                             .collect_vec()
-                    })
-                    .flatten(),
+                    }),
             )
             .chain(
                 self.multi_locus_paired_end_evidence_variants
@@ -286,7 +283,7 @@ impl Variant for HaplotypeBlock {
             .collect::<Result<Vec<Option<AlleleSupport>>>>()?;
         let support = support
             .into_iter()
-            .filter_map(|support| support)
+            .flatten()
             .collect_vec();
         if support.is_empty() {
             Ok(None)
@@ -317,7 +314,7 @@ fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
             if let Some(ref mut dist) = third_allele_evidence {
                 dist.update(other_dist);
             } else {
-                third_allele_evidence = variant_support.third_allele_evidence.clone();
+                third_allele_evidence = variant_support.third_allele_evidence;
             }
         }
     }

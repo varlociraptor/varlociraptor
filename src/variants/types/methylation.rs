@@ -319,7 +319,7 @@ fn mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i32
             return true;
         }
     }
-    return false;
+    false
 }
 
 /// Computes if a given read is valid (Right now we only accept specific flags)

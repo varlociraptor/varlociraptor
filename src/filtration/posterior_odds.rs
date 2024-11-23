@@ -65,7 +65,7 @@ where
 
         Ok(target_probs
             .into_iter()
-            .zip(other_probs.into_iter())
+            .zip(other_probs)
             .map(|probs| {
                 match probs {
                     (Some(tp), Some(op)) => {

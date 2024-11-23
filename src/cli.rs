@@ -852,7 +852,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     };
 
                     let mut reference_buffer = Arc::new(
-                        reference::Buffer::from_path(&reference, reference_buffer_size)
+                        reference::Buffer::from_path(reference, reference_buffer_size)
                             .context("Unable to read genome reference.")?,
                     );
 
@@ -1270,7 +1270,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 &sample,
                 coding_genome_size as u64,
                 mode,
-                cutoff as f64,
+                cutoff,
             )?,
             EstimateKind::AlignmentProperties {
                 reference,
@@ -1278,7 +1278,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 num_records,
                 epsilon_gap,
             } => {
-                let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
+                let mut reference_buffer = reference::Buffer::from_path(reference, 1)?;
                 let alignment_properties = estimate_alignment_properties(
                     bam,
                     false,

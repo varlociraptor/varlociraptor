@@ -56,7 +56,7 @@ impl<'a> IntoIterator for &'a VAFTree {
     type IntoIter = std::slice::Iter<'a, Node>;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&self.inner).iter()
+        self.inner.iter()
     }
 }
 
@@ -247,10 +247,10 @@ impl VAFTree {
             }
         }
 
-        fn add_missing_samples<'a>(
+        fn add_missing_samples(
             node: &mut Node,
             seen: &mut HashSet<usize>,
-            scenario: &'a Scenario,
+            scenario: &Scenario,
             contig: &str,
         ) -> Result<()> {
             if let NodeKind::False = node.kind {

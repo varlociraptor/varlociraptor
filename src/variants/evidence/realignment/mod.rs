@@ -96,7 +96,7 @@ pub(crate) trait Realigner {
                     let max_window =
                         (self.max_window() as usize).saturating_sub((qend - qstart) / 2);
                     let mut read_offset = qstart.saturating_sub(max_window);
-                    let mut read_end = cmp::min(qend + max_window as usize, record.seq_len());
+                    let mut read_end = cmp::min(qend + max_window, record.seq_len());
 
                     // correct for reads that enclose the entire variant while that exceeds the maximum pattern len
                     let exceed = (read_end - read_offset)
@@ -338,7 +338,7 @@ pub(crate) trait Realigner {
                 alt_params.clear_ref_end_override();
 
                 if let Some(mut read_inferred_allele) =
-                    edit_dist_calc.derive_allele_from_read(&alt_params, &alt_hit)
+                    edit_dist_calc.derive_allele_from_read(alt_params, &alt_hit)
                 {
                     let third_allele_hit = edit_dist_calc
                         .calc_best_hit(&read_inferred_allele, None, alignment_properties, true)
@@ -432,9 +432,9 @@ pub(crate) trait Realigner {
     }
 
     /// Calculate probability of a certain allele.
-    fn prob_allele<'a>(
+    fn prob_allele(
         &mut self,
-        candidate_allele_params: &'a mut [ReadVsAlleleEmission],
+        candidate_allele_params: &mut [ReadVsAlleleEmission],
         edit_dist: &mut edit_distance::EditDistanceCalculation,
         alignment_properties: &AlignmentProperties,
         _debug: bool,

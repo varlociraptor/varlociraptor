@@ -82,7 +82,7 @@ impl AuxInfoCollector {
         Ok(AuxInfoCollector { fields, records })
     }
 
-    pub(crate) fn write_header_info(&self, header: &mut bcf::Header) -> () {
+    pub(crate) fn write_header_info(&self, header: &mut bcf::Header) {
         for record in &self.records {
             header.push_record(
                 format!(

@@ -13,7 +13,6 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
-use itertools::Itertools;
 
 use crate::default_ref_base_emission;
 use crate::errors::Error;
@@ -126,7 +125,7 @@ impl<R: Realigner> Variant for Mnv<R> {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if self.realign_indel_reads
-            && (utils::contains_indel_op(&**read) || !alt_variants.is_empty())
+            && (utils::contains_indel_op(read) || !alt_variants.is_empty())
         {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the MNV might be an artifact
@@ -135,7 +134,7 @@ impl<R: Realigner> Variant for Mnv<R> {
             // realigner. TODO the latter is probably not needed anymore with third allele
             // handling. Check this.
             Ok(Some(self.realigner.borrow_mut().allele_support(
-                &**read,
+                read,
                 [&self.locus].iter(),
                 self,
                 alt_variants,

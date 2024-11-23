@@ -294,7 +294,7 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
-        let mut aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
+        let aux_info_collector = self.call_processor.borrow_mut().setup(self)?;
 
         // Check observation format.
         for obs_reader in observations.iter_not_none() {

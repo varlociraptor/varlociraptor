@@ -8,16 +8,13 @@ use crate::variants::evidence::observations::read_observation::{
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
+#[derive(Default)]
 pub(crate) enum AltLocusBias {
+    #[default]
     None,
     Some,
 }
 
-impl Default for AltLocusBias {
-    fn default() -> Self {
-        AltLocusBias::None
-    }
-}
 
 impl Bias for AltLocusBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {

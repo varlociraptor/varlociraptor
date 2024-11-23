@@ -14,13 +14,13 @@ use std::path::PathBuf;
 // TODO: add implementation for other methylation types (CHH, ..., given via a pattern arg)
 pub fn find_candidates(infasta: PathBuf, outbcf: Option<PathBuf>) -> Result<()> {
     // Open FASTA File
-    let reader = Reader::from_file(infasta).with_context(|| format!("error reading FASTA file"))?;
+    let reader = Reader::from_file(infasta).with_context(|| "error reading FASTA file".to_string())?;
     let mut data: Vec<(String, i64)> = vec![];
 
     // Collect all chromosomes and positions of candidates
     // TODO: consider using an IndexedReader to write the BCF header first and then write the methylation candidate records on the fly while reading the FASTA.
     for result in reader.records() {
-        let fasta_record = result.with_context(|| format!("error parsing FASTA record"))?;
+        let fasta_record = result.with_context(|| "error parsing FASTA record".to_string())?;
         let sequence = String::from_utf8_lossy(fasta_record.seq()).to_string();
         let candidates: Vec<_> = sequence.match_indices("CG").map(|(idx, _)| idx).collect();
         // For every candidate collect the information
@@ -42,11 +42,11 @@ pub fn find_candidates(infasta: PathBuf, outbcf: Option<PathBuf>) -> Result<()> 
     match outbcf {
         Some(path) => {
             bcf_writer = Writer::from_path(path, &bcf_header, true, Format::Bcf)
-                .with_context(|| format!("error opening BCF writer"))?;
+                .with_context(|| "error opening BCF writer".to_string())?;
         }
         None => {
             bcf_writer = Writer::from_stdout(&bcf_header, true, Format::Bcf)
-                .with_context(|| format!("error opening BCF writer"))?;
+                .with_context(|| "error opening BCF writer".to_string())?;
         }
     }
 
@@ -62,13 +62,13 @@ pub fn find_candidates(infasta: PathBuf, outbcf: Option<PathBuf>) -> Result<()> 
         let new_alleles: &[&[u8]] = &[b"CG", b"<METH>"];
         record
             .set_alleles(new_alleles)
-            .with_context(|| format!("error setting alleles"))?;
+            .with_context(|| "error setting alleles".to_string())?;
         record.set_qual(f32::missing());
 
         // Write record
         bcf_writer
             .write(&record)
-            .with_context(|| format!("failed to write BCF record with methylation candidate"))?;
+            .with_context(|| "failed to write BCF record with methylation candidate".to_string())?;
     }
     Ok(())
 }

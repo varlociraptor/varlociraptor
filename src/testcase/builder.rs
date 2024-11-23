@@ -278,7 +278,7 @@ impl Testcase {
         let ref_name = str::from_utf8(chrom_name)?;
 
         let (start, end) = match candidate_variant_info.variant() {
-            Variant::Deletion(l) => (pos.saturating_sub(1000), pos + *l as u64 + 1000),
+            Variant::Deletion(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
             Variant::Insertion(ref seq) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
@@ -288,8 +288,8 @@ impl Testcase {
             Variant::Breakend { .. } => {
                 (pos.saturating_sub(1000), pos + 1 + 1000) // TODO collect entire breakend event!
             }
-            Variant::Inversion(l) => (pos.saturating_sub(1000), pos + *l as u64 + 1000),
-            Variant::Duplication(l) => (pos.saturating_sub(1000), pos + *l as u64 + 1000),
+            Variant::Inversion(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
+            Variant::Duplication(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
             Variant::Replacement { ref ref_allele, .. } => (
                 pos.saturating_sub(1000),
                 pos + ref_allele.len() as u64 + 1000,

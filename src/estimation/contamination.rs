@@ -62,7 +62,7 @@ impl VariantObservation {
             return None;
         }
 
-        let mut vaf_dist = sample_info
+        let vaf_dist = sample_info
             .vaf_dist()
             .as_ref()
             .unwrap()
@@ -344,7 +344,7 @@ impl ContaminationEstimator {
                 spec["datasets"]["empirical_vaf_dist"] = vaf_dist.hist_as_json();
                 spec["datasets"]["densities"] = densities;
 
-                let mut outfile = File::create(outpath)?;
+                let outfile = File::create(outpath)?;
                 serde_json::to_writer_pretty(outfile, &spec)?;
             } else {
                 unreachable!();
@@ -353,10 +353,10 @@ impl ContaminationEstimator {
 
         if let Some(ref path) = self.output_max_vaf_variants {
             let mut writer = csv::Writer::from_path(path)?;
-            writer.write_record(&["chrom", "pos"])?;
+            writer.write_record(["chrom", "pos"])?;
             for obs in &self.variant_observations {
                 if obs.max_posterior_vaf == vaf_dist.max_vaf {
-                    writer.write_record(&[
+                    writer.write_record([
                         std::str::from_utf8(&obs.chrom).unwrap(),
                         &format!("{pos}", pos = obs.pos),
                     ])?;
@@ -365,7 +365,7 @@ impl ContaminationEstimator {
         }
 
         // write into table
-        writer.write_record(&["maximum somatic VAF", "contamination", "posterior density"])?;
+        writer.write_record(["maximum somatic VAF", "contamination", "posterior density"])?;
         for (event, density) in model_instance.event_posteriors() {
             writer.write_record(&[
                 format!("{}", *event.expected_max_somatic_vaf),

@@ -106,7 +106,7 @@ impl EditOperationCounts {
 impl PartialOrd for EditOperationCounts {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.is_explainable_by_error_rates && !other.is_explainable_by_error_rates {
-            return Some(Ordering::Less);
+            Some(Ordering::Less)
         } else if !self.is_explainable_by_error_rates && other.is_explainable_by_error_rates {
             return Some(Ordering::Greater);
         } else {
@@ -243,7 +243,7 @@ impl EditDistanceCalculation {
             let start = alignments[0].start();
             // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
             let end = cmp::min(
-                alignments.last().unwrap().start() + self.read_seq.len() + best_dist as usize,
+                alignments.last().unwrap().start() + self.read_seq.len() + best_dist,
                 emission_params.len_x(),
             );
 
@@ -337,7 +337,7 @@ impl EditDistanceCalculation {
                                 if variant_ref_range.contains(&(ref_pos))
                                     && (operation.len() > 0
                                         || variant_ref_range
-                                            .contains(&(ref_pos + operation.len().abs() as u64)))
+                                            .contains(&(ref_pos + operation.len().unsigned_abs() as u64)))
                                 {
                                     Some(operation.len())
                                 } else {
@@ -446,7 +446,7 @@ impl EditDistanceCalculation {
                 }
             }
 
-            let del_len = cmp::min(emission_params.alt_vs_ref_len_diff(), 0).abs() as usize;
+            let del_len = cmp::min(emission_params.alt_vs_ref_len_diff(), 0).unsigned_abs();
             // add the remaining sequence
             // be robust to del_len being too large (can happen when the encoding in the VCF is wrong)
             allele.extend(
@@ -505,7 +505,7 @@ pub(crate) struct EditDistanceHit {
 
 impl EditDistanceHit {
     pub(crate) fn dist_upper_bound(&self) -> usize {
-        self.dist as usize + EDIT_BAND
+        self.dist + EDIT_BAND
     }
 
     /// Return the best alignment or any one if this cannot be decided.
