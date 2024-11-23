@@ -411,11 +411,11 @@ where
                     // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
                     left: ExtendedRecord::new(
                         candidate.left.to_owned(),
-                        buffer.get_methylation_probs(&candidate.left),
+                        buffer.get_methylation_probs(candidate.left.to_owned()),
                     ),
                     right: ExtendedRecord::new(
                         right.to_owned(),
-                        buffer.get_methylation_probs(right),
+                        buffer.get_methylation_probs(right.to_owned()),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -426,7 +426,7 @@ where
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
                     candidate.left.to_owned(),
-                    buffer.get_methylation_probs(&candidate.left),
+                    buffer.get_methylation_probs(candidate.left.to_owned()),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -561,11 +561,11 @@ where
                 let evidence = PairedEndEvidence::PairedEnd {
                     left: ExtendedRecord::new(
                         candidate.left.to_owned(),
-                        buffer.get_methylation_probs(&candidate.left),
+                        buffer.get_methylation_probs(candidate.left.to_owned()),
                     ),
                     right: ExtendedRecord::new(
                         right.to_owned(),
-                        buffer.get_methylation_probs(right),
+                        buffer.get_methylation_probs(right.to_owned()),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -576,7 +576,7 @@ where
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
                     candidate.left.to_owned(),
-                    buffer.get_methylation_probs(&candidate.left),
+                    buffer.get_methylation_probs(candidate.left.to_owned()),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);

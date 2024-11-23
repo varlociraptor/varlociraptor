@@ -92,16 +92,10 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(
-        &self,
-        rec: &Rc<Record>,
-    ) -> Option<HashMap<usize, LogProb>> {
-        self.methylation_probs()
-            .to_owned()
-            .map(|meth_probs| meth_probs.get(&ByAddress(rec.clone())))
-            .unwrap()
-            .unwrap()
-            .to_owned()
+    pub(crate) fn get_methylation_probs(&self, rec: Rc<Record>) -> Option<MethylationPosToProbs> {
+        self.methylation_probs
+            .as_ref()
+            .and_then(|meth_probs| meth_probs.get(&ByAddress(rec)).unwrap().to_owned())
     }
 
     pub(crate) fn fetch(
