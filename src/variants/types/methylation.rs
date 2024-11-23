@@ -449,7 +449,7 @@ impl Variant for Methylation {
                     }
 
                     Readtype::PacBio | Readtype::Nanopore => {
-                        let meth_info = read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
+                        let meth_info = &read.get_methylation_probs()[0];
                         (prob_alt, prob_ref) =
                             process_read_pb_np(record.record(), &self.locus, meth_info)
                                 .unwrap_or((LogProb(0.0), LogProb(0.0)));
@@ -473,10 +473,8 @@ impl Variant for Methylation {
                         // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
                         // In this case we just chose the first alignment
                         Readtype::PacBio | Readtype::Nanopore => {
-                            let meth_info_left =
-                                read.get_methylation_probs()[0].as_ref().unwrap_or(&None);
-                            let meth_info_right =
-                                read.get_methylation_probs()[1].as_ref().unwrap_or(&None);
+                            let meth_info_left = &read.get_methylation_probs()[0];
+                            let meth_info_right = &read.get_methylation_probs()[1];
 
                             let (prob_alt_left, prob_ref_left) =
                                 process_read_pb_np(left.record(), &self.locus, meth_info_left)

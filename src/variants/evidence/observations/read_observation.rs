@@ -744,13 +744,13 @@ pub struct ExtendedRecord {
     #[getset(get = "pub")]
     record: Rc<bam::Record>,
     #[getset(get = "pub")]
-    prob_methylation: Option<Option<HashMap<usize, LogProb>>>,
+    prob_methylation: Option<HashMap<usize, LogProb>>,
 }
 
 impl ExtendedRecord {
     pub(crate) fn new(
         record: Rc<bam::Record>,
-        prob_methylation: Option<Option<HashMap<usize, LogProb>>>,
+        prob_methylation: Option<HashMap<usize, LogProb>>,
     ) -> Self {
         ExtendedRecord {
             record,
@@ -777,13 +777,16 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl PairedEndEvidence {
-    pub(crate) fn get_methylation_probs(&self) -> Vec<&Option<Option<HashMap<usize, LogProb>>>> {
+    pub(crate) fn get_methylation_probs(&self) -> Vec<Option<HashMap<usize, LogProb>>> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
-                vec![&record.prob_methylation]
+                vec![record.to_owned().prob_methylation]
             }
             PairedEndEvidence::PairedEnd { left, right } => {
-                vec![&left.prob_methylation, &right.prob_methylation]
+                vec![
+                    left.to_owned().prob_methylation,
+                    right.to_owned().prob_methylation,
+                ]
             }
         }
     }

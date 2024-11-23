@@ -410,12 +410,12 @@ where
                 let evidence = PairedEndEvidence::PairedEnd {
                     // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
                     left: ExtendedRecord::new(
-                        Rc::clone(&candidate.left),
-                        buffer.get_methylation_probs(&candidate.left).cloned(),
+                        candidate.left.to_owned(),
+                        buffer.get_methylation_probs(&candidate.left),
                     ),
                     right: ExtendedRecord::new(
-                        Rc::clone(right),
-                        buffer.get_methylation_probs(right).cloned(),
+                        right.to_owned(),
+                        buffer.get_methylation_probs(right),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -425,8 +425,8 @@ where
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
-                    Rc::clone(&candidate.left),
-                    buffer.get_methylation_probs(&candidate.left).cloned(),
+                    candidate.left.to_owned(),
+                    buffer.get_methylation_probs(&candidate.left),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -560,12 +560,12 @@ where
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
                     left: ExtendedRecord::new(
-                        Rc::clone(&candidate.left),
-                        buffer.get_methylation_probs(&candidate.left).cloned(),
+                        candidate.left.to_owned(),
+                        buffer.get_methylation_probs(&candidate.left),
                     ),
                     right: ExtendedRecord::new(
-                        Rc::clone(right),
-                        buffer.get_methylation_probs(right).cloned(),
+                        right.to_owned(),
+                        buffer.get_methylation_probs(right),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -575,8 +575,8 @@ where
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
-                    Rc::clone(&candidate.left),
-                    buffer.get_methylation_probs(&candidate.left).cloned(),
+                    candidate.left.to_owned(),
+                    buffer.get_methylation_probs(&candidate.left),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
