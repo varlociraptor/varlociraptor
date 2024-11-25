@@ -32,7 +32,7 @@ use rust_htslib::bam::{self, Record};
 use std::collections::{HashMap, HashSet};
 
 type MethylationPosToProbs = HashMap<usize, LogProb>;
-type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<MethylationPosToProbs>>;
+type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<Rc<MethylationPosToProbs>>>;
 
 #[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -92,10 +92,13 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(&self, rec: Rc<Record>) -> Option<MethylationPosToProbs> {
+    pub(crate) fn get_methylation_probs(
+        &self,
+        rec: Rc<Record>,
+    ) -> Option<Rc<HashMap<usize, LogProb>>> {
         self.methylation_probs
             .as_ref()
-            .and_then(|meth_probs| meth_probs.get(&ByAddress(rec)).unwrap().to_owned())
+            .and_then(|meth_probs| meth_probs.get(&ByAddress(rec)).cloned().flatten())
     }
 
     pub(crate) fn fetch(
@@ -123,9 +126,12 @@ impl RecordBuffer {
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
                             meth_probs(rec).map(|meth_probs| {
-                                meth_pos.into_iter().zip(meth_probs.into_iter()).collect()
+                                let map: HashMap<usize, LogProb> =
+                                    meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                                Rc::new(map) // Wrap the HashMap in Rc
                             })
                         });
+
                         if pos_to_probs.is_none() {
                             failed_reads.push(rec_id);
                         } else {
@@ -198,8 +204,8 @@ impl Fetches {
     EnumIter,
     IntoStaticStr,
     EnumVariantNames,
+    Default,
 )]
-#[derive(Default)]
 pub enum ProtocolStrandedness {
     #[strum(serialize = "opposite")]
     #[default]
@@ -207,7 +213,6 @@ pub enum ProtocolStrandedness {
     #[strum(serialize = "same")]
     Same,
 }
-
 
 pub(crate) enum SubsampleCandidates {
     Necessary {

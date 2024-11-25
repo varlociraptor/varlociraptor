@@ -257,7 +257,7 @@ fn compute_probs_illumina(
 fn process_read_pb_np(
     read: &Rc<Record>,
     locus: &SingleLocus,
-    meth_info: &Option<HashMap<usize, LogProb>>,
+    meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
 ) -> Option<(LogProb, LogProb)> {
     let qpos = get_qpos(read, locus)?;
     // let record = &read.into_single_end_evidence()[0];
@@ -394,8 +394,8 @@ impl Variant for Methylation {
             PairedEndEvidence::PairedEnd { left, right } => {
                 !self.locus.overlap(left.record(), true).is_none()
                     || !self.locus.overlap(right.record(), true).is_none()
-                    || !self.locus.outside_overlap(left.record())
-                    || !self.locus.outside_overlap(right.record())
+                // || !self.locus.outside_overlap(left.record())
+                // || !self.locus.outside_overlap(right.record())
             }
         } {
             if match self.readtype {

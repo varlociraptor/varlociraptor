@@ -45,8 +45,7 @@ pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
 }
 
 /// Strand support for observation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Strand {
     Forward,
     Reverse,
@@ -108,7 +107,6 @@ impl Strand {
     }
 }
 
-
 impl ops::BitOrAssign for Strand {
     fn bitor_assign(&mut self, rhs: Self) {
         if let Strand::None = self {
@@ -121,14 +119,12 @@ impl ops::BitOrAssign for Strand {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ReadPosition {
     Major,
     #[default]
     Some,
 }
-
 
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Ok(bam::record::Aux::String(ro)) = record.aux(b"RO") {
@@ -738,13 +734,13 @@ pub struct ExtendedRecord {
     #[getset(get = "pub")]
     record: Rc<bam::Record>,
     #[getset(get = "pub")]
-    prob_methylation: Option<HashMap<usize, LogProb>>,
+    prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
 }
 
 impl ExtendedRecord {
     pub(crate) fn new(
         record: Rc<bam::Record>,
-        prob_methylation: Option<HashMap<usize, LogProb>>,
+        prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
     ) -> Self {
         ExtendedRecord {
             record,
@@ -771,7 +767,7 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl PairedEndEvidence {
-    pub(crate) fn get_methylation_probs(&self) -> Vec<Option<HashMap<usize, LogProb>>> {
+    pub(crate) fn get_methylation_probs(&self) -> Vec<Option<Rc<HashMap<usize, LogProb>>>> {
         match self {
             PairedEndEvidence::SingleEnd(record) => {
                 vec![record.to_owned().prob_methylation]
