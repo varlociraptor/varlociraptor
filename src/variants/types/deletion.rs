@@ -18,7 +18,6 @@ use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
-
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -201,7 +200,7 @@ impl<R: Realigner> Variant for Deletion<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.fetch_loci
     }
 

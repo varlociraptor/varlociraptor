@@ -3,12 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::f64;
-use std::hash::Hash;
-use std::path::Path;
-use std::rc::Rc;
-use std::str;
-
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
@@ -30,6 +24,11 @@ use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam::{self, Record};
 use std::collections::{HashMap, HashSet};
+use std::f64;
+use std::hash::Hash;
+use std::path::Path;
+use std::rc::Rc;
+use std::str;
 
 type MethylationPosToProbs = HashMap<usize, LogProb>;
 type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<Rc<MethylationPosToProbs>>>;
@@ -192,28 +191,6 @@ impl Fetches {
     }
 }
 
-/// Strand combination for read pairs as given by the sequencing protocol.
-#[derive(
-    Display,
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    EnumString,
-    EnumIter,
-    IntoStaticStr,
-    EnumVariantNames,
-    Default,
-)]
-pub enum ProtocolStrandedness {
-    #[strum(serialize = "opposite")]
-    #[default]
-    Opposite,
-    #[strum(serialize = "same")]
-    Same,
-}
-
 pub(crate) enum SubsampleCandidates {
     Necessary {
         rng: StdRng,
@@ -253,14 +230,12 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
     num_records: Option<usize>,
-    epsilon_gap: f64,
 ) -> Result<alignment_properties::AlignmentProperties> {
     alignment_properties::AlignmentProperties::estimate(
         path,
         omit_insert_size,
         reference_buffer,
         num_records,
-        epsilon_gap,
     )
 }
 
@@ -274,7 +249,6 @@ pub(crate) struct Sample {
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]
     max_depth: usize,
-    protocol_strandedness: ProtocolStrandedness,
     #[builder(default)]
     fragment_id_factory: FragmentIdFactory,
     report_fragment_ids: bool,
@@ -342,7 +316,7 @@ impl Sample {
                 // METHOD: we only report read IDs for single contig variants.
                 // Reason: we expect those to come in sorted, so that we can clear the
                 // read ID registry at each new contig, saving lots of memory.
-                // In the future, we might find a smarter way and thereby also include
+                // TODO: In the future, we might find a smarter way and thereby also include
                 // multi-contig variants into the calculation.
                 self.fragment_id_factory.register_contig(contig);
                 Some(&mut self.fragment_id_factory)

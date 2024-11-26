@@ -43,12 +43,6 @@ fn is_valid_variant(rec: &mut bcf::Record, header: &bcf::header::HeaderView) -> 
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct MB {
-    min_vaf: f64,
-    mb: f64,
-}
-
-#[derive(Debug, Clone, Serialize)]
 struct MBStrat {
     min_vaf: f64,
     mb: f64,

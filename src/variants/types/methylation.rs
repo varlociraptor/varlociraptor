@@ -1,4 +1,4 @@
-use super::ToVariantRepresentation;
+use super::{MultiLocus, ToVariantRepresentation};
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
@@ -28,17 +28,18 @@ lazy_static! {
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
-    locus: SingleLocus,
+    locus: MultiLocus,
     readtype: Readtype,
 }
 
 impl Methylation {
     pub(crate) fn new(locus: genome::Locus, readtype: Readtype) -> Self {
         Methylation {
-            locus: SingleLocus::new(genome::Interval::new(
+            locus: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 2,
-            )),
+            ))),
+
             readtype,
         }
     }
@@ -366,7 +367,7 @@ fn mutation_occurred_pb_np(read_reverse: bool, record: &Rc<Record>, qpos: i32) -
 
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;
-    type Loci = SingleLocus;
+    type Loci = MultiLocus;
 
     fn is_imprecise(&self) -> bool {
         false
@@ -389,11 +390,11 @@ impl Variant for Methylation {
             // and it's a reverse read (in which case it's not covered).
             // What still needs to be handled: when the G of a CpG position is at the first position of the read and the read is reverse.
             PairedEndEvidence::SingleEnd(read) => {
-                !self.locus.overlap(read.record(), true).is_none()
+                !self.locus[0].overlap(read.record(), true).is_none()
             }
             PairedEndEvidence::PairedEnd { left, right } => {
-                !self.locus.overlap(left.record(), true).is_none()
-                    || !self.locus.overlap(right.record(), true).is_none()
+                !self.locus[0].overlap(left.record(), true).is_none()
+                    || !self.locus[0].overlap(right.record(), true).is_none()
                 // || !self.locus.outside_overlap(left.record())
                 // || !self.locus.outside_overlap(right.record())
             }
@@ -425,10 +426,10 @@ impl Variant for Methylation {
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         let qpos = match read {
-            PairedEndEvidence::SingleEnd(record) => get_qpos(record.record(), &self.locus),
+            PairedEndEvidence::SingleEnd(record) => get_qpos(record.record(), &self.locus[0]),
             PairedEndEvidence::PairedEnd { left, right } => {
-                let result1 = get_qpos(left.record(), &self.locus);
-                let result2 = get_qpos(right.record(), &self.locus);
+                let result1 = get_qpos(left.record(), &self.locus[0]);
+                let result2 = get_qpos(right.record(), &self.locus[0]);
 
                 match (result1, result2) {
                     (Some(inner_qpos), _) => Some(inner_qpos),
@@ -444,14 +445,15 @@ impl Variant for Methylation {
             match read {
                 PairedEndEvidence::SingleEnd(record) => match self.readtype {
                     Readtype::Illumina => {
-                        (prob_alt, prob_ref) = process_read_illumina(record.record(), &self.locus)
-                            .unwrap_or((LogProb(0.0), LogProb(0.0)));
+                        (prob_alt, prob_ref) =
+                            process_read_illumina(record.record(), &self.locus[0])
+                                .unwrap_or((LogProb(0.0), LogProb(0.0)));
                     }
 
                     Readtype::PacBio | Readtype::Nanopore => {
                         let meth_info = &read.get_methylation_probs()[0];
                         (prob_alt, prob_ref) =
-                            process_read_pb_np(record.record(), &self.locus, meth_info)
+                            process_read_pb_np(record.record(), &self.locus[0], meth_info)
                                 .unwrap_or((LogProb(0.0), LogProb(0.0)));
                     }
                 },
@@ -461,10 +463,10 @@ impl Variant for Methylation {
                         Readtype::Illumina => {
                             // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
                             let (prob_alt_left, prob_ref_left) =
-                                process_read_illumina(left.record(), &self.locus)
+                                process_read_illumina(left.record(), &self.locus[0])
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
                             let (prob_alt_right, prob_ref_right) =
-                                process_read_illumina(right.record(), &self.locus)
+                                process_read_illumina(right.record(), &self.locus[0])
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
@@ -477,10 +479,10 @@ impl Variant for Methylation {
                             let meth_info_right = &read.get_methylation_probs()[1];
 
                             let (prob_alt_left, prob_ref_left) =
-                                process_read_pb_np(left.record(), &self.locus, meth_info_left)
+                                process_read_pb_np(left.record(), &self.locus[0], meth_info_left)
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
                             let (prob_alt_right, prob_ref_right) =
-                                process_read_pb_np(right.record(), &self.locus, meth_info_right)
+                                process_read_pb_np(right.record(), &self.locus[0], meth_info_right)
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);

@@ -7,14 +7,12 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
-#[derive(Default)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash, Default)]
 pub(crate) enum ReadPositionBias {
     #[default]
     None,
     Some,
 }
-
 
 impl Bias for ReadPositionBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
@@ -25,8 +23,8 @@ impl Bias for ReadPositionBias {
         }
     }
 
-    fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
-        observation.prob_hit_base
+    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
+        LogProb::ln_one()
     }
 
     fn is_artifact(&self) -> bool {

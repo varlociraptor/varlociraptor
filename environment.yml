@@ -4,23 +4,24 @@ channels:
   - bioconda
   - nodefaults
 dependencies:
-  - alignoth=0.7.3
-  - bcftools=1.16
-  - bwa=0.7.17
-  - bzip2=1.0.8
-  - ca-certificates=2022.12.7
-  - cmake=3.25.1
-  - curl=7.87.0
-  - expat=2.5.0
-  - gcc=12.2.0
-  - gsl=2.7
-  - htslib=1.16
-  - make=4.3
-  - mason=2.0.9
-  - perl=5.32.1
-  - pkg-config=0.29.2
-  - samtools=1.16.1
-  - xz=5.2.6
-  - zlib=1.2.13
-  - zlib-ng=2.0.6
-  - zstd=1.5.2
+  - alignoth
+  - bcftools
+  - bwa
+  - bzip2
+  - ca-certificates
+  - cmake
+  - curl
+  - expat
+  - gcc
+  - gsl
+  - htslib
+  - make
+  - mason
+  - perl
+  - pkg-config
+  - samtools
+  - xz
+  - zlib
+  - zlib-ng
+  - zstd
+  - clangdev

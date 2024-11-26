@@ -25,7 +25,6 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::aux_info::AuxInfo;
-
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
@@ -34,7 +33,7 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model::{self, VariantPrecision};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus,
+    AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, PairedEndEvidence, SingleLocus,
     SingleLocusBuilder, Variant,
 };
 
@@ -253,15 +252,6 @@ impl<R: Realigner> BreakendGroup<R> {
         false
     }
 
-    fn deletion_len(&self) -> Option<u64> {
-        if self.is_deletion() {
-            let (left, right) = self.breakend_pair().unwrap();
-            Some(right.locus.pos() - left.locus.pos() - 1)
-        } else {
-            None
-        }
-    }
-
     fn classify_imprecise_evidence(
         &self,
         evidence: &PairedEndEvidence,
@@ -405,7 +395,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.loci
     }
 
@@ -638,9 +628,11 @@ impl<R: Realigner> FragmentSamplingBias for BreakendGroup<R> {}
 impl<R: Realigner> IsizeObservable for BreakendGroup<R> {}
 
 impl<R: Realigner> Realignable for BreakendGroup<R> {
-    fn maybe_revcomp(&self) -> bool {
-        self.breakends.values().any(|bnd| bnd.emits_revcomp())
-    }
+    // TODO do we need this for inversions? Does the realigner have to consider that
+    // reads might be from the reverse complement?
+    // fn maybe_revcomp(&self) -> bool {
+    //     self.breakends.values().any(|bnd| bnd.emits_revcomp())
+    // }
 
     fn alt_emission_params(
         &self,
@@ -1225,30 +1217,6 @@ pub(crate) struct Join {
     locus: genome::Locus,
     side: Side,
     extension_modification: ExtensionModification,
-}
-
-struct LocusPlusOne<'a>(&'a genome::Locus);
-
-impl<'a> AbstractLocus for LocusPlusOne<'a> {
-    fn contig(&self) -> &str {
-        self.0.contig()
-    }
-
-    fn pos(&self) -> u64 {
-        self.0.pos() + 1
-    }
-}
-
-struct LocusMinusOne<'a>(&'a genome::Locus);
-
-impl<'a> AbstractLocus for LocusMinusOne<'a> {
-    fn contig(&self) -> &str {
-        self.0.contig()
-    }
-
-    fn pos(&self) -> u64 {
-        self.0.pos() - 1
-    }
 }
 
 #[derive(Debug, Clone)]

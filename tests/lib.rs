@@ -188,6 +188,8 @@ testcase!(test_uzuner_clonal_2, exact);
 testcase!(test_uzuner_clonal_3, exact);
 testcase!(test_uzuner_fp_snv_on_ins, exact);
 testcase!(test_false_negative_indel_call, exact);
+testcase!(test_hiv_vaf_higher_than_expected, exact);
+testcase!(test_uzuner_only_N, exact);
 
 
 fn basedir(test: &str) -> String {
@@ -397,7 +399,7 @@ fn control_meth_candidates(test: &str) -> Result<()> {
         PathBuf::from(format!("{}/genome.fasta", basedir)),
         Some(PathBuf::from(output)),
     )
-    .with_context(|| format!("error computing methylation candidates"))?;
+    .with_context(|| "error computing methylation candidates".to_string())?;
     Ok(())
 }
 
@@ -405,7 +407,7 @@ fn assert_candidates_number(test: &str, expected_calls: usize) -> Result<()> {
     let basedir = basedir(test);
 
     let mut reader = Reader::from_path(format!("{}/candidates.bcf", basedir))
-        .with_context(|| format!("error reading BCF file"))?;
+        .with_context(|| "error reading BCF file".to_string())?;
     let calls = reader.records().map(|record| record.unwrap()).collect_vec();
 
     let ok = calls.len() == expected_calls;

@@ -8,7 +8,7 @@ use crate::variants::model;
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, PairedEndEvidence, Variant};
 
 use super::ToVariantRepresentation;
 
@@ -101,7 +101,6 @@ impl<R: Realigner> Duplication<R> {
 impl<R: Realigner> Variant for Duplication<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -115,7 +114,7 @@ impl<R: Realigner> Variant for Duplication<R> {
             .is_valid_evidence(evidence, alignment_properties)
     }
 
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         self.breakends.loci()
     }
 

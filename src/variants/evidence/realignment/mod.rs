@@ -8,7 +8,6 @@ use std::cmp::Ordering;
 use std::ops::Range;
 use std::str;
 use std::sync::Arc;
-use std::usize;
 
 use anyhow::Result;
 use bio::alignment::AlignmentOperation;
@@ -53,14 +52,6 @@ pub(crate) trait Realignable {
         ref_interval: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>>;
-
-    /// Returns true if reads emitted from alt allele
-    /// may be interpreted as revcomp reads by the mapper.
-    /// In such a case, the realigner needs to consider both
-    /// forward and reverse sequence of the read.
-    fn maybe_revcomp(&self) -> bool {
-        false
-    }
 }
 
 pub(crate) trait Realigner {

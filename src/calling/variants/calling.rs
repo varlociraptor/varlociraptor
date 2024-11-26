@@ -912,7 +912,7 @@ impl CallProcessor for CallWriter {
     fn process_call(
         &mut self,
         call: Call,
-        sample_names: &grammar::SampleInfo<String>,
+        _sample_names: &grammar::SampleInfo<String>,
     ) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
     }
@@ -931,7 +931,7 @@ pub(crate) trait CandidateFilter {
 pub(crate) struct DefaultCandidateFilter;
 
 impl CandidateFilter for DefaultCandidateFilter {
-    fn filter(&self, work_item: &WorkItem, sample_names: &grammar::SampleInfo<String>) -> bool {
+    fn filter(&self, _work_item: &WorkItem, _sample_names: &grammar::SampleInfo<String>) -> bool {
         true
     }
 }

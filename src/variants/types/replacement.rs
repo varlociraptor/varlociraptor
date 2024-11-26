@@ -45,7 +45,7 @@ impl<R: Realigner> Replacement<R> {
                 .map(|op| op.len());
 
         Ok(Replacement {
-            locus: MultiLocus::new(vec![SingleLocus::new(locus)]),
+            locus: MultiLocus::from_single_locus(SingleLocus::new(locus)),
             ref_seq,
             replacement: Rc::new(replacement),
             realigner: RefCell::new(realigner),
@@ -175,7 +175,7 @@ impl<R: Realigner> Variant for Replacement<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.locus
     }
 

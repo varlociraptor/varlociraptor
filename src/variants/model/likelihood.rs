@@ -52,21 +52,6 @@ fn prob_sample_alt(observation: &ProcessedReadObservation, allele_freq: LogProb)
     }
 }
 
-pub(crate) trait ContaminatedSamplePairView<T> {
-    fn primary(&self) -> &T;
-    fn secondary(&self) -> &T;
-}
-
-impl<T> ContaminatedSamplePairView<T> for Vec<T> {
-    fn primary(&self) -> &T {
-        &self[0]
-    }
-
-    fn secondary(&self) -> &T {
-        &self[1]
-    }
-}
-
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
@@ -337,7 +322,7 @@ mod tests {
             *observations
                 .read_observations()
                 .iter()
-                .map(|observation| biases().prob_ref(&observation))
+                .map(|observation| biases().prob_ref(observation))
                 .sum::<LogProb>()
         );
     }
@@ -361,7 +346,7 @@ mod tests {
             *observations
                 .read_observations()
                 .iter()
-                .map(|observation| biases().prob_ref(&observation))
+                .map(|observation| biases().prob_ref(observation))
                 .sum::<LogProb>()
         );
         assert!(cache.get(&evt).is_some())
