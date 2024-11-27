@@ -1,4 +1,4 @@
-use super::ToVariantRepresentation;
+use super::{Candidate, ToVariantRepresentation};
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
@@ -242,6 +242,7 @@ fn compute_probs_illumina(
 
     let read_base = unsafe { record.seq().decoded_base_unchecked(pos_in_read as usize) };
     // Base quality
+
     let base_qual = unsafe { *record.qual().get_unchecked(pos_in_read as usize) };
 
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
@@ -262,12 +263,14 @@ fn process_read_pb_np(
     let qpos = get_qpos(read, locus)?;
     // let record = &read.into_single_end_evidence()[0];
     let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
-    let mutation_occurred = mutation_occurred_pb_np(read_reverse, read, qpos);
     // If locus is on the last position of the read and reverse, the C of the CG is not included
     let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
-
     // If the base of the read under consideration is not a C we can't say anything about the methylation status
-    if mutation_occurred || meth_info.is_none() || c_not_included {
+    if meth_info.is_none()
+        || candidate_outside(read_reverse, read, qpos)
+        || mutation_occurred_pb_np(read_reverse, read, qpos)
+        || c_not_included
+    {
         return None;
     }
 
@@ -364,6 +367,19 @@ fn mutation_occurred_pb_np(read_reverse: bool, record: &Rc<Record>, qpos: i32) -
     false
 }
 
+// Compute if the read is reverse and the CpG site is at the end of the read because in this case the C of the CpG site is not included
+fn candidate_outside(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
+    if read_reverse && qpos + 1 == record.seq().len() as i32 {
+        warn!(
+            "The record {:?} on position {:?} is not considered because the C of the CpG site is outside of the read",
+            String::from_utf8_lossy(record.qname()),
+            qpos
+        );
+        return true;
+    }
+    false
+}
+
 impl Variant for Methylation {
     type Evidence = PairedEndEvidence;
     type Loci = SingleLocus;
@@ -390,6 +406,7 @@ impl Variant for Methylation {
             // What still needs to be handled: when the G of a CpG position is at the first position of the read and the read is reverse.
             PairedEndEvidence::SingleEnd(read) => {
                 !self.locus.overlap(read.record(), true).is_none()
+                // || !self.locus.outside_overlap(read.record())
             }
             PairedEndEvidence::PairedEnd { left, right } => {
                 !self.locus.overlap(left.record(), true).is_none()
