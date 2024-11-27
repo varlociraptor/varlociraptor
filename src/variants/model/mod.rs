@@ -209,6 +209,8 @@ pub enum VariantType {
     Insertion(Option<Range<u64>>),
     #[strum(serialize = "DEL")]
     Deletion(Option<Range<u64>>),
+    #[strum(serialize = "METH")]
+    Methylation,
     #[strum(serialize = "SNV")]
     Snv,
     #[strum(serialize = "MNV")]
@@ -308,6 +310,7 @@ impl<'a> TryFrom<&'a bcf::Record> for VariantPrecision {
 pub(crate) enum Variant {
     Deletion(u64),
     Insertion(Vec<u8>),
+    Methylation(),
     Snv(u8),
     Mnv(Vec<u8>),
     Breakend {
@@ -333,6 +336,7 @@ impl fmt::Display for Variant {
             String::from_utf8_lossy(allele).into_owned()
         };
         match self {
+            Variant::Methylation() => write!(f, "meth"),
             Variant::Snv(alt) => write!(f, "snv_{}", fmt_allele(&[*alt])),
             Variant::Deletion(len) => write!(f, "del_{}", len),
             Variant::Insertion(seq) => write!(f, "ins_{}", fmt_allele(seq)),
@@ -398,6 +402,7 @@ impl Variant {
         match self {
             Variant::Deletion(_) => VariantType::Deletion(None),
             Variant::Insertion(_) => VariantType::Insertion(None),
+            Variant::Methylation() => VariantType::Methylation,
             Variant::Snv(_) => VariantType::Snv,
             Variant::Mnv(_) => VariantType::Mnv,
             Variant::Breakend { .. } => VariantType::Breakend,
@@ -412,6 +417,7 @@ impl Variant {
         match *self {
             Variant::Deletion(l) => l,
             Variant::Insertion(ref s) => s.len() as u64,
+            Variant::Methylation() => 1,
             Variant::Snv(_) => 1,
             Variant::Mnv(ref alt) => alt.len() as u64,
             Variant::Breakend { .. } => 1,

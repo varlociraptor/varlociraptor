@@ -245,7 +245,7 @@ impl Call {
                     i,
                     utils::generalized_cigar(
                         sample_info.pileup.read_observations().iter().map(|obs| {
-                            let score = format!("{}", obs.max_bayes_factor());
+                            let score = obs.max_bayes_factor().to_string();
                             format!(
                                 "{}{}{}{}{}{}{}{}{}",
                                 if obs.is_max_mapq {
@@ -609,6 +609,9 @@ impl VariantBuilder {
                     .svlen(Some(svlen))
                     .svtype(Some(b"INS".to_vec()))
             }
+            model::Variant::Methylation() => self
+                .ref_allele(b"CG".to_ascii_uppercase())
+                .alt_allele(b"<METH>".to_ascii_uppercase()),
             model::Variant::Snv(base) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele([*base].to_ascii_uppercase()),

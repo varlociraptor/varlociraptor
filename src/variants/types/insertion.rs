@@ -24,7 +24,9 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
+use crate::variants::types::{
+    AlleleSupport, Evidence, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+};
 
 use super::ToVariantRepresentation;
 
@@ -124,6 +126,9 @@ impl<R: Realigner> SamplingBias for Insertion<R> {
 impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 
 impl<R: Realigner> Variant for Insertion<R> {
+    type Evidence = PairedEndEvidence;
+    type Loci = MultiLocus;
+
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -138,14 +143,16 @@ impl<R: Realigner> Variant for Insertion<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
-            Evidence::SingleEndSequencingRead(read) => !self.locus().overlap(read, true).is_none(),
-            Evidence::PairedEndSequencingRead { left, right } => {
-                !self.locus().overlap(left, true).is_none()
-                    || !self.locus().overlap(right, true).is_none()
+            PairedEndEvidence::SingleEnd(read) => {
+                !self.locus().overlap(read.record(), true).is_none()
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                !self.locus().overlap(left.record(), true).is_none()
+                    || !self.locus().overlap(right.record(), true).is_none()
             }
         } {
             Some(vec![0])
@@ -162,30 +169,30 @@ impl<R: Realigner> Variant for Insertion<R> {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(record) => {
+            PairedEndEvidence::SingleEnd(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record,
+                    record.record(),
                     self.locus.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
                 )?))
             }
-            Evidence::PairedEndSequencingRead { left, right } => {
+            PairedEndEvidence::PairedEnd { left, right } => {
                 let left_support = self.realigner.borrow_mut().allele_support(
-                    left,
+                    left.record(),
                     self.locus.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
-                    right,
+                    right.record(),
                     self.locus.iter(),
                     self,
                     alt_variants,
@@ -203,23 +210,26 @@ impl<R: Realigner> Variant for Insertion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            Evidence::PairedEndSequencingRead { left, right } => {
+            PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: we do not require the fragment to enclose the variant.
                 // Hence, we treat both reads independently.
                 (self
-                    .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                    .prob_sample_alt_read(left.record().seq().len() as u64, alignment_properties)
                     .ln_one_minus_exp()
                     + self
-                        .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                        .prob_sample_alt_read(
+                            right.record().seq().len() as u64,
+                            alignment_properties,
+                        )
                         .ln_one_minus_exp())
                 .ln_one_minus_exp()
             }
-            Evidence::SingleEndSequencingRead(read) => {
-                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+            PairedEndEvidence::SingleEnd(read) => {
+                self.prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties)
             }
         }
     }

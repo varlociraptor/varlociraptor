@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Mul;
 use std::ops::Range;
 
 use std::sync::Arc;
@@ -28,7 +29,8 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, PairedEndEvidence, SingleEndEvidence,
+    SingleLocus, Variant,
 };
 
 use super::MultiLocus;
@@ -69,10 +71,6 @@ impl<R: Realigner> Snv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false) != Overlap::Enclosing {
-            return Ok(None);
-        }
-
         if self.realign_indel_reads && utils::contains_indel_op(read) {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the SNV might be an artifact
@@ -174,27 +172,30 @@ impl<R: Realigner> Realignable for Snv<R> {
 }
 
 impl<R: Realigner> Variant for Snv<R> {
+    type Evidence = PairedEndEvidence;
+    type Loci = MultiLocus;
+
     fn is_imprecise(&self) -> bool {
         false
     }
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(read, false) {
+            PairedEndEvidence::SingleEnd(read) => {
+                if let Overlap::Enclosing = self.locus().overlap(read.record(), false) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
-            Evidence::PairedEndSequencingRead { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(left, false) {
+            PairedEndEvidence::PairedEnd { left, right } => {
+                if let Overlap::Enclosing = self.locus().overlap(left.record(), false) {
                     Some(vec![0])
-                } else if let Overlap::Enclosing = self.locus().overlap(right, false) {
+                } else if let Overlap::Enclosing = self.locus().overlap(right.record(), false) {
                     Some(vec![0])
                 } else {
                     None
@@ -209,19 +210,27 @@ impl<R: Realigner> Variant for Snv<R> {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => {
-                Ok(self.allele_support_per_read(read, alignment_properties, alt_variants)?)
-            }
-            Evidence::PairedEndSequencingRead { left, right } => {
-                let left_support =
-                    self.allele_support_per_read(left, alignment_properties, alt_variants)?;
-                let right_support =
-                    self.allele_support_per_read(right, alignment_properties, alt_variants)?;
+            PairedEndEvidence::SingleEnd(read) => Ok(self.allele_support_per_read(
+                read.record(),
+                alignment_properties,
+                alt_variants,
+            )?),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let left_support = self.allele_support_per_read(
+                    left.record(),
+                    alignment_properties,
+                    alt_variants,
+                )?;
+                let right_support = self.allele_support_per_read(
+                    right.record(),
+                    alignment_properties,
+                    alt_variants,
+                )?;
 
                 match (left_support, right_support) {
                     (Some(mut left_support), Some(right_support)) => {
@@ -236,7 +245,7 @@ impl<R: Realigner> Variant for Snv<R> {
         }
     }
 
-    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
+    fn prob_sample_alt(&self, _: &PairedEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

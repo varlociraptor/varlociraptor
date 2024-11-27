@@ -38,7 +38,7 @@ use crate::variants::evidence::realignment;
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
-use crate::variants::sample::estimate_alignment_properties;
+use crate::variants::sample::{estimate_alignment_properties, Readtype};
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -167,6 +167,10 @@ fn default_log_mode() -> String {
 
 fn default_min_bam_refetch_distance() -> u64 {
     1
+}
+
+fn default_read_type() -> Readtype {
+    Readtype::Illumina
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -325,6 +329,15 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         output_raw_observations: Option<PathBuf>,
+        #[structopt(
+            long = "read-type",
+            required = false,
+            default_value = "Illumina",
+            possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
+            help = "Sequencing method used to gain the reads, important for chosing methylation method."
+        )]
+        #[serde(default = "default_read_type")]
+        read_type: Readtype,
     },
 }
 
@@ -811,6 +824,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
+                    read_type,
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
@@ -823,7 +837,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     };
 
                     let mut reference_buffer = Arc::new(
-                        reference::Buffer::from_path(&reference, reference_buffer_size)
+                        reference::Buffer::from_path(reference, reference_buffer_size)
                             .context("Unable to read genome reference.")?,
                     );
 
@@ -872,6 +886,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
@@ -900,6 +915,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         reference_buffer,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }
@@ -928,6 +944,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .readtype(read_type)
                                     .build();
                             processor.process()?;
                         }

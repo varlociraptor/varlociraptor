@@ -1,5 +1,7 @@
 [package]
-authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
+authors = [
+    "Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>",
+]
 description = "A library for calling of genomic variants using a latent variable model."
 edition = "2018"
 include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "templates/*"]
@@ -71,10 +73,13 @@ uuid = { version = "0.8", features = ["v4"] }
 vec_map = "0.8"
 yaml-rust = ">=0.4.1,<0.5"
 linear-map = "1.2"
+by_address = "1.2.1"
 
 [dev-dependencies]
 env_logger = "0.9.0"
 serde_json = "1"
+clippy = "0.0.302"
+
 
 [features]
 default = []
@@ -83,6 +88,7 @@ use-intrinsics = ["half/use-intrinsics"]
 [profile.release]
 codegen-units = 1
 lto = "fat"
+debug = 1
 
 [profile.develop]
 codegen-units = 128

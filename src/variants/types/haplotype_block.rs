@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use std::mem;
+use std::ops::Mul;
 
 use anyhow::Result;
 
@@ -14,13 +15,21 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observations::read_observation::Observable;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
-use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, Variant};
+use crate::variants::types::{
+    AlleleSupport, AlleleSupportBuilder, Evidence, Loci, MultiLocus, PairedEndEvidence, Variant,
+};
 
 use super::ToVariantRepresentation;
 
-pub(crate) trait HaplotypeVariant: Variant + Observable + ToVariantRepresentation {}
+pub(crate) trait HaplotypeVariant:
+    Variant + Observable<PairedEndEvidence, MultiLocus> + ToVariantRepresentation
+{
+}
 
-impl<V> HaplotypeVariant for V where V: Variant + Observable + ToVariantRepresentation {}
+impl<V> HaplotypeVariant for V where
+    V: Variant + Observable<PairedEndEvidence, MultiLocus> + ToVariantRepresentation
+{
+}
 
 #[derive(Default, Getters)]
 pub(crate) struct HaplotypeBlock {
@@ -44,13 +53,16 @@ impl HaplotypeBlock {
 }
 
 impl Variant for HaplotypeBlock {
+    type Evidence = PairedEndEvidence;
+    type Loci = MultiLocus;
+
     fn is_imprecise(&self) -> bool {
         false
     }
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         let mut locus_offset = 0;
@@ -85,7 +97,7 @@ impl Variant for HaplotypeBlock {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -104,7 +116,7 @@ impl Variant for HaplotypeBlock {
 
     fn prob_sample_alt(
         &self,
-        _evidence: &Evidence,
+        _evidence: &Self::Evidence,
         _alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that

@@ -13,7 +13,7 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
-use rust_htslib::bam;
+use rust_htslib::bam::Read;
 
 use crate::default_ref_base_emission;
 use crate::errors::Error;
@@ -31,15 +31,16 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
 
 use super::MultiLocus;
+use super::PairedEndEvidence;
 use super::ToVariantRepresentation;
 
 #[derive(Debug)]
 pub(crate) struct Mnv<R: Realigner> {
-    loci: MultiLocus,
+    locus: MultiLocus,
     ref_bases: Vec<u8>,
     alt_bases: Rc<Vec<u8>>,
     realigner: RefCell<R>,
@@ -55,7 +56,7 @@ impl<R: Realigner> Mnv<R> {
         realign_indel_reads: bool,
     ) -> Self {
         Mnv {
-            loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
+            locus: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + alt_bases.len() as u64,
             ))),
@@ -63,140 +64,6 @@ impl<R: Realigner> Mnv<R> {
             alt_bases: Rc::new(alt_bases.to_ascii_uppercase()),
             realigner: RefCell::new(realigner),
             realign_indel_reads,
-        }
-    }
-
-    fn locus(&self) -> &SingleLocus {
-        &self.loci[0]
-    }
-
-    fn allele_support_per_read(
-        &self,
-        read: &bam::Record,
-        alignment_properties: &AlignmentProperties,
-        alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false) != Overlap::Enclosing {
-            return Ok(None);
-        }
-
-        if self.realign_indel_reads && (utils::contains_indel_op(read) || !alt_variants.is_empty())
-        {
-            // METHOD: reads containing indel operations should always be realigned,
-            // as their support or non-support of the MNV might be an artifact
-            // of the aligner. Also, if we have alt alignments here, we need to
-            // realign as well since we need the multi-allelic case handling in the
-            // realigner. TODO the latter is probably not needed anymore with third allele
-            // handling. Check this.
-            Ok(Some(self.realigner.borrow_mut().allele_support(
-                read,
-                self.loci().iter(),
-                self,
-                alt_variants,
-                alignment_properties,
-            )?))
-        } else {
-            let mut prob_ref = LogProb::ln_one();
-            let mut prob_alt = LogProb::ln_one();
-            let mut prob_third = LogProb::ln_one();
-            let aux_strand_info = utils::aux_tag_strand_info(read);
-            let mut strand = Strand::None;
-            let mut read_position = None;
-            let mut alt_edit_dist = 0_u32;
-            let read_emission = ReadEmission::new(read.seq(), read.qual(), None, None);
-            let mut is_third_allele = false;
-
-            for ((alt_base, ref_base), pos) in self
-                .alt_bases
-                .iter()
-                .zip(self.ref_bases.iter())
-                .zip(self.locus().range())
-            {
-                // TODO remove cast once read_pos uses u64
-                if let Some(qpos) = read
-                    .cigar_cached()
-                    .unwrap()
-                    .read_pos(pos as u32, false, false)?
-                {
-                    if read_position.is_none() {
-                        // set first MNV position as read position
-                        read_position = Some(qpos);
-                    }
-                    let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) }
-                        .to_ascii_uppercase();
-                    let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-
-                    // N bases do not count as additional edits
-                    if read_base != b'N' && read_base != *alt_base {
-                        alt_edit_dist += 1;
-                    }
-
-                    let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
-                    let base_prob_ref = prob_read_base(read_base, *ref_base, base_qual);
-                    let base_prob_third = prob_read_base(read_base, read_base, base_qual);
-
-                    if base_prob_alt != base_prob_ref {
-                        if let Some(strand_info) = aux_strand_info {
-                            if let Some(s) = strand_info.get(qpos as usize) {
-                                strand |= Strand::from_aux_item(*s)?;
-                            } else {
-                                return Err(Error::ReadPosOutOfBounds.into());
-                            }
-                        }
-                    }
-
-                    prob_ref += base_prob_ref;
-                    prob_alt += base_prob_alt;
-                    prob_third += base_prob_third;
-                } else {
-                    // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
-                    // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
-                    // but instead needs to know NOT to add those reads (as observations) further up
-                    return Ok(None);
-                }
-            }
-
-            if prob_alt > prob_ref {
-                let explainable = is_explainable_by_error_rates(
-                    alt_edit_dist as usize,
-                    0,
-                    0,
-                    self.len(),
-                    alignment_properties,
-                    read_emission.error_rate(),
-                );
-                if alt_edit_dist > 0 && !explainable {
-                    // METHOD: if the read supports ALT but has more substitutions compared to ALT
-                    // than would be explainable by the expected error rate, it likely belongs to
-                    // a third allele. In such a case, we override prob_ref by the probability that
-                    // the read stems from an artificial third allele derived from its own sequence.
-                    // This is a pragmatic, conservative approach to avoid false positives.
-                    prob_ref = prob_third;
-                    is_third_allele = true;
-                }
-            }
-
-            if aux_strand_info.is_none() && prob_ref != prob_alt {
-                // record global strand information
-                // METHOD: if record is not informative, we don't want to
-                // retain its information (e.g. strand).
-                strand = Strand::from_record(read);
-            }
-
-            Ok(Some(
-                AlleleSupportBuilder::default()
-                    .strand(strand)
-                    .prob_ref_allele(prob_ref)
-                    .prob_alt_allele(prob_alt)
-                    .read_position(read_position)
-                    .third_allele_evidence(if is_third_allele {
-                        Some(EditDistance(alt_edit_dist))
-                    } else {
-                        None
-                    })
-                    .build()
-                    .unwrap(),
-            ))
         }
     }
 
@@ -212,9 +79,9 @@ impl<R: Realigner> Realignable for Mnv<R> {
         _: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
-        let start = self.locus().range().start as usize;
+        let start = self.locus[0].range().start as usize;
 
-        let ref_seq = ref_buffer.seq(self.locus().contig())?;
+        let ref_seq = ref_buffer.seq(self.locus[0].contig())?;
 
         let ref_seq_len = ref_seq.len();
         Ok(vec![Box::new(MnvEmissionParams {
@@ -222,7 +89,7 @@ impl<R: Realigner> Realignable for Mnv<R> {
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + self.alt_bases.len() + ref_window, ref_seq_len),
             alt_start: start,
-            alt_end: self.locus().range().end as usize,
+            alt_end: self.locus[0].range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
             ref_offset_override: None,
             ref_end_override: None,
@@ -231,27 +98,25 @@ impl<R: Realigner> Realignable for Mnv<R> {
 }
 
 impl<R: Realigner> Variant for Mnv<R> {
+    type Evidence = PairedEndEvidence;
+    type Loci = MultiLocus;
+
     fn is_imprecise(&self) -> bool {
         false
     }
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(read, false) {
-                    Some(vec![0])
-                } else {
-                    None
-                }
-            }
-            Evidence::PairedEndSequencingRead { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(left, false) {
-                    Some(vec![0])
-                } else if let Overlap::Enclosing = self.locus().overlap(right, false) {
+            PairedEndEvidence::PairedEnd { left, right } => unreachable!(
+                "bug: single end reads cannot be used as evidence for \
+                 imprecise breakend groups"
+            ),
+            PairedEndEvidence::SingleEnd(read) => {
+                if let Overlap::Enclosing = self.locus[0].overlap(read.record(), false) {
                     Some(vec![0])
                 } else {
                     None
@@ -260,40 +125,149 @@ impl<R: Realigner> Variant for Mnv<R> {
         }
     }
 
-    fn loci(&self) -> &MultiLocus {
-        &self.loci
+    fn loci(&self) -> &Self::Loci {
+        &self.locus
     }
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => {
-                Ok(self.allele_support_per_read(read, alignment_properties, alt_variants)?)
-            }
-            Evidence::PairedEndSequencingRead { left, right } => {
-                let left_support =
-                    self.allele_support_per_read(left, alignment_properties, alt_variants)?;
-                let right_support =
-                    self.allele_support_per_read(right, alignment_properties, alt_variants)?;
+            PairedEndEvidence::PairedEnd { left, right } => unreachable!(
+                "bug: single end reads cannot be used as evidence for \
+                 imprecise breakend groups"
+            ),
+            PairedEndEvidence::SingleEnd(read) => {
+                if self.realign_indel_reads
+                    && (utils::contains_indel_op(read.record()) || !alt_variants.is_empty())
+                {
+                    // METHOD: reads containing indel operations should always be realigned,
+                    // as their support or non-support of the MNV might be an artifact
+                    // of the aligner. Also, if we have alt alignments here, we need to
+                    // realign as well since we need the multi-allelic case handling in the
+                    // realigner. TODO the latter is probably not needed anymore with third allele
+                    // handling. Check this.
+                    Ok(Some(self.realigner.borrow_mut().allele_support(
+                        read.record(),
+                        [&self.locus[0]].iter(),
+                        self,
+                        alt_variants,
+                        alignment_properties,
+                    )?))
+                } else {
+                    let mut prob_ref = LogProb::ln_one();
+                    let mut prob_alt = LogProb::ln_one();
+                    let mut prob_third = LogProb::ln_one();
+                    let aux_strand_info = utils::aux_tag_strand_info(read.record());
+                    let mut strand = Strand::None;
+                    let mut read_position = None;
+                    let mut alt_edit_dist = 0_u32;
+                    let read_emission =
+                        ReadEmission::new(read.record().seq(), read.record().qual(), None, None);
+                    let mut is_third_allele = false;
 
-                match (left_support, right_support) {
-                    (Some(mut left_support), Some(right_support)) => {
-                        left_support.merge(&right_support);
-                        Ok(Some(left_support))
+                    for ((alt_base, ref_base), pos) in self
+                        .alt_bases
+                        .iter()
+                        .zip(self.ref_bases.iter())
+                        .zip(self.locus[0].range())
+                    {
+                        // TODO remove cast once read_pos uses u64
+                        if let Some(qpos) = read
+                            .record()
+                            .cigar_cached()
+                            .unwrap()
+                            .read_pos(pos as u32, false, false)?
+                        {
+                            if read_position.is_none() {
+                                // set first MNV position as read position
+                                read_position = Some(qpos);
+                            }
+                            let read_base = unsafe {
+                                read.record().seq().decoded_base_unchecked(qpos as usize)
+                            };
+                            let base_qual =
+                                unsafe { *read.record().qual().get_unchecked(qpos as usize) };
+
+                            if read_base != *alt_base {
+                                alt_edit_dist += 1;
+                            }
+
+                            let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
+                            let base_prob_ref = prob_read_base(read_base, *ref_base, base_qual);
+                            let base_prob_third = prob_read_base(read_base, read_base, base_qual);
+
+                            if base_prob_alt != base_prob_ref {
+                                if let Some(strand_info) = aux_strand_info {
+                                    if let Some(s) = strand_info.get(qpos as usize) {
+                                        strand |= Strand::from_aux_item(*s)?;
+                                    } else {
+                                        return Err(Error::ReadPosOutOfBounds.into());
+                                    }
+                                }
+                            }
+
+                            prob_ref += base_prob_ref;
+                            prob_alt += base_prob_alt;
+                            prob_third += base_prob_third;
+                        } else {
+                            // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
+                            // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
+                            // but instead needs to know NOT to add those reads (as observations) further up
+                            return Ok(None);
+                        }
                     }
-                    (Some(left_support), None) => Ok(Some(left_support)),
-                    (None, Some(right_support)) => Ok(Some(right_support)),
-                    (None, None) => Ok(None),
+
+                    if prob_alt > prob_ref {
+                        let explainable = is_explainable_by_error_rates(
+                            alt_edit_dist as usize,
+                            0,
+                            0,
+                            self.len(),
+                            alignment_properties,
+                            read_emission.error_rate(),
+                        );
+                        if alt_edit_dist > 0 && !explainable {
+                            // METHOD: if the read supports ALT but has more substitutions compared to ALT
+                            // than would be explainable by the expected error rate, it likely belongs to
+                            // a third allele. In such a case, we override prob_ref by the probability that
+                            // the read stems from an artificial third allele derived from its own sequence.
+                            // This is a pragmatic, conservative approach to avoid false positives.
+                            prob_ref = prob_third;
+                            is_third_allele = true;
+                        }
+                    }
+
+                    if aux_strand_info.is_none() && prob_ref != prob_alt {
+                        // record global strand information
+                        // METHOD: if record is not informative, we don't want to
+                        // retain its information (e.g. strand).
+                        strand = Strand::from_record(read.record());
+                    }
+
+                    Ok(Some(
+                        AlleleSupportBuilder::default()
+                            .strand(strand)
+                            .prob_ref_allele(prob_ref)
+                            .prob_alt_allele(prob_alt)
+                            .read_position(read_position)
+                            .third_allele_evidence(if is_third_allele {
+                                Some(EditDistance(alt_edit_dist))
+                            } else {
+                                None
+                            })
+                            .build()
+                            .unwrap(),
+                    ))
                 }
             }
         }
     }
 
-    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
+    fn prob_sample_alt(&self, _: &Self::Evidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 
 use super::{IsizeObservable, ToVariantRepresentation};
 
@@ -142,6 +142,9 @@ impl<R: Realigner> Realignable for Deletion<R> {
 }
 
 impl<R: Realigner> Variant for Deletion<R> {
+    type Evidence = PairedEndEvidence;
+    type Loci = MultiLocus;
+
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -157,36 +160,36 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => {
-                if !self.locus.overlap(read, true).is_none() {
+            PairedEndEvidence::SingleEnd(read) => {
+                if !self.locus.overlap(read.record(), true).is_none() {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
-            Evidence::PairedEndSequencingRead { left, right } => {
+            PairedEndEvidence::PairedEnd { left, right } => {
                 if alignment_properties.insert_size.is_some() {
-                    let right_cigar = right.cigar_cached().unwrap();
-                    let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
+                    let right_cigar = right.record().cigar_cached().unwrap();
+                    let encloses_centerpoint = (left.record().pos() as u64) < self.centerpoint()
                         && right_cigar.end_pos() as u64 > self.centerpoint();
                     // METHOD: only keep fragments that enclose the centerpoint and have at least one overlapping read.
                     // Importantly, enclosed reads have to be allowed as well. Otherwise, we bias against reference
                     // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
                     // in particular for large deletions.
                     if encloses_centerpoint
-                        && (!self.locus.overlap(left, true).is_none()
-                            || !self.locus.overlap(right, true).is_none())
+                        && (!self.locus.overlap(left.record(), true).is_none()
+                            || !self.locus.overlap(right.record(), true).is_none())
                     {
                         Some(vec![0])
                     } else {
                         None
                     }
-                } else if !self.locus.overlap(left, true).is_none()
-                    || !self.locus.overlap(right, true).is_none()
+                } else if !self.locus.overlap(left.record(), true).is_none()
+                    || !self.locus.overlap(right.record(), true).is_none()
                 {
                     Some(vec![0])
                 } else {
@@ -203,21 +206,21 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(record) => {
+            PairedEndEvidence::SingleEnd(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record,
+                    record.record(),
                     &[&self.locus],
                     self,
                     alt_variants,
                     alignment_properties,
                 )?))
             }
-            Evidence::PairedEndSequencingRead { left, right } => {
+            PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.
                 // This has the benefit that the calculation automatically checks for consistence between
@@ -233,14 +236,14 @@ impl<R: Realigner> Variant for Deletion<R> {
                 //   estimating allele frequencies. Before, we had one observation for an overlapping read
                 //   and potentially another observation for the corresponding fragment.
                 let left_support = self.realigner.borrow_mut().allele_support(
-                    left,
+                    left.record(),
                     &[&self.locus],
                     self,
                     alt_variants,
                     alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
-                    right,
+                    right.record(),
                     &[&self.locus],
                     self,
                     alt_variants,
@@ -251,9 +254,12 @@ impl<R: Realigner> Variant for Deletion<R> {
                 support.merge(&right_support);
 
                 if alignment_properties.insert_size.is_some() {
-                    let isize_support =
-                        self.allele_support_isize(left, right, alignment_properties, self.len())?;
-
+                    let isize_support = self.allele_support_isize(
+                        left.record(),
+                        right.record(),
+                        alignment_properties,
+                        self.len(),
+                    )?;
                     support.merge(&isize_support);
                 }
 
@@ -264,31 +270,37 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            Evidence::PairedEndSequencingRead { left, right } => {
+            PairedEndEvidence::PairedEnd { left, right } => {
                 if alignment_properties.insert_size.is_some() {
                     self.prob_sample_alt_fragment(
-                        left.seq().len() as u64,
-                        right.seq().len() as u64,
+                        left.record().seq().len() as u64,
+                        right.record().seq().len() as u64,
                         alignment_properties,
                     )
                 } else {
                     // METHOD: we do not require the fragment to enclose the variant.
                     // Hence, we treat both reads independently.
                     (self
-                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                        .prob_sample_alt_read(
+                            left.record().seq().len() as u64,
+                            alignment_properties,
+                        )
                         .ln_one_minus_exp()
                         + self
-                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                            .prob_sample_alt_read(
+                                right.record().seq().len() as u64,
+                                alignment_properties,
+                            )
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }
             }
-            Evidence::SingleEndSequencingRead(read) => {
-                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+            PairedEndEvidence::SingleEnd(read) => {
+                self.prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties)
             }
         }
     }
