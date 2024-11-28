@@ -101,8 +101,10 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
                 // There is no convention if the MM tag starts with C+m, or C+m.,
                 let methylated_part = if remaining.starts_with(',') {
                     remaining.strip_prefix(',').unwrap_or("")
-                } else {
+                } else if remaining.starts_with(".,") {
                     remaining.strip_prefix(".,").unwrap_or("")
+                } else {
+                    remaining.strip_prefix("?,").unwrap_or("")
                 };
 
                 let mut meth_pos = 0;
