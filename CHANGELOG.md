@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.12](https://github.com/varlociraptor/varlociraptor/compare/v8.4.11...v8.4.12) (2024-11-12)
+
+
+### Bug Fixes
+
+* update to rust-htslib 0.48, thereby allowing for leading deletions in CIGAR strings ([#461](https://github.com/varlociraptor/varlociraptor/issues/461)) ([04e550e](https://github.com/varlociraptor/varlociraptor/commit/04e550eaa52d1dee7f89b63668ebf5415dc96536))
+
 ## [8.4.11](https://github.com/varlociraptor/varlociraptor/compare/v8.4.10...v8.4.11) (2024-09-23)
 
 
