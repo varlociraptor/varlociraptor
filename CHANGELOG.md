@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.14](https://github.com/varlociraptor/varlociraptor/compare/v8.4.13...v8.4.14) (2024-12-04)
+
+
+### Miscellaneous Chores
+
+* Release 8.4.13 ([c0f41bd](https://github.com/varlociraptor/varlociraptor/commit/c0f41bd15edaf7c820b39753336feb3d9bcf12ee))
+
 ## [8.4.13](https://github.com/varlociraptor/varlociraptor/compare/v8.4.12...v8.4.13) (2024-12-02)
 
 
