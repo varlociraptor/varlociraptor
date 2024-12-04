@@ -545,9 +545,9 @@ dependencies = [
 
 [[package]]
 name = "curl-sys"
-version = "0.4.73+curl-8.8.0"
+version = "0.4.78+curl-8.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "450ab250ecf17227c39afb9a2dd9261dc0035cb80f2612472fc0c4aac2dcb84d"
+checksum = "8eec768341c5c7789611ae51cf6c459099f22e64a5d5d0ce4892434e33821eaf"
 dependencies = [
  "cc",
  "libc",
@@ -1002,9 +1002,9 @@ dependencies = [
 
 [[package]]
 name = "hts-sys"
-version = "2.1.4"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f348d14cb4e50444e39fcd6b00302fe2ed2bc88094142f6278391d349a386d"
+checksum = "e38d7f1c121cd22aa214cb4dadd4277dc5447391eac518b899b29ba6356fbbb2"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -1881,9 +1881,9 @@ dependencies = [
 
 [[package]]
 name = "rust-htslib"
-version = "0.48.0"
+version = "0.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8313d0733b0a2782231fd7259e8f0873cb2542657719e06179811f86f8f797af"
+checksum = "115ae57b89deb942275566eca8c31da053d8df0d8bda12e50c4c4aa994877068"
 dependencies = [
  "bio-types",
  "byteorder",
@@ -2508,7 +2508,7 @@ dependencies = [
  "statrs",
  "structopt",
  "strum",
- "strum_macros 0.25.3",
+ "strum_macros 0.26.4",
  "tempfile",
  "thiserror 1.0.61",
  "time",
