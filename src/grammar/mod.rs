@@ -624,16 +624,7 @@ pub(crate) struct Contamination {
 }
 
 #[derive(
-    Display,
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    IntoStaticStr,
-    EnumVariantNames,
-    PartialEq,
-    Eq,
-    Hash,
+    Display, Debug, Clone, Serialize, Deserialize, IntoStaticStr, VariantNames, PartialEq, Eq, Hash,
 )]
 #[strum(serialize_all = "kebab_case")]
 pub(crate) enum Inheritance {
@@ -646,16 +637,7 @@ pub(crate) enum Inheritance {
 }
 
 #[derive(
-    Display,
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    IntoStaticStr,
-    EnumVariantNames,
-    PartialEq,
-    Eq,
-    Hash,
+    Display, Debug, Clone, Serialize, Deserialize, IntoStaticStr, VariantNames, PartialEq, Eq, Hash,
 )]
 #[serde(untagged, rename_all = "lowercase")]
 pub(crate) enum Sex {

@@ -10,7 +10,7 @@ use crate::utils::SimpleCounter;
 use crate::variants::model::{self, HaplotypeIdentifier, VariantPrecision};
 
 #[derive(
-    Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, EnumVariantNames, Display, Debug,
+    Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, VariantNames, Display, Debug,
 )]
 pub enum SkipReason {
     #[strum(serialize = "imprecise variants (will be supported in a future release)")]

@@ -23,7 +23,10 @@ impl Pileup {
     }
 
     /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
-    pub(crate) fn remove_nonstandard_alignments(&mut self, omit_read_orientation_bias: bool) {
+    pub(crate) fn remove_nonstandard_alignments(
+        &mut self,
+        omit_read_orientation_bias: bool,
+    ) -> bool {
         // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
         // solely driven by standard alignments, that are in expected orientation.
         // Otherwise called SNVs can be artifacts of near SVs.
@@ -35,6 +38,8 @@ impl Pileup {
                     || obs.read_orientation == SequenceReadPairOrientation::None)
         });
         self.n_filtered_out_observations += n_orig - self.read_observations.len();
+
+        self.n_filtered_out_observations > 0
     }
 
     pub(crate) fn is_empty(&self) -> bool {
