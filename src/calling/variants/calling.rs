@@ -7,9 +7,9 @@ use std::str;
 use std::sync::RwLock;
 
 use anyhow::{Context, Result};
-use bio::stats::{bayesian, LogProb, Prob};
-use bio_types::genome;
+use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
 use bio_types::genome::AbstractLocus;
+use bio_types::{genome, variant};
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
@@ -237,6 +237,12 @@ where
               In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
               these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
         );
+        header.push_record(
+            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">"
+        );
         aux_info_collector.write_header_info(&mut header);
 
         Ok((header, aux_info_collector))
@@ -407,6 +413,8 @@ where
                     _events,
                     contig,
                     variant_type,
+                    work_item.call.heterozygosity(),
+                    work_item.call.somatic_effective_mutation_rate(),
                     work_item.check_read_orientation_bias,
                     work_item.check_strand_bias,
                     work_item.check_read_position_bias,
@@ -441,6 +449,21 @@ where
 
             let _locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
 
+            // obtain variant specific priors
+            let get_prior = |key: &[u8]| -> Result<Option<LogProb>> {
+                if let Some(values) = first_record.info(key).float()? {
+                    let value = values[0]; // all records output by preprocess are single allele
+                    if value.is_missing() {
+                        None
+                    } else {
+                        LogProb::from(PHREDProb(values[0]))
+                    }
+                }
+            };
+            let variant_heterozygosity = get_prior(b"VARIANT_HETEROZYGOSITY")?;
+            let variant_somatic_effective_mutation_rate =
+                get_prior(b"VARIANT_SOMATIC_EFFECTIVE_MUTATION_RATE")?;
+
             let mut call_builder = CallBuilder::default();
             call_builder
                 .chrom(chrom.to_owned())
@@ -453,6 +476,8 @@ where
                         Some(id)
                     }
                 })
+                .heterozygosity(variant_heterozygosity)
+                .somatic_effective_mutation_rate(variant_somatic_effective_mutation_rate)
                 .record(first_record)?;
             if let Some(ref aux_info_collector) = aux_info_collector {
                 call_builder.aux_info(aux_info_collector.collect(first_record)?);
@@ -565,6 +590,8 @@ where
         events: &mut Vec<model::Event>,
         contig: &str,
         variant_type: model::VariantType,
+        variant_heterozygosity: Option<LogProb>,
+        variant_somtatic_effective_mutation_rate: Option<LogProb>,
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
@@ -625,7 +652,11 @@ where
 
             model
                 .prior_mut()
-                .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
+                .set_universe_and_ploidies(vaf_universes.build(), ploidies.build())
+                .set_variant_heterozygosity(variant_heterozygosity)
+                .set_variant_somatic_effective_mutation_rate(
+                    variant_somtatic_effective_mutation_rate,
+                );
             model.prior().check()?;
         }
 

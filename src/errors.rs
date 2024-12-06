@@ -84,6 +84,8 @@ pub(crate) enum Error {
     InvalidFDRControlEvents,
     #[error("unrealistic insert size distribution: the standard deviation is 0.0, consider sampling more reads for estimating alignment properties")]
     UnrealisticIsizeSd,
+    #[error("given field for variant heterozygosity or variant somatic effective mutation rate has to have as many entries as ALT alleles in the record")]
+    InvalidVariantPrior,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {
