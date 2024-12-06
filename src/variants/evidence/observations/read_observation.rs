@@ -531,6 +531,18 @@ where
     }
 }
 
+/// Adjusts probabilities for singleton evidence (variants supported by only one read across all samples).
+/// 
+/// # Arguments
+/// * `pileups` - Mutable slice of pileups to analyze and potentially adjust
+/// 
+/// # Returns
+/// `true` if an adjustment was made (singleton evidence was found and adjusted)
+/// 
+/// # Side effects
+/// When singleton evidence is found, both `prob_alt_adj` and `prob_ref_adj` of the observation
+/// are set to 0.5 (PROB_05) to reflect the increased uncertainty that the variant could be
+/// an artifact like a PCR error.
 pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
     let mut alt_observations: Vec<&mut ReadObservation<_, _>> = pileups
         .iter_mut()
