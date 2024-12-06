@@ -904,8 +904,8 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     for obs in read_observations {
         ids.push(obs.fragment_id);
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
-        prob_ref.push(encode_logprob(obs.prob_ref));
-        prob_alt.push(encode_logprob(obs.prob_alt));
+        prob_ref.push(encode_logprob(obs.prob_ref()));
+        prob_alt.push(encode_logprob(obs.prob_alt()));
         prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
         prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));

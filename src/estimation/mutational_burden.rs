@@ -80,7 +80,7 @@ struct RecordSig {
     EnumString,
     EnumIter,
     IntoStaticStr,
-    EnumVariantNames,
+    VariantNames,
 )]
 #[strum(serialize_all = "kebab_case")]
 pub enum PlotMode {

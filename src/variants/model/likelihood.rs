@@ -210,9 +210,9 @@ fn likelihood_mapping(
     // Step 2: read comes from case sample and is correctly mapped
     let prob = LogProb::ln_sum_exp(&[
         // alt allele
-        prob_sample_alt + prob_bias_alt + observation.prob_alt,
+        prob_sample_alt + prob_bias_alt + observation.prob_alt(),
         // ref allele
-        prob_sample_ref + observation.prob_ref + prob_bias_ref,
+        prob_sample_ref + observation.prob_ref() + prob_bias_ref,
     ]);
     assert!(!prob.is_nan());
 

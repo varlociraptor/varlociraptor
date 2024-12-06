@@ -23,6 +23,7 @@ use serde::Serialize;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
+use super::pileup::Pileup;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
@@ -234,9 +235,13 @@ where
     #[builder(private, default = "None")]
     prob_mismapping_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from the alternative allele.
-    pub prob_alt: LogProb,
+    prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
-    pub prob_ref: LogProb,
+    prob_ref: LogProb,
+    #[builder(private, default = "None")]
+    prob_alt_adj: Option<LogProb>,
+    #[builder(private, default = "None")]
+    prob_ref_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from an unknown allele at an unknown true
     /// locus (in case it is mismapped). This should usually be set as the product of the maxima
     /// of prob_ref and prob_alt per read.
@@ -301,6 +306,8 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
             prob_mismapping_adj: self.prob_mismapping_adj,
             prob_alt: self.prob_alt,
             prob_ref: self.prob_ref,
+            prob_alt_adj: self.prob_alt_adj,
+            prob_ref_adj: self.prob_ref_adj,
             prob_missed_allele: self.prob_missed_allele,
             prob_sample_alt: self.prob_sample_alt,
             prob_double_overlap: self.prob_double_overlap,
@@ -396,6 +403,22 @@ impl<P: Clone, A: Clone> ReadObservation<P, A> {
 
     pub fn prob_mismapping(&self) -> LogProb {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
+    }
+
+    pub fn prob_alt(&self) -> LogProb {
+        self.prob_alt_adj.unwrap_or(self.prob_alt)
+    }
+
+    pub fn prob_ref(&self) -> LogProb {
+        self.prob_ref_adj.unwrap_or(self.prob_ref)
+    }
+
+    pub fn prob_alt_orig(&self) -> LogProb {
+        self.prob_alt
+    }
+
+    pub fn prob_ref_orig(&self) -> LogProb {
+        self.prob_ref
     }
 
     pub fn is_uniquely_mapping(&self) -> bool {
@@ -505,6 +528,35 @@ where
                 None
             }
         }
+    }
+}
+
+/// Adjusts probabilities for singleton evidence (variants supported by only one read
+/// across all samples).
+///
+/// # Arguments
+/// * `pileups` - Mutable slice of pileups to analyze and potentially adjust
+///
+/// # Returns
+/// `true` if an adjustment was made (singleton evidence was found and adjusted)
+///
+/// # Side effects
+/// When singleton evidence is found, both `prob_alt_adj` and `prob_ref_adj` of the observation
+/// are set to 0.5 (PROB_05) to reflect the increased uncertainty that the variant could be
+/// an artifact like a PCR error.
+pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
+    let mut alt_observations: Vec<&mut ReadObservation<_, _>> = pileups
+        .iter_mut()
+        .flat_map(|pileup| pileup.read_observations_mut().iter_mut())
+        .filter(|obs| obs.prob_alt > obs.prob_ref)
+        .collect();
+    if alt_observations.len() == 1 {
+        let obs = alt_observations.first_mut().unwrap();
+        obs.prob_alt_adj = Some(*PROB_05);
+        obs.prob_ref_adj = Some(*PROB_05);
+        true
+    } else {
+        false
     }
 }
 
