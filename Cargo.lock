@@ -2707,7 +2707,7 @@ dependencies = [
 
 [[package]]
 name = "varlociraptor"
-version = "8.4.13"
+version = "8.4.14"
 dependencies = [
  "GSL",
  "anyhow",
@@ -2763,7 +2763,7 @@ dependencies = [
  "statrs 0.16.1",
  "structopt",
  "strum",
- "strum_macros",
+ "strum_macros 0.26.4",
  "tempfile",
  "thiserror 1.0.69",
  "time",
