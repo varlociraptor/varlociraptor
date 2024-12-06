@@ -534,8 +534,7 @@ where
 pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
     let mut alt_observations: Vec<&mut ReadObservation<_, _>> = pileups
         .iter_mut()
-        .map(|pileup| pileup.read_observations_mut().iter_mut())
-        .flatten()
+        .flat_map(|pileup| pileup.read_observations_mut().iter_mut())
         .filter(|obs| obs.prob_alt > obs.prob_ref)
         .collect();
     if alt_observations.len() == 1 {
