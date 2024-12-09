@@ -3,7 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use rust_htslib::bam::{FetchDefinition, Read};
+use rust_htslib::bam::{record, FetchDefinition, Read};
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -146,7 +146,7 @@ impl AlignmentProperties {
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate(
-        path: impl AsRef<Path>,
+        paths: &[impl AsRef<Path>],
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -214,22 +214,36 @@ impl AlignmentProperties {
             tlens: Vec<f64>,
         }
 
-        let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
         // Retrieve number of alignments in the bam file.
         // Use this to estimate the number of alignments needed to estimate the
         // HPHMM's transition probabilities to a certain precision.
-        let num_alignments = bam
-            .index_stats()?
-            .into_iter()
-            .map(|(_tid, _len, mapped, _)| mapped)
-            .sum::<u64>();
+        let num_alignments = {
+            let ns = paths
+                .iter()
+                .map(|path| -> Result<u64> {
+                    let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
+                    Ok(bam
+                        .index_stats()?
+                        .into_iter()
+                        .map(|(_tid, _len, mapped, _)| mapped)
+                        .sum::<u64>())
+                })
+                .collect::<Result<Vec<_>>>()?;
+            ns.iter().sum::<u64>()
+        };
 
         // FIXME: reset fp/reader in rust-htslib after index_stats call
-        let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
-        if let Some(p) = reference_buffer.reference_path() {
-            bam.set_reference(p)?;
-        };
-        bam.fetch(FetchDefinition::All)?;
+        let mut bams = paths
+            .iter()
+            .map(|path| Ok(bam::IndexedReader::from_path(path.as_ref())?))
+            .collect::<Result<Vec<_>>>()?;
+
+        for bam in &mut bams {
+            if let Some(p) = reference_buffer.reference_path() {
+                bam.set_reference(p)?;
+            };
+            bam.fetch(FetchDefinition::All)?;
+        }
 
         // Parameters for the estimation of the number of alignments needed to estimate the
         // HPHMM's transition probabilities to a certain precision.
@@ -274,41 +288,39 @@ impl AlignmentProperties {
         //     .floor()
         //     .max(1.) as usize;
         // For now, just take the first min_num_alignments_needed alignments.
-        let step = 1;
 
-        let header = bam.header().clone();
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
         let mut record_flag_stats = RecordFlagStats::new();
-        let records = bam.records();
-        let records = records
-            .map(|record| record.unwrap())
-            .filter(|record| {
+        let mut all_stats = AlignmentStats::default();
+
+        for mut bam in bams {
+            let header = bam.header().clone();
+            for record in bam.records() {
+                let mut record = record?;
                 let skip = record.mapq() == 0
                     || record.is_duplicate()
                     || record.is_quality_check_failed()
                     || record.is_unmapped();
                 if skip {
                     n_records_skipped += 1;
+                    continue;
                 }
-                !skip
-            })
-            .step_by(step)
-            .take(num_records);
+                // TODO implement step (for now just 1)
 
-        let all_stats = records
-            .map(|mut record| {
-                record_flag_stats.update(&record);
                 n_records_analysed += 1;
+                record_flag_stats.update(&record);
+
                 // don't cache cigar for "ultralong" reads
                 if record.seq_len() <= 50000 {
                     record.cache_cigar();
                 }
 
-                let chrom = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
+                let contig = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
+
                 let (cigar_counts, transition_counts) = cigar_stats(
                     &record,
-                    &reference_buffer.seq(chrom).unwrap(),
+                    &reference_buffer.seq(contig).unwrap(),
                     allow_hardclips,
                 );
 
@@ -332,31 +344,30 @@ impl AlignmentProperties {
                     }
                 };
 
-                RecordStats {
-                    mapq: record.mapq(),
-                    read_len: record.seq().len() as u32,
-                    cigar_counts,
-                    transition_counts,
-                    insert_size,
+                all_stats.n_reads += 1;
+                all_stats.max_mapq = all_stats.max_mapq.max(record.mapq());
+                all_stats.max_read_len = all_stats.max_read_len.max(record.seq().len() as u32);
+                all_stats.n_softclips += cigar_counts.has_soft_clip as u32;
+                all_stats.n_not_usable += cigar_counts.is_not_regular as u32;
+                all_stats.frac_max_softclip = all_stats
+                    .frac_max_softclip
+                    .max(cigar_counts.frac_max_softclip);
+                all_stats.max_ins = OptionMax::max(all_stats.max_ins, cigar_counts.max_ins);
+                all_stats.max_del = OptionMax::max(all_stats.max_del, cigar_counts.max_del);
+                all_stats.cigar_counts += cigar_counts;
+                all_stats.transition_counts += transition_counts;
+                if let Some(insert_size) = insert_size {
+                    all_stats.tlens.push(insert_size);
                 }
-            })
-            .fold(AlignmentStats::default(), |mut acc, rs| {
-                acc.n_reads += 1;
-                acc.max_mapq = acc.max_mapq.max(rs.mapq);
-                acc.max_read_len = acc.max_read_len.max(rs.read_len);
-                acc.n_softclips += rs.cigar_counts.has_soft_clip as u32;
-                acc.n_not_usable += rs.cigar_counts.is_not_regular as u32;
-                acc.frac_max_softclip =
-                    acc.frac_max_softclip.max(rs.cigar_counts.frac_max_softclip);
-                acc.max_ins = OptionMax::max(acc.max_ins, rs.cigar_counts.max_ins);
-                acc.max_del = OptionMax::max(acc.max_del, rs.cigar_counts.max_del);
-                acc.cigar_counts += rs.cigar_counts;
-                acc.transition_counts += rs.transition_counts;
-                if let Some(insert_size) = rs.insert_size {
-                    acc.tlens.push(insert_size);
+
+                if n_records_analysed >= num_records {
+                    break;
                 }
-                acc
-            });
+            }
+            if n_records_analysed >= num_records {
+                break;
+            }
+        }
 
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
         properties.transition_counts = Some(all_stats.transition_counts.clone());
@@ -1055,9 +1066,13 @@ mod tests {
         let path = "tests/resources/tumor-first30000.bam";
         let mut reference_buffer = reference_buffer();
 
-        let props =
-            AlignmentProperties::estimate(path, false, &mut reference_buffer, Some(NUM_FRAGMENTS))
-                .unwrap();
+        let props = AlignmentProperties::estimate(
+            &[path],
+            false,
+            &mut reference_buffer,
+            Some(NUM_FRAGMENTS),
+        )
+        .unwrap();
         println!("{:?}", props);
 
         if let Some(isize) = props.insert_size {
@@ -1076,9 +1091,13 @@ mod tests {
         let path = "tests/resources/tumor-first30000.reads_with_soft_clips.bam";
         let mut reference_buffer = reference_buffer();
 
-        let props =
-            AlignmentProperties::estimate(path, false, &mut reference_buffer, Some(NUM_FRAGMENTS))
-                .unwrap();
+        let props = AlignmentProperties::estimate(
+            &[path],
+            false,
+            &mut reference_buffer,
+            Some(NUM_FRAGMENTS),
+        )
+        .unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
@@ -1093,9 +1112,13 @@ mod tests {
         let path = "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam";
         let mut reference_buffer = reference_buffer();
 
-        let props =
-            AlignmentProperties::estimate(path, false, &mut reference_buffer, Some(NUM_FRAGMENTS))
-                .unwrap();
+        let props = AlignmentProperties::estimate(
+            &[path],
+            false,
+            &mut reference_buffer,
+            Some(NUM_FRAGMENTS),
+        )
+        .unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
