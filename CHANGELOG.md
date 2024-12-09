@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.5.1](https://github.com/varlociraptor/varlociraptor/compare/v8.5.0...v8.5.1) (2024-12-09)
+
+
+### Bug Fixes
+
+* remove Cargo.lock for more convenient source code management ([9bccee2](https://github.com/varlociraptor/varlociraptor/commit/9bccee2f17ec779279753e15e12816c2c7c93448))
+
 ## [8.5.0](https://github.com/varlociraptor/varlociraptor/compare/v8.4.14...v8.5.0) (2024-12-09)
 
 
