@@ -40,7 +40,7 @@ use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
 use super::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use super::preprocessing::Observations;
-use super::Heuristic;
+use super::Hint;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
@@ -127,9 +127,9 @@ where
         );
 
         header.push_record(
-            b"##INFO=<ID=HEURISTICS,Number=.,Type=String,\
-             Description=\"Applied heuristics. This field holds a list of heuristics\
-             applied for the calling. The following heuristics are possible: \
+            b"##INFO=<ID=HINTS,Number=.,Type=String,\
+             Description=\"Hints about applied heuristics and other events that occured \
+             during model evaluation. The following hints are possible: \
              adjusted-singleton-evidence: in case of a single read supporting the variant \
              across all samples, we assume that it is unclear whether that is a PCR \
              error or not. Hence, the likelihood of the variant and ref allele is set \
@@ -578,12 +578,12 @@ where
         if adjust_singleton_evidence(&mut pileups) {
             work_item
                 .call
-                .register_heuristic(Heuristic::AdjustedSingletonEvidence);
+                .register_heuristic(Hint::AdjustedSingletonEvidence);
         }
         if filtered_alignments {
             work_item
                 .call
-                .register_heuristic(Heuristic::FilteredNonStandardAlignments);
+                .register_heuristic(Hint::FilteredNonStandardAlignments);
         }
 
         work_item.pileups = Some(pileups);
