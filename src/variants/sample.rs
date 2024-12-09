@@ -140,13 +140,13 @@ impl SubsampleCandidates {
 }
 
 pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
-    path: P,
+    paths: &[P],
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
     num_records: Option<usize>,
 ) -> Result<alignment_properties::AlignmentProperties> {
     alignment_properties::AlignmentProperties::estimate(
-        path,
+        paths,
         omit_insert_size,
         reference_buffer,
         num_records,
