@@ -3,7 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use rust_htslib::bam::{record, FetchDefinition, Read};
+use rust_htslib::bam::{FetchDefinition, Read};
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -1067,7 +1067,7 @@ mod tests {
         let mut reference_buffer = reference_buffer();
 
         let props = AlignmentProperties::estimate(
-            &[path],
+            &[path, path],
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
