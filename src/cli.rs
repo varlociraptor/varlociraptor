@@ -406,9 +406,12 @@ pub enum EstimateKind {
         #[structopt(
             long,
             required = true,
-            help = "BAM file with aligned reads from a single sample."
+            help = "BAM files with aligned reads from a single sample or a set of \
+            samples that have been sequenced and prepared in exactly the same way. \
+            Use multiple BAM files in order to increase estimation robustness in case \
+            the samples only have comparably reads (e.g. in case of panel sequencing)."
         )]
-        bam: PathBuf,
+        bams: Vec<PathBuf>,
 
         #[structopt(long, help = "Number of records to sample from the BAM file")]
         num_records: Option<usize>,
@@ -1256,12 +1259,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             )?,
             EstimateKind::AlignmentProperties {
                 reference,
-                bam,
+                bams,
                 num_records,
             } => {
                 let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
-                let alignment_properties =
-                    estimate_alignment_properties(bam, false, &mut reference_buffer, num_records)?;
+                let alignment_properties = estimate_alignment_properties(
+                    &bams,
+                    false,
+                    &mut reference_buffer,
+                    num_records,
+                )?;
                 println!("{}", serde_json::to_string_pretty(&alignment_properties)?);
             }
         },
@@ -1332,6 +1339,6 @@ pub(crate) fn est_or_load_alignment_properties(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer, num_records)
+        estimate_alignment_properties(&[bam_file], omit_insert_size, reference_buffer, num_records)
     }
 }

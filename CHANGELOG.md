@@ -2,6 +2,25 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.5.1](https://github.com/varlociraptor/varlociraptor/compare/v8.5.0...v8.5.1) (2024-12-09)
+
+
+### Bug Fixes
+
+* remove Cargo.lock for more convenient source code management ([9bccee2](https://github.com/varlociraptor/varlociraptor/commit/9bccee2f17ec779279753e15e12816c2c7c93448))
+
+## [8.5.0](https://github.com/varlociraptor/varlociraptor/compare/v8.4.14...v8.5.0) (2024-12-09)
+
+
+### Features
+
+* allow multiple input bams for estimating alignment properties ([#477](https://github.com/varlociraptor/varlociraptor/issues/477)) ([8259df3](https://github.com/varlociraptor/varlociraptor/commit/8259df393b293fa74ddd5adf8e278e408726944e))
+
+
+### Bug Fixes
+
+* heuristically adjust likelihoods of singleton evidence for a variant (across all samples only one read supporting the variant) that can equally likely be some artifact like a PCR error ([#472](https://github.com/varlociraptor/varlociraptor/issues/472)) ([143fe67](https://github.com/varlociraptor/varlociraptor/commit/143fe673150429da454e29b38d200630753a48d8))
+
 ## [8.4.14](https://github.com/varlociraptor/varlociraptor/compare/v8.4.13...v8.4.14) (2024-12-04)
 
 

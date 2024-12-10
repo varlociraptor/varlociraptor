@@ -690,6 +690,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
                         match variant {
+                            // TODO: Methylationtodo
                             model::Variant::Methylation() => unreachable!(),
 
                             model::Variant::Snv(alt) => {

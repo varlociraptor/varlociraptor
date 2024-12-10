@@ -360,7 +360,7 @@ impl Testcase {
         let mut samples = HashMap::new();
         for (name, path) in &self.bams {
             let properties = sample::estimate_alignment_properties(
-                path,
+                &[path],
                 false,
                 &mut self.reference_buffer,
                 Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),

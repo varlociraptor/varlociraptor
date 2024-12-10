@@ -51,7 +51,7 @@ lazy_static! {
 
 #[derive(EnumString, Hash, Eq, PartialEq, Debug, Clone, Copy, IntoStaticStr, Display)]
 #[strum(serialize_all = "kebab_case")]
-pub(crate) enum Heuristic {
+pub(crate) enum Hint {
     AdjustedSingletonEvidence,
     FilteredNonStandardAlignments,
 }
@@ -68,7 +68,7 @@ pub(crate) struct Call {
     #[builder(default)]
     aux_info: AuxInfo,
     #[builder(default)]
-    heuristics: HashSet<Heuristic>,
+    hints: HashSet<Hint>,
     //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
     variant: Option<Variant>,
@@ -81,8 +81,8 @@ impl CallBuilder {
 }
 
 impl Call {
-    pub(crate) fn register_heuristic(&mut self, heuristic: Heuristic) {
-        self.heuristics.insert(heuristic);
+    pub(crate) fn register_heuristic(&mut self, heuristic: Hint) {
+        self.hints.insert(heuristic);
     }
 
     pub(crate) fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
@@ -400,13 +400,13 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
-        if !self.heuristics.is_empty() {
-            let heuristics: Vec<&[u8]> = self
-                .heuristics
+        if !self.hints.is_empty() {
+            let hints: Vec<&[u8]> = self
+                .hints
                 .iter()
-                .map(|heuristic| <&Heuristic as Into<&'static str>>::into(heuristic).as_bytes())
+                .map(|hint| <&Hint as Into<&'static str>>::into(hint).as_bytes())
                 .collect();
-            record.push_info_string(b"HEURISTICS", &heuristics)?;
+            record.push_info_string(b"HINTS", &hints)?;
         }
 
         self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
