@@ -95,29 +95,26 @@ impl<R: Realigner> Inversion<R> {
 }
 
 impl<R: Realigner> Variant for Inversion<R> {
-    type Evidence = PairedEndEvidence;
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
 
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         self.breakends
             .is_valid_evidence(evidence, alignment_properties)
     }
 
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         self.breakends.loci()
     }
 
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -130,7 +127,7 @@ impl<R: Realigner> Variant for Inversion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         self.breakends

@@ -13,6 +13,7 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use rust_htslib::bam;
 
 use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -27,14 +28,15 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, PairedEndEvidence, SingleLocus, Variant,
 };
 
+use super::MultiLocus;
 use super::ToVariantRepresentation;
 
 #[derive(Debug)]
 pub(crate) struct Snv<R: Realigner> {
-    locus: SingleLocus,
+    loci: MultiLocus,
     ref_base: u8,
     alt_base: u8,
     realigner: RefCell<R>,
@@ -50,79 +52,34 @@ impl<R: Realigner> Snv<R> {
         realign_indel_reads: bool,
     ) -> Self {
         Snv {
-            locus: SingleLocus::new(genome::Interval::new(
+            loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
-            )),
+            ))),
             ref_base: ref_base.to_ascii_uppercase(),
             alt_base: alt_base.to_ascii_uppercase(),
             realigner: RefCell::new(realigner),
             realign_indel_reads,
         }
     }
-}
 
-impl<R: Realigner> Realignable for Snv<R> {
-    fn alt_emission_params(
+    fn allele_support_per_read(
         &self,
-        ref_buffer: Arc<reference::Buffer>,
-        _: &genome::Interval,
-        ref_window: usize,
-    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
-        let start = self.locus.range().start as usize;
-
-        let ref_seq = ref_buffer.seq(self.locus.contig())?;
-
-        let ref_seq_len = ref_seq.len();
-        Ok(vec![Box::new(SnvEmissionParams {
-            ref_seq,
-            ref_offset: start.saturating_sub(ref_window),
-            ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
-            alt_start: start,
-            alt_base: self.alt_base,
-            ref_offset_override: None,
-            ref_end_override: None,
-        })])
-    }
-}
-
-impl<R: Realigner> Variant for Snv<R> {
-    type Evidence = SingleEndEvidence;
-    type Loci = SingleLocus;
-
-    fn is_imprecise(&self) -> bool {
-        false
-    }
-
-    fn is_valid_evidence(
-        &self,
-        evidence: &SingleEndEvidence,
-        _: &AlignmentProperties,
-    ) -> Option<Vec<usize>> {
-        if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
-            Some(vec![0])
-        } else {
-            None
-        }
-    }
-
-    fn loci(&self) -> &SingleLocus {
-        &self.locus
-    }
-
-    fn allele_support(
-        &self,
-        read: &SingleEndEvidence,
+        read: &bam::Record,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
+        if self.locus().overlap(read, false) != Overlap::Enclosing {
+            return Ok(None);
+        }
+
         if self.realign_indel_reads && utils::contains_indel_op(read) {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the SNV might be an artifact
             // of the aligner.
             Ok(Some(self.realigner.borrow_mut().allele_support(
                 read,
-                [&self.locus].iter(),
+                self.loci.iter(),
                 self,
                 alt_variants,
                 alignment_properties,
@@ -131,9 +88,10 @@ impl<R: Realigner> Variant for Snv<R> {
             .cigar_cached()
             .unwrap()
             // TODO expect u64 in read_pos
-            .read_pos(self.locus.range().start as u32, false, false)?
+            .read_pos(self.locus().range().start as u32, false, false)?
         {
-            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+            let read_base =
+                unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             let mut is_third_allele = false;
@@ -147,7 +105,8 @@ impl<R: Realigner> Variant for Snv<R> {
             // However, the approximation is pretty accurate, because it will only matter for true
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
-            let non_alt_base = if read_base != self.alt_base {
+            // Here, N bases do not count as additional edits that would indicate a third allele.
+            let non_alt_base = if read_base != b'N' && read_base != self.alt_base {
                 is_third_allele = read_base != self.ref_base;
                 read_base
             } else {
@@ -185,7 +144,107 @@ impl<R: Realigner> Variant for Snv<R> {
         }
     }
 
-    fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
+    fn locus(&self) -> &SingleLocus {
+        &self.loci[0]
+    }
+}
+
+impl<R: Realigner> Realignable for Snv<R> {
+    fn alt_emission_params(
+        &self,
+        ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
+        ref_window: usize,
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
+        let start = self.locus().range().start as usize;
+
+        let ref_seq = ref_buffer.seq(self.locus().contig())?;
+
+        let ref_seq_len = ref_seq.len();
+        Ok(vec![Box::new(SnvEmissionParams {
+            ref_seq,
+            ref_offset: start.saturating_sub(ref_window),
+            ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
+            alt_start: start,
+            alt_base: self.alt_base,
+            ref_offset_override: None,
+            ref_end_override: None,
+        })])
+    }
+}
+
+impl<R: Realigner> Variant for Snv<R> {
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
+    fn is_valid_evidence(
+        &self,
+        evidence: &PairedEndEvidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        match evidence {
+            PairedEndEvidence::SingleEnd(read) => {
+                if let Overlap::Enclosing = self.locus().overlap(read.record(), false) {
+                    Some(vec![0])
+                } else {
+                    None
+                }
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                if let Overlap::Enclosing = self.locus().overlap(left.record(), false) {
+                    Some(vec![0])
+                } else if let Overlap::Enclosing = self.locus().overlap(right.record(), false) {
+                    Some(vec![0])
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn loci(&self) -> &MultiLocus {
+        &self.loci
+    }
+
+    fn allele_support(
+        &self,
+        evidence: &PairedEndEvidence,
+        alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Option<AlleleSupport>> {
+        match evidence {
+            PairedEndEvidence::SingleEnd(read) => Ok(self.allele_support_per_read(
+                read.record(),
+                alignment_properties,
+                alt_variants,
+            )?),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let left_support = self.allele_support_per_read(
+                    left.record(),
+                    alignment_properties,
+                    alt_variants,
+                )?;
+                let right_support = self.allele_support_per_read(
+                    right.record(),
+                    alignment_properties,
+                    alt_variants,
+                )?;
+
+                match (left_support, right_support) {
+                    (Some(mut left_support), Some(right_support)) => {
+                        left_support.merge(&right_support);
+                        Ok(Some(left_support))
+                    }
+                    (Some(left_support), None) => Ok(Some(left_support)),
+                    (None, Some(right_support)) => Ok(Some(right_support)),
+                    (None, None) => Ok(None),
+                }
+            }
+        }
+    }
+
+    fn prob_sample_alt(&self, _: &PairedEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

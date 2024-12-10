@@ -483,11 +483,6 @@ impl<'a> ReadEmission<'a> {
     pub(crate) fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
     }
-
-    /// Calculate probability that none of the bases is miscalled.
-    pub(crate) fn certainty_est(&self) -> LogProb {
-        self.no_miscall.iter().sum()
-    }
 }
 
 /// Emission parameters for PairHMM over reference allele.

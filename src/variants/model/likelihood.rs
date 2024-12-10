@@ -52,21 +52,6 @@ fn prob_sample_alt(observation: &ProcessedReadObservation, allele_freq: LogProb)
     }
 }
 
-pub(crate) trait ContaminatedSamplePairView<T> {
-    fn primary(&self) -> &T;
-    fn secondary(&self) -> &T;
-}
-
-impl<T> ContaminatedSamplePairView<T> for Vec<T> {
-    fn primary(&self) -> &T {
-        &self[0]
-    }
-
-    fn secondary(&self) -> &T {
-        &self[1]
-    }
-}
-
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
@@ -225,9 +210,9 @@ fn likelihood_mapping(
     // Step 2: read comes from case sample and is correctly mapped
     let prob = LogProb::ln_sum_exp(&[
         // alt allele
-        prob_sample_alt + prob_bias_alt + observation.prob_alt,
+        prob_sample_alt + prob_bias_alt + observation.prob_alt(),
         // ref allele
-        prob_sample_ref + observation.prob_ref + prob_bias_ref,
+        prob_sample_ref + observation.prob_ref() + prob_bias_ref,
     ]);
     assert!(!prob.is_nan());
 
@@ -337,7 +322,7 @@ mod tests {
             *observations
                 .read_observations()
                 .iter()
-                .map(|observation| biases().prob_ref(&observation))
+                .map(|observation| biases().prob_ref(observation))
                 .sum::<LogProb>()
         );
     }
@@ -361,7 +346,7 @@ mod tests {
             *observations
                 .read_observations()
                 .iter()
-                .map(|observation| biases().prob_ref(&observation))
+                .map(|observation| biases().prob_ref(observation))
                 .sum::<LogProb>()
         );
         assert!(cache.get(&evt).is_some())

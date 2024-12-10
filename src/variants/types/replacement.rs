@@ -25,11 +25,13 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::types::{
+    AlleleSupport, Evidence, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+};
 
 #[derive(Debug)]
 pub(crate) struct Replacement<R: Realigner> {
-    locus: MultiLocus,
+    loci: MultiLocus,
     ref_seq: Vec<u8>,
     replacement: Rc<Vec<u8>>,
     realigner: RefCell<R>,
@@ -45,7 +47,7 @@ impl<R: Realigner> Replacement<R> {
                 .map(|op| op.len());
 
         Ok(Replacement {
-            locus: MultiLocus::new(vec![SingleLocus::new(locus)]),
+            loci: MultiLocus::from_single_locus(SingleLocus::new(locus)),
             ref_seq,
             replacement: Rc::new(replacement),
             realigner: RefCell::new(realigner),
@@ -54,7 +56,7 @@ impl<R: Realigner> Replacement<R> {
     }
 
     pub(crate) fn locus(&self) -> &SingleLocus {
-        &self.locus[0]
+        &self.loci[0]
     }
 
     fn ref_len(&self) -> usize {
@@ -143,9 +145,6 @@ impl<R: Realigner> SamplingBias for Replacement<R> {
 impl<R: Realigner> ReadSamplingBias for Replacement<R> {}
 
 impl<R: Realigner> Variant for Replacement<R> {
-    type Evidence = PairedEndEvidence;
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -156,7 +155,7 @@ impl<R: Realigner> Variant for Replacement<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
@@ -175,14 +174,14 @@ impl<R: Realigner> Variant for Replacement<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
-        &self.locus
+    fn loci(&self) -> &MultiLocus {
+        &self.loci
     }
 
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -190,7 +189,7 @@ impl<R: Realigner> Variant for Replacement<R> {
             PairedEndEvidence::SingleEnd(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
                     record.record(),
-                    self.locus.iter(),
+                    self.loci.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
@@ -199,14 +198,14 @@ impl<R: Realigner> Variant for Replacement<R> {
             PairedEndEvidence::PairedEnd { left, right } => {
                 let left_support = self.realigner.borrow_mut().allele_support(
                     left.record(),
-                    self.locus.iter(),
+                    self.loci.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
                     right.record(),
-                    self.locus.iter(),
+                    self.loci.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
@@ -223,7 +222,7 @@ impl<R: Realigner> Variant for Replacement<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {

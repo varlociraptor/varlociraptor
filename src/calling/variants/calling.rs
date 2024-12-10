@@ -40,11 +40,14 @@ use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
 use super::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use super::preprocessing::Observations;
+use super::Heuristic;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
 pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
+
+use crate::variants::evidence::observations::read_observation::adjust_singleton_evidence;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -121,6 +124,19 @@ where
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
              Description=\"Posterior probability for not having a variant (PHRED)\">",
+        );
+
+        header.push_record(
+            b"##INFO=<ID=HEURISTICS,Number=.,Type=String,\
+             Description=\"Applied heuristics. This field holds a list of heuristics\
+             applied for the calling. The following heuristics are possible: \
+             adjusted-singleton-evidence: in case of a single read supporting the variant \
+             across all samples, we assume that it is unclear whether that is a PCR \
+             error or not. Hence, the likelihood of the variant and ref allele is set \
+             to 0.5 each. This avoids calls caused by single supporting reads. \
+             filtered-non-standard-alignments: non-standard alignments (i.e. \
+             alignments with non-standard read orientation) have been removed from the \
+             pileup.\">",
         );
 
         // register sample specific tags
@@ -526,6 +542,7 @@ where
         }
 
         // obtain pileups
+        let mut filtered_alignments = false;
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
             let pileup = if let Some(record) = record {
@@ -542,7 +559,8 @@ where
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are
                     // clearly not influenced by a close SV.
-                    pileup.remove_nonstandard_alignments(self.omit_read_orientation_bias);
+                    filtered_alignments |=
+                        pileup.remove_nonstandard_alignments(self.omit_read_orientation_bias);
                 }
 
                 pileup
@@ -550,6 +568,22 @@ where
                 Pileup::default()
             };
             pileups.push(pileup);
+        }
+
+        // METHOD: adjust evidence such that in cases where there is only a single read
+        // supporting the variant across all pileups we assume that this might as well
+        // be an error (e.g. a PCR error). In contrast, if there are multiple reads,
+        // it is unlikely that all of them are independently happened PCR errors.
+        // This is a conservative approach to avoid false positives.
+        if adjust_singleton_evidence(&mut pileups) {
+            work_item
+                .call
+                .register_heuristic(Heuristic::AdjustedSingletonEvidence);
+        }
+        if filtered_alignments {
+            work_item
+                .call
+                .register_heuristic(Heuristic::FilteredNonStandardAlignments);
         }
 
         work_item.pileups = Some(pileups);
@@ -912,7 +946,7 @@ impl CallProcessor for CallWriter {
     fn process_call(
         &mut self,
         call: Call,
-        sample_names: &grammar::SampleInfo<String>,
+        _sample_names: &grammar::SampleInfo<String>,
     ) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
     }
@@ -931,7 +965,7 @@ pub(crate) trait CandidateFilter {
 pub(crate) struct DefaultCandidateFilter;
 
 impl CandidateFilter for DefaultCandidateFilter {
-    fn filter(&self, work_item: &WorkItem, sample_names: &grammar::SampleInfo<String>) -> bool {
+    fn filter(&self, _work_item: &WorkItem, _sample_names: &grammar::SampleInfo<String>) -> bool {
         true
     }
 }

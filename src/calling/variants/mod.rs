@@ -12,7 +12,6 @@ use std::convert::TryFrom;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::str;
-use std::u8;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
@@ -50,6 +49,13 @@ lazy_static! {
     ]);
 }
 
+#[derive(EnumString, Hash, Eq, PartialEq, Debug, Clone, Copy, IntoStaticStr, Display)]
+#[strum(serialize_all = "kebab_case")]
+pub(crate) enum Heuristic {
+    AdjustedSingletonEvidence,
+    FilteredNonStandardAlignments,
+}
+
 #[derive(Default, Clone, Debug, Builder, Getters)]
 #[getset(get = "pub(crate)")]
 pub(crate) struct Call {
@@ -61,6 +67,8 @@ pub(crate) struct Call {
     mateid: Option<Vec<u8>>,
     #[builder(default)]
     aux_info: AuxInfo,
+    #[builder(default)]
+    heuristics: HashSet<Heuristic>,
     //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
     variant: Option<Variant>,
@@ -73,6 +81,10 @@ impl CallBuilder {
 }
 
 impl Call {
+    pub(crate) fn register_heuristic(&mut self, heuristic: Heuristic) {
+        self.heuristics.insert(heuristic);
+    }
+
     pub(crate) fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
 
@@ -246,7 +258,7 @@ impl Call {
                     i,
                     utils::generalized_cigar(
                         sample_info.pileup.read_observations().iter().map(|obs| {
-                            let score = obs.max_bayes_factor().to_string();
+                            let score = format!("{}", obs.max_bayes_factor());
                             format!(
                                 "{}{}{}{}{}{}{}{}{}",
                                 if obs.is_max_mapq {
@@ -315,8 +327,9 @@ impl Call {
                                     obs.bayes_factor_ref()
                                 };
                                 let score = bayes_factor_to_letter(bf);
-                                let keep = (alt_allele && obs.prob_alt > obs.prob_ref)
-                                    || (!alt_allele && obs.prob_alt <= obs.prob_ref);
+                                let keep = (alt_allele
+                                    && obs.prob_alt_orig() > obs.prob_ref_orig())
+                                    || (!alt_allele && obs.prob_alt_orig() <= obs.prob_ref_orig());
                                 if keep {
                                     Some(format!(
                                         "{}",
@@ -386,6 +399,14 @@ impl Call {
 
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
+        }
+        if !self.heuristics.is_empty() {
+            let heuristics: Vec<&[u8]> = self
+                .heuristics
+                .iter()
+                .map(|heuristic| <&Heuristic as Into<&'static str>>::into(heuristic).as_bytes())
+                .collect();
+            record.push_info_string(b"HEURISTICS", &heuristics)?;
         }
 
         self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
@@ -516,7 +537,8 @@ impl Call {
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
-            record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SROBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record
                 .push_format_integer(b"OOBS", &vec![i32::missing(); variant.sample_info.len()])?;
@@ -659,24 +681,6 @@ pub(crate) struct SampleInfo {
     artifacts: Artifacts,
     #[getset(get = "pub(crate)")]
     vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
-}
-
-/// Wrapper for comparing alleles for compatibility in BCF files.
-/// PartialEq::eq() returns true for all alleles that can occur in the same BCF record.
-pub(crate) struct BCFGrouper<'a>(pub(crate) &'a Variant);
-
-impl<'a> PartialEq for BCFGrouper<'a> {
-    fn eq(&self, _other: &BCFGrouper) -> bool {
-        // Currently, we want all variants to be in a separate record.
-        // This might change again in the future.
-        false
-
-        // let s = self.0;
-        // let o = other.0;
-        // // Ensure that all compatible alleles have the same ref.
-        // // Disallow two <DEL> alleles in the same record (because e.g. htsjdk fails then, many others likely as well).
-        // s.ref_allele.eq(&o.ref_allele) && !(&s.alt_allele == b"<DEL>" && o.alt_allele == b"<DEL>")
-    }
 }
 
 pub(crate) fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {

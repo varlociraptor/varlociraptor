@@ -10,7 +10,7 @@ use crate::utils::SimpleCounter;
 use crate::variants::model::{self, HaplotypeIdentifier, VariantPrecision};
 
 #[derive(
-    Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, EnumVariantNames, Display, Debug,
+    Hash, PartialEq, Eq, EnumString, EnumIter, IntoStaticStr, VariantNames, Display, Debug,
 )]
 pub enum SkipReason {
     #[strum(serialize = "imprecise variants (will be supported in a future release)")]
@@ -30,8 +30,8 @@ pub enum SkipReason {
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub(crate)")]
 pub struct VariantInfo {
-    pub variant: model::Variant,
-    pub haplotype: Option<HaplotypeIdentifier>,
+    pub(crate) variant: model::Variant,
+    pub(crate) haplotype: Option<HaplotypeIdentifier>,
 }
 
 /// Collect variants from a given ´bcf::Record`.

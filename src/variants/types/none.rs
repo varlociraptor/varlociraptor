@@ -6,6 +6,7 @@
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base_miscall;
@@ -13,64 +14,38 @@ use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, PairedEndEvidence, SingleLocus, Variant,
 };
 
-use super::ToVariantRepresentation;
+use super::{MultiLocus, ToVariantRepresentation};
 
 #[derive(Debug)]
 pub(crate) struct None {
-    locus: SingleLocus,
+    loci: MultiLocus,
     ref_base: u8,
 }
 
 impl None {
     pub(crate) fn new(locus: genome::Locus, ref_base: u8) -> Self {
         None {
-            locus: SingleLocus::new(genome::Interval::new(
+            loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
-            )),
+            ))),
             ref_base: ref_base.to_ascii_uppercase(),
         }
     }
-}
 
-impl Variant for None {
-    type Evidence = SingleEndEvidence;
-    type Loci = SingleLocus;
-
-    fn is_imprecise(&self) -> bool {
-        false
-    }
-
-    fn is_valid_evidence(
-        &self,
-        evidence: &SingleEndEvidence,
-        _: &AlignmentProperties,
-    ) -> Option<Vec<usize>> {
-        if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
-            Some(vec![0])
-        } else {
-            None
+    fn allele_support_per_read(&self, read: &bam::Record) -> Result<Option<AlleleSupport>> {
+        if self.locus().overlap(read, false) != Overlap::Enclosing {
+            return Ok(None);
         }
-    }
 
-    fn loci(&self) -> &SingleLocus {
-        &self.locus
-    }
-
-    fn allele_support(
-        &self,
-        read: &SingleEndEvidence,
-        _: &AlignmentProperties,
-        _: &[Box<dyn Realignable>],
-    ) -> Result<Option<AlleleSupport>> {
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
             // TODO expect u64 in read_pos
-            .read_pos(self.locus.range().start as u32, false, false)?
+            .read_pos(self.locus().range().start as u32, false, false)?
         {
             let read_base = read.seq()[qpos as usize].to_ascii_uppercase();
             let base_qual = read.qual()[qpos as usize];
@@ -106,7 +81,71 @@ impl Variant for None {
         }
     }
 
-    fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
+    fn locus(&self) -> &SingleLocus {
+        &self.loci[0]
+    }
+}
+
+impl Variant for None {
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
+    fn is_valid_evidence(
+        &self,
+        evidence: &PairedEndEvidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        match evidence {
+            PairedEndEvidence::SingleEnd(read) => {
+                if let Overlap::Enclosing = self.locus().overlap(&read.record(), false) {
+                    Some(vec![0])
+                } else {
+                    None
+                }
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                if let Overlap::Enclosing = self.locus().overlap(&left.record(), false) {
+                    Some(vec![0])
+                } else if let Overlap::Enclosing = self.locus().overlap(&right.record(), false) {
+                    Some(vec![0])
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    fn loci(&self) -> &MultiLocus {
+        &self.loci
+    }
+
+    fn allele_support(
+        &self,
+        evidence: &PairedEndEvidence,
+        _: &AlignmentProperties,
+        _: &[Box<dyn Realignable>],
+    ) -> Result<Option<AlleleSupport>> {
+        match evidence {
+            PairedEndEvidence::SingleEnd(read) => Ok(self.allele_support_per_read(&read.record())?),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let left_support = self.allele_support_per_read(&left.record())?;
+                let right_support = self.allele_support_per_read(&right.record())?;
+
+                match (left_support, right_support) {
+                    (Some(mut left_support), Some(right_support)) => {
+                        left_support.merge(&right_support);
+                        Ok(Some(left_support))
+                    }
+                    (Some(left_support), None) => Ok(Some(left_support)),
+                    (None, Some(right_support)) => Ok(Some(right_support)),
+                    (None, None) => Ok(None),
+                }
+            }
+        }
+    }
+
+    fn prob_sample_alt(&self, _: &PairedEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

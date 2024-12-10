@@ -124,9 +124,6 @@ impl<R: Realigner> SamplingBias for Insertion<R> {
 impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 
 impl<R: Realigner> Variant for Insertion<R> {
-    type Evidence = PairedEndEvidence;
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -141,7 +138,7 @@ impl<R: Realigner> Variant for Insertion<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
@@ -160,14 +157,14 @@ impl<R: Realigner> Variant for Insertion<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.locus
     }
 
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -208,7 +205,7 @@ impl<R: Realigner> Variant for Insertion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {

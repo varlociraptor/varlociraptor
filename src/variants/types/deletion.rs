@@ -18,7 +18,6 @@ use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
-
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -143,9 +142,6 @@ impl<R: Realigner> Realignable for Deletion<R> {
 }
 
 impl<R: Realigner> Variant for Deletion<R> {
-    type Evidence = PairedEndEvidence;
-    type Loci = MultiLocus;
-
     fn is_imprecise(&self) -> bool {
         false
     }
@@ -161,7 +157,7 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
@@ -201,13 +197,13 @@ impl<R: Realigner> Variant for Deletion<R> {
     }
 
     /// Return variant loci.
-    fn loci(&self) -> &Self::Loci {
+    fn loci(&self) -> &MultiLocus {
         &self.fetch_loci
     }
 
     fn allele_support(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -271,7 +267,7 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Self::Evidence,
+        evidence: &PairedEndEvidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {

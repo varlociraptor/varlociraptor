@@ -7,12 +7,17 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
+    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
 }
 
 /// Calculate probability of read_base given ref_base.
-pub(crate) fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
-    if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
+pub(crate) fn prob_read_base(mut read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
+    read_base = read_base.to_ascii_uppercase();
+    if read_base == ref_base.to_ascii_uppercase() {
         unsafe { *BASEQUAL_TO_PROB_CALL.get_unchecked(base_qual as usize) }
+    } else if read_base == b'N' {
+        // METHOD: N means there can be anything, assuming a flat probability here.
+        *PROB_ANY
     } else {
         let prob_miscall = prob_read_base_miscall(base_qual);
         // TODO replace the second term with technology specific confusion matrix

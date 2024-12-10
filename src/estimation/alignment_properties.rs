@@ -11,7 +11,6 @@ use std::f64;
 use std::ops::AddAssign;
 use std::path::Path;
 use std::str;
-use std::u32;
 
 use anyhow::{anyhow, Result};
 use bio::stats::{LogProb, Prob};
@@ -77,28 +76,6 @@ pub(crate) struct AlignmentProperties {
     pub(crate) wildtype_homopolymer_error_model: HashMap<i16, f64>,
     #[serde(default)]
     initial: bool,
-    #[serde(skip, default)]
-    epsilon_gap: f64,
-}
-
-impl AlignmentProperties {
-    pub(crate) fn max_homopolymer_insertion_len(&self) -> u16 {
-        self.wildtype_homopolymer_error_model
-            .keys()
-            .filter(|i| **i >= 0)
-            .map(|i| *i as u16)
-            .max()
-            .unwrap_or(0)
-    }
-
-    pub(crate) fn max_homopolymer_deletion_len(&self) -> u16 {
-        self.wildtype_homopolymer_error_model
-            .keys()
-            .filter(|i| **i <= 0)
-            .map(|i| i.unsigned_abs())
-            .max()
-            .unwrap_or(0)
-    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -173,7 +150,6 @@ impl AlignmentProperties {
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
-        epsilon_gap: f64,
     ) -> Result<Self> {
         // If we do not consider insert size, it is safe to also process hardclipped reads.
         let allow_hardclips = omit_insert_size;
@@ -191,7 +167,6 @@ impl AlignmentProperties {
             initial: true,
             gap_params: Default::default(),
             hop_params: Default::default(),
-            epsilon_gap,
         };
 
         #[derive(Debug)]
@@ -1068,15 +1043,11 @@ impl<V: Ord> OptionMax<V> for Option<V> {
 
 #[cfg(test)]
 mod tests {
-    use bio::io::fasta;
 
     use super::*;
 
     fn reference_buffer() -> reference::Buffer {
-        reference::Buffer::new(
-            fasta::IndexedReader::from_file(&"tests/resources/chr10.fa").unwrap(),
-            1,
-        )
+        reference::Buffer::from_path("tests/resources/chr10.fa", 1).unwrap()
     }
 
     #[test]
@@ -1084,14 +1055,9 @@ mod tests {
         let path = "tests/resources/tumor-first30000.bam";
         let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(
-            path,
-            false,
-            &mut reference_buffer,
-            Some(NUM_FRAGMENTS),
-            0.,
-        )
-        .unwrap();
+        let props =
+            AlignmentProperties::estimate(path, false, &mut reference_buffer, Some(NUM_FRAGMENTS))
+                .unwrap();
         println!("{:?}", props);
 
         if let Some(isize) = props.insert_size {
@@ -1110,14 +1076,9 @@ mod tests {
         let path = "tests/resources/tumor-first30000.reads_with_soft_clips.bam";
         let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(
-            path,
-            false,
-            &mut reference_buffer,
-            Some(NUM_FRAGMENTS),
-            0.,
-        )
-        .unwrap();
+        let props =
+            AlignmentProperties::estimate(path, false, &mut reference_buffer, Some(NUM_FRAGMENTS))
+                .unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
@@ -1132,14 +1093,9 @@ mod tests {
         let path = "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam";
         let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(
-            path,
-            false,
-            &mut reference_buffer,
-            Some(NUM_FRAGMENTS),
-            0.,
-        )
-        .unwrap();
+        let props =
+            AlignmentProperties::estimate(path, false, &mut reference_buffer, Some(NUM_FRAGMENTS))
+                .unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());

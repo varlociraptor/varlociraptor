@@ -38,7 +38,8 @@ use crate::variants::evidence::realignment;
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
-use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, Readtype};
+use crate::variants::sample::{estimate_alignment_properties, Readtype};
+
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -273,13 +274,6 @@ pub enum PreprocessKind {
         #[serde(default)]
         propagate_info_fields: Vec<String>,
         #[structopt(
-            long = "strandedness",
-            default_value = "opposite",
-            possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
-            help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
-        )]
-        protocol_strandedness: ProtocolStrandedness,
-        #[structopt(
             long = "indel-window",
             default_value = "64",
             help = "Number of bases to consider left and right of breakpoint when \
@@ -418,13 +412,6 @@ pub enum EstimateKind {
 
         #[structopt(long, help = "Number of records to sample from the BAM file")]
         num_records: Option<usize>,
-
-        #[structopt(
-            long,
-            help = "Estimated gap extension probabilities below this threshold will be set to zero.",
-            default_value = "1e-10"
-        )]
-        epsilon_gap: f64,
     },
     #[structopt(
         name = "contamination",
@@ -830,7 +817,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     alignment_properties,
                     output,
                     propagate_info_fields,
-                    protocol_strandedness,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
@@ -852,7 +838,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     };
 
                     let mut reference_buffer = Arc::new(
-                        reference::Buffer::from_path(reference, reference_buffer_size)
+                        reference::Buffer::from_path(&reference, reference_buffer_size)
                             .context("Unable to read genome reference.")?,
                     );
 
@@ -862,7 +848,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         omit_insert_size,
                         Arc::get_mut(&mut reference_buffer).unwrap(),
                         Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
-                        0.,
                     )?;
 
                     let gap_params = alignment_properties.gap_params.clone();
@@ -882,7 +867,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
-                                    .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -913,7 +897,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
-                                    .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -943,7 +926,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
-                                    .protocol_strandedness(protocol_strandedness)
                                     .max_depth(max_depth)
                                     .inbam(bam)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
@@ -1276,16 +1258,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 reference,
                 bam,
                 num_records,
-                epsilon_gap,
             } => {
-                let mut reference_buffer = reference::Buffer::from_path(reference, 1)?;
-                let alignment_properties = estimate_alignment_properties(
-                    bam,
-                    false,
-                    &mut reference_buffer,
-                    num_records,
-                    epsilon_gap,
-                )?;
+                let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
+                let alignment_properties =
+                    estimate_alignment_properties(bam, false, &mut reference_buffer, num_records)?;
                 println!("{}", serde_json::to_string_pretty(&alignment_properties)?);
             }
         },
@@ -1350,19 +1326,12 @@ pub(crate) fn est_or_load_alignment_properties(
     omit_insert_size: bool,
     reference_buffer: &mut reference::Buffer,
     num_records: Option<usize>,
-    epsilon_gap: f64,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(
-            bam_file,
-            omit_insert_size,
-            reference_buffer,
-            num_records,
-            epsilon_gap,
-        )
+        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer, num_records)
     }
 }

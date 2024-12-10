@@ -6,15 +6,13 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
-#[derive(Default)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash, Default)]
 pub(crate) enum ReadOrientationBias {
     #[default]
     None,
     F1R2,
     F2R1,
 }
-
 
 impl Bias for ReadOrientationBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
@@ -89,7 +87,8 @@ impl Bias for ReadOrientationBias {
             .count();
         let uniform_distribution = if strong_ref_total_count > 2 {
             let fraction = strong_ref_f1r2 as f64 / strong_ref_total_count as f64;
-            (0.4..=0.6).contains(&fraction)
+            // TODO use strong_ref_total_count and binomial to calculate a confidence interval
+            (0.3..=0.7).contains(&fraction)
         } else {
             false
         };

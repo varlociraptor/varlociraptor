@@ -481,7 +481,7 @@ impl Formula {
             .simplify();
         simplified.strip_false();
         simplified.sort();
-        Ok(simplified.into_normalized_formula())
+        Ok(simplified.to_normalized_formula())
     }
 
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
@@ -528,23 +528,17 @@ impl Formula {
         })
     }
 
-    fn into_normalized_formula(&self) -> NormalizedFormula {
+    fn to_normalized_formula(&self) -> NormalizedFormula {
         match self {
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => NormalizedFormula::Atom {
                 sample: sample.to_owned(),
                 vafs: vafs.to_owned(),
             },
             Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
-                operands: operands
-                    .iter()
-                    .map(|o| o.into_normalized_formula())
-                    .collect(),
+                operands: operands.iter().map(|o| o.to_normalized_formula()).collect(),
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
-                operands: operands
-                    .iter()
-                    .map(|o| o.into_normalized_formula())
-                    .collect(),
+                operands: operands.iter().map(|o| o.to_normalized_formula()).collect(),
             },
             &Formula::Terminal(FormulaTerminal::Variant {
                 positive,
@@ -619,9 +613,7 @@ impl Formula {
                     }
                 }
 
-                let operands = grouped_operands.into_values()
-                    .flatten()
-                    .collect();
+                let operands = grouped_operands.into_values().flatten().collect();
 
                 Formula::Conjunction { operands }
             }

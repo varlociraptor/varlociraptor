@@ -2,6 +2,42 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.4.14](https://github.com/varlociraptor/varlociraptor/compare/v8.4.13...v8.4.14) (2024-12-04)
+
+
+### Miscellaneous Chores
+
+* Release 8.4.13 ([c0f41bd](https://github.com/varlociraptor/varlociraptor/commit/c0f41bd15edaf7c820b39753336feb3d9bcf12ee))
+
+## [8.4.13](https://github.com/varlociraptor/varlociraptor/compare/v8.4.12...v8.4.13) (2024-12-02)
+
+
+### Bug Fixes
+
+* update to rust-htslib 0.49.0 ([#466](https://github.com/varlociraptor/varlociraptor/issues/466)) ([d976145](https://github.com/varlociraptor/varlociraptor/commit/d97614512507ce7d0674ebabdddba94950a7f559))
+
+## [8.4.12](https://github.com/varlociraptor/varlociraptor/compare/v8.4.11...v8.4.12) (2024-11-12)
+
+
+### Bug Fixes
+
+* update to rust-htslib 0.48, thereby allowing for leading deletions in CIGAR strings ([#461](https://github.com/varlociraptor/varlociraptor/issues/461)) ([04e550e](https://github.com/varlociraptor/varlociraptor/commit/04e550eaa52d1dee7f89b63668ebf5415dc96536))
+
+## [8.4.11](https://github.com/varlociraptor/varlociraptor/compare/v8.4.10...v8.4.11) (2024-09-23)
+
+
+### Bug Fixes
+
+* improve code quality using cargo fix ([#449](https://github.com/varlociraptor/varlociraptor/issues/449)) ([c702009](https://github.com/varlociraptor/varlociraptor/commit/c7020095d2ba1c37d5b48a59aac664228e9120e9))
+* testcase subcommand - breakend support ([#453](https://github.com/varlociraptor/varlociraptor/issues/453)) ([4c550fe](https://github.com/varlociraptor/varlociraptor/commit/4c550fef0e744c9e1371d86943f0319d868b0a66))
+
+## [8.4.10](https://github.com/varlociraptor/varlociraptor/compare/v8.4.9...v8.4.10) (2024-08-12)
+
+
+### Bug Fixes
+
+* fix handling of N-bases in reads (so far, they could have yielded wrong likelihoods) ([#444](https://github.com/varlociraptor/varlociraptor/issues/444)) ([deb3d66](https://github.com/varlociraptor/varlociraptor/commit/deb3d664cb6a4b117fec22cd3cb6b6df36b4df31))
+
 ## [8.4.9](https://github.com/varlociraptor/varlociraptor/compare/v8.4.8...v8.4.9) (2024-07-01)
 
 

@@ -14,7 +14,7 @@ use std::str;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
-use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 
@@ -25,6 +25,7 @@ use serde::Serialize;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
+use super::pileup::Pileup;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
@@ -234,9 +235,13 @@ where
     #[builder(private, default = "None")]
     prob_mismapping_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from the alternative allele.
-    pub prob_alt: LogProb,
+    prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
-    pub prob_ref: LogProb,
+    prob_ref: LogProb,
+    #[builder(private, default = "None")]
+    prob_alt_adj: Option<LogProb>,
+    #[builder(private, default = "None")]
+    prob_ref_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from an unknown allele at an unknown true
     /// locus (in case it is mismapped). This should usually be set as the product of the maxima
     /// of prob_ref and prob_alt per read.
@@ -301,6 +306,8 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
             prob_mismapping_adj: self.prob_mismapping_adj,
             prob_alt: self.prob_alt,
             prob_ref: self.prob_ref,
+            prob_alt_adj: self.prob_alt_adj,
+            prob_ref_adj: self.prob_ref_adj,
             prob_missed_allele: self.prob_missed_allele,
             prob_sample_alt: self.prob_sample_alt,
             prob_double_overlap: self.prob_double_overlap,
@@ -349,13 +356,17 @@ pub(crate) enum MaxBayesFactor {
     Equal,
 }
 
-impl MaxBayesFactor {
-    pub(crate) fn to_string(&self) -> String {
-        match self {
-            MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
-            MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
-            MaxBayesFactor::Equal => "E".to_string(),
-        }
+impl std::fmt::Display for MaxBayesFactor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                MaxBayesFactor::Alt(bf) => format!("A{}", bayes_factor_to_letter(*bf)),
+                MaxBayesFactor::Ref(bf) => format!("R{}", bayes_factor_to_letter(*bf)),
+                MaxBayesFactor::Equal => "E".to_string(),
+            }
+        )
     }
 }
 
@@ -392,6 +403,22 @@ impl<P: Clone, A: Clone> ReadObservation<P, A> {
 
     pub fn prob_mismapping(&self) -> LogProb {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
+    }
+
+    pub fn prob_alt(&self) -> LogProb {
+        self.prob_alt_adj.unwrap_or(self.prob_alt)
+    }
+
+    pub fn prob_ref(&self) -> LogProb {
+        self.prob_ref_adj.unwrap_or(self.prob_ref)
+    }
+
+    pub fn prob_alt_orig(&self) -> LogProb {
+        self.prob_alt
+    }
+
+    pub fn prob_ref_orig(&self) -> LogProb {
+        self.prob_ref
     }
 
     pub fn is_uniquely_mapping(&self) -> bool {
@@ -504,6 +531,35 @@ where
     }
 }
 
+/// Adjusts probabilities for singleton evidence (variants supported by only one read
+/// across all samples).
+///
+/// # Arguments
+/// * `pileups` - Mutable slice of pileups to analyze and potentially adjust
+///
+/// # Returns
+/// `true` if an adjustment was made (singleton evidence was found and adjusted)
+///
+/// # Side effects
+/// When singleton evidence is found, both `prob_alt_adj` and `prob_ref_adj` of the observation
+/// are set to 0.5 (PROB_05) to reflect the increased uncertainty that the variant could be
+/// an artifact like a PCR error.
+pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
+    let mut alt_observations: Vec<&mut ReadObservation<_, _>> = pileups
+        .iter_mut()
+        .flat_map(|pileup| pileup.read_observations_mut().iter_mut())
+        .filter(|obs| obs.prob_alt > obs.prob_ref)
+        .collect();
+    if alt_observations.len() == 1 {
+        let obs = alt_observations.first_mut().unwrap();
+        obs.prob_alt_adj = Some(*PROB_05);
+        obs.prob_ref_adj = Some(*PROB_05);
+        true
+    } else {
+        false
+    }
+}
+
 pub(crate) fn major_read_position(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
 ) -> Option<u32> {
@@ -548,10 +604,7 @@ pub(crate) fn locus_to_bucket(
 }
 
 /// Something that can be converted into observations.
-pub(crate) trait Observable<E, L>: Variant<Evidence = E, Loci = L>
-where
-    E: Evidence + Eq + Hash,
-{
+pub(crate) trait Observable: Variant {
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
@@ -563,15 +616,15 @@ where
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
     /// correctly.
-    fn prob_mapping(&self, evidence: &E) -> LogProb;
+    fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb;
 
     /// Return the minimum MAPQ of all records involved in the given evidence.
-    fn min_mapq(&self, evidence: &E) -> u8;
+    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8;
 
     /// Calculate an observation from the given evidence.
     fn evidence_to_observation(
         &self,
-        evidence: &E,
+        evidence: &PairedEndEvidence,
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
@@ -593,7 +646,7 @@ where
                     let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                     let mut obs = ReadObservationBuilder::default();
-                    obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
+                    obs.name(Some(evidence.id().to_string().to_owned()))
                         .fragment_id(id)
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())
@@ -659,10 +712,6 @@ pub(crate) trait Evidence {
     fn len(&self) -> usize;
 
     fn name(&self) -> &[u8];
-
-    fn start_locus(&self) -> genome::Locus;
-
-    fn end_locus(&self) -> genome::Locus;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -706,14 +755,6 @@ impl Evidence for SingleEndEvidence {
 
     fn alt_loci(&self) -> ExactAltLoci {
         ExactAltLoci::from(self.inner.as_ref())
-    }
-
-    fn start_locus(&self) -> genome::Locus {
-        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().start)
-    }
-
-    fn end_locus(&self) -> genome::Locus {
-        genome::Locus::new(self.inner.contig().to_owned(), self.inner.range().end)
     }
 }
 
@@ -792,6 +833,17 @@ impl PairedEndEvidence {
             ],
         }
     }
+
+    pub(crate) fn id(&self) -> EvidenceIdentifier {
+        match self {
+            PairedEndEvidence::PairedEnd { left, .. } => {
+                EvidenceIdentifier::Bytes(left.record().qname().to_owned())
+            }
+            PairedEndEvidence::SingleEnd(rec) => {
+                EvidenceIdentifier::Bytes(rec.record().qname().to_owned())
+            }
+        }
+    }
 }
 
 impl Evidence for PairedEndEvidence {
@@ -853,28 +905,6 @@ impl Evidence for PairedEndEvidence {
             }
         }
     }
-
-    fn start_locus(&self) -> genome::Locus {
-        match self {
-            PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.record.contig().to_owned(), rec.record.range().start)
-            }
-            PairedEndEvidence::PairedEnd { left, .. } => {
-                genome::Locus::new(left.record.contig().to_owned(), left.record.range().start)
-            }
-        }
-    }
-
-    fn end_locus(&self) -> genome::Locus {
-        match self {
-            PairedEndEvidence::SingleEnd(rec) => {
-                genome::Locus::new(rec.record.contig().to_owned(), rec.record.range().end)
-            }
-            PairedEndEvidence::PairedEnd { right, .. } => {
-                genome::Locus::new(right.record.contig().to_owned(), right.record.range().end)
-            }
-        }
-    }
 }
 
 impl PartialEq for PairedEndEvidence {
@@ -897,6 +927,30 @@ impl Hash for PairedEndEvidence {
         match self {
             PairedEndEvidence::SingleEnd(a) => a.record.qname().hash(state),
             PairedEndEvidence::PairedEnd { left: a, .. } => a.record.qname().hash(state),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub(crate) enum EvidenceIdentifier {
+    Bytes(Vec<u8>),
+    Integer(u32),
+}
+
+impl std::fmt::Display for EvidenceIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EvidenceIdentifier::Bytes(id) => write!(f, "{}", str::from_utf8(id).unwrap()),
+            EvidenceIdentifier::Integer(id) => write!(f, "{}", id),
+        }
+    }
+}
+
+impl Hash for EvidenceIdentifier {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            EvidenceIdentifier::Bytes(id) => id.hash(state),
+            EvidenceIdentifier::Integer(id) => id.hash(state),
         }
     }
 }
