@@ -17,7 +17,7 @@ license = "GPL-3.0"
 name = "varlociraptor"
 readme = "README.md"
 repository = "https://github.com/varlociraptor/varlociraptor"
-version = "8.4.14"
+version = "8.5.1"
 
 [dependencies]
 GSL = "6.0"
@@ -96,7 +96,6 @@ use-intrinsics = ["half/use-intrinsics"]
 [profile.release]
 codegen-units = 1
 lto = "fat"
-debug = 1
 
 [profile.develop]
 codegen-units = 128

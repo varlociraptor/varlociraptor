@@ -18,8 +18,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, ExtendedRecord, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence,
-    Strand,
+    Evidence, ExtendedRecord, Observable, ReadObservation, Strand,
 };
 use crate::variants::sample;
 
@@ -144,7 +143,7 @@ pub(crate) trait Variant {
     /// The index of the loci for which this evidence is valid, `None` if invalid.
     fn is_valid_evidence(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>>;
 
@@ -154,7 +153,7 @@ pub(crate) trait Variant {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>>;
@@ -162,7 +161,7 @@ pub(crate) trait Variant {
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
 
@@ -230,11 +229,11 @@ impl<V> Observable for V
 where
     V: Variant,
 {
-    fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
+    fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => prob(record.record()).ln_one_minus_exp(),
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(record) => prob(record.record()).ln_one_minus_exp(),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
@@ -249,10 +248,10 @@ where
         }
     }
 
-    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+    fn min_mapq(&self, evidence: &Evidence) -> u8 {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(record) => record.record().mapq(),
+            Evidence::PairedEndSequencingRead { left, right } => {
                 cmp::min(left.record().mapq(), right.record().mapq())
             }
         }
@@ -319,7 +318,7 @@ where
 
         let mut candidates = Vec::new();
         let mut locus_depth = VecMap::new();
-        let mut push_evidence = |evidence: PairedEndEvidence, idx| {
+        let mut push_evidence = |evidence: Evidence, idx| {
             candidates.push(evidence);
             for i in idx {
                 let count = locus_depth.entry(i).or_insert(0);
@@ -334,7 +333,7 @@ where
                     // The statistical model does not consider them anyway.
                     continue;
                 }
-                let evidence = PairedEndEvidence::PairedEnd {
+                let evidence = Evidence::PairedEndSequencingRead {
                     // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
                     left: ExtendedRecord::new(
                         candidate.left.to_owned(),
@@ -351,7 +350,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
+                let evidence = Evidence::SingleEndSequencingRead(ExtendedRecord::new(
                     candidate.left.to_owned(),
                     buffer.get_methylation_probs(candidate.left.to_owned()),
                 ));
@@ -385,15 +384,15 @@ where
     }
 }
 
-// impl<V> Observable<PairedEndEvidence, SingleLocus> for V
+// impl<V> Observable<Evidence, SingleLocus> for V
 // where
-//     V: Variant<Evidence = PairedEndEvidence, Loci = SingleLocus>,
+//     V: Variant<Evidence = Evidence, Loci = SingleLocus>,
 // {
-//     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
+//     fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
 //         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
 //         match evidence {
-//             PairedEndEvidence::SingleEnd(record) => prob(record.record()).ln_one_minus_exp(),
-//             PairedEndEvidence::PairedEnd { left, right } => {
+//             Evidence::SingleEndSequencingRead(record) => prob(record.record()).ln_one_minus_exp(),
+//             Evidence::PairedEndSequencingRead { left, right } => {
 //                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
 //                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
 //                 // and we can therefore not multiply them. By taking the maximum, we
@@ -408,10 +407,10 @@ where
 //         }
 //     }
 
-//     fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+//     fn min_mapq(&self, evidence: &Evidence) -> u8 {
 //         match evidence {
-//             PairedEndEvidence::SingleEnd(record) => record.record().mapq(),
-//             PairedEndEvidence::PairedEnd { left, right } => {
+//             Evidence::SingleEndSequencingRead(record) => record.record().mapq(),
+//             Evidence::PairedEndSequencingRead { left, right } => {
 //                 cmp::min(left.record().mapq(), right.record().mapq())
 //             }
 //         }
@@ -470,7 +469,7 @@ where
 
 //         let mut candidates = Vec::new();
 //         let mut locus_depth = VecMap::new();
-//         let mut push_evidence = |evidence: PairedEndEvidence, idx| {
+//         let mut push_evidence = |evidence: Evidence, idx| {
 //             candidates.push(evidence);
 //             for i in idx {
 //                 let count = locus_depth.entry(i).or_insert(0);
@@ -485,7 +484,7 @@ where
 //                     // The statistical model does not consider them anyway.
 //                     continue;
 //                 }
-//                 let evidence = PairedEndEvidence::PairedEnd {
+//                 let evidence = Evidence::PairedEndSequencingRead {
 //                     left: ExtendedRecord::new(
 //                         candidate.left.to_owned(),
 //                         buffer.get_methylation_probs(candidate.left.to_owned()),
@@ -501,7 +500,7 @@ where
 //             } else {
 //                 // this is a single alignment with unmapped mate or mate outside of the
 //                 // region of interest
-//                 let evidence = PairedEndEvidence::SingleEnd(ExtendedRecord::new(
+//                 let evidence = Evidence::SingleEndSequencingRead(ExtendedRecord::new(
 //                     candidate.left.to_owned(),
 //                     buffer.get_methylation_probs(candidate.left.to_owned()),
 //                 ));

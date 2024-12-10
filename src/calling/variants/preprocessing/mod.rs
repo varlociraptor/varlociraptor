@@ -210,8 +210,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let collect_methylation_probs =
-            matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
+        let methylation_mm_ml_tag = matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -221,7 +220,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
-                collect_methylation_probs,
+                methylation_mm_ml_tag,
             )
             .build()
             .unwrap();

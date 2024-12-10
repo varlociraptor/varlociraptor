@@ -1,4 +1,4 @@
-use super::{Candidate, ToVariantRepresentation};
+use super::ToVariantRepresentation;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
@@ -7,14 +7,14 @@ use super::MultiLocus;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, PairedEndEvidence, SingleEndEvidence,
-    SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use bio_types::genome::{self, AbstractInterval, AbstractLocus, Locus};
+use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use lazy_static::lazy_static;
 use log::warn;
+use rust_htslib::bam;
 use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use std::collections::HashMap;
@@ -54,12 +54,25 @@ impl Methylation {
 /// # Returns
 ///
 /// bool: Read has MM information
-fn mm_exist(read: &SingleEndEvidence) -> bool {
-    let mm_tag_exists = match (read.aux(b"Mm"), read.aux(b"MM")) {
-        (Ok(_), _) | (_, Ok(_)) => true, // True, wenn einer der Tags existiert
-        _ => false,                      // False, wenn keiner der Tags existiert
-    };
-    mm_tag_exists
+fn mm_exists(evidence: &Evidence) -> bool {
+    match evidence {
+        Evidence::SingleEndSequencingRead(record) => {
+            // Check for MM tags in the single-end sequencing read
+            mm_tag_exists(record.record())
+        }
+        Evidence::PairedEndSequencingRead { left, right } => {
+            // Check for MM tags in both left and right reads
+            mm_tag_exists(left.record()) || mm_tag_exists(right.record())
+        }
+    }
+}
+
+/// Helper function to check MM tags for a single record
+fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
+    matches!(
+        (record.aux(b"Mm"), record.aux(b"MM")),
+        (Ok(_), _) | (_, Ok(_))
+    )
 }
 
 /// Computes the positions of methylated Cs in PacBio and Nanopore read data
@@ -404,32 +417,31 @@ impl Variant for Methylation {
     /// The index of the loci for which this evidence is valid, `None` if invalid.
     fn is_valid_evidence(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         if match evidence {
-            PairedEndEvidence::SingleEnd(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(&read.record(), false) {
-                    true
-                } else {
-                    false
-                }
+            Evidence::SingleEndSequencingRead(read) => {
+                matches!(
+                    self.locus().overlap(read.record(), false),
+                    Overlap::Enclosing
+                )
             }
-            PairedEndEvidence::PairedEnd { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(&left.record(), false) {
-                    true
-                } else if let Overlap::Enclosing = self.locus().overlap(&right.record(), false) {
-                    true
-                } else {
-                    false
-                }
+            Evidence::PairedEndSequencingRead { left, right } => {
+                matches!(
+                    self.locus().overlap(left.record(), false),
+                    Overlap::Enclosing
+                ) || matches!(
+                    self.locus().overlap(right.record(), false),
+                    Overlap::Enclosing
+                )
             }
         } {
             if match self.readtype {
                 // Some single PacBio reads don't have an MM:Z value and are therefore not legal
                 Readtype::Illumina => true,
-                Readtype::PacBio => mm_exist(&evidence.into_single_end_evidence()[0]),
-                Readtype::Nanopore => mm_exist(&evidence.into_single_end_evidence()[0]),
+                Readtype::PacBio => mm_exists(evidence),
+                Readtype::Nanopore => mm_exists(evidence),
             } {
                 Some(vec![0])
             } else {
@@ -442,15 +454,15 @@ impl Variant for Methylation {
 
     fn allele_support(
         &self,
-        read: &PairedEndEvidence,
+        read: &Evidence,
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         let qpos = match read {
-            PairedEndEvidence::SingleEnd(record) => get_qpos(record.record(), &self.locus()),
-            PairedEndEvidence::PairedEnd { left, right } => {
-                let result1 = get_qpos(left.record(), &self.locus());
-                let result2 = get_qpos(right.record(), &self.locus());
+            Evidence::SingleEndSequencingRead(record) => get_qpos(record.record(), self.locus()),
+            Evidence::PairedEndSequencingRead { left, right } => {
+                let result1 = get_qpos(left.record(), self.locus());
+                let result2 = get_qpos(right.record(), self.locus());
 
                 match (result1, result2) {
                     (Some(inner_qpos), _) => Some(inner_qpos),
@@ -464,30 +476,29 @@ impl Variant for Methylation {
             let prob_ref;
             // TODO Do something, if the next base is no G
             match read {
-                PairedEndEvidence::SingleEnd(record) => match self.readtype {
+                Evidence::SingleEndSequencingRead(record) => match self.readtype {
                     Readtype::Illumina => {
-                        (prob_alt, prob_ref) =
-                            process_read_illumina(record.record(), &self.locus())
-                                .unwrap_or((LogProb(0.0), LogProb(0.0)));
+                        (prob_alt, prob_ref) = process_read_illumina(record.record(), self.locus())
+                            .unwrap_or((LogProb(0.0), LogProb(0.0)));
                     }
 
                     Readtype::PacBio | Readtype::Nanopore => {
                         let meth_info = &read.get_methylation_probs()[0];
                         (prob_alt, prob_ref) =
-                            process_read_pb_np(record.record(), &self.locus(), meth_info)
+                            process_read_pb_np(record.record(), self.locus(), meth_info)
                                 .unwrap_or((LogProb(0.0), LogProb(0.0)));
                     }
                 },
 
-                PairedEndEvidence::PairedEnd { left, right } => {
+                Evidence::PairedEndSequencingRead { left, right } => {
                     match self.readtype {
                         Readtype::Illumina => {
                             // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
                             let (prob_alt_left, prob_ref_left) =
-                                process_read_illumina(left.record(), &self.locus())
+                                process_read_illumina(left.record(), self.locus())
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
                             let (prob_alt_right, prob_ref_right) =
-                                process_read_illumina(right.record(), &self.locus())
+                                process_read_illumina(right.record(), self.locus())
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
@@ -500,10 +511,10 @@ impl Variant for Methylation {
                             let meth_info_right = &read.get_methylation_probs()[1];
 
                             let (prob_alt_left, prob_ref_left) =
-                                process_read_pb_np(left.record(), &self.locus(), meth_info_left)
+                                process_read_pb_np(left.record(), self.locus(), meth_info_left)
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
                             let (prob_alt_right, prob_ref_right) =
-                                process_read_pb_np(right.record(), &self.locus(), meth_info_right)
+                                process_read_pb_np(right.record(), self.locus(), meth_info_right)
                                     .unwrap_or((LogProb(0.0), LogProb(0.0)));
 
                             prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
@@ -515,8 +526,8 @@ impl Variant for Methylation {
 
             let strand = if prob_ref != prob_alt {
                 let record = match &read {
-                    PairedEndEvidence::SingleEnd(record) => record,
-                    PairedEndEvidence::PairedEnd { left, right: _ } => left,
+                    Evidence::SingleEndSequencingRead(record) => record,
+                    Evidence::PairedEndSequencingRead { left, right: _ } => left,
                 };
 
                 Strand::from_record_and_pos(record.record(), qpos as usize)?
@@ -544,7 +555,7 @@ impl Variant for Methylation {
     }
 
     /// Calculate probability to sample a record length like the given one from the alt allele.
-    fn prob_sample_alt(&self, _: &PairedEndEvidence, _: &AlignmentProperties) -> LogProb {
+    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::read_observation::{EvidenceIdentifier, PairedEndEvidence};
+use super::read_observation::{Evidence, EvidenceIdentifier};
 
 #[derive(Default, Debug)]
 pub(crate) struct FragmentIdFactory {
@@ -17,7 +17,7 @@ impl FragmentIdFactory {
             self.current_contig = contig.to_owned();
         }
     }
-    pub(crate) fn register(&mut self, evidence: &PairedEndEvidence) -> u64 {
+    pub(crate) fn register(&mut self, evidence: &Evidence) -> u64 {
         if self.ids.contains_key(&evidence.id()) {
             *self.ids.get(&evidence.id()).unwrap()
         } else {

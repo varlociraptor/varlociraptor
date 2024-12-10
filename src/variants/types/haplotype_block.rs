@@ -15,7 +15,7 @@ use crate::variants::evidence::observations::read_observation::Observable;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, Variant,
+    AlleleSupport, AlleleSupportBuilder, MultiLocus, Evidence, Variant,
 };
 
 use super::ToVariantRepresentation;
@@ -52,7 +52,7 @@ impl Variant for HaplotypeBlock {
 
     fn is_valid_evidence(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         let mut locus_offset = 0;
@@ -87,7 +87,7 @@ impl Variant for HaplotypeBlock {
 
     fn allele_support(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -106,7 +106,7 @@ impl Variant for HaplotypeBlock {
 
     fn prob_sample_alt(
         &self,
-        _evidence: &PairedEndEvidence,
+        _evidence: &Evidence,
         _alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that

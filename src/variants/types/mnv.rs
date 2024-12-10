@@ -31,7 +31,7 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Overlap, PairedEndEvidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Overlap, Evidence, SingleLocus, Variant,
 };
 
 use super::MultiLocus;
@@ -237,18 +237,18 @@ impl<R: Realigner> Variant for Mnv<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(read) => {
+            Evidence::SingleEndSequencingRead(read) => {
                 if let Overlap::Enclosing = self.locus().overlap(read.record(), false) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 if let Overlap::Enclosing = self.locus().overlap(left.record(), false) {
                     Some(vec![0])
                 } else if let Overlap::Enclosing = self.locus().overlap(right.record(), false) {
@@ -266,17 +266,17 @@ impl<R: Realigner> Variant for Mnv<R> {
 
     fn allele_support(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(read) => Ok(self.allele_support_per_read(
+            Evidence::SingleEndSequencingRead(read) => Ok(self.allele_support_per_read(
                 read.record(),
                 alignment_properties,
                 alt_variants,
             )?),
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let left_support = self.allele_support_per_read(
                     left.record(),
                     alignment_properties,
@@ -301,7 +301,7 @@ impl<R: Realigner> Variant for Mnv<R> {
         }
     }
 
-    fn prob_sample_alt(&self, _: &PairedEndEvidence, _: &AlignmentProperties) -> LogProb {
+    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

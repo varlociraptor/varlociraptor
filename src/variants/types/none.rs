@@ -14,7 +14,7 @@ use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, PairedEndEvidence, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
 
 use super::{MultiLocus, ToVariantRepresentation};
@@ -93,18 +93,18 @@ impl Variant for None {
 
     fn is_valid_evidence(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(read) => {
+            Evidence::SingleEndSequencingRead(read) => {
                 if let Overlap::Enclosing = self.locus().overlap(&read.record(), false) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::PairedEndSequencingRead { left, right } => {
                 if let Overlap::Enclosing = self.locus().overlap(&left.record(), false) {
                     Some(vec![0])
                 } else if let Overlap::Enclosing = self.locus().overlap(&right.record(), false) {
@@ -122,13 +122,15 @@ impl Variant for None {
 
     fn allele_support(
         &self,
-        evidence: &PairedEndEvidence,
+        evidence: &Evidence,
         _: &AlignmentProperties,
         _: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(read) => Ok(self.allele_support_per_read(&read.record())?),
-            PairedEndEvidence::PairedEnd { left, right } => {
+            Evidence::SingleEndSequencingRead(read) => {
+                Ok(self.allele_support_per_read(&read.record())?)
+            }
+            Evidence::PairedEndSequencingRead { left, right } => {
                 let left_support = self.allele_support_per_read(&left.record())?;
                 let right_support = self.allele_support_per_read(&right.record())?;
 
@@ -145,7 +147,7 @@ impl Variant for None {
         }
     }
 
-    fn prob_sample_alt(&self, _: &PairedEndEvidence, _: &AlignmentProperties) -> LogProb {
+    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

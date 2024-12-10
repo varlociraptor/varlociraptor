@@ -62,18 +62,18 @@ impl RecordBuffer {
         inner: bam::RecordBuffer,
         single_read_window: u64,
         read_pair_window: u64,
-        collect_methylation_probs: bool,
+        methylation_mm_ml_tag: bool,
     ) -> Self {
         RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
-            methylation_probs: if collect_methylation_probs {
+            methylation_probs: if methylation_mm_ml_tag {
                 Some(HashMap::new())
             } else {
                 None
             },
-            failed_reads: if collect_methylation_probs {
+            failed_reads: if methylation_mm_ml_tag {
                 Some(Vec::new())
             } else {
                 None
@@ -265,7 +265,7 @@ impl SampleBuilder {
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
-        collect_methylation_probs: bool,
+        methylation_mm_ml_tag: bool,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -287,7 +287,7 @@ impl SampleBuilder {
                 record_buffer,
                 single_read_window,
                 read_pair_window,
-                collect_methylation_probs,
+                methylation_mm_ml_tag,
             ))
     }
 }
