@@ -273,6 +273,7 @@ fn process_read(
     if (is_long_read && meth_info.is_none())
         || candidate_outside(read_reverse, read, qpos)
         || mutation_occurred(read_reverse, read, qpos, is_long_read)
+        || read_invalid(read.inner.core.flag)
     {
         return None;
     }
@@ -343,17 +344,22 @@ fn mutation_occurred(
     qpos: u32,
     is_long_read: bool,
 ) -> bool {
-    let read_base = if read_reverse {
-        unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) }
+    let (read_base, mutation_bases) = if read_reverse {
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        let mutation_bases = if is_long_read {
+            vec![b'C', b'A', b'T']
+        } else {
+            vec![b'C', b'T']
+        };
+        (read_base, mutation_bases)
     } else {
-        unsafe { record.seq().decoded_base_unchecked(qpos as usize) }
-    };
-
-    // Define mutation conditions based on whether it is a long or short read
-    let mutation_bases: Vec<u8> = if is_long_read {
-        vec![b'C', b'T', b'A']
-    } else {
-        vec![b'C', b'T']
+        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        let mutation_bases = if is_long_read {
+            vec![b'G', b'A', b'T']
+        } else {
+            vec![b'A', b'G']
+        };
+        (read_base, mutation_bases)
     };
 
     if mutation_bases.contains(&read_base) {
