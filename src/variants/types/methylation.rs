@@ -5,7 +5,7 @@ use crate::{estimation::alignment_properties::AlignmentProperties, variants::sam
 
 use super::MultiLocus;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::observations::read_observation::{ExtendedRecord, Strand};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
@@ -41,6 +41,52 @@ impl Methylation {
                 locus.pos()..locus.pos() + 1,
             ))),
             readtype,
+        }
+    }
+
+    fn allele_support_per_read(
+        &self,
+        read: &ExtendedRecord,
+        is_long_read: bool,
+    ) -> Result<Option<AlleleSupport>> {
+        if self.locus().overlap(&read.record(), false) != Overlap::Enclosing {
+            return Ok(None);
+        }
+        if let Some(qpos) = read
+            .record()
+            .cigar_cached()
+            .unwrap()
+            // TODO expect u64 in read_pos
+            .read_pos(self.locus().range().start as u32, false, false)?
+        {
+            if let Some((prob_alt, prob_ref)) =
+                process_read(read.record(), read.prob_methylation(), qpos, is_long_read)
+            {
+                let strand = if prob_ref != prob_alt {
+                    Strand::from_record_and_pos(&read.record(), qpos as usize)?
+                } else {
+                    // METHOD: if record is not informative, we don't want to
+                    // retain its information (e.g. strand).
+                    Strand::no_strand_info()
+                };
+                Ok(Some(
+                    AlleleSupportBuilder::default()
+                        .prob_ref_allele(prob_ref)
+                        .prob_alt_allele(prob_alt)
+                        .strand(strand)
+                        .read_position(Some(qpos as u32))
+                        .third_allele_evidence(None)
+                        .build()
+                        .unwrap(),
+                ))
+            } else {
+                Ok(None)
+            }
+        } else {
+            // a read that spans an SNV might have the respective position in the
+            // reference skipped (Cigar op 'N'), and the library should not choke on those reads
+            // but instead needs to know NOT to add those reads (as observations) further up
+            Ok(None)
         }
     }
 
@@ -80,7 +126,7 @@ fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
 /// # Returns
 ///
 /// pos_methylated_cs: Vector of positions of methylated Cs in Read
-pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
+pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -182,7 +228,7 @@ pub fn meth_pos(read: &Rc<Record>) -> Option<Vec<usize>> {
 /// # Returns
 ///
 /// ml: Vector of methylation probabilities
-pub fn meth_probs(read: &Rc<Record>) -> Option<Vec<LogProb>> {
+pub fn extract_ml_methylation_probabilities(read: &Rc<Record>) -> Option<Vec<LogProb>> {
     let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -213,92 +259,33 @@ pub fn meth_probs(read: &Rc<Record>) -> Option<Vec<LogProb>> {
     }
 }
 
-/// Position of CpG site in the read
-///
-/// # Returns
-///
-/// Option<position>: Position of CpG site if it is included in read
-/// None else
-fn get_qpos(read: &Rc<Record>, locus: &SingleLocus) -> Option<i32> {
-    read.cigar_cached()
-        .unwrap()
-        .read_pos(locus.range().start as u32, false, false)
-        .unwrap()
-        .map(|qpos| qpos as i32)
-}
-
-fn process_read_illumina(read: &Rc<Record>, locus: &SingleLocus) -> Option<(LogProb, LogProb)> {
-    let filter = true;
-    let qpos = get_qpos(read, locus)?;
-    let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
-    let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
-
-    let is_invalid = read_invalid(read.inner.core.flag);
-    let mutation_occurred = mutation_occurred_illumina(read_reverse, read, qpos);
-    // If locus is on the last position of the read and reverse, the C of the CG is not included
-    // TODO: Vermeiden, wenn wir herausfinden, dass der Sequencer sich vertuen koennte.
-    if (c_not_included || mutation_occurred || is_invalid) && filter {
-        return Some((LogProb::from(Prob(0.5)), LogProb::from(Prob(0.5))));
-    }
-    Some(compute_probs_illumina(read_reverse, read, qpos))
-}
-
-/// Computes the probability of methylation/no methylation of a given position in an Illumina read. Takes mapping probability into account
-///
-/// # Returns
-///
-/// prob_alt: Probability of methylation (alternative)
-/// prob_ref: Probability of no methylation (reference)
-fn compute_probs_illumina(
-    read_reverse: bool,
-    record: &Rc<Record>,
-    qpos: i32,
-) -> (LogProb, LogProb) {
-    let (pos_in_read, ref_base, bisulfite_base) = if !read_reverse {
-        (qpos, b'C', b'T')
-    } else {
-        (qpos + 1, b'G', b'A')
-    };
-
-    let read_base = unsafe { record.seq().decoded_base_unchecked(pos_in_read as usize) };
-    // Base quality
-
-    let base_qual = unsafe { *record.qual().get_unchecked(pos_in_read as usize) };
-
-    let prob_alt = prob_read_base(read_base, ref_base, base_qual);
-    // let no_c = if read_base != ref_base {
-    //     read_base
-    // } else {
-    //     bisulfite_base
-    // };
-    let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
-    (prob_alt, prob_ref)
-}
-
-fn process_read_pb_np(
+fn process_read(
     read: &Rc<Record>,
-    locus: &SingleLocus,
-    meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
+    meth_info: &Option<Rc<HashMap<usize, LogProb>>>, // Meth info ist nur bei long reads relevant
+    qpos: u32,
+    is_long_read: bool, // Gibt an, ob es sich um einen Long-Read handelt
 ) -> Option<(LogProb, LogProb)> {
-    let qpos = get_qpos(read, locus)?;
-    // let record = &read.into_single_end_evidence()[0];
     let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
-    // If locus is on the last position of the read and reverse, the C of the CG is not included
-    let c_not_included = qpos as usize == read.seq().len() - 1 && read_reverse;
-    // If the base of the read under consideration is not a C we can't say anything about the methylation status
-    if meth_info.is_none()
+
+    // We do not consider a read if:
+    //    the CpG site is at the end of the read and therefor the C is not included in the reverse read
+    //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
+    if (is_long_read && meth_info.is_none())
         || candidate_outside(read_reverse, read, qpos)
-        || mutation_occurred_pb_np(read_reverse, read, qpos)
-        || c_not_included
+        || mutation_occurred(read_reverse, read, qpos, is_long_read)
     {
         return None;
     }
 
-    Some(compute_probs_pb_np(
-        read_reverse,
-        meth_info.as_ref().unwrap(),
-        qpos,
-    ))
+    if is_long_read {
+        Some(compute_probs_long_read(
+            read_reverse,
+            &meth_info.as_ref().unwrap(),
+            qpos,
+        ))
+    } else {
+        Some(compute_probs_short_read(read_reverse, read, qpos))
+    }
 }
 
 /// Computes the probability of methylation/no methylation of a given position in an PacBio/ Nanopore read. Takes mapping probability into account
@@ -307,10 +294,10 @@ fn process_read_pb_np(
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
-fn compute_probs_pb_np(
+fn compute_probs_long_read(
     read_reverse: bool,
     pos_to_probs: &HashMap<usize, LogProb>,
-    qpos: i32,
+    qpos: u32,
 ) -> (LogProb, LogProb) {
     let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
     let prob_alt;
@@ -325,22 +312,57 @@ fn compute_probs_pb_np(
     (prob_alt, prob_ref)
 }
 
-/// Computes if a mutation occured at the C of a CpG position (Not used right now but good for debugging)
+/// Computes the probability of methylation/no methylation of a given position in an Illumina read. Takes mapping probability into account
 ///
 /// # Returns
 ///
-/// bool: True, if mutation occured
-fn mutation_occurred_illumina(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
-    if read_reverse {
-        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
-        if read_base == b'C' || read_base == b'T' {
-            return true;
-        }
+/// prob_alt: Probability of methylation (alternative)
+/// prob_ref: Probability of no methylation (reference)
+pub fn compute_probs_short_read(
+    read_reverse: bool,
+    record: &Rc<Record>,
+    qpos: u32,
+) -> (LogProb, LogProb) {
+    let (pos_in_read, ref_base, bisulfite_base) = if !read_reverse {
+        (qpos, b'C', b'T')
     } else {
-        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        if read_base == b'A' || read_base == b'G' {
-            return true;
-        }
+        (qpos + 1, b'G', b'A')
+    };
+
+    let read_base = unsafe { record.seq().decoded_base_unchecked(pos_in_read as usize) };
+    let base_qual = unsafe { *record.qual().get_unchecked(pos_in_read as usize) };
+
+    let prob_alt = prob_read_base(read_base, ref_base, base_qual);
+    let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
+    (prob_alt, prob_ref)
+}
+
+fn mutation_occurred(
+    read_reverse: bool,
+    record: &Rc<Record>,
+    qpos: u32,
+    is_long_read: bool,
+) -> bool {
+    let read_base = if read_reverse {
+        unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) }
+    } else {
+        unsafe { record.seq().decoded_base_unchecked(qpos as usize) }
+    };
+
+    // Define mutation conditions based on whether it is a long or short read
+    let mutation_bases: Vec<u8> = if is_long_read {
+        vec![b'C', b'T', b'A']
+    } else {
+        vec![b'C', b'T']
+    };
+
+    if mutation_bases.contains(&read_base) {
+        warn!(
+            "The record {:?} on position {:?} is not considered because a mutation occurred",
+            String::from_utf8_lossy(record.qname()),
+            qpos
+        );
+        return true;
     }
     false
 }
@@ -357,39 +379,9 @@ fn read_invalid(flag: u16) -> bool {
     true
 }
 
-/// Computes if a mutation occured at the C of a CpG position
-///
-/// # Returns
-///
-/// bool: True, if mutation occured
-fn mutation_occurred_pb_np(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
-    if read_reverse {
-        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
-        if read_base == b'C' || read_base == b'T' || read_base == b'A' {
-            warn!(
-                "The record {:?} on position {:?} is not considered because a mutation occured",
-                String::from_utf8_lossy(record.qname()),
-                qpos
-            );
-            return true;
-        }
-    } else {
-        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        if read_base == b'A' || read_base == b'G' || read_base == b'T' {
-            warn!(
-                "The record {:?} on position {:?} is not considered because a mutation occured",
-                String::from_utf8_lossy(record.qname()),
-                qpos
-            );
-            return true;
-        }
-    }
-    false
-}
-
 // Compute if the read is reverse and the CpG site is at the end of the read because in this case the C of the CpG site is not included
-fn candidate_outside(read_reverse: bool, record: &Rc<Record>, qpos: i32) -> bool {
-    if read_reverse && qpos + 1 == record.seq().len() as i32 {
+fn candidate_outside(read_reverse: bool, record: &Rc<Record>, qpos: u32) -> bool {
+    if read_reverse && qpos + 1 == record.seq().len() as u32 {
         warn!(
             "The record {:?} on position {:?} is not considered because the C of the CpG site is outside of the read",
             String::from_utf8_lossy(record.qname()),
@@ -454,103 +446,47 @@ impl Variant for Methylation {
 
     fn allele_support(
         &self,
-        read: &Evidence,
+        evidence: &Evidence,
         _alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let qpos = match read {
-            Evidence::SingleEndSequencingRead(record) => get_qpos(record.record(), self.locus()),
-            Evidence::PairedEndSequencingRead { left, right } => {
-                let result1 = get_qpos(left.record(), self.locus());
-                let result2 = get_qpos(right.record(), self.locus());
-
-                match (result1, result2) {
-                    (Some(inner_qpos), _) => Some(inner_qpos),
-                    (_, Some(inner_qpos)) => Some(inner_qpos),
-                    _ => None,
+        match evidence {
+            Evidence::SingleEndSequencingRead(read) => match self.readtype {
+                Readtype::Illumina => Ok(self.allele_support_per_read(read, false)?),
+                Readtype::PacBio | Readtype::Nanopore => {
+                    Ok(self.allele_support_per_read(read, true)?)
                 }
-            }
-        };
-        if let Some(qpos) = qpos {
-            let prob_alt;
-            let prob_ref;
-            // TODO Do something, if the next base is no G
-            match read {
-                Evidence::SingleEndSequencingRead(record) => match self.readtype {
-                    Readtype::Illumina => {
-                        (prob_alt, prob_ref) = process_read_illumina(record.record(), self.locus())
-                            .unwrap_or((LogProb(0.0), LogProb(0.0)));
-                    }
+            },
+            Evidence::PairedEndSequencingRead { left, right } => match self.readtype {
+                Readtype::Illumina => {
+                    let left_support = self.allele_support_per_read(left, false)?;
+                    let right_support = self.allele_support_per_read(right, false)?;
 
-                    Readtype::PacBio | Readtype::Nanopore => {
-                        let meth_info = &read.get_methylation_probs()[0];
-                        (prob_alt, prob_ref) =
-                            process_read_pb_np(record.record(), self.locus(), meth_info)
-                                .unwrap_or((LogProb(0.0), LogProb(0.0)));
-                    }
-                },
-
-                Evidence::PairedEndSequencingRead { left, right } => {
-                    match self.readtype {
-                        Readtype::Illumina => {
-                            // If the CpG site is only in one read included compute the probability for methylation in the read. If it is includedin both reads combine the probs.
-                            let (prob_alt_left, prob_ref_left) =
-                                process_read_illumina(left.record(), self.locus())
-                                    .unwrap_or((LogProb(0.0), LogProb(0.0)));
-                            let (prob_alt_right, prob_ref_right) =
-                                process_read_illumina(right.record(), self.locus())
-                                    .unwrap_or((LogProb(0.0), LogProb(0.0)));
-
-                            prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
-                            prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
+                    match (left_support, right_support) {
+                        (Some(mut left_support), Some(right_support)) => {
+                            left_support.merge(&right_support);
+                            Ok(Some(left_support))
                         }
-                        // PacBio reads are normally no paired-end reads. Since we take supplementary alignments into consideration, some of the SingleEndAlignments become PairedEnd Alignments
-                        // In this case we just chose the first alignment
-                        Readtype::PacBio | Readtype::Nanopore => {
-                            let meth_info_left = &read.get_methylation_probs()[0];
-                            let meth_info_right = &read.get_methylation_probs()[1];
-
-                            let (prob_alt_left, prob_ref_left) =
-                                process_read_pb_np(left.record(), self.locus(), meth_info_left)
-                                    .unwrap_or((LogProb(0.0), LogProb(0.0)));
-                            let (prob_alt_right, prob_ref_right) =
-                                process_read_pb_np(right.record(), self.locus(), meth_info_right)
-                                    .unwrap_or((LogProb(0.0), LogProb(0.0)));
-
-                            prob_alt = LogProb(prob_alt_left.0 + prob_alt_right.0);
-                            prob_ref = LogProb(prob_ref_left.0 + prob_ref_right.0);
-                        }
+                        (Some(left_support), None) => Ok(Some(left_support)),
+                        (None, Some(right_support)) => Ok(Some(right_support)),
+                        (None, None) => Ok(None),
                     }
                 }
-            }
+                Readtype::PacBio | Readtype::Nanopore => {
+                    let left_support = self.allele_support_per_read(left, true)?;
+                    let right_support = self.allele_support_per_read(right, true)?;
 
-            let strand = if prob_ref != prob_alt {
-                let record = match &read {
-                    Evidence::SingleEndSequencingRead(record) => record,
-                    Evidence::PairedEndSequencingRead { left, right: _ } => left,
-                };
-
-                Strand::from_record_and_pos(record.record(), qpos as usize)?
-            } else {
-                // METHOD: if record is not informative, we don't want to
-                // retain its information (e.g. strand).
-                Strand::no_strand_info()
-            };
-            Ok(Some(
-                AlleleSupportBuilder::default()
-                    .prob_ref_allele(prob_ref)
-                    .prob_alt_allele(prob_alt)
-                    .strand(strand)
-                    .read_position(Some(qpos as u32))
-                    .third_allele_evidence(None)
-                    .build()
-                    .unwrap(),
-            ))
-        } else {
-            // a read that spans an SNV might have the respective position in the
-            // reference skipped (Cigar op 'N'), and the library should not choke on those reads
-            // but instead needs to know NOT to add those reads (as observations) further up
-            Ok(None)
+                    match (left_support, right_support) {
+                        (Some(mut left_support), Some(right_support)) => {
+                            left_support.merge(&right_support);
+                            Ok(Some(left_support))
+                        }
+                        (Some(left_support), None) => Ok(Some(left_support)),
+                        (None, Some(right_support)) => Ok(Some(right_support)),
+                        (None, None) => Ok(None),
+                    }
+                }
+            },
         }
     }
 

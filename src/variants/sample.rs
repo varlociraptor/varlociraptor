@@ -6,7 +6,9 @@
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
-use super::types::methylation::{meth_pos, meth_probs};
+use super::types::methylation::{
+    extract_ml_methylation_probabilities, extract_mm_methylation_positions,
+};
 use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::pileup::Pileup;
@@ -123,13 +125,14 @@ impl RecordBuffer {
                     rec_debug.push(rec.inner.core.pos);
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
-                        let pos_to_probs = meth_pos(rec).and_then(|meth_pos| {
-                            meth_probs(rec).map(|meth_probs| {
-                                let map: HashMap<usize, LogProb> =
-                                    meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
-                                Rc::new(map) // Wrap the HashMap in Rc
-                            })
-                        });
+                        let pos_to_probs =
+                            extract_mm_methylation_positions(rec).and_then(|meth_pos| {
+                                extract_ml_methylation_probabilities(rec).map(|meth_probs| {
+                                    let map: HashMap<usize, LogProb> =
+                                        meth_pos.into_iter().zip(meth_probs.into_iter()).collect();
+                                    Rc::new(map) // Wrap the HashMap in Rc
+                                })
+                            });
 
                         if pos_to_probs.is_none() {
                             failed_reads.push(rec_id);
