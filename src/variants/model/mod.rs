@@ -200,15 +200,7 @@ impl HaplotypeIdentifier {
 }
 
 #[derive(
-    Display,
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    EnumString,
-    EnumIter,
-    IntoStaticStr,
-    EnumVariantNames,
+    Display, Debug, Clone, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr, VariantNames,
 )]
 pub enum VariantType {
     #[strum(serialize = "INS")]
