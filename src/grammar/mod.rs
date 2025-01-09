@@ -656,6 +656,14 @@ impl FromStr for Conversion {
                 let from_char = parts[0].chars().next().unwrap();
                 let to_char = parts[1].chars().next().unwrap();
                 if from_char.is_ascii() && to_char.is_ascii() {
+                    let is_nucleotide =
+                        |c: char| matches!(c.to_ascii_uppercase(), 'A' | 'T' | 'G' | 'C' | 'N');
+                    if !is_nucleotide(from_char) || !is_nucleotide(to_char) {
+                        return Err(format!(
+                            "Invalid nucleotides in conversion string '{}'. Expected A,T,G,C,N.",
+                            s
+                        ));
+                    }
                     Ok(Conversion {
                         from: from_char as u8,
                         to: to_char as u8,

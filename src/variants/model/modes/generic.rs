@@ -473,26 +473,6 @@ impl Likelihood<Cache> for GenericLikelihood {
             }
         }
 
-        // let sample_likelihood = |conversion: Option<Conversion>,
-        //                          likelihood_model: &dyn Likelihood<Event = _, Data = _>,
-        //                          event,
-        //                          pileup,
-        //                          cache| {
-        //     if let Some(conversion) = conversion {
-        //         if let Some(snv) = data.snv {
-        //             if snv.refbase == conversion.from && snv.altbase == conversion.to {
-        //                 let density = |conversion_rate| {
-        //                     // Frage Johannes: event ist mal normales Event, mal contaminated. Soll ich im contaminated Fall nur auf primary aufrechnen?
-        //                     let event_var_or_conversion = event + conversion_rate;
-        //                     likelihood_model.compute(event_var_or_conversion, pileup, cache)
-        //                 };
-        //                 return LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0 - event, 11);
-        //             }
-        //         }
-        //     }
-        //     likelihood_model.compute(event, pileup, cache)
-        // };
-
         let mut p = LogProb::ln_one();
 
         // Step 2: Calculate joint likelihood of sample VAFs.
@@ -569,7 +549,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                                         density,
                                         0.0,
                                         1.0 - event.allele_freq.into_inner(),
-                                        5,
+                                        11,
                                     );
                                 }
                             }
