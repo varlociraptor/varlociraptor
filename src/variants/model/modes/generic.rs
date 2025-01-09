@@ -12,7 +12,7 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
 use crate::variants::model::{self, Conversion};
-use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
+use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination};
 use std::ops::Index;
 
 #[derive(new, Clone, Debug)]
@@ -519,10 +519,9 @@ impl Likelihood<Cache> for GenericLikelihood {
                             if let Some(snv) = &data.snv {
                                 if snv.refbase == conversion.from && snv.altbase == conversion.to {
                                     let density = |_, conversion_rate| {
-                                        // Frage Johannes: Soll ich auf primary aufrechnen? Warum reicht es einfach die beiden zu addieren? Die Formel ist doch viel laenger?
-                                        // Nur auf primary addieren?
                                         let mut event_var_or_conversion =
                                             contaminated_event.clone();
+                                        // Frage Johannes: Soll ich auf primary aufrechnen?
                                         event_var_or_conversion.primary.allele_freq +=
                                             conversion_rate;
                                         likelihood_model.compute(
@@ -531,7 +530,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                                             cache,
                                         )
                                     };
-                                    LogProb::ln_simpsons_integrate_exp(
+                                    return LogProb::ln_simpsons_integrate_exp(
                                         density,
                                         0.0,
                                         1.0 - contaminated_event.primary.allele_freq.into_inner(),
@@ -566,13 +565,12 @@ impl Likelihood<Cache> for GenericLikelihood {
                                             cache,
                                         )
                                     };
-                                    let prob = LogProb::ln_simpsons_integrate_exp(
+                                    return LogProb::ln_simpsons_integrate_exp(
                                         density,
                                         0.0,
                                         1.0 - event.allele_freq.into_inner(),
                                         5,
                                     );
-                                    return prob;
                                 }
                             }
                         }

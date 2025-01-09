@@ -1109,14 +1109,11 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             } else {
                 None
             };
-            let conversion = if let Some(conversion) = sample.conversion() {
-                Some(Conversion {
-                    from: *conversion.from(),
-                    to: *conversion.to(),
-                })
-            } else {
-                None
-            };
+
+            let conversion = sample.conversion().as_ref().map(|conversion| Conversion {
+                from: *conversion.from(),
+                to: *conversion.to(),
+            });
             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
             conversions = conversions.push(sample_name, conversion);

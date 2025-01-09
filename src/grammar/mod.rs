@@ -38,6 +38,11 @@ impl<T> SampleInfo<T> {
     }
 
     pub(crate) fn zip<'a, U>(&'a self, other: &'a SampleInfo<U>) -> SampleInfo<(&'a T, &'a U)> {
+        assert_eq!(
+            self.inner.len(),
+            other.inner.len(),
+            "SampleInfo instances must have the same length"
+        );
         SampleInfo {
             inner: self.inner.iter().zip(other.inner.iter()).collect(),
         }
@@ -647,19 +652,28 @@ impl FromStr for Conversion {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = s.split('>').collect();
         if parts.len() == 2 {
-            let from_char = parts[0].chars().next();
-            let to_char = parts[1].chars().next();
-
-            if let (Some(from), Some(to)) = (from_char, to_char) {
-                Ok(Conversion {
-                    from: from as u8,
-                    to: to as u8,
-                })
+            if parts[0].chars().count() == 1 && parts[1].chars().count() == 1 {
+                let from_char = parts[0].chars().next().unwrap();
+                let to_char = parts[1].chars().next().unwrap();
+                if from_char.is_ascii() && to_char.is_ascii() {
+                    Ok(Conversion {
+                        from: from_char as u8,
+                        to: to_char as u8,
+                    })
+                } else {
+                    Err(format!(
+                        "Non-ASCII characters are not supported in conversion string '{}'",
+                        s
+                    ))
+                }
             } else {
-                Err("Conversion string is not in the correct format".to_string())
+                Err(format!(
+                    "Expected single ASCII characters before and after '>' in '{}'",
+                    s
+                ))
             }
         } else {
-            Err("Expected format 'X>Y' but got something else".to_string())
+            Err(format!("Expected format 'X>Y' but got '{}'", s))
         }
     }
 }

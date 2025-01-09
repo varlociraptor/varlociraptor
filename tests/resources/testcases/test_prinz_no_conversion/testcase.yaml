@@ -7,8 +7,60 @@ expected:
 samples:
   normal:
     path: 'normal.bam'
-    properties: '{"insert_size":{"mean":150.0,"sd":0.0},"max_del_cigar_len":null,"max_ins_cigar_len":null,"frac_max_softclip":null,"max_read_len":150,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-12.785891140783116,"prob_deletion_artifact":-12.186270018233994,"prob_insertion_extend_artifact":null,"prob_deletion_extend_artifact":null},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"0":1.0},"initial":false}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":3000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+    properties: >
+      {
+        "insert_size": {
+          "mean": 150.0,
+          "sd": 0.0
+        },
+        "max_del_cigar_len": null,
+        "max_ins_cigar_len": null,
+        "frac_max_softclip": null,
+        "max_read_len": 150,
+        "max_mapq": 60,
+        "gap_params": {
+          "prob_insertion_artifact": -12.785891140783116,
+          "prob_deletion_artifact": -12.186270018233994,
+          "prob_insertion_extend_artifact": null,
+          "prob_deletion_extend_artifact": null
+        },
+        "hop_params": {
+          "prob_seq_homopolymer": [null, null, null, null],
+          "prob_ref_homopolymer": [null, null, null, null],
+          "prob_seq_extend_homopolymer": [null, null, null, null],
+          "prob_ref_extend_homopolymer": [null, null, null, null]
+        },
+        "wildtype_homopolymer_error_model": {
+          "0": 1.0
+        },
+        "initial": false
+      }
+    options: >
+      {
+        "Preprocess": {
+          "kind": {
+            "Variants": {
+              "reference": "?",
+              "candidates": "?",
+              "bam": "?",
+              "report_fragment_ids": false,
+              "atomic_candidate_variants": false,
+              "omit_mapq_adjustment": false,
+              "reference_buffer_size": 10,
+              "min_bam_refetch_distance": 1,
+              "alignment_properties": null,
+              "output": "?",
+              "propagate_info_fields": [],
+              "realignment_window": 64,
+              "max_depth": 3000,
+              "omit_insert_size": false,
+              "pairhmm_mode": "exact",
+              "log_mode": "default",
+              "output_raw_observations": null
+            }
+          }
+        }
+      }
   
 
 # candidate variant
