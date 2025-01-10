@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 
 use anyhow::Result;
 use bio_types::genome::AbstractLocus;
-use bio_types::variant;
 use itertools::Itertools;
 use rust_htslib::{bcf, bcf::record::Numeric};
 
