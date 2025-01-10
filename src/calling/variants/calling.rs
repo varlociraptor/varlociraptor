@@ -9,7 +9,7 @@ use std::sync::RwLock;
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
 use bio_types::genome::AbstractLocus;
-use bio_types::{genome, variant};
+use bio_types::genome;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
