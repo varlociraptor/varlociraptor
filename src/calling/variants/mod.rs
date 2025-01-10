@@ -49,6 +49,13 @@ lazy_static! {
     ]);
 }
 
+#[derive(EnumString, Hash, Eq, PartialEq, Debug, Clone, Copy, IntoStaticStr, Display)]
+#[strum(serialize_all = "kebab_case")]
+pub(crate) enum Hint {
+    AdjustedSingletonEvidence,
+    FilteredNonStandardAlignments,
+}
+
 #[derive(Default, Clone, Debug, Builder, Getters, CopyGetters)]
 pub(crate) struct Call {
     #[getset(get = "pub(crate)")]
@@ -70,6 +77,8 @@ pub(crate) struct Call {
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     aux_info: AuxInfo,
+    #[builder(default)]
+    hints: HashSet<Hint>,
     //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
@@ -83,6 +92,10 @@ impl CallBuilder {
 }
 
 impl Call {
+    pub(crate) fn register_heuristic(&mut self, heuristic: Hint) {
+        self.hints.insert(heuristic);
+    }
+
     pub(crate) fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
 
@@ -335,8 +348,9 @@ impl Call {
                                     obs.bayes_factor_ref()
                                 };
                                 let score = bayes_factor_to_letter(bf);
-                                let keep = (alt_allele && obs.prob_alt > obs.prob_ref)
-                                    || (!alt_allele && obs.prob_alt <= obs.prob_ref);
+                                let keep = (alt_allele
+                                    && obs.prob_alt_orig() > obs.prob_ref_orig())
+                                    || (!alt_allele && obs.prob_alt_orig() <= obs.prob_ref_orig());
                                 if keep {
                                     Some(format!(
                                         "{}",
@@ -406,6 +420,14 @@ impl Call {
 
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
+        }
+        if !self.hints.is_empty() {
+            let hints: Vec<&[u8]> = self
+                .hints
+                .iter()
+                .map(|hint| <&Hint as Into<&'static str>>::into(hint).as_bytes())
+                .collect();
+            record.push_info_string(b"HINTS", &hints)?;
         }
 
         self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
@@ -536,7 +558,8 @@ impl Call {
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
-            record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SROBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record
                 .push_format_integer(b"OOBS", &vec![i32::missing(); variant.sample_info.len()])?;

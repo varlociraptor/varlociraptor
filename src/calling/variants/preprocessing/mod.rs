@@ -437,42 +437,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     }
                                 }
 
-                                for variant in
-                                    haplotype_block.single_locus_single_end_evidence_variants()
-                                {
-                                    calls.push(to_call(
-                                        variant.loci(),
-                                        variant.to_variant_representation(),
-                                        Arc::clone(&self.reference_buffer),
-                                        haplotype,
-                                        Rc::clone(&pileup),
-                                    )?);
-                                }
-                                for variant in
-                                    haplotype_block.single_locus_paired_end_evidence_variants()
-                                {
-                                    calls.push(to_call(
-                                        variant.loci(),
-                                        variant.to_variant_representation(),
-                                        Arc::clone(&self.reference_buffer),
-                                        haplotype,
-                                        Rc::clone(&pileup),
-                                    )?);
-                                }
-                                for variant in
-                                    haplotype_block.multi_locus_single_end_evidence_variants()
-                                {
-                                    calls.push(to_call(
-                                        variant.loci(),
-                                        variant.to_variant_representation(),
-                                        Arc::clone(&self.reference_buffer),
-                                        haplotype,
-                                        Rc::clone(&pileup),
-                                    )?);
-                                }
-                                for variant in
-                                    haplotype_block.multi_locus_paired_end_evidence_variants()
-                                {
+                                for variant in haplotype_block.variants() {
                                     calls.push(to_call(
                                         variant.loci(),
                                         variant.to_variant_representation(),
@@ -626,7 +591,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Some(
-            if let Some(haplotype) = variants.variant_of_interest().haplotype() {
+            if let Some(ref haplotype) = variants.variant_of_interest().haplotype() {
                 match variants.variant_of_interest().variant() {
                     model::Variant::Breakend {
                         ref_allele,
@@ -732,40 +697,32 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
                         match variant {
-                            model::Variant::Snv(alt) => haplotype_block
-                                .push_single_locus_single_end_evidence_variant(Box::new(
-                                    parse_snv(*alt)?,
-                                )),
-                            model::Variant::Mnv(alt) => haplotype_block
-                                .push_single_locus_single_end_evidence_variant(Box::new(
-                                    parse_mnv(alt)?,
-                                )),
-                            model::Variant::None => haplotype_block
-                                .push_single_locus_single_end_evidence_variant(Box::new(
-                                    parse_none()?,
-                                )),
-                            model::Variant::Deletion(l) => haplotype_block
-                                .push_multi_locus_paired_end_evidence_variant(Box::new(
-                                    parse_deletion(*l)?,
-                                )),
-                            model::Variant::Insertion(seq) => haplotype_block
-                                .push_multi_locus_paired_end_evidence_variant(Box::new(
-                                    parse_insertion(seq)?,
-                                )),
-                            model::Variant::Inversion(len) => haplotype_block
-                                .push_multi_locus_paired_end_evidence_variant(Box::new(
-                                    parse_inversion(*len)?,
-                                )),
-                            model::Variant::Duplication(len) => haplotype_block
-                                .push_multi_locus_paired_end_evidence_variant(Box::new(
-                                    parse_duplication(*len)?,
-                                )),
+                            model::Variant::Snv(alt) => {
+                                haplotype_block.push_variant(Box::new(parse_snv(*alt)?))
+                            }
+                            model::Variant::Mnv(alt) => {
+                                haplotype_block.push_variant(Box::new(parse_mnv(alt)?))
+                            }
+                            model::Variant::None => {
+                                haplotype_block.push_variant(Box::new(parse_none()?))
+                            }
+                            model::Variant::Deletion(l) => {
+                                haplotype_block.push_variant(Box::new(parse_deletion(*l)?))
+                            }
+                            model::Variant::Insertion(seq) => {
+                                haplotype_block.push_variant(Box::new(parse_insertion(seq)?))
+                            }
+                            model::Variant::Inversion(len) => {
+                                haplotype_block.push_variant(Box::new(parse_inversion(*len)?))
+                            }
+                            model::Variant::Duplication(len) => {
+                                haplotype_block.push_variant(Box::new(parse_duplication(*len)?))
+                            }
                             model::Variant::Replacement {
                                 ref_allele,
                                 alt_allele,
-                            } => haplotype_block.push_multi_locus_paired_end_evidence_variant(
-                                Box::new(parse_replacement(ref_allele, alt_allele)?),
-                            ),
+                            } => haplotype_block
+                                .push_variant(Box::new(parse_replacement(ref_allele, alt_allele)?)),
                             model::Variant::Breakend { .. } => {
                                 bail!(errors::Error::HaplotypeBlockWithBreakend);
                             }
@@ -966,8 +923,8 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     for obs in read_observations {
         ids.push(obs.fragment_id);
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
-        prob_ref.push(encode_logprob(obs.prob_ref));
-        prob_alt.push(encode_logprob(obs.prob_alt));
+        prob_ref.push(encode_logprob(obs.prob_ref()));
+        prob_alt.push(encode_logprob(obs.prob_alt()));
         prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
         prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
