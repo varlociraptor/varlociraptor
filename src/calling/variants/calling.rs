@@ -8,12 +8,13 @@ use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
-use bio_types::genome::AbstractLocus;
 use bio_types::genome;
+use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
 use progress_logger::ProgressLogger;
+use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::preprocessing::{
@@ -395,10 +396,10 @@ where
             }
 
             // obtain variant type
-            let variant_type = utils::collect_variants(records.first_not_none_mut()?, false, None)?
-                [0]
-            .variant()
-            .to_type();
+            let variant_type =
+                utils::collect_variants(records.first_not_none_mut()?, false, None, None, None)?[0]
+                    .variant()
+                    .to_type();
 
             let mut work_item =
                 self.preprocess_record(&mut records, i, &observations, &aux_info_collector)?;
@@ -470,10 +471,12 @@ where
                 if let Some(values) = first_record.info(key).float()? {
                     let value = values[0]; // all records output by preprocess are single allele
                     if value.is_missing() {
-                        None
+                        Ok(None)
                     } else {
-                        LogProb::from(PHREDProb(values[0]))
+                        Ok(Some(LogProb::from(PHREDProb(values[0] as f64))))
                     }
+                } else {
+                    Ok(None)
                 }
             };
             let variant_heterozygosity = get_prior(b"VARIANT_HETEROZYGOSITY")?;
@@ -686,8 +689,13 @@ where
 
             model
                 .prior_mut()
-                .set_universe_and_ploidies(vaf_universes.build(), ploidies.build())
-                .set_variant_heterozygosity(variant_heterozygosity)
+                .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
+
+            model
+                .prior_mut()
+                .set_variant_heterozygosity(variant_heterozygosity);
+            model
+                .prior_mut()
                 .set_variant_somatic_effective_mutation_rate(
                     variant_somtatic_effective_mutation_rate,
                 );

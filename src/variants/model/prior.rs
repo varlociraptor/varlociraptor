@@ -65,8 +65,10 @@ pub(crate) struct Prior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
     germline_mutation_rate: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
+    #[builder(default)]
     variant_somatic_effective_mutation_rate: Option<LogProb>,
     heterozygosity: Option<LogProb>,
+    #[builder(default)]
     variant_heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     variant_type_fractions: grammar::VariantTypeFraction,
@@ -361,7 +363,7 @@ impl Prior {
                         }
                         None => {
                             // no inheritance pattern defined
-                            self.vartype_somatic_effective_mutation_rate(sample)
+                            self.variant_or_vartype_somatic_effective_mutation_rate(sample)
                                 .map(|r| {
                                     self.prob_somatic_mutation(
                                         r,
@@ -524,7 +526,7 @@ impl Prior {
             let _parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
             let parent_total_vaf = event[parent].allele_freq;
 
-            match self.vartype_somatic_effective_mutation_rate(sample) {
+            match self.variant_or_vartype_somatic_effective_mutation_rate(sample) {
                 Some(somatic_mutation_rate) => {
                     if *parent_total_vaf == 0.0 && *germline_vaf == 0.0 {
                         // METHOD: variant is denovo in this sample, calculate somatic mutation probability
@@ -697,7 +699,9 @@ impl Prior {
                 .expect("bug: no germline mutation rate for child"),
         );
 
-        if let Some(somatic_mutation_rate) = self.vartype_somatic_effective_mutation_rate(child) {
+        if let Some(somatic_mutation_rate) =
+            self.variant_or_vartype_somatic_effective_mutation_rate(child)
+        {
             prob += self.prob_somatic_mutation(
                 somatic_mutation_rate,
                 self.effective_somatic_vaf(child, event, germline_vafs),

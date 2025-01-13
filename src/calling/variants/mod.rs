@@ -129,13 +129,16 @@ impl Call {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
         if let Some(heterozygosity) = self.heterozygosity {
-            record.push_info_string(b"HETEROZYGOSITY", &[*PHREDProb::from(heterozygosity)])
+            record.push_info_float(
+                b"HETEROZYGOSITY",
+                &[*PHREDProb::from(heterozygosity) as f32],
+            )?;
         }
         if let Some(somatic_effective_mutation_rate) = self.somatic_effective_mutation_rate {
-            record.push_info_string(
+            record.push_info_float(
                 b"SOMATIC_EFFECTIVE_MUTATION_RATE",
-                &[*PHREDProb::from(somatic_effective_mutation_rate)],
-            )
+                &[*PHREDProb::from(somatic_effective_mutation_rate) as f32],
+            )?;
         }
 
         self.write_record_aux_info(variant, &mut record)?;

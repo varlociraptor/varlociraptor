@@ -167,8 +167,9 @@ impl VariantBuffer {
             record,
             true,
             Some(&mut self.skips),
-            self.variant_heterozygosity_field.as_ref(),
-            self.variant_somatic_effective_mutation_rate_field.as_ref(),
+            self.variant_heterozygosity_field.as_deref(),
+            self.variant_somatic_effective_mutation_rate_field
+                .as_deref(),
         )?;
         let record_info = RecordInfo::new(
             self.record_index as usize,

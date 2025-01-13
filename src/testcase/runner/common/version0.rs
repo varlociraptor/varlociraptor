@@ -103,6 +103,8 @@ impl Testcase for TestcaseVersion0 {
                         pairhmm_mode: "exact".to_owned(),
                         output_raw_observations: None,
                         atomic_candidate_variants: false,
+                        variant_heterozygosity_field: None,
+                        variant_somatic_effective_mutation_rate_field: None,
                     },
                 };
 

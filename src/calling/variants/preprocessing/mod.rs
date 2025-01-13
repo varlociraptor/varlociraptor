@@ -285,11 +285,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         Some(id)
                     }
                 })
-                .heterozygosity(variants.variant_of_interest().heterozygosity)
+                .heterozygosity(variants.variant_of_interest().heterozygosity())
                 .somatic_effective_mutation_rate(
                     variants
                         .variant_of_interest()
-                        .somatic_effective_mutation_rate,
+                        .somatic_effective_mutation_rate(),
                 );
             builder
         };
@@ -298,6 +298,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             VariantInfo {
                 variant,
                 haplotype: None,
+                ..
             } => {
                 let mut call = call_builder(
                     variants.locus().contig().as_bytes().to_owned(),
