@@ -35,7 +35,7 @@ getset = "0.1.0"
 half = { version = "2.3", features = ["serde"] }
 itertools = "0.10"
 itertools-num = "0.1"
-jemallocator = "0.5.0"
+jemallocator = "0.5.4"
 lazy_static = "1"
 log = "0.4"
 lru = "0.7"
