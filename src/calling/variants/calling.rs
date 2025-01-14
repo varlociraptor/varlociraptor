@@ -468,17 +468,25 @@ where
 
             // obtain variant specific priors
             let get_prior = |key: &[u8]| -> Result<Option<LogProb>> {
-                if let Some(values) = first_record.info(key).float()? {
-                    let value = values[0]; // all records output by preprocess are single allele
-                    if value.is_missing() {
-                        Ok(None)
-                    } else {
-                        Ok(Some(LogProb::from(PHREDProb(values[0] as f64))))
+                match first_record.info(key).float() {
+                    // old format, not available handle for backwards compatibility
+                    Err(rust_htslib::errors::Error::BcfUndefinedTag { .. }) => Ok(None),
+                    // other error cases
+                    Err(e) => Err(e.into()),
+                    // info not passed
+                    Ok(None) => Ok(None),
+                    // info passed
+                    Ok(Some(values)) => {
+                        let value = values[0]; // all records output by preprocess are single allele
+                        if value.is_missing() {
+                            Ok(None)
+                        } else {
+                            Ok(Some(LogProb::from(PHREDProb(values[0] as f64))))
+                        }
                     }
-                } else {
-                    Ok(None)
                 }
             };
+
             let variant_heterozygosity = get_prior(b"HETEROZYGOSITY")?;
             let variant_somatic_effective_mutation_rate =
                 get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE")?;
