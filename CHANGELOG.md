@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.6.0](https://github.com/varlociraptor/varlociraptor/compare/v8.5.1...v8.6.0) (2025-01-14)
+
+
+### Features
+
+* support for per variant prior heterozygosity or somatic mutation rates ([#448](https://github.com/varlociraptor/varlociraptor/issues/448)) ([9054032](https://github.com/varlociraptor/varlociraptor/commit/9054032cebd5fad935b2b50643a855f18560fedd))
+
 ## [8.5.1](https://github.com/varlociraptor/varlociraptor/compare/v8.5.0...v8.5.1) (2024-12-09)
 
 
