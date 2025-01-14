@@ -479,9 +479,9 @@ where
                     Ok(None)
                 }
             };
-            let variant_heterozygosity = get_prior(b"VARIANT_HETEROZYGOSITY")?;
+            let variant_heterozygosity = get_prior(b"HETEROZYGOSITY")?;
             let variant_somatic_effective_mutation_rate =
-                get_prior(b"VARIANT_SOMATIC_EFFECTIVE_MUTATION_RATE")?;
+                get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE")?;
 
             let mut call_builder = CallBuilder::default();
             call_builder

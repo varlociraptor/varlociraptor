@@ -837,10 +837,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         );
                     };
 
-                    let variant_heterozygosity_field =
-                        variant_heterozygosity_field.map(|field| Vec::from(field));
+                    let variant_heterozygosity_field = variant_heterozygosity_field.map(Vec::from);
                     let variant_somatic_effective_mutation_rate_field =
-                        variant_somatic_effective_mutation_rate_field.map(|field| Vec::from(field));
+                        variant_somatic_effective_mutation_rate_field.map(Vec::from);
 
                     let mut reference_buffer = Arc::new(
                         reference::Buffer::from_path(&reference, reference_buffer_size)

@@ -782,7 +782,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "15";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "16";
 
 pub struct Observations {
     pub pileup: Pileup,
