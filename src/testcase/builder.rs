@@ -326,7 +326,8 @@ impl Testcase {
         // get all candidates
         let mut candidates = Vec::new();
         for mut record in self.variants()? {
-            let variants = utils::collect_variants(&mut record, false, Some(&mut skips))?;
+            let variants =
+                utils::collect_variants(&mut record, false, Some(&mut skips), None, None)?;
             for variant in variants {
                 candidates.push((variant, record.clone()))
             }

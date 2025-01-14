@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+use bio::stats::{LogProb, Prob};
 use bio_types::genome::AbstractLocus;
 use itertools::Itertools;
 use rust_htslib::{bcf, bcf::record::Numeric};
@@ -27,11 +28,16 @@ pub enum SkipReason {
     BreakendNoEvent,
 }
 
-#[derive(Debug, Getters, Clone)]
-#[getset(get = "pub(crate)")]
+#[derive(Debug, Getters, CopyGetters, Clone)]
 pub struct VariantInfo {
+    #[getset(get = "pub(crate)")]
     pub(crate) variant: model::Variant,
+    #[getset(get = "pub(crate)")]
     pub(crate) haplotype: Option<HaplotypeIdentifier>,
+    #[getset(get_copy = "pub(crate)")]
+    heterozygosity: Option<LogProb>,
+    #[getset(get_copy = "pub(crate)")]
+    somatic_effective_mutation_rate: Option<LogProb>,
 }
 
 /// Collect variants from a given ´bcf::Record`.
@@ -39,6 +45,8 @@ pub fn collect_variants(
     record: &mut bcf::Record,
     skip_imprecise: bool,
     skips: Option<&mut SimpleCounter<SkipReason>>,
+    variant_heterozygosity_field: Option<&[u8]>,
+    variant_somatic_effective_mutation_rate_field: Option<&[u8]>,
 ) -> Result<Vec<VariantInfo>> {
     // TODO ignore imprecise variants for now?
     // let nonzero_bounds = |tag| {
@@ -88,6 +96,32 @@ pub fn collect_variants(
         _ => None,
     };
 
+    let get_plain_prob_field = |key: Option<&[u8]>| -> Result<Vec<Option<LogProb>>> {
+        if let Some(key) = key {
+            let field = record.info(key);
+            if let Some(values) = field.float()? {
+                if values.len() != record.alleles().len() - 1 {
+                    bail!(errors::Error::InvalidVariantPrior);
+                }
+                return Ok(values
+                    .iter()
+                    .map(|value| {
+                        if value.is_missing() {
+                            None
+                        } else {
+                            Some(LogProb::from(Prob((*value) as f64)))
+                        }
+                    })
+                    .collect());
+            }
+        }
+        Ok(vec![None; record.alleles().len() - 1])
+    };
+
+    let variant_heterozygosities = get_plain_prob_field(variant_heterozygosity_field)?;
+    let variant_somatic_effective_mutation_rates =
+        get_plain_prob_field(variant_somatic_effective_mutation_rate_field)?;
+
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<INS>"
             || (ref_allele.len() < alt_allele.len()
@@ -106,10 +140,12 @@ pub fn collect_variants(
 
     let mut variants = Vec::new();
 
-    let mut push_variant = |variant| {
+    let mut push_variant = |variant, i: usize| {
         variants.push(VariantInfo {
             variant,
             haplotype: haplotype.clone(),
+            heterozygosity: variant_heterozygosities[i],
+            somatic_effective_mutation_rate: variant_somatic_effective_mutation_rates[i],
         })
     };
 
@@ -125,7 +161,7 @@ pub fn collect_variants(
                 skip_incr(SkipReason::InversionInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
-                push_variant(model::Variant::Inversion(len));
+                push_variant(model::Variant::Inversion(len), 0);
             } else {
                 skip_incr(SkipReason::InversionMissingEndTag);
             }
@@ -135,20 +171,24 @@ pub fn collect_variants(
                 skip_incr(SkipReason::DuplicationInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
-                push_variant(model::Variant::Duplication(len));
+                push_variant(model::Variant::Duplication(len), 0);
             } else {
                 skip_incr(SkipReason::DuplicationMissingEndTag)
             }
         } else if svtype == b"BND" {
             let alleles = record.alleles();
             if haplotype.is_some() {
-                for spec in &alleles[1..] {
+                for (i, spec) in alleles[1..].iter().enumerate() {
                     let rec: &bcf::Record = &*record;
-                    push_variant(model::Variant::Breakend {
-                        ref_allele: alleles[0].to_owned(),
-                        spec: spec.to_vec(),
-                        precision: VariantPrecision::try_from(rec)?,
-                    })
+
+                    push_variant(
+                        model::Variant::Breakend {
+                            ref_allele: alleles[0].to_owned(),
+                            spec: spec.to_vec(),
+                            precision: VariantPrecision::try_from(rec)?,
+                        },
+                        i,
+                    )
                 }
             } else {
                 skip_incr(SkipReason::BreakendNoEvent);
@@ -170,9 +210,10 @@ pub fn collect_variants(
             if alt_allele != b"<INS>" {
                 // don't support insertions without exact sequence
                 if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                    push_variant(model::Variant::Insertion(
-                        alt_allele[ref_allele.len()..].to_owned(),
-                    ));
+                    push_variant(
+                        model::Variant::Insertion(alt_allele[ref_allele.len()..].to_owned()),
+                        0,
+                    );
                 }
             }
         } else if svtype == b"DEL" {
@@ -207,7 +248,7 @@ pub fn collect_variants(
             let alt_allele = alleles[1];
 
             if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
-                push_variant(model::Variant::Deletion(svlen));
+                push_variant(model::Variant::Deletion(svlen), 0);
             }
         }
     } else {
@@ -217,11 +258,11 @@ pub fn collect_variants(
         for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
             if alt_allele == b"<*>" {
                 // dummy non-ref allele, signifying potential homozygous reference site
-                push_variant(model::Variant::None);
+                push_variant(model::Variant::None, i);
             } else if alt_allele == b"<DEL>" {
                 if let Some(ref svlens) = svlens {
                     if let Some(svlen) = svlens[i] {
-                        push_variant(model::Variant::Deletion(svlen));
+                        push_variant(model::Variant::Deletion(svlen), i);
                     }
                     // TODO fail with an error in else case
                 }
@@ -229,24 +270,29 @@ pub fn collect_variants(
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
-                push_variant(model::Variant::Snv(alt_allele[0]));
+                push_variant(model::Variant::Snv(alt_allele[0]), i);
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
-                push_variant(model::Variant::Mnv(alt_allele.to_vec()));
+                push_variant(model::Variant::Mnv(alt_allele.to_vec()), i);
             } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
-                push_variant(model::Variant::Deletion(
-                    (ref_allele.len() - alt_allele.len()) as u64,
-                ));
+                push_variant(
+                    model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u64),
+                    i,
+                );
             } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                push_variant(model::Variant::Insertion(
-                    alt_allele[ref_allele.len()..].to_owned(),
-                ));
+                push_variant(
+                    model::Variant::Insertion(alt_allele[ref_allele.len()..].to_owned()),
+                    i,
+                );
             } else {
                 // arbitrary replacement
-                push_variant(model::Variant::Replacement {
-                    ref_allele: ref_allele.to_owned(),
-                    alt_allele: alt_allele.to_vec(),
-                });
+                push_variant(
+                    model::Variant::Replacement {
+                        ref_allele: ref_allele.to_owned(),
+                        alt_allele: alt_allele.to_vec(),
+                    },
+                    i,
+                );
             }
         }
     }
