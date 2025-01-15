@@ -49,7 +49,7 @@ impl Methylation {
         read: &ExtendedRecord,
         is_long_read: bool,
     ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(&read.record(), false) != Overlap::Enclosing {
+        if self.locus().overlap(read.record(), false) != Overlap::Enclosing {
             return Ok(None);
         }
         if let Some(qpos) = read
@@ -63,7 +63,7 @@ impl Methylation {
                 process_read(read.record(), read.prob_methylation(), qpos, is_long_read)
             {
                 let strand = if prob_ref != prob_alt {
-                    Strand::from_record_and_pos(&read.record(), qpos as usize)?
+                    Strand::from_record_and_pos(read.record(), qpos as usize)?
                 } else {
                     // METHOD: if record is not informative, we don't want to
                     // retain its information (e.g. strand).
@@ -263,12 +263,18 @@ fn process_read(
     read: &Rc<Record>,
     meth_info: &Option<Rc<HashMap<usize, LogProb>>>, // Meth info ist nur bei long reads relevant
     qpos: u32,
-    is_long_read: bool, // Gibt an, ob es sich um einen Long-Read handelt
+    is_long_read: bool,
 ) -> Option<(LogProb, LogProb)> {
     let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
+    warn!(
+        "Debugging read: {:?}, chrom {:?}, pos {:?}",
+        String::from_utf8_lossy(read.qname()),
+        read.inner.core.tid,
+        read.inner.core.pos
+    );
 
     // We do not consider a read if:
-    //    the CpG site is at the end of the read and therefor the C is not included in the reverse read
+    //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
     //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
     if (is_long_read && meth_info.is_none())
         || candidate_outside(read_reverse, read, qpos)
