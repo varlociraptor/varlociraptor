@@ -604,7 +604,27 @@ impl SingleLocus {
     ///
     /// True if read given read is a reverse read, false if it is a forward read
     pub(crate) fn read_reverse_strand(flag: u16) -> bool {
-        flag & 0x10 != 0
+        let read_paired = 0b1;
+        let read_mapped_porper_pair = 0b01;
+        let read_reverse = 0b10000;
+        let mate_reverse = 0b100000;
+        let first_in_pair = 0b1000000;
+        let second_in_pair = 0b10000000;
+        if (flag & read_paired != 0
+            && flag & read_mapped_porper_pair != 0
+            && flag & read_reverse != 0
+            && flag & first_in_pair != 0)
+            || (flag & read_paired != 0
+                && flag & read_mapped_porper_pair != 0
+                && flag & mate_reverse != 0
+                && flag & second_in_pair != 0)
+            || (flag & read_reverse != 0
+                && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0))
+        {
+            return true;
+        }
+        false
+        // flag & 0x10 != 0
     }
 }
 
