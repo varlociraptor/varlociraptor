@@ -40,7 +40,7 @@ lazy_static = "1"
 log = "0.4"
 lru = "0.7"
 lru_time_cache = "0.11"
-ndarray = { version = "0.15", features = ["serde"] }
+ndarray = { version = "0.16", features = ["serde"] }
 num-traits = "0.2"
 ordered-float = { version = "1", features = ["serde"] }
 paste = "1"
