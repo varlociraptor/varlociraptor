@@ -11,7 +11,7 @@ use crate::variants::types::{
 };
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use bio_types::genome::{self, AbstractInterval, AbstractLocus, Position};
 use lazy_static::lazy_static;
 use log::warn;
 use rust_htslib::bam;
@@ -49,15 +49,16 @@ impl Methylation {
         read: &ExtendedRecord,
         is_long_read: bool,
     ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read.record(), false) != Overlap::Enclosing {
-            return Ok(None);
+        let mut position = self.locus().range().start;
+        if SingleLocus::read_reverse_strand(read.record().inner.core.flag) {
+            position += 1;
         }
         if let Some(qpos) = read
             .record()
             .cigar_cached()
             .unwrap()
             // TODO expect u64 in read_pos
-            .read_pos(self.locus().range().start as u32, false, false)?
+            .read_pos(position as u32, false, false)?
         {
             if let Some((prob_alt, prob_ref)) =
                 process_read(read.record(), read.prob_methylation(), qpos, is_long_read)
@@ -266,6 +267,17 @@ fn process_read(
     is_long_read: bool,
 ) -> Option<(LogProb, LogProb)> {
     let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
+
+    // We do not consider a read if:
+    //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
+    //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
+    if (is_long_read && meth_info.is_none())
+        // || candidate_outside(read_reverse, read, qpos)
+        || mutation_occurred(read_reverse, read, qpos, is_long_read)
+        || read_invalid(read.inner.core.flag)
+    {
+        return None;
+    }
     warn!(
         "Debugging read: {:?}, chrom {:?}, pos {:?}",
         String::from_utf8_lossy(read.qname()),
@@ -273,21 +285,10 @@ fn process_read(
         read.inner.core.pos
     );
 
-    // We do not consider a read if:
-    //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
-    //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
-    if (is_long_read && meth_info.is_none())
-        || candidate_outside(read_reverse, read, qpos)
-        || mutation_occurred(read_reverse, read, qpos, is_long_read)
-        || read_invalid(read.inner.core.flag)
-    {
-        return None;
-    }
-
     if is_long_read {
         Some(compute_probs_long_read(
             read_reverse,
-            &meth_info.as_ref().unwrap(),
+            meth_info.as_ref().unwrap(),
             qpos,
         ))
     } else {
@@ -306,10 +307,10 @@ fn compute_probs_long_read(
     pos_to_probs: &HashMap<usize, LogProb>,
     qpos: u32,
 ) -> (LogProb, LogProb) {
-    let pos_in_read = qpos + if read_reverse { 1 } else { 0 };
+    // let pos_in_read = qpos ;
     let prob_alt;
     let prob_ref;
-    if let Some(value) = pos_to_probs.get(&(pos_in_read as usize)) {
+    if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
         prob_alt = value.to_owned();
         prob_ref = LogProb::from(Prob(1_f64 - prob_alt.0.exp()));
     } else {
@@ -330,17 +331,26 @@ pub fn compute_probs_short_read(
     record: &Rc<Record>,
     qpos: u32,
 ) -> (LogProb, LogProb) {
-    let (pos_in_read, ref_base, bisulfite_base) = if !read_reverse {
-        (qpos, b'C', b'T')
+    let (ref_base, bisulfite_base) = if !read_reverse {
+        (b'C', b'T')
     } else {
-        (qpos + 1, b'G', b'A')
+        (b'G', b'A')
     };
-
-    let read_base = unsafe { record.seq().decoded_base_unchecked(pos_in_read as usize) };
-    let base_qual = unsafe { *record.qual().get_unchecked(pos_in_read as usize) };
-
+    let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+    let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
+    // dbg!(
+    //     record,
+    //     read_base,
+    //     ref_base,
+    //     bisulfite_base,
+    //     base_qual,
+    //     prob_ref,
+    //     prob_alt
+    // );
+    // dbg!(prob_alt, prob_ref);
+    warn!("{:?}, {:?} \n", prob_alt, prob_ref);
     (prob_alt, prob_ref)
 }
 
@@ -351,7 +361,7 @@ fn mutation_occurred(
     is_long_read: bool,
 ) -> bool {
     let (read_base, mutation_bases) = if read_reverse {
-        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos + 1) as usize) };
+        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos) as usize) };
         let mutation_bases = if is_long_read {
             vec![b'C', b'A', b'T']
         } else {
@@ -424,6 +434,7 @@ impl Variant for Methylation {
         evidence: &Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        warn!("Locus: {:?}", self.locus());
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
                 matches!(
