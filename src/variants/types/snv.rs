@@ -69,7 +69,7 @@ impl<R: Realigner> Snv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false) != Overlap::Enclosing {
+        if self.locus().overlap(read, false, false) != Overlap::Enclosing {
             return Ok(None);
         }
 
@@ -185,16 +185,18 @@ impl<R: Realigner> Variant for Snv<R> {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(read.record(), false) {
+                if let Overlap::Enclosing = self.locus().overlap(read.record(), false, false) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(left.record(), false) {
+                if let Overlap::Enclosing = self.locus().overlap(left.record(), false, false) {
                     Some(vec![0])
-                } else if let Overlap::Enclosing = self.locus().overlap(right.record(), false) {
+                } else if let Overlap::Enclosing =
+                    self.locus().overlap(right.record(), false, false)
+                {
                     Some(vec![0])
                 } else {
                     None

@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
 
 use super::{IsizeObservable, ToVariantRepresentation};
 
@@ -162,7 +162,7 @@ impl<R: Realigner> Variant for Deletion<R> {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if !self.locus.overlap(read.record(), true).is_none() {
+                if !self.locus.overlap(read.record(), true, false).is_none() {
                     Some(vec![0])
                 } else {
                     None
@@ -178,15 +178,15 @@ impl<R: Realigner> Variant for Deletion<R> {
                     // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
                     // in particular for large deletions.
                     if encloses_centerpoint
-                        && (!self.locus.overlap(left.record(), true).is_none()
-                            || !self.locus.overlap(right.record(), true).is_none())
+                        && (!self.locus.overlap(left.record(), true, false).is_none()
+                            || !self.locus.overlap(right.record(), true, false).is_none())
                     {
                         Some(vec![0])
                     } else {
                         None
                     }
-                } else if !self.locus.overlap(left.record(), true).is_none()
-                    || !self.locus.overlap(right.record(), true).is_none()
+                } else if !self.locus.overlap(left.record(), true, false).is_none()
+                    || !self.locus.overlap(right.record(), true, false).is_none()
                 {
                     Some(vec![0])
                 } else {

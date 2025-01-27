@@ -158,11 +158,11 @@ impl<R: Realigner> Variant for Replacement<R> {
     ) -> Option<Vec<usize>> {
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                !self.locus().overlap(read.record(), true).is_none()
+                !self.locus().overlap(read.record(), false, false).is_none()
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                !self.locus().overlap(left.record(), true).is_none()
-                    || !self.locus().overlap(right.record(), true).is_none()
+                !self.locus().overlap(left.record(), false, false).is_none()
+                    || !self.locus().overlap(right.record(), false, false).is_none()
             }
         } {
             Some(vec![0])

@@ -563,7 +563,12 @@ impl std::fmt::Display for SingleLocus {
 }
 
 impl SingleLocus {
-    pub(crate) fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
+    pub(crate) fn overlap(
+        &self,
+        record: &bam::Record,
+        consider_clips: bool,
+        consider_methylation: bool,
+    ) -> Overlap {
         let mut pos = record.pos() as u64;
         let cigar = record.cigar_cached().unwrap();
         let mut end_pos = record.cigar_cached().unwrap().end_pos() as u64;
@@ -573,8 +578,13 @@ impl SingleLocus {
             pos = pos.saturating_sub(cigar.leading_softclips() as u64);
             end_pos += cigar.trailing_softclips() as u64;
         }
+        let mut start_position = self.range().start;
+        // In methylated read we want to include all reads only over the G becausse of methylation on the reverse strand
+        if consider_methylation {
+            start_position += 1;
+        }
 
-        if pos <= self.range().start {
+        if pos <= start_position {
             if end_pos >= self.range().end {
                 return Overlap::Enclosing;
             } else if end_pos > self.range().start {

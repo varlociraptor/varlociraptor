@@ -434,20 +434,19 @@ impl Variant for Methylation {
         evidence: &Evidence,
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        warn!("Locus: {:?}", self.locus());
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
                 matches!(
-                    self.locus().overlap(read.record(), false),
+                    self.locus().overlap(read.record(), false, true),
                     Overlap::Enclosing
                 )
             }
             Evidence::PairedEndSequencingRead { left, right } => {
                 matches!(
-                    self.locus().overlap(left.record(), false),
+                    self.locus().overlap(left.record(), false, true),
                     Overlap::Enclosing
                 ) || matches!(
-                    self.locus().overlap(right.record(), false),
+                    self.locus().overlap(right.record(), false, true),
                     Overlap::Enclosing
                 )
             }

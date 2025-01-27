@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
 
 use super::ToVariantRepresentation;
 
@@ -143,11 +143,11 @@ impl<R: Realigner> Variant for Insertion<R> {
     ) -> Option<Vec<usize>> {
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                !self.locus().overlap(read.record(), true).is_none()
+                !self.locus().overlap(read.record(), true, false).is_none()
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                !self.locus().overlap(left.record(), true).is_none()
-                    || !self.locus().overlap(right.record(), true).is_none()
+                !self.locus().overlap(left.record(), true, false).is_none()
+                    || !self.locus().overlap(right.record(), true, false).is_none()
             }
         } {
             Some(vec![0])
