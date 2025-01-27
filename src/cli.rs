@@ -208,6 +208,16 @@ pub enum PreprocessKind {
         bam: PathBuf,
         #[structopt(
             long,
+            help = "Name of INFO field containing an expected heterozygosity per variant allele (can be e.g. a population allele frequency). Field needs to have as many entries as ALT alleles per VCF/BCF record."
+        )]
+        variant_heterozygosity_field: Option<String>,
+        #[structopt(
+            long,
+            help = "Name of INFO field containing an expected somatic effective mutation rate per variant allele (can be e.g. a poplulation scale prevalence of a known cancer variant from a database). Field needs to have as many entries as ALT alleles per VCF/BCF record."
+        )]
+        variant_somatic_effective_mutation_rate_field: Option<String>,
+        #[structopt(
+            long,
             help = "Report fragment IDs in output BCF. This information can be used for phasing."
         )]
         #[serde(default)]
@@ -829,6 +839,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     log_mode,
                     output_raw_observations,
                     read_type,
+                    variant_heterozygosity_field,
+                    variant_somatic_effective_mutation_rate_field,
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
@@ -839,6 +851,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             ).into()
                         );
                     };
+
+                    let variant_heterozygosity_field = variant_heterozygosity_field.map(Vec::from);
+                    let variant_somatic_effective_mutation_rate_field =
+                        variant_somatic_effective_mutation_rate_field.map(Vec::from);
 
                     let mut reference_buffer = Arc::new(
                         reference::Buffer::from_path(&reference, reference_buffer_size)
@@ -891,6 +907,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .readtype(read_type)
+                                    .variant_heterozygosity_field(variant_heterozygosity_field)
+                                    .variant_somatic_effective_mutation_rate_field(
+                                        variant_somatic_effective_mutation_rate_field,
+                                    )
                                     .build();
                             processor.process()?;
                         }
@@ -920,6 +940,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .readtype(read_type)
+                                    .variant_heterozygosity_field(variant_heterozygosity_field)
+                                    .variant_somatic_effective_mutation_rate_field(
+                                        variant_somatic_effective_mutation_rate_field,
+                                    )
                                     .build();
                             processor.process()?;
                         }
@@ -949,6 +973,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .readtype(read_type)
+                                    .variant_heterozygosity_field(variant_heterozygosity_field)
+                                    .variant_somatic_effective_mutation_rate_field(
+                                        variant_somatic_effective_mutation_rate_field,
+                                    )
                                     .build();
                             processor.process()?;
                         }

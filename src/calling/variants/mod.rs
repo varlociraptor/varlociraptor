@@ -56,21 +56,32 @@ pub(crate) enum Hint {
     FilteredNonStandardAlignments,
 }
 
-#[derive(Default, Clone, Debug, Builder, Getters)]
-#[getset(get = "pub(crate)")]
+#[derive(Default, Clone, Debug, Builder, Getters, CopyGetters)]
 pub(crate) struct Call {
+    #[getset(get = "pub(crate)")]
     chrom: Vec<u8>,
+    #[getset(get = "pub(crate)")]
     pos: u64,
     #[builder(default = "None")]
+    #[getset(get = "pub(crate)")]
     id: Option<Vec<u8>>,
     #[builder(default = "None")]
+    #[getset(get = "pub(crate)")]
     mateid: Option<Vec<u8>>,
+    #[builder(default = "None")]
+    #[getset(get_copy = "pub(crate)")]
+    heterozygosity: Option<LogProb>,
+    #[builder(default = "None")]
+    #[getset(get_copy = "pub(crate)")]
+    somatic_effective_mutation_rate: Option<LogProb>,
     #[builder(default)]
+    #[getset(get = "pub(crate)")]
     aux_info: AuxInfo,
     #[builder(default)]
     hints: HashSet<Hint>,
     //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
+    #[getset(get = "pub(crate)")]
     variant: Option<Variant>,
 }
 
@@ -117,6 +128,19 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+        if let Some(heterozygosity) = self.heterozygosity {
+            record.push_info_float(
+                b"HETEROZYGOSITY",
+                &[*PHREDProb::from(heterozygosity) as f32],
+            )?;
+        }
+        if let Some(somatic_effective_mutation_rate) = self.somatic_effective_mutation_rate {
+            record.push_info_float(
+                b"SOMATIC_EFFECTIVE_MUTATION_RATE",
+                &[*PHREDProb::from(somatic_effective_mutation_rate) as f32],
+            )?;
+        }
+
         self.write_record_aux_info(variant, &mut record)?;
 
         self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
