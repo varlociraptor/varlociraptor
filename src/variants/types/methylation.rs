@@ -278,12 +278,12 @@ fn process_read(
     {
         return None;
     }
-    warn!(
-        "Debugging read: {:?}, chrom {:?}, pos {:?}",
-        String::from_utf8_lossy(read.qname()),
-        read.inner.core.tid,
-        read.inner.core.pos
-    );
+    // warn!(
+    //     "Debugging read: {:?}, chrom {:?}, pos {:?}",
+    //     String::from_utf8_lossy(read.qname()),
+    //     read.inner.core.tid,
+    //     read.inner.core.pos
+    // );
 
     if is_long_read {
         Some(compute_probs_long_read(
@@ -489,8 +489,80 @@ impl Variant for Methylation {
                             left_support.merge(&right_support);
                             Ok(Some(left_support))
                         }
-                        (Some(left_support), None) => Ok(Some(left_support)),
-                        (None, Some(right_support)) => Ok(Some(right_support)),
+
+                        (Some(left_support), None) => {
+                            //
+                            //
+                            //
+                            //
+                            // MethylDackel returns None if one of moth reads is mutated
+                            warn!(
+                                "Mutation Debug for {:?}, ",
+                                String::from_utf8_lossy(right.record().qname()),
+                            );
+                            let mut position = self.locus().range().start;
+                            let right_read = right.record();
+                            let read_reverse =
+                                SingleLocus::read_reverse_strand(right_read.inner.core.flag);
+                            if SingleLocus::read_reverse_strand(right_read.inner.core.flag) {
+                                position += 1;
+                            }
+                            if let Some(qpos) = right
+                                .record()
+                                .cigar_cached()
+                                .unwrap()
+                                // TODO expect u64 in read_pos
+                                .read_pos(position as u32, false, false)?
+                            {
+                                if mutation_occurred(read_reverse, right_read, qpos, false)
+                                    || read_invalid(right_read.inner.core.flag)
+                                {
+                                    warn!("Mutation right");
+                                    return Ok(None);
+                                }
+                            }
+                            //
+                            //
+                            //
+                            //
+
+                            Ok(Some(left_support))
+                        }
+                        (None, Some(right_support)) => {
+                            //
+                            //
+                            //
+                            //
+                            // MethylDackel returns None if one of moth reads is mutated
+                            let mut position = self.locus().range().start;
+                            let left_read = left.record();
+                            let read_reverse =
+                                SingleLocus::read_reverse_strand(left_read.inner.core.flag);
+                            if SingleLocus::read_reverse_strand(left_read.inner.core.flag) {
+                                position += 1;
+                            }
+                            if let Some(qpos) = left
+                                .record()
+                                .cigar_cached()
+                                .unwrap()
+                                // TODO expect u64 in read_pos
+                                .read_pos(position as u32, false, false)?
+                            {
+                                if mutation_occurred(read_reverse, left_read, qpos, false)
+                                    || read_invalid(left_read.inner.core.flag)
+                                {
+                                    warn!("Mutation left");
+                                    return Ok(None);
+                                }
+                            }
+                            //
+                            //
+                            //
+                            //
+
+                            Ok(Some(right_support))
+                        }
+
                         (None, None) => Ok(None),
                     }
                 }
