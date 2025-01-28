@@ -278,7 +278,7 @@ fn process_read(
         || basequal_too_low(read, qpos)
     {
         return None;
-    // }
+    }
     // warn!(
     //     "Debugging read: {:?}, chrom {:?}, pos {:?}",
     //     String::from_utf8_lossy(read.qname()),
