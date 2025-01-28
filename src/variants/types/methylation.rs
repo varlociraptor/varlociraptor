@@ -272,12 +272,13 @@ fn process_read(
     //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
     //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
     if (is_long_read && meth_info.is_none())
-        // || candidate_outside(read_reverse, read, qpos)
         || mutation_occurred(read_reverse, read, qpos, is_long_read)
         || read_invalid(read.inner.core.flag)
+        // MethylDackel filters on qual
+        || basequal_too_low(read, qpos)
     {
         return None;
-    }
+    // }
     // warn!(
     //     "Debugging read: {:?}, chrom {:?}, pos {:?}",
     //     String::from_utf8_lossy(read.qname()),
@@ -286,11 +287,7 @@ fn process_read(
     // );
 
     if is_long_read {
-        Some(compute_probs_long_read(
-            read_reverse,
-            meth_info.as_ref().unwrap(),
-            qpos,
-        ))
+        Some(compute_probs_long_read(meth_info.as_ref().unwrap(), qpos))
     } else {
         Some(compute_probs_short_read(read_reverse, read, qpos))
     }
@@ -303,7 +300,6 @@ fn process_read(
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
 fn compute_probs_long_read(
-    read_reverse: bool,
     pos_to_probs: &HashMap<usize, LogProb>,
     qpos: u32,
 ) -> (LogProb, LogProb) {
@@ -338,6 +334,7 @@ pub fn compute_probs_short_read(
     };
     let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
     let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
+    warn!("basequal: {:?}", base_qual);
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
     // dbg!(
@@ -389,6 +386,18 @@ fn mutation_occurred(
     false
 }
 
+fn basequal_too_low(record: &Rc<Record>, qpos: u32) -> bool {
+    let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
+    if base_qual < 25 {
+        warn!(
+            "The record {:?} on position {:?} is not considered because the base quality is too low",
+            String::from_utf8_lossy(record.qname()),
+            qpos
+        );
+        return true;
+    }
+    false
+}
 /// Computes if a given read is valid (Right now we only accept specific flags)
 ///
 /// # Returns
@@ -399,19 +408,6 @@ fn read_invalid(flag: u16) -> bool {
         return false;
     }
     true
-}
-
-// Compute if the read is reverse and the CpG site is at the end of the read because in this case the C of the CpG site is not included
-fn candidate_outside(read_reverse: bool, record: &Rc<Record>, qpos: u32) -> bool {
-    if read_reverse && qpos + 1 == record.seq().len() as u32 {
-        warn!(
-            "The record {:?} on position {:?} is not considered because the C of the CpG site is outside of the read",
-            String::from_utf8_lossy(record.qname()),
-            qpos
-        );
-        return true;
-    }
-    false
 }
 
 impl Variant for Methylation {
@@ -489,80 +485,8 @@ impl Variant for Methylation {
                             left_support.merge(&right_support);
                             Ok(Some(left_support))
                         }
-
-                        (Some(left_support), None) => {
-                            //
-                            //
-                            //
-                            //
-                            // MethylDackel returns None if one of moth reads is mutated
-                            warn!(
-                                "Mutation Debug for {:?}, ",
-                                String::from_utf8_lossy(right.record().qname()),
-                            );
-                            let mut position = self.locus().range().start;
-                            let right_read = right.record();
-                            let read_reverse =
-                                SingleLocus::read_reverse_strand(right_read.inner.core.flag);
-                            if SingleLocus::read_reverse_strand(right_read.inner.core.flag) {
-                                position += 1;
-                            }
-                            if let Some(qpos) = right
-                                .record()
-                                .cigar_cached()
-                                .unwrap()
-                                // TODO expect u64 in read_pos
-                                .read_pos(position as u32, false, false)?
-                            {
-                                if mutation_occurred(read_reverse, right_read, qpos, false)
-                                    || read_invalid(right_read.inner.core.flag)
-                                {
-                                    warn!("Mutation right");
-                                    return Ok(None);
-                                }
-                            }
-                            //
-                            //
-                            //
-                            //
-
-                            Ok(Some(left_support))
-                        }
-                        (None, Some(right_support)) => {
-                            //
-                            //
-                            //
-                            //
-                            // MethylDackel returns None if one of moth reads is mutated
-                            let mut position = self.locus().range().start;
-                            let left_read = left.record();
-                            let read_reverse =
-                                SingleLocus::read_reverse_strand(left_read.inner.core.flag);
-                            if SingleLocus::read_reverse_strand(left_read.inner.core.flag) {
-                                position += 1;
-                            }
-                            if let Some(qpos) = left
-                                .record()
-                                .cigar_cached()
-                                .unwrap()
-                                // TODO expect u64 in read_pos
-                                .read_pos(position as u32, false, false)?
-                            {
-                                if mutation_occurred(read_reverse, left_read, qpos, false)
-                                    || read_invalid(left_read.inner.core.flag)
-                                {
-                                    warn!("Mutation left");
-                                    return Ok(None);
-                                }
-                            }
-                            //
-                            //
-                            //
-                            //
-
-                            Ok(Some(right_support))
-                        }
-
+                        (Some(left_support), None) => Ok(Some(left_support)),
+                        (None, Some(right_support)) => Ok(Some(right_support)),
                         (None, None) => Ok(None),
                     }
                 }
