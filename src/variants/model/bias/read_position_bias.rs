@@ -24,22 +24,10 @@ impl Default for ReadPositionBias {
 impl Bias for ReadPositionBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.read_position) {
-            (
-                ReadPositionBias::None {
-                    major_rate: Some(rate),
-                },
-                ReadPosition::Major,
-            ) => LogProb::from(Prob(**rate)),
-            (
-                ReadPositionBias::None {
-                    major_rate: Some(rate),
-                },
-                ReadPosition::Some,
-            ) => LogProb::from(Prob(1.0 - **rate)),
-            (ReadPositionBias::None { major_rate: None }, ReadPosition::Major) => {
+            (ReadPositionBias::None { major_rate: _ }, ReadPosition::Major) => {
                 observation.prob_hit_base
             }
-            (ReadPositionBias::None { major_rate: None }, ReadPosition::Some) => {
+            (ReadPositionBias::None { major_rate: _ }, ReadPosition::Some) => {
                 observation.prob_hit_base.ln_one_minus_exp()
             }
             (ReadPositionBias::Some, ReadPosition::Major) => LogProb::ln_one(), // bias
@@ -47,8 +35,15 @@ impl Bias for ReadPositionBias {
         }
     }
 
-    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
-        LogProb::ln_one()
+    fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
+        match observation.read_position {
+            ReadPosition::Major => {
+                observation.prob_hit_base
+            }
+            ReadPosition::Some => {
+                observation.prob_hit_base.ln_one_minus_exp()
+            }
+        }
     }
 
     fn is_artifact(&self) -> bool {
