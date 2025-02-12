@@ -274,8 +274,8 @@ fn process_read(
     if (is_long_read && meth_info.is_none())
         || mutation_occurred(read_reverse, read, qpos, is_long_read)
         || read_invalid(read.inner.core.flag)
-        // MethylDackel filters on qual
-        || basequal_too_low(read, qpos)
+    // MethylDackel filters on qual
+    // || basequal_too_low(read, qpos)
     {
         return None;
     }
@@ -334,7 +334,6 @@ pub fn compute_probs_short_read(
     };
     let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
     let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
-    warn!("basequal: {:?}", base_qual);
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
     // dbg!(
@@ -347,7 +346,6 @@ pub fn compute_probs_short_read(
     //     prob_alt
     // );
     // dbg!(prob_alt, prob_ref);
-    warn!("{:?}, {:?} \n", prob_alt, prob_ref);
     (prob_alt, prob_ref)
 }
 
