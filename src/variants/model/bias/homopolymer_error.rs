@@ -47,16 +47,26 @@ impl Bias for HomopolymerError {
         if !self.is_artifact() {
             return true;
         }
-        // METHOD: we require all alt supporting samples to have at least one homopolymer indel relative to the alt allele.
+        // METHOD: we require all alt supporting samples to have at least one
+        // homopolymer indel in both directions relative to the ref allele.
+        // Otherwise, we can assume that it is rather not a homopolymer error
+        // because it seems to rather support an indel in one particular direction.
         pileups.iter().all(|pileup| {
+            let has_homopolymer_indel = |ins: bool| {
+                pileup
+                    .read_observations()
+                    .iter()
+                    .any(|obs| {
+                        let indel = obs.homopolymer_indel_len.unwrap_or(0);
+                        if ins { indel > 0 } else { indel < 0 }
+                    })
+            };
+
             !pileup
                 .read_observations()
                 .iter()
                 .any(|obs| obs.is_strong_alt_support())
-                || pileup
-                    .read_observations()
-                    .iter()
-                    .any(|obs| self.is_bias_evidence(obs))
+                || (has_homopolymer_indel(true) && has_homopolymer_indel(false))
         })
     }
 
