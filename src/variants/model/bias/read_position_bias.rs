@@ -22,9 +22,7 @@ impl Default for ReadPositionBias {
 impl Bias for ReadPositionBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.read_position) {
-            (ReadPositionBias::None, ReadPosition::Major) => {
-                observation.prob_hit_base
-            }
+            (ReadPositionBias::None, ReadPosition::Major) => observation.prob_hit_base,
             (ReadPositionBias::None, ReadPosition::Some) => {
                 observation.prob_hit_base.ln_one_minus_exp()
             }
@@ -38,12 +36,8 @@ impl Bias for ReadPositionBias {
         // is the same for both alt and ref reads in case the bias is None.
         // Otherwise, the model can be drawn to wrong AF estimates.
         match observation.read_position {
-            ReadPosition::Major => {
-                observation.prob_hit_base
-            }
-            ReadPosition::Some => {
-                observation.prob_hit_base.ln_one_minus_exp()
-            }
+            ReadPosition::Major => observation.prob_hit_base,
+            ReadPosition::Some => observation.prob_hit_base.ln_one_minus_exp(),
         }
     }
 
@@ -64,40 +58,54 @@ impl ReadPositionBias {
         // The former might give a hint for a bias because of the way amplicons
         // are designed, while the latter might not have a bias.
         pileups.iter().any(|pileup| {
-            let expected_all = LogProb::ln_sum_exp(&pileup
-                .read_observations()
-                .iter()
-                .filter_map(|obs| {
-                    if obs.is_strong_ref_support() {
-                        Some(obs.prob_mapping())
-                    } else {
-                        None
-                    }
-                }).collect_vec()).exp();
-
-            if expected_all > 10.0 {
-                let expected_major = LogProb::ln_sum_exp(&pileup
-                    .read_observations()
-                    .iter()
-                    .filter_map(|obs| {
-                        if obs.is_strong_ref_support() && obs.read_position == ReadPosition::Major {
-                            Some(obs.prob_mapping())
-                        } else {
-                            None
-                        }
-                    }).collect_vec()).exp();
-                
-                let expected_major_rate = LogProb::ln_sum_exp(&pileup
+            let expected_all = LogProb::ln_sum_exp(
+                &pileup
                     .read_observations()
                     .iter()
                     .filter_map(|obs| {
                         if obs.is_strong_ref_support() {
-                            Some(obs.prob_mapping() + obs.prob_hit_base)
+                            Some(obs.prob_mapping())
                         } else {
                             None
                         }
-                    }).collect_vec()).exp();
-                
+                    })
+                    .collect_vec(),
+            )
+            .exp();
+
+            if expected_all > 10.0 {
+                let expected_major = LogProb::ln_sum_exp(
+                    &pileup
+                        .read_observations()
+                        .iter()
+                        .filter_map(|obs| {
+                            if obs.is_strong_ref_support()
+                                && obs.read_position == ReadPosition::Major
+                            {
+                                Some(obs.prob_mapping())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec(),
+                )
+                .exp();
+
+                let expected_major_rate = LogProb::ln_sum_exp(
+                    &pileup
+                        .read_observations()
+                        .iter()
+                        .filter_map(|obs| {
+                            if obs.is_strong_ref_support() {
+                                Some(obs.prob_mapping() + obs.prob_hit_base)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec(),
+                )
+                .exp();
+
                 let major_rate = expected_major / expected_all;
                 expected_major > 0.0 && (major_rate - expected_major_rate).abs() < 0.05
             } else {
