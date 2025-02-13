@@ -26,7 +26,7 @@ impl Event {
     pub(crate) fn absent() -> Self {
         Event {
             allele_freq: AlleleFreq(0.0),
-            artifacts: Artifacts::none(),
+            artifacts: Artifacts::none(false, false, false, false, false, false),
             is_discrete: true,
         }
     }
@@ -259,7 +259,7 @@ mod tests {
     use itertools_num::linspace;
 
     fn biases() -> Artifacts {
-        Artifacts::none()
+        Artifacts::none(false, false, false, false, false, false)
     }
 
     fn event(allele_freq: f64) -> Event {

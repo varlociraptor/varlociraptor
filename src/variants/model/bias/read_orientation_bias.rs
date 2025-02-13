@@ -15,6 +15,10 @@ pub(crate) enum ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
+    fn artifact_values() -> Vec<Self> {
+        vec![ReadOrientationBias::F1R2, ReadOrientationBias::F2R1]
+    }
+
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.read_orientation) {
             (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal

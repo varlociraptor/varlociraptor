@@ -15,6 +15,10 @@ pub(crate) enum AltLocusBias {
 }
 
 impl Bias for AltLocusBias {
+    fn artifact_values() -> Vec<Self> {
+        vec![AltLocusBias::Some]
+    }
+
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         // METHOD: a read pointing to the major alt locus
         // are indicative for the variant to come from a different (distant) allele.
