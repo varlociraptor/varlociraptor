@@ -24,6 +24,8 @@ pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
+    fn artifact_values() -> Vec<Self>;
+
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb;
 
     fn prob_ref(&self, observation: &ProcessedReadObservation) -> LogProb {
@@ -111,20 +113,20 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 }
 
-#[derive(Builder, CopyGetters, Getters, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(TypedBuilder, CopyGetters, Getters, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Artifacts {
-    #[getset(get = "pub(crate)")]
-    strand_bias: StrandBias,
-    #[getset(get = "pub(crate)")]
-    read_orientation_bias: ReadOrientationBias,
-    #[getset(get = "pub(crate)")]
-    read_position_bias: ReadPositionBias,
-    #[getset(get = "pub(crate)")]
-    softclip_bias: SoftclipBias,
-    #[getset(get = "pub(crate)")]
-    homopolymer_error: HomopolymerError,
-    #[getset(get = "pub(crate)")]
-    alt_locus_bias: AltLocusBias,
+    #[builder(default)]
+    strand_bias: Option<StrandBias>,
+    #[builder(default)]
+    read_orientation_bias: Option<ReadOrientationBias>,
+    #[builder(default)]
+    read_position_bias: Option<ReadPositionBias>,
+    #[builder(default)]
+    softclip_bias: Option<SoftclipBias>,
+    #[builder(default)]
+    homopolymer_error:Option<HomopolymerError>,
+    #[builder(default)]
+    alt_locus_bias: Option<AltLocusBias>,
 }
 
 impl Artifacts {
@@ -135,166 +137,180 @@ impl Artifacts {
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
         consider_alt_locus_bias: bool,
-    ) -> Box<dyn Iterator<Item = Self>> {
-        if !consider_strand_bias
-            && !consider_read_orientation_bias
-            && !consider_read_position_bias
-            && !consider_softclip_bias
-            && !consider_homopolymer_error
-            && !consider_alt_locus_bias
-        {
-            return Box::new(std::iter::empty());
+    ) -> Vec<Self> {
+        let mut artifacts: Vec<Artifacts> = Vec::new();
+
+        if consider_strand_bias {
+            for bias in StrandBias::artifact_values() {
+                artifacts.push(Artifacts::builder().strand_bias(Some(bias)).build());
+            }
         }
 
-        let strand_biases = if consider_strand_bias {
-            StrandBias::iter().collect_vec()
-        } else {
-            vec![StrandBias::default()]
-        };
-        let read_position_biases = if consider_read_position_bias {
-            ReadPositionBias::iter().collect_vec()
-        } else {
-            vec![ReadPositionBias::default()]
-        };
-        let read_orientation_biases = if consider_read_orientation_bias {
-            ReadOrientationBias::iter().collect_vec()
-        } else {
-            vec![ReadOrientationBias::None]
-        };
-        let softclip_biases = if consider_softclip_bias {
-            SoftclipBias::iter().collect_vec()
-        } else {
-            vec![SoftclipBias::None]
-        };
-        let homopolymer_error = if consider_homopolymer_error {
-            HomopolymerError::values()
-        } else {
-            vec![HomopolymerError::default()]
-        };
-        let alt_locus_bias = if consider_alt_locus_bias {
-            AltLocusBias::iter().collect_vec()
-        } else {
-            vec![AltLocusBias::default()]
-        };
+        if consider_read_position_bias {
+            for bias in ReadPositionBias::artifact_values() {
+                artifacts.push(Artifacts::builder().read_position_bias(Some(bias)).build());
+            }
+        }
 
-        Box::new(
-            strand_biases
-                .into_iter()
-                .cartesian_product(read_orientation_biases)
-                .cartesian_product(read_position_biases)
-                .cartesian_product(softclip_biases)
-                .cartesian_product(homopolymer_error)
-                .cartesian_product(alt_locus_bias)
-                .filter_map(|(((((sb, rob), rpb), scb), dib), alb)| {
-                    if [
-                        sb.is_artifact(),
-                        rob.is_artifact(),
-                        rpb.is_artifact(),
-                        scb.is_artifact(),
-                        dib.is_artifact(),
-                        alb.is_artifact(),
-                    ]
-                    .iter()
-                    .map(|artifact| if *artifact { 1 } else { 0 })
-                    .sum::<usize>()
-                        == 1
-                    {
-                        Some(
-                            ArtifactsBuilder::default()
-                                .strand_bias(sb)
-                                .read_orientation_bias(rob)
-                                .read_position_bias(rpb)
-                                .softclip_bias(scb)
-                                .homopolymer_error(dib)
-                                .alt_locus_bias(alb)
-                                .build()
-                                .unwrap(),
-                        )
-                    } else {
-                        None
-                    }
-                }),
-        )
+        if consider_read_orientation_bias {
+            for bias in ReadOrientationBias::artifact_values() {
+                artifacts.push(Artifacts::builder().read_orientation_bias(Some(bias)).build());
+            }
+        }
+
+        if consider_softclip_bias {
+            for bias in SoftclipBias::artifact_values() {
+                artifacts.push(Artifacts::builder().softclip_bias(Some(bias)).build());
+            }
+        }
+
+        if consider_homopolymer_error {
+            for bias in HomopolymerError::artifact_values() {
+                artifacts.push(Artifacts::builder().homopolymer_error(Some(bias)).build());
+            }
+        }
+
+        if consider_alt_locus_bias {
+            for bias in AltLocusBias::artifact_values() {
+                artifacts.push(Artifacts::builder().alt_locus_bias(Some(bias)).build());
+            }
+        }
+        artifacts
     }
 
-    pub(crate) fn none() -> Self {
-        ArtifactsBuilder::default()
-            .strand_bias(StrandBias::default())
-            .read_orientation_bias(ReadOrientationBias::None)
-            .read_position_bias(ReadPositionBias::default())
-            .softclip_bias(SoftclipBias::None)
-            .homopolymer_error(HomopolymerError::default())
-            .alt_locus_bias(AltLocusBias::None)
+    
+
+    pub(crate) fn none(
+        consider_read_orientation_bias: bool,
+        consider_strand_bias: bool,
+        consider_read_position_bias: bool,
+        consider_softclip_bias: bool,
+        consider_homopolymer_error: bool,
+        consider_alt_locus_bias: bool,
+    ) -> Self {
+        Artifacts::builder()
+            .strand_bias(if consider_strand_bias { Some(StrandBias::default()) } else { None })
+            .read_orientation_bias(if consider_read_orientation_bias {
+                Some(ReadOrientationBias::None)
+            } else {
+                None
+            })
+            .read_position_bias(if consider_read_position_bias {
+                Some(ReadPositionBias::None)
+            } else {
+                None
+            })
+            .softclip_bias(if consider_softclip_bias {
+                Some(SoftclipBias::None)
+            } else {
+                None
+            })
+            .homopolymer_error(if consider_homopolymer_error {
+                Some(HomopolymerError::None)
+            } else {
+                None
+            })
+            .alt_locus_bias(if consider_alt_locus_bias {
+                Some(AltLocusBias::None)
+            } else {
+                None
+            })
             .build()
-            .unwrap()
     }
 
     pub(crate) fn is_possible(&self, pileups: &[Pileup]) -> bool {
-        self.strand_bias.is_possible(pileups)
-            && self.read_orientation_bias.is_possible(pileups)
-            && self.read_position_bias.is_possible(pileups)
-            && self.softclip_bias.is_possible(pileups)
-            && self.homopolymer_error.is_possible(pileups)
-            && self.alt_locus_bias.is_possible(pileups)
+        self.strand_bias.map_or(true, |bias| bias.is_possible(pileups))
+            && self.read_orientation_bias.map_or(true, |bias| bias.is_possible(pileups))
+            && self.read_position_bias.map_or(true, |bias| bias.is_possible(pileups))
+            && self.softclip_bias.map_or(true, |bias| bias.is_possible(pileups))
+            && self.homopolymer_error.map_or(true, |bias| bias.is_possible(pileups))
+            && self.alt_locus_bias.map_or(true, |bias| bias.is_possible(pileups))
     }
 
     pub(crate) fn is_informative(&self, pileups: &[Pileup]) -> bool {
-        self.strand_bias.is_informative(pileups)
-            && self.read_orientation_bias.is_informative(pileups)
-            && self.read_position_bias.is_informative(pileups)
-            && self.softclip_bias.is_informative(pileups)
-            && self.homopolymer_error.is_informative(pileups)
-            && self.alt_locus_bias.is_informative(pileups)
+        self.strand_bias.map_or(true, |bias| bias.is_informative(pileups))
+            && self.read_orientation_bias.map_or(true, |bias| bias.is_informative(pileups))
+            && self.read_position_bias.map_or(true, |bias| bias.is_informative(pileups))
+            && self.softclip_bias.map_or(true, |bias| bias.is_informative(pileups))
+            && self.homopolymer_error.map_or(true, |bias| bias.is_informative(pileups))
+            && self.alt_locus_bias.map_or(true, |bias| bias.is_informative(pileups))
     }
 
     pub(crate) fn is_likely(&self, pileups: &[Pileup]) -> bool {
-        self.strand_bias.is_likely(pileups)
-            && self.read_orientation_bias.is_likely(pileups)
-            && self.read_position_bias.is_likely(pileups)
-            && self.softclip_bias.is_likely(pileups)
-            && self.homopolymer_error.is_likely(pileups)
-            && self.alt_locus_bias.is_likely(pileups)
+        self.strand_bias.map_or(true, |bias| bias.is_likely(pileups))
+            && self.read_orientation_bias.map_or(true, |bias| bias.is_likely(pileups))
+            && self.read_position_bias.map_or(true, |bias| bias.is_likely(pileups))
+            && self.softclip_bias.map_or(true, |bias| bias.is_likely(pileups))
+            && self.homopolymer_error.map_or(true, |bias| bias.is_likely(pileups))
+            && self.alt_locus_bias.map_or(true, |bias| bias.is_likely(pileups))
     }
 
     pub(crate) fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
-        self.strand_bias.prob_alt(observation)
-            + self.read_orientation_bias.prob_alt(observation)
-            + self.read_position_bias.prob_alt(observation)
-            + self.softclip_bias.prob_alt(observation)
-            + self.homopolymer_error.prob_alt(observation)
-            + self.alt_locus_bias.prob_alt(observation)
+        self.strand_bias.map_or(LogProb::ln_one(), |bias| bias.prob_alt(observation))
+            + self.read_orientation_bias.map_or(LogProb::ln_one(), |bias| bias.prob_alt(observation))
+            + self.read_position_bias.map_or(LogProb::ln_one(), |bias| bias.prob_alt(observation))
+            + self.softclip_bias.map_or(LogProb::ln_one(), |bias| bias.prob_alt(observation))
+            + self.homopolymer_error.map_or(LogProb::ln_one(), |bias| bias.prob_alt(observation))
+            + self.alt_locus_bias.map_or(LogProb::ln_one(), |bias| bias.prob_alt(observation))
     }
 
     pub(crate) fn prob_ref(&self, observation: &ProcessedReadObservation) -> LogProb {
-        self.strand_bias.prob_ref(observation)
-            + self.read_orientation_bias.prob_ref(observation)
-            + self.read_position_bias.prob_ref(observation)
-            + self.softclip_bias.prob_ref(observation)
-            + self.homopolymer_error.prob_ref(observation)
-            + self.alt_locus_bias.prob_ref(observation)
+        self.strand_bias.map_or(LogProb::ln_one(), |bias| bias.prob_ref(observation))
+            + self.read_orientation_bias.map_or(LogProb::ln_one(), |bias| bias.prob_ref(observation))
+            + self.read_position_bias.map_or(LogProb::ln_one(), |bias| bias.prob_ref(observation))
+            + self.softclip_bias.map_or(LogProb::ln_one(), |bias| bias.prob_ref(observation))
+            + self.homopolymer_error.map_or(LogProb::ln_one(), |bias| bias.prob_ref(observation))
+            + self.alt_locus_bias.map_or(LogProb::ln_one(), |bias| bias.prob_ref(observation))
     }
 
     pub(crate) fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
-        self.strand_bias.prob_any(observation)
-            + self.read_orientation_bias.prob_any(observation)
-            + self.read_position_bias.prob_any(observation)
-            + self.softclip_bias.prob_any(observation)
-            + self.homopolymer_error.prob_any(observation)
-            + self.alt_locus_bias.prob_any(observation)
+        self.strand_bias.map_or(LogProb::ln_one(), |bias| bias.prob_any(observation))
+            + self.read_orientation_bias.map_or(LogProb::ln_one(), |bias| bias.prob_any(observation))
+            + self.read_position_bias.map_or(LogProb::ln_one(), |bias| bias.prob_any(observation))
+            + self.softclip_bias.map_or(LogProb::ln_one(), |bias| bias.prob_any(observation))
+            + self.homopolymer_error.map_or(LogProb::ln_one(), |bias| bias.prob_any(observation))
+            + self.alt_locus_bias.map_or(LogProb::ln_one(), |bias| bias.prob_any(observation))
     }
 
     pub(crate) fn is_artifact(&self) -> bool {
-        self.strand_bias.is_artifact()
-            || self.read_orientation_bias.is_artifact()
-            || self.read_position_bias.is_artifact()
-            || self.softclip_bias.is_artifact()
-            || self.homopolymer_error.is_artifact()
-            || self.alt_locus_bias.is_artifact()
+        self.strand_bias.map_or(false, |bias| bias.is_artifact())
+            || self.read_orientation_bias.map_or(false, |bias| bias.is_artifact())
+            || self.read_position_bias.map_or(false, |bias| bias.is_artifact())
+            || self.softclip_bias.map_or(false, |bias| bias.is_artifact())
+            || self.homopolymer_error.map_or(false, |bias| bias.is_artifact())
+            || self.alt_locus_bias.map_or(false, |bias| bias.is_artifact())
     }
 
     pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) {
-        self.homopolymer_error.learn_parameters(pileups);
-        self.strand_bias.learn_parameters(pileups);
-        self.read_position_bias.learn_parameters(pileups);
+        if let Some(ref mut bias) = self.homopolymer_error {
+            bias.learn_parameters(pileups);
+        }
+        if let Some(ref mut bias) = self.strand_bias {
+            bias.learn_parameters(pileups);
+        }
+    }
+
+    pub(crate) fn strand_bias(&self) -> StrandBias {
+        self.strand_bias.unwrap_or_default()
+    }
+
+    pub(crate) fn read_orientation_bias(&self) -> ReadOrientationBias {
+        self.read_orientation_bias.unwrap_or_default()
+    }
+
+    pub(crate) fn read_position_bias(&self) -> ReadPositionBias {
+        self.read_position_bias.unwrap_or_default()
+    }
+
+    pub(crate) fn softclip_bias(&self) -> SoftclipBias {
+        self.softclip_bias.unwrap_or_default()
+    }
+
+    pub(crate) fn homopolymer_error(&self) -> HomopolymerError {
+        self.homopolymer_error.unwrap_or_default()
+    }
+
+    pub(crate) fn alt_locus_bias(&self) -> AltLocusBias {
+        self.alt_locus_bias.unwrap_or_default()
     }
 }

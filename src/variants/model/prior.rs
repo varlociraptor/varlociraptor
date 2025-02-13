@@ -113,7 +113,7 @@ impl Prior {
             let sample = event.len();
             let new_event = |vaf| likelihood::Event {
                 allele_freq: vaf,
-                artifacts: Artifacts::none(),
+                artifacts: Artifacts::none(false, false, false, false, false, false),
                 is_discrete: false,
             };
 

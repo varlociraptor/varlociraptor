@@ -12,6 +12,10 @@ pub(crate) enum SoftclipBias {
 }
 
 impl Bias for SoftclipBias {
+    fn artifact_values() -> Vec<Self> {
+        vec![SoftclipBias::Some]
+    }
+
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.softclipped) {
             (SoftclipBias::Some, true) => LogProb::ln_one(),

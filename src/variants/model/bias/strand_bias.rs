@@ -26,6 +26,10 @@ impl Default for StrandBias {
 }
 
 impl Bias for StrandBias {
+    fn artifact_values() -> Vec<Self> {
+        vec![StrandBias::Forward, StrandBias::Reverse]
+    }
+
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.strand) {
             (StrandBias::Forward, Strand::Forward) => LogProb::ln_one(),

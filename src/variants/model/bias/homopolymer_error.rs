@@ -6,7 +6,7 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Default)]
 pub(crate) enum HomopolymerError {
     #[default]
     None,
@@ -20,6 +20,10 @@ impl HomopolymerError {
 }
 
 impl Bias for HomopolymerError {
+    fn artifact_values() -> Vec<Self> {
+        vec![HomopolymerError::Some]
+    }
+
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match self {
             HomopolymerError::Some => observation

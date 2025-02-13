@@ -653,7 +653,14 @@ where
             events.push(model::Event {
                 name: "absent".to_owned(),
                 vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: vec![Artifacts::none()],
+                biases: vec![Artifacts::none(
+                    consider_read_orientation_bias,
+                    consider_strand_bias,
+                    consider_read_position_bias,
+                    consider_softclip_bias,
+                    consider_homopolymer_error,
+                    consider_alt_locus_bias,
+                )],
             });
 
             // add events from scenario
@@ -661,7 +668,14 @@ where
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    biases: vec![Artifacts::none()],
+                    biases: vec![Artifacts::none(
+                        consider_read_orientation_bias,
+                        consider_strand_bias,
+                        consider_read_position_bias,
+                        consider_softclip_bias,
+                        consider_homopolymer_error,
+                        consider_alt_locus_bias,
+                    )],
                 });
 
                 let biases: Vec<_> = Artifacts::all_artifact_combinations(
@@ -671,8 +685,7 @@ where
                     consider_softclip_bias,
                     consider_homopolymer_error,
                     consider_alt_locus_bias,
-                )
-                .collect();
+                );
 
                 if !biases.is_empty() {
                     // Corresponding biased event.
@@ -872,16 +885,16 @@ where
                     sample_builder.pileup(Rc::new(pileup));
                     match estimate {
                         model::likelihood::Event {
-                            artifacts: biases, ..
-                        } if biases.is_artifact() => {
+                            artifacts, ..
+                        } if artifacts.is_artifact() => {
                             sample_builder
                                 .allelefreq_estimate(AlleleFreq(0.0))
-                                .artifacts(biases.clone());
+                                .artifacts(artifacts.clone());
                         }
-                        model::likelihood::Event { allele_freq, .. } => {
+                        model::likelihood::Event { allele_freq, artifacts, .. } => {
                             sample_builder
                                 .allelefreq_estimate(*allele_freq)
-                                .artifacts(Artifacts::none());
+                                .artifacts(artifacts.clone());
                         }
                     };
 
