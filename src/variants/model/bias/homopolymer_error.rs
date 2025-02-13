@@ -53,13 +53,14 @@ impl Bias for HomopolymerError {
         // because it seems to rather support an indel in one particular direction.
         pileups.iter().all(|pileup| {
             let has_homopolymer_indel = |ins: bool| {
-                pileup
-                    .read_observations()
-                    .iter()
-                    .any(|obs| {
-                        let indel = obs.homopolymer_indel_len.unwrap_or(0);
-                        if ins { indel > 0 } else { indel < 0 }
-                    })
+                pileup.read_observations().iter().any(|obs| {
+                    let indel = obs.homopolymer_indel_len.unwrap_or(0);
+                    if ins {
+                        indel > 0
+                    } else {
+                        indel < 0
+                    }
+                })
             };
 
             !pileup
