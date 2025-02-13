@@ -7,16 +7,11 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
+#[derive(Copy, Clone, Default, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum ReadPositionBias {
+    #[default]
     None,
     Some,
-}
-
-impl Default for ReadPositionBias {
-    fn default() -> Self {
-        ReadPositionBias::None
-    }
 }
 
 impl Bias for ReadPositionBias {
