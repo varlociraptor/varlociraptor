@@ -37,12 +37,8 @@ impl Bias for ReadPositionBias {
 
     fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
         match observation.read_position {
-            ReadPosition::Major => {
-                observation.prob_hit_base
-            }
-            ReadPosition::Some => {
-                observation.prob_hit_base.ln_one_minus_exp()
-            }
+            ReadPosition::Major => observation.prob_hit_base,
+            ReadPosition::Some => observation.prob_hit_base.ln_one_minus_exp(),
         }
     }
 
