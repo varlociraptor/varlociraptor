@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.6.1](https://github.com/varlociraptor/varlociraptor/compare/v8.6.0...v8.6.1) (2025-02-14)
+
+
+### Bug Fixes
+
+* read position bias causing biased allele frequency estimates ([#490](https://github.com/varlociraptor/varlociraptor/issues/490)) ([d1dc6e5](https://github.com/varlociraptor/varlociraptor/commit/d1dc6e5c561e462e1eb634d58c3bbf21a6d4a753))
+* require symmetry homopolymer indels around variant site for considering it a potential homopolymer error ([#489](https://github.com/varlociraptor/varlociraptor/issues/489)) ([14fd0ff](https://github.com/varlociraptor/varlociraptor/commit/14fd0ff5869858abfeea750d9852f54a63c3d457))
+
 ## [8.6.0](https://github.com/varlociraptor/varlociraptor/compare/v8.5.1...v8.6.0) (2025-01-14)
 
 
