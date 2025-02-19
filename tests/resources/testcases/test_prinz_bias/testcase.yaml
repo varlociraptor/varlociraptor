@@ -13,13 +13,13 @@ expected:
       options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"read_type":"Illumina"}}}}'
 
   # candidate variant# candidate variant
-  candidate: 'candidates.vcf'tes.vcf'
+  candidate: 'candidates.vcf'
 
-  scenario: 'scenario.yaml'scenario: 'scenario.yaml'
+  scenario: 'scenario.yaml'
 
-  # reference sequence# reference sequence
-  reference:reference:
-    path: 'ref.fa'  path: 'ref.fa'
+# reference sequence
+  reference
+    path: 'ref.fa'
 
   mode: Generic
 

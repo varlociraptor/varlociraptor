@@ -11,7 +11,7 @@ use crate::variants::types::{
 };
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use bio_types::genome::{self, AbstractInterval, AbstractLocus, Position};
+use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use lazy_static::lazy_static;
 use log::warn;
 use rust_htslib::bam;
@@ -74,7 +74,7 @@ impl Methylation {
                         .prob_ref_allele(prob_ref)
                         .prob_alt_allele(prob_alt)
                         .strand(strand)
-                        .read_position(Some(qpos as u32))
+                        .read_position(Some(qpos))
                         .third_allele_evidence(None)
                         .build()
                         .unwrap(),
@@ -272,8 +272,6 @@ fn process_read(
     if (is_long_read && meth_info.is_none())
         || mutation_occurred(read.is_reverse(), read, qpos, is_long_read)
         || read_invalid(read.inner.core.flag)
-    // MethylDackel filters on qual
-    // || basequal_too_low(read, qpos)
     {
         return None;
     }
@@ -376,18 +374,6 @@ fn mutation_occurred(
     false
 }
 
-fn basequal_too_low(record: &Rc<Record>, qpos: u32) -> bool {
-    let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
-    if base_qual < 25 {
-        warn!(
-            "The record {:?} on position {:?} is not considered because the base quality is too low",
-            String::from_utf8_lossy(record.qname()),
-            qpos
-        );
-        return true;
-    }
-    false
-}
 /// Computes if a given read is valid (Right now we only accept specific flags)
 ///
 /// # Returns

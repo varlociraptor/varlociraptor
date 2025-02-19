@@ -13,10 +13,10 @@ use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    self, major_read_position, Observable, ReadObservation,
+    major_read_position, Observable, ReadObservation,
 };
 use crate::variants::types::Loci;
-use crate::variants::{self, types::Variant};
+use crate::variants::types::Variant;
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::{genome, genome::AbstractInterval};

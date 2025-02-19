@@ -10,7 +10,6 @@ use std::rc::Rc;
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractInterval};
-use rayon::range;
 use rust_htslib::bam;
 use vec_map::VecMap;
 

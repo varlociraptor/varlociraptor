@@ -7,7 +7,6 @@ use std::char;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops;
-use std::ops::Deref;
 use std::rc::Rc;
 use std::str;
 
