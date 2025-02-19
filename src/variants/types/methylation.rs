@@ -145,8 +145,6 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
         if !mm.is_empty() {
             let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
 
-            // Compute the positions of all Cs (or Gs for reverse strand) in the read
-            // With MM tags it is important to know whether it is a forward or reverse strand. With forward, you go from front to back and count the Cs. With reverse, you go from back to front in the sequence, in the MM tag from front to back and count the Gs
             let mut pos_read_base: Vec<usize> = read_seq
                 .chars()
                 .enumerate()
@@ -262,7 +260,7 @@ pub fn extract_ml_methylation_probabilities(read: &Rc<Record>) -> Option<Vec<Log
 
 fn process_read(
     read: &Rc<Record>,
-    meth_info: &Option<Rc<HashMap<usize, LogProb>>>, // Meth info ist nur bei long reads relevant
+    meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
     qpos: u32,
     is_long_read: bool,
 ) -> Option<(LogProb, LogProb)> {
@@ -326,16 +324,6 @@ pub fn compute_probs_short_read(
     let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
-    // dbg!(
-    //     record,
-    //     read_base,
-    //     ref_base,
-    //     bisulfite_base,
-    //     base_qual,
-    //     prob_ref,
-    //     prob_alt
-    // );
-    // dbg!(prob_alt, prob_ref);
     (prob_alt, prob_ref)
 }
 
