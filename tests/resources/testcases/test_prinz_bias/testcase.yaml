@@ -5,26 +5,22 @@ expected:
     # Activate this if you use the new version in read_position_bias.rs an set filter = true in function process_read_illumina in methylation.rs
     # - normal == 0.0
 
-# necessary bam files
-samples:
-  normal:
-    path: 'normal.bam'
-    properties: '{"insert_size":{"mean":155.2560130831926,"sd":71.67019964527086},"max_del_cigar_len":43,"max_ins_cigar_len":36,"frac_max_softclip":0.5571428571428572,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.7947951080440205,"prob_deletion_artifact":-8.549384326885086,"prob_insertion_extend_artifact":-1.514715113238372,"prob_deletion_extend_artifact":-1.3597892417398936},"hop_params":{"prob_seq_homopolymer":[-5.868445057705011,-7.3528738302678445,-7.308580007533799,-5.808415576765262],"prob_ref_homopolymer":[-6.435010596709461,-8.97537483667667,-9.24118043243509,-6.5785197674304605],"prob_seq_extend_homopolymer":[-5.868445057705011,-7.3528738302678445,-7.308580007533799,-5.808415576765262],"prob_ref_extend_homopolymer":[-6.435010596709461,-8.97537483667667,-9.24118043243509,-6.5785197674304605]},"wildtype_homopolymer_error_model":{"-13":2.7462462932540657e-7,"-2":0.000034877327924326634,"13":0.0000167521023888498,"4":0.00003295495551904879,"25":2.7462462932540657e-7,"-6":1.3731231466270328e-6,"-1":0.000016477477759524394,"-4":8.238738879762197e-7,"-9":5.492492586508131e-7,"2":0.00018756862182925268,"20":4.119369439881099e-6,"-17":2.7462462932540657e-7,"11":0.00002554009052726281,"24":3.2954955519048786e-6,"-14":2.7462462932540657e-7,"19":6.865615733135165e-6,"31":2.7462462932540657e-7,"3":0.00006426216326214514,"8":0.000031581832372421756,"26":1.0984985173016263e-6,"6":0.00002554009052726281,"-5":2.7462462932540657e-7,"21":3.844744810555692e-6,"18":3.2954955519048786e-6,"22":4.668618698531912e-6,"-3":4.119369439881099e-6,"1":0.00158733035750085,"9":0.00002306846886333415,"10":0.000014005856095595736,"0":0.9980430248914272,"15":0.000012632732948968701,"17":0.000014280480724921142,"23":1.6477477759524393e-6,"16":7.96411425043679e-6,"30":2.7462462932540657e-7,"5":0.000022793844234008744,"-16":2.7462462932540657e-7,"7":0.0000167521023888498,"12":0.00001373123146627033,"14":7.414864991785978e-6,"-8":5.492492586508131e-7},"initial":false}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"read_type":"Illumina"}}}}'
-  
+  # necessary bam files
+  samples:
+    normal:
+      path: 'normal.bam'
+      properties: '{"insert_size":{"mean":155.2560130831926,"sd":71.67019964527086},"max_del_cigar_len":43,"max_ins_cigar_len":36,"frac_max_softclip":0.5571428571428572,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.7947951080440205,"prob_deletion_artifact":-8.549384326885086,"prob_insertion_extend_artifact":-1.514715113238372,"prob_deletion_extend_artifact":-1.3597892417398936},"hop_params":{"prob_seq_homopolymer":[-5.868445057705011,-7.3528738302678445,-7.308580007533799,-5.808415576765262],"prob_ref_homopolymer":[-6.435010596709461,-8.97537483667667,-9.24118043243509,-6.5785197674304605],"prob_seq_extend_homopolymer":[-5.868445057705011,-7.3528738302678445,-7.308580007533799,-5.808415576765262],"prob_ref_extend_homopolymer":[-6.435010596709461,-8.97537483667667,-9.24118043243509,-6.5785197674304605]},"wildtype_homopolymer_error_model":{"-13":2.7462462932540657e-7,"-2":0.000034877327924326634,"13":0.0000167521023888498,"4":0.00003295495551904879,"25":2.7462462932540657e-7,"-6":1.3731231466270328e-6,"-1":0.000016477477759524394,"-4":8.238738879762197e-7,"-9":5.492492586508131e-7,"2":0.00018756862182925268,"20":4.119369439881099e-6,"-17":2.7462462932540657e-7,"11":0.00002554009052726281,"24":3.2954955519048786e-6,"-14":2.7462462932540657e-7,"19":6.865615733135165e-6,"31":2.7462462932540657e-7,"3":0.00006426216326214514,"8":0.000031581832372421756,"26":1.0984985173016263e-6,"6":0.00002554009052726281,"-5":2.7462462932540657e-7,"21":3.844744810555692e-6,"18":3.2954955519048786e-6,"22":4.668618698531912e-6,"-3":4.119369439881099e-6,"1":0.00158733035750085,"9":0.00002306846886333415,"10":0.000014005856095595736,"0":0.9980430248914272,"15":0.000012632732948968701,"17":0.000014280480724921142,"23":1.6477477759524393e-6,"16":7.96411425043679e-6,"30":2.7462462932540657e-7,"5":0.000022793844234008744,"-16":2.7462462932540657e-7,"7":0.0000167521023888498,"12":0.00001373123146627033,"14":7.414864991785978e-6,"-8":5.492492586508131e-7},"initial":false}'
+      options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"read_type":"Illumina"}}}}'
 
-# candidate variant
-candidate: 'candidates.vcf'
+  # candidate variant# candidate variant
+  candidate: 'candidates.vcf'tes.vcf'
 
-scenario: 'scenario.yaml'
+  scenario: 'scenario.yaml'scenario: 'scenario.yaml'
 
+  # reference sequence# reference sequence
+  reference:reference:
+    path: 'ref.fa'  path: 'ref.fa'
 
+  mode: Generic
 
-
-# reference sequence
-reference:
-  path: 'ref.fa'
-
-mode: Generic
-
-version: '4'
+  version: '4'

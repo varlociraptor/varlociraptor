@@ -50,21 +50,20 @@ impl Methylation {
         is_long_read: bool,
     ) -> Result<Option<AlleleSupport>> {
         let mut position = self.locus().range().start;
-        if SingleLocus::read_reverse_strand(read.record().inner.core.flag) {
+        if read.is_reverse() {
             position += 1;
         }
         if let Some(qpos) = read
-            .record()
             .cigar_cached()
             .unwrap()
             // TODO expect u64 in read_pos
             .read_pos(position as u32, false, false)?
         {
             if let Some((prob_alt, prob_ref)) =
-                process_read(read.record(), read.prob_methylation(), qpos, is_long_read)
+                process_read(read, read.prob_methylation(), qpos, is_long_read)
             {
                 let strand = if prob_ref != prob_alt {
-                    Strand::from_record_and_pos(read.record(), qpos as usize)?
+                    Strand::from_record_and_pos(read, qpos as usize)?
                 } else {
                     // METHOD: if record is not informative, we don't want to
                     // retain its information (e.g. strand).
@@ -105,11 +104,11 @@ fn mm_exists(evidence: &Evidence) -> bool {
     match evidence {
         Evidence::SingleEndSequencingRead(record) => {
             // Check for MM tags in the single-end sequencing read
-            mm_tag_exists(record.record())
+            mm_tag_exists(record)
         }
         Evidence::PairedEndSequencingRead { left, right } => {
             // Check for MM tags in both left and right reads
-            mm_tag_exists(left.record()) || mm_tag_exists(right.record())
+            mm_tag_exists(left) || mm_tag_exists(right)
         }
     }
 }
@@ -144,7 +143,6 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
         let mut mm = tag_value.to_owned();
 
         if !mm.is_empty() {
-            let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
             let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
 
             // Compute the positions of all Cs (or Gs for reverse strand) in the read
@@ -152,11 +150,13 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
             let mut pos_read_base: Vec<usize> = read_seq
                 .chars()
                 .enumerate()
-                .filter(|&(_, c)| (c == 'C' && !read_reverse) || (c == 'G' && read_reverse))
+                .filter(|&(_, c)| {
+                    (c == 'C' && !read.is_reverse()) || (c == 'G' && read.is_reverse())
+                })
                 .map(|(index, _)| index)
                 .collect();
 
-            if read_reverse {
+            if read.is_reverse() {
                 pos_read_base.reverse()
             }
 
@@ -200,7 +200,7 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
                     }
                 }
 
-                if read_reverse {
+                if read.is_reverse() {
                     pos_methylated_cs.reverse();
                 }
                 return Some(pos_methylated_cs);
@@ -241,13 +241,13 @@ pub fn extract_ml_methylation_probabilities(read: &Rc<Record>) -> Option<Vec<Log
             return None;
         }
     };
-    let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
+
     if let Aux::ArrayU8(tag_value) = ml_tag {
         let mut ml: Vec<LogProb> = tag_value
             .iter()
             .map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0)))
             .collect();
-        if read_reverse {
+        if read.is_reverse() {
             ml.reverse();
         }
         Some(ml)
@@ -266,30 +266,22 @@ fn process_read(
     qpos: u32,
     is_long_read: bool,
 ) -> Option<(LogProb, LogProb)> {
-    let read_reverse = SingleLocus::read_reverse_strand(read.inner.core.flag);
-
     // We do not consider a read if:
     //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
     //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
     if (is_long_read && meth_info.is_none())
-        || mutation_occurred(read_reverse, read, qpos, is_long_read)
+        || mutation_occurred(read.is_reverse(), read, qpos, is_long_read)
         || read_invalid(read.inner.core.flag)
     // MethylDackel filters on qual
     // || basequal_too_low(read, qpos)
     {
         return None;
     }
-    // warn!(
-    //     "Debugging read: {:?}, chrom {:?}, pos {:?}",
-    //     String::from_utf8_lossy(read.qname()),
-    //     read.inner.core.tid,
-    //     read.inner.core.pos
-    // );
 
     if is_long_read {
         Some(compute_probs_long_read(meth_info.as_ref().unwrap(), qpos))
     } else {
-        Some(compute_probs_short_read(read_reverse, read, qpos))
+        Some(compute_probs_short_read(read.is_reverse(), read, qpos))
     }
 }
 
@@ -430,17 +422,21 @@ impl Variant for Methylation {
     ) -> Option<Vec<usize>> {
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
+                let start_offset = if read.is_reverse() { 1 } else { 0 };
                 matches!(
-                    self.locus().overlap(read.record(), false, true),
+                    self.locus().overlap(read, false, start_offset, 0),
                     Overlap::Enclosing
                 )
             }
             Evidence::PairedEndSequencingRead { left, right } => {
+                let start_offset_left = if left.is_reverse() { 1 } else { 0 };
+                let start_offset_right = if right.is_reverse() { 1 } else { 0 };
+
                 matches!(
-                    self.locus().overlap(left.record(), false, true),
+                    self.locus().overlap(left, false, start_offset_left, 0),
                     Overlap::Enclosing
                 ) || matches!(
-                    self.locus().overlap(right.record(), false, true),
+                    self.locus().overlap(right, false, start_offset_right, 0),
                     Overlap::Enclosing
                 )
             }

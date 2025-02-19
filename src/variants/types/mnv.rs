@@ -76,7 +76,7 @@ impl<R: Realigner> Mnv<R> {
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false, false) != Overlap::Enclosing {
+        if self.locus().overlap(read, false, 0, 0) != Overlap::Enclosing {
             return Ok(None);
         }
 
@@ -242,18 +242,16 @@ impl<R: Realigner> Variant for Mnv<R> {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(read.record(), false, false) {
+                if let Overlap::Enclosing = self.locus().overlap(read, false, 0, 0) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(left.record(), false, false) {
+                if let Overlap::Enclosing = self.locus().overlap(left, false, 0, 0) {
                     Some(vec![0])
-                } else if let Overlap::Enclosing =
-                    self.locus().overlap(right.record(), false, false)
-                {
+                } else if let Overlap::Enclosing = self.locus().overlap(right, false, 0, 0) {
                     Some(vec![0])
                 } else {
                     None
@@ -273,22 +271,14 @@ impl<R: Realigner> Variant for Mnv<R> {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => Ok(self.allele_support_per_read(
-                read.record(),
-                alignment_properties,
-                alt_variants,
-            )?),
+            Evidence::SingleEndSequencingRead(read) => {
+                Ok(self.allele_support_per_read(read, alignment_properties, alt_variants)?)
+            }
             Evidence::PairedEndSequencingRead { left, right } => {
-                let left_support = self.allele_support_per_read(
-                    left.record(),
-                    alignment_properties,
-                    alt_variants,
-                )?;
-                let right_support = self.allele_support_per_read(
-                    right.record(),
-                    alignment_properties,
-                    alt_variants,
-                )?;
+                let left_support =
+                    self.allele_support_per_read(left, alignment_properties, alt_variants)?;
+                let right_support =
+                    self.allele_support_per_read(right, alignment_properties, alt_variants)?;
 
                 match (left_support, right_support) {
                     (Some(mut left_support), Some(right_support)) => {

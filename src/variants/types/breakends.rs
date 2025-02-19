@@ -276,17 +276,17 @@ impl<R: Realigner> BreakendGroup<R> {
                 for bnds in self.breakends.values().permutations(2) {
                     let (bnd, other_bnd) = (bnds[0], bnds[1]);
                     if bnd.is_left_to_right() {
-                        if is_match(bnd, left.record()) {
+                        if is_match(bnd, left) {
                             // METHOD: left record matches, let's see what the right record does.
-                            if is_match(other_bnd, right.record()) {
+                            if is_match(other_bnd, right) {
                                 return Some(ImpreciseEvidence::Supporting);
                             } else {
                                 return Some(ImpreciseEvidence::NotSupporting);
                             }
                         }
-                    } else if is_match(bnd, right.record()) {
+                    } else if is_match(bnd, right) {
                         // METHOD: right record matches, let's see what the left record does.
-                        if is_match(other_bnd, left.record()) {
+                        if is_match(other_bnd, left) {
                             return Some(ImpreciseEvidence::Supporting);
                         } else {
                             return Some(ImpreciseEvidence::NotSupporting);
@@ -321,7 +321,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             }
         } else {
             let is_valid_overlap =
-                |locus: &SingleLocus, read| !locus.overlap(read, true, false).is_none();
+                |locus: &SingleLocus, read| !locus.overlap(read, true, 0, 0).is_none();
 
             let is_valid_ref_bases = |read: &bam::Record| {
                 if let Some(ref interval) = self.enclosable_ref_interval {
@@ -345,14 +345,14 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
 
             let overlapping: Vec<_> = match evidence {
                 Evidence::SingleEndSequencingRead(read) => {
-                    if !is_valid_ref_bases(read.record()) {
+                    if !is_valid_ref_bases(read) {
                         return None;
                     }
                     self.loci
                         .iter()
                         .enumerate()
                         .filter_map(|(i, locus)| {
-                            if is_valid_overlap(locus, read.record()) {
+                            if is_valid_overlap(locus, read) {
                                 Some(i)
                             } else {
                                 None
@@ -361,7 +361,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         .collect()
                 }
                 Evidence::PairedEndSequencingRead { left, right } => {
-                    if !is_valid_ref_bases(left.record()) && !is_valid_ref_bases(right.record()) {
+                    if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
                         return None;
                     }
 
@@ -369,9 +369,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                         .iter()
                         .enumerate()
                         .filter_map(|(i, locus)| {
-                            if is_valid_overlap(locus, left.record())
-                                || is_valid_overlap(locus, right.record())
-                            {
+                            if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
                                 Some(i)
                             } else {
                                 None
@@ -414,8 +412,8 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                                     .filter_map(|(left_pos, right_pos)| {
                                         if left_pos < right_pos {
                                             Some(self.allele_support_isize(
-                                                left.record(),
-                                                right.record(),
+                                                left,
+                                                right,
                                                 alignment_properties,
                                                 right_pos - left_pos,
                                             ))
@@ -490,7 +488,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
             match evidence {
                 Evidence::SingleEndSequencingRead(record) => {
                     Ok(Some(self.realigner.borrow_mut().allele_support(
-                        record.record(),
+                        record,
                         self.loci.iter(),
                         self,
                         alt_variants,
@@ -499,14 +497,14 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 }
                 Evidence::PairedEndSequencingRead { left, right } => {
                     let left_support = self.realigner.borrow_mut().allele_support(
-                        left.record(),
+                        left,
                         self.loci.iter(),
                         self,
                         alt_variants,
                         alignment_properties,
                     )?;
                     let right_support = self.realigner.borrow_mut().allele_support(
-                        right.record(),
+                        right,
                         self.loci.iter(),
                         self,
                         alt_variants,
@@ -539,21 +537,16 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                     // METHOD: we do not require the fragment to enclose the breakend group.
                     // Hence, we treat both reads independently.
                     (self
-                        .prob_sample_alt_read(
-                            left.record().seq().len() as u64,
-                            alignment_properties,
-                        )
+                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
                         .ln_one_minus_exp()
                         + self
-                            .prob_sample_alt_read(
-                                right.record().seq().len() as u64,
-                                alignment_properties,
-                            )
+                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }
-                Evidence::SingleEndSequencingRead(read) => self
-                    .prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties),
+                Evidence::SingleEndSequencingRead(read) => {
+                    self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+                }
             }
         }
     }

@@ -43,6 +43,7 @@ pub(crate) struct RecordBuffer {
     #[getset(get = "pub")]
     read_pair_window: u64,
     #[getset(get = "pub")]
+    // Hashmap containing as a key the read and as a value a hashmap with the position of methylation and the probability of methylation
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
     failed_reads: Option<Vec<ByAddress<Rc<Record>>>>,
@@ -93,7 +94,7 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn get_methylation_probs(
+    pub(crate) fn get_read_specific_meth_probs(
         &self,
         rec: Rc<Record>,
     ) -> Option<Rc<HashMap<usize, LogProb>>> {
@@ -119,10 +120,8 @@ impl RecordBuffer {
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 // let mut first_it = true;
-                let mut rec_debug = Vec::new();
                 for rec in self.inner.iter() {
                     let rec_id = ByAddress(rec.clone());
-                    rec_debug.push(rec.inner.core.pos);
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         let pos_to_probs =
@@ -348,7 +347,6 @@ impl Sample {
     }
 }
 
-/// Strand combination for read pairs as given by the sequencing protocol.
 #[derive(
     Display,
     Debug,
@@ -359,8 +357,9 @@ impl Sample {
     EnumString,
     EnumIter,
     IntoStaticStr,
-    EnumVariantNames,
+    VariantNames,
 )]
+// The Readtype enum is used to specify the type of sequencing. This is important for the type of methylation extraction.
 pub enum Readtype {
     #[strum(serialize = "Nanopore")]
     Nanopore,

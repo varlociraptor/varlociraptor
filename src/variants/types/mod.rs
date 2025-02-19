@@ -10,6 +10,7 @@ use std::rc::Rc;
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractInterval};
+use rayon::range;
 use rust_htslib::bam;
 use vec_map::VecMap;
 
@@ -232,14 +233,14 @@ where
     fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            Evidence::SingleEndSequencingRead(record) => prob(record.record()).ln_one_minus_exp(),
+            Evidence::SingleEndSequencingRead(record) => prob(record).ln_one_minus_exp(),
             Evidence::PairedEndSequencingRead { left, right } => {
                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
                 // and we can therefore not multiply them. By taking the maximum, we
                 // make a conservative choice (since 1-mapq is the mapping probability).
-                let mut p = prob(left.record());
-                let mut q = prob(right.record());
+                let mut p = prob(left);
+                let mut q = prob(right);
                 if p < q {
                     std::mem::swap(&mut p, &mut q);
                 }
@@ -250,9 +251,9 @@ where
 
     fn min_mapq(&self, evidence: &Evidence) -> u8 {
         match evidence {
-            Evidence::SingleEndSequencingRead(record) => record.record().mapq(),
+            Evidence::SingleEndSequencingRead(record) => record.mapq(),
             Evidence::PairedEndSequencingRead { left, right } => {
-                cmp::min(left.record().mapq(), right.record().mapq())
+                cmp::min(left.mapq(), right.mapq())
             }
         }
     }
@@ -334,14 +335,14 @@ where
                     continue;
                 }
                 let evidence = Evidence::PairedEndSequencingRead {
-                    // buffer.get_methylation_probs returns None if we do not deal with PacBio or Nanopore methylation
+                    // buffer.get_read_specific_meth_probs returns None if we do not deal with PacBio or Nanopore methylation
                     left: ExtendedRecord::new(
                         candidate.left.to_owned(),
-                        buffer.get_methylation_probs(candidate.left.to_owned()),
+                        buffer.get_read_specific_meth_probs(candidate.left.to_owned()),
                     ),
                     right: ExtendedRecord::new(
                         right.to_owned(),
-                        buffer.get_methylation_probs(right.to_owned()),
+                        buffer.get_read_specific_meth_probs(right.to_owned()),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -352,7 +353,7 @@ where
                 // region of interest
                 let evidence = Evidence::SingleEndSequencingRead(ExtendedRecord::new(
                     candidate.left.to_owned(),
-                    buffer.get_methylation_probs(candidate.left.to_owned()),
+                    buffer.get_read_specific_meth_probs(candidate.left.to_owned()),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -383,155 +384,6 @@ where
         Ok(observations)
     }
 }
-
-// impl<V> Observable<Evidence, SingleLocus> for V
-// where
-//     V: Variant<Evidence = Evidence, Loci = SingleLocus>,
-// {
-//     fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
-//         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
-//         match evidence {
-//             Evidence::SingleEndSequencingRead(record) => prob(record.record()).ln_one_minus_exp(),
-//             Evidence::PairedEndSequencingRead { left, right } => {
-//                 // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
-//                 // In BWA, MAPQ is influenced by the mate, hence they are not independent
-//                 // and we can therefore not multiply them. By taking the maximum, we
-//                 // make a conservative choice (since 1-mapq is the mapping probability).
-//                 let mut p = prob(left.record());
-//                 let mut q = prob(right.record());
-//                 if p < q {
-//                     std::mem::swap(&mut p, &mut q);
-//                 }
-//                 p.ln_one_minus_exp()
-//             }
-//         }
-//     }
-
-//     fn min_mapq(&self, evidence: &Evidence) -> u8 {
-//         match evidence {
-//             Evidence::SingleEndSequencingRead(record) => record.record().mapq(),
-//             Evidence::PairedEndSequencingRead { left, right } => {
-//                 cmp::min(left.record().mapq(), right.record().mapq())
-//             }
-//         }
-//     }
-
-//     fn extract_observations(
-//         &self,
-//         buffer: &mut sample::RecordBuffer,
-//         alignment_properties: &mut AlignmentProperties,
-//         max_depth: usize,
-//         alt_variants: &[Box<dyn Realignable>],
-//         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
-//     ) -> Result<Vec<ReadObservation>> {
-//         // We cannot use a hash function here because candidates have to be considered
-//         // in a deterministic order. Otherwise, subsampling high-depth regions will result
-//         // in slightly different probabilities each time.
-//         let mut candidate_records = BTreeMap::new();
-
-//         let locus = self.loci();
-//         buffer.fetch(locus, true)?;
-//         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
-//         for record in buffer.iter() {
-//             // METHOD: First, we check whether the record contains an indel in the cigar.
-//             // We store the maximum indel size to update the global estimates, in case
-//             // it is larger in this region.
-//             alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
-
-//             // We look at the whole fragment at once.
-
-//             // TODO move this text to the right place:
-//             // We ensure fair sampling by checking if the whole fragment overlaps the
-//             // centerpoint. Only taking the internal segment would not be fair,
-//             // because then the second read of reference fragments tends to cross
-//             // the centerpoint and the fragment would be discarded.
-//             // The latter would not happen for alt (deletion) fragments, because the second
-//             // read would map right of the variant in that case.
-
-//             // We always choose the leftmost and the rightmost alignment, thereby also
-//             // considering supplementary alignments.
-
-//             if !candidate_records.contains_key(record.qname()) {
-//                 // this is the first (primary or supplementary alignment in the pair
-//                 candidate_records.insert(record.qname().to_owned(), Candidate::new(record));
-//             } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
-//                 // this is either the last alignment or one in the middle
-//                 if (candidate.left.is_first_in_template() && record.is_first_in_template())
-//                     && (candidate.left.is_last_in_template() && record.is_last_in_template())
-//                 {
-//                     // Ignore another partial alignment right of the first.
-//                     continue;
-//                 }
-//                 // replace right record (we seek for the rightmost (partial) alignment)
-//                 candidate.right = Some(record);
-//             }
-//         }
-
-//         let mut candidates = Vec::new();
-//         let mut locus_depth = VecMap::new();
-//         let mut push_evidence = |evidence: Evidence, idx| {
-//             candidates.push(evidence);
-//             for i in idx {
-//                 let count = locus_depth.entry(i).or_insert(0);
-//                 *count += 1;
-//             }
-//         };
-
-//         for candidate in candidate_records.values() {
-//             if let Some(ref right) = candidate.right {
-//                 if candidate.left.mapq() == 0 || right.mapq() == 0 {
-//                     // Ignore pairs with ambiguous alignments.
-//                     // The statistical model does not consider them anyway.
-//                     continue;
-//                 }
-//                 let evidence = Evidence::PairedEndSequencingRead {
-//                     left: ExtendedRecord::new(
-//                         candidate.left.to_owned(),
-//                         buffer.get_methylation_probs(candidate.left.to_owned()),
-//                     ),
-//                     right: ExtendedRecord::new(
-//                         right.to_owned(),
-//                         buffer.get_methylation_probs(right.to_owned()),
-//                     ),
-//                 };
-//                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
-//                     push_evidence(evidence, idx);
-//                 }
-//             } else {
-//                 // this is a single alignment with unmapped mate or mate outside of the
-//                 // region of interest
-//                 let evidence = Evidence::SingleEndSequencingRead(ExtendedRecord::new(
-//                     candidate.left.to_owned(),
-//                     buffer.get_methylation_probs(candidate.left.to_owned()),
-//                 ));
-//                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
-//                     push_evidence(evidence, idx);
-//                 }
-//             }
-//         }
-
-//         // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
-//         // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
-//         let subsample = locus_depth.values().all(|depth| *depth > max_depth);
-//         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
-//         let mut observations = Vec::new();
-//         for evidence in &candidates {
-//             if !subsample || subsampler.keep() {
-//                 if let Some(obs) = self.evidence_to_observation(
-//                     evidence,
-//                     alignment_properties,
-//                     &homopolymer_error_model,
-//                     alt_variants,
-//                     observation_id_factory,
-//                 )? {
-//                     observations.push(obs);
-//                 }
-//             }
-//         }
-
-//         Ok(observations)
-//     }
-// }
 
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
@@ -567,7 +419,8 @@ impl SingleLocus {
         &self,
         record: &bam::Record,
         consider_clips: bool,
-        consider_methylation: bool,
+        start_offset: u64,
+        end_offset: u64,
     ) -> Overlap {
         let mut pos = record.pos() as u64;
         let cigar = record.cigar_cached().unwrap();
@@ -578,63 +431,23 @@ impl SingleLocus {
             pos = pos.saturating_sub(cigar.leading_softclips() as u64);
             end_pos += cigar.trailing_softclips() as u64;
         }
-        let mut start_position = self.range().start;
-        // In methylated read we want to include all reads only over the G becausse of methylation on the reverse strand
-        if consider_methylation {
-            start_position += 1;
-        }
 
-        if pos <= start_position {
-            if end_pos >= self.range().end {
+        let range_start = self.range().start + start_offset;
+        let range_end = self.range().end + end_offset;
+
+        if pos <= range_start {
+            if end_pos >= range_end {
                 return Overlap::Enclosing;
-            } else if end_pos > self.range().start {
+            } else if end_pos >= range_start {
                 return Overlap::Left;
             }
-        } else if end_pos >= self.range().end && pos < self.range().end {
+        } else if end_pos >= range_end && pos < range_end {
             return Overlap::Right;
-        } else if pos >= self.range().start && end_pos <= self.range().end {
+        } else if pos >= range_start && end_pos <= range_end {
             return Overlap::Enclosed;
         }
 
         Overlap::None
-    }
-
-    fn outside_overlap(&self, record: &bam::Record) -> bool {
-        let reverse_read = Self::read_reverse_strand(record.inner.core.flag);
-        let pos = record.pos() as u64;
-        if pos == self.range().start + 1 && reverse_read {
-            return true;
-        }
-        false
-    }
-
-    /// Finds out whether the given string is a forward or reverse string.
-    ///
-    /// # Returns
-    ///
-    /// True if read given read is a reverse read, false if it is a forward read
-    pub(crate) fn read_reverse_strand(flag: u16) -> bool {
-        let read_paired = 0b1;
-        let read_mapped_porper_pair = 0b01;
-        let read_reverse = 0b10000;
-        let mate_reverse = 0b100000;
-        let first_in_pair = 0b1000000;
-        let second_in_pair = 0b10000000;
-        if (flag & read_paired != 0
-            && flag & read_mapped_porper_pair != 0
-            && flag & read_reverse != 0
-            && flag & first_in_pair != 0)
-            || (flag & read_paired != 0
-                && flag & read_mapped_porper_pair != 0
-                && flag & mate_reverse != 0
-                && flag & second_in_pair != 0)
-            || (flag & read_reverse != 0
-                && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0))
-        {
-            return true;
-        }
-        false
-        // flag & 0x10 != 0
     }
 }
 

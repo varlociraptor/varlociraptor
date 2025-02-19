@@ -162,7 +162,7 @@ impl<R: Realigner> Variant for Deletion<R> {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if !self.locus.overlap(read.record(), true, false).is_none() {
+                if !self.locus.overlap(read, true, 0, 0).is_none() {
                     Some(vec![0])
                 } else {
                     None
@@ -170,23 +170,23 @@ impl<R: Realigner> Variant for Deletion<R> {
             }
             Evidence::PairedEndSequencingRead { left, right } => {
                 if alignment_properties.insert_size.is_some() {
-                    let right_cigar = right.record().cigar_cached().unwrap();
-                    let encloses_centerpoint = (left.record().pos() as u64) < self.centerpoint()
+                    let right_cigar = right.cigar_cached().unwrap();
+                    let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
                         && right_cigar.end_pos() as u64 > self.centerpoint();
                     // METHOD: only keep fragments that enclose the centerpoint and have at least one overlapping read.
                     // Importantly, enclosed reads have to be allowed as well. Otherwise, we bias against reference
                     // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
                     // in particular for large deletions.
                     if encloses_centerpoint
-                        && (!self.locus.overlap(left.record(), true, false).is_none()
-                            || !self.locus.overlap(right.record(), true, false).is_none())
+                        && (!self.locus.overlap(left, true, 0, 0).is_none()
+                            || !self.locus.overlap(right, true, 0, 0).is_none())
                     {
                         Some(vec![0])
                     } else {
                         None
                     }
-                } else if !self.locus.overlap(left.record(), true, false).is_none()
-                    || !self.locus.overlap(right.record(), true, false).is_none()
+                } else if !self.locus.overlap(left, true, 0, 0).is_none()
+                    || !self.locus.overlap(right, true, 0, 0).is_none()
                 {
                     Some(vec![0])
                 } else {
@@ -210,7 +210,7 @@ impl<R: Realigner> Variant for Deletion<R> {
         match evidence {
             Evidence::SingleEndSequencingRead(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record.record(),
+                    record,
                     &[&self.locus],
                     self,
                     alt_variants,
@@ -233,14 +233,14 @@ impl<R: Realigner> Variant for Deletion<R> {
                 //   estimating allele frequencies. Before, we had one observation for an overlapping read
                 //   and potentially another observation for the corresponding fragment.
                 let left_support = self.realigner.borrow_mut().allele_support(
-                    left.record(),
+                    left,
                     &[&self.locus],
                     self,
                     alt_variants,
                     alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
-                    right.record(),
+                    right,
                     &[&self.locus],
                     self,
                     alt_variants,
@@ -251,12 +251,8 @@ impl<R: Realigner> Variant for Deletion<R> {
                 support.merge(&right_support);
 
                 if alignment_properties.insert_size.is_some() {
-                    let isize_support = self.allele_support_isize(
-                        left.record(),
-                        right.record(),
-                        alignment_properties,
-                        self.len(),
-                    )?;
+                    let isize_support =
+                        self.allele_support_isize(left, right, alignment_properties, self.len())?;
                     support.merge(&isize_support);
                 }
 
@@ -274,30 +270,24 @@ impl<R: Realigner> Variant for Deletion<R> {
             Evidence::PairedEndSequencingRead { left, right } => {
                 if alignment_properties.insert_size.is_some() {
                     self.prob_sample_alt_fragment(
-                        left.record().seq().len() as u64,
-                        right.record().seq().len() as u64,
+                        left.seq().len() as u64,
+                        right.seq().len() as u64,
                         alignment_properties,
                     )
                 } else {
                     // METHOD: we do not require the fragment to enclose the variant.
                     // Hence, we treat both reads independently.
                     (self
-                        .prob_sample_alt_read(
-                            left.record().seq().len() as u64,
-                            alignment_properties,
-                        )
+                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
                         .ln_one_minus_exp()
                         + self
-                            .prob_sample_alt_read(
-                                right.record().seq().len() as u64,
-                                alignment_properties,
-                            )
+                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
                             .ln_one_minus_exp())
                     .ln_one_minus_exp()
                 }
             }
             Evidence::SingleEndSequencingRead(read) => {
-                self.prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties)
+                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
     }

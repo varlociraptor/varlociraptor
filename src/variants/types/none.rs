@@ -37,7 +37,7 @@ impl None {
     }
 
     fn allele_support_per_read(&self, read: &bam::Record) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false, false) != Overlap::Enclosing {
+        if self.locus().overlap(read, false, 0, 0) != Overlap::Enclosing {
             return Ok(None);
         }
 
@@ -98,18 +98,16 @@ impl Variant for None {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(&read.record(), false, false) {
+                if let Overlap::Enclosing = self.locus().overlap(read, false, 0, 0) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(&left.record(), false, false) {
+                if let Overlap::Enclosing = self.locus().overlap(left, false, 0, 0) {
                     Some(vec![0])
-                } else if let Overlap::Enclosing =
-                    self.locus().overlap(&right.record(), false, false)
-                {
+                } else if let Overlap::Enclosing = self.locus().overlap(right, false, 0, 0) {
                     Some(vec![0])
                 } else {
                     None
@@ -129,12 +127,10 @@ impl Variant for None {
         _: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => {
-                Ok(self.allele_support_per_read(&read.record())?)
-            }
+            Evidence::SingleEndSequencingRead(read) => Ok(self.allele_support_per_read(read)?),
             Evidence::PairedEndSequencingRead { left, right } => {
-                let left_support = self.allele_support_per_read(&left.record())?;
-                let right_support = self.allele_support_per_read(&right.record())?;
+                let left_support = self.allele_support_per_read(left)?;
+                let right_support = self.allele_support_per_read(right)?;
 
                 match (left_support, right_support) {
                     (Some(mut left_support), Some(right_support)) => {

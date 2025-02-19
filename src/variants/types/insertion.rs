@@ -143,11 +143,11 @@ impl<R: Realigner> Variant for Insertion<R> {
     ) -> Option<Vec<usize>> {
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                !self.locus().overlap(read.record(), true, false).is_none()
+                !self.locus().overlap(read, true, 0, 0).is_none()
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                !self.locus().overlap(left.record(), true, false).is_none()
-                    || !self.locus().overlap(right.record(), true, false).is_none()
+                !self.locus().overlap(left, true, 0, 0).is_none()
+                    || !self.locus().overlap(right, true, 0, 0).is_none()
             }
         } {
             Some(vec![0])
@@ -171,7 +171,7 @@ impl<R: Realigner> Variant for Insertion<R> {
         match evidence {
             Evidence::SingleEndSequencingRead(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
-                    record.record(),
+                    record,
                     self.locus.iter(),
                     self,
                     alt_variants,
@@ -180,14 +180,14 @@ impl<R: Realigner> Variant for Insertion<R> {
             }
             Evidence::PairedEndSequencingRead { left, right } => {
                 let left_support = self.realigner.borrow_mut().allele_support(
-                    left.record(),
+                    left,
                     self.locus.iter(),
                     self,
                     alt_variants,
                     alignment_properties,
                 )?;
                 let right_support = self.realigner.borrow_mut().allele_support(
-                    right.record(),
+                    right,
                     self.locus.iter(),
                     self,
                     alt_variants,
@@ -213,18 +213,15 @@ impl<R: Realigner> Variant for Insertion<R> {
                 // METHOD: we do not require the fragment to enclose the variant.
                 // Hence, we treat both reads independently.
                 (self
-                    .prob_sample_alt_read(left.record().seq().len() as u64, alignment_properties)
+                    .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
                     .ln_one_minus_exp()
                     + self
-                        .prob_sample_alt_read(
-                            right.record().seq().len() as u64,
-                            alignment_properties,
-                        )
+                        .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
                         .ln_one_minus_exp())
                 .ln_one_minus_exp()
             }
             Evidence::SingleEndSequencingRead(read) => {
-                self.prob_sample_alt_read(read.record().seq().len() as u64, alignment_properties)
+                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
     }
