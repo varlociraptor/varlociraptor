@@ -14,9 +14,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observations::read_observation::Observable;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
-use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, MultiLocus, Evidence, Variant,
-};
+use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, Variant};
 
 use super::ToVariantRepresentation;
 

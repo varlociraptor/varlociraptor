@@ -8,7 +8,7 @@ use crate::variants::model;
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
-use crate::variants::types::{AlleleSupport, MultiLocus, Evidence, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, Variant};
 
 use super::ToVariantRepresentation;
 
