@@ -50,7 +50,7 @@ impl Methylation {
         is_long_read: bool,
     ) -> Result<Option<AlleleSupport>> {
         let mut position = self.locus().range().start;
-        if read_reverse_strand(read.inner.core.flag) {
+        if read_reverse_orientation(read) {
             position += 1;
         }
         if let Some(qpos) = read
@@ -149,13 +149,13 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
                 .chars()
                 .enumerate()
                 .filter(|&(_, c)| {
-                    (c == 'C' && !read_reverse_strand(read.inner.core.flag))
-                        || (c == 'G' && read_reverse_strand(read.inner.core.flag))
+                    (c == 'C' && !read_reverse_orientation(read))
+                        || (c == 'G' && read_reverse_orientation(read))
                 })
                 .map(|(index, _)| index)
                 .collect();
 
-            if read_reverse_strand(read.inner.core.flag) {
+            if read_reverse_orientation(read) {
                 pos_read_base.reverse()
             }
 
@@ -199,7 +199,7 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
                     }
                 }
 
-                if read_reverse_strand(read.inner.core.flag) {
+                if read_reverse_orientation(read) {
                     pos_methylated_cs.reverse();
                 }
                 return Some(pos_methylated_cs);
@@ -246,7 +246,7 @@ pub fn extract_ml_methylation_probabilities(read: &Rc<Record>) -> Option<Vec<Log
             .iter()
             .map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0)))
             .collect();
-        if read_reverse_strand(read.inner.core.flag) {
+        if read_reverse_orientation(read) {
             ml.reverse();
         }
         Some(ml)
@@ -269,18 +269,13 @@ fn process_read(
     //     "Debugging read {:?} on position {:?}, direction {:?}",
     //     String::from_utf8_lossy(read.qname()),
     //     qpos,
-    //     read_reverse_strand(read.inner.core.flag)
+    //     read_reverse_orientation(read)
     // );
     // We do not consider a read if:
     //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
     //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
     if (is_long_read && meth_info.is_none())
-        || mutation_occurred(
-            read_reverse_strand(read.inner.core.flag),
-            read,
-            qpos,
-            is_long_read,
-        )
+        || mutation_occurred(read_reverse_orientation(read), read, qpos, is_long_read)
         || read_invalid(read.inner.core.flag)
     {
         return None;
@@ -290,7 +285,7 @@ fn process_read(
         Some(compute_probs_long_read(meth_info.as_ref().unwrap(), qpos))
     } else {
         Some(compute_probs_short_read(
-            read_reverse_strand(read.inner.core.flag),
+            read_reverse_orientation(read),
             read,
             qpos,
         ))
@@ -412,23 +407,15 @@ impl Variant for Methylation {
     ) -> Option<Vec<usize>> {
         if match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                let start_offset = if read_reverse_strand(read.inner.core.flag) {
-                    1
-                } else {
-                    0
-                };
+                let start_offset = if read_reverse_orientation(read) { 1 } else { 0 };
                 matches!(
                     self.locus().overlap(read, false, start_offset, 0),
                     Overlap::Enclosing
                 )
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                let start_offset_left = if read_reverse_strand(left.inner.core.flag) {
-                    1
-                } else {
-                    0
-                };
-                let start_offset_right = if read_reverse_strand(right.inner.core.flag) {
+                let start_offset_left = if read_reverse_orientation(left) { 1 } else { 0 };
+                let start_offset_right = if read_reverse_orientation(right) {
                     1
                 } else {
                     0
@@ -516,26 +503,13 @@ impl ToVariantRepresentation for Methylation {
     }
 }
 
-pub(crate) fn read_reverse_strand(flag: u16) -> bool {
-    let read_paired = 0b1;
-    let read_mapped_porper_pair = 0b01;
-    let read_reverse = 0b10000;
-    let mate_reverse = 0b100000;
-    let first_in_pair = 0b1000000;
-    let second_in_pair = 0b10000000;
-    if (flag & read_paired != 0
-        && flag & read_mapped_porper_pair != 0
-        && flag & read_reverse != 0
-        && flag & first_in_pair != 0)
-        || (flag & read_paired != 0
-            && flag & read_mapped_porper_pair != 0
-            && flag & mate_reverse != 0
-            && flag & second_in_pair != 0)
-        || (flag & read_reverse != 0
-            && (flag & read_paired == 0 || flag & read_mapped_porper_pair == 0))
-    {
-        return true;
+pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
+    let read_paired = read.is_paired();
+    let read_reverse = read.is_reverse();
+    let read_first = read.is_first_in_template();
+    if read_paired {
+        read_reverse && read_first || !read_reverse && !read_first
+    } else {
+        read_reverse
     }
-    false
-    // flag & 0x10 != 0
 }
