@@ -41,7 +41,7 @@ pub fn control_fdr<R, W>(
     alpha: LogProb,
     local: bool,
     smart: bool,
-    smart_ignore_artifact: bool,
+    smart_retain_artifacts: bool,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -95,7 +95,7 @@ where
     } else if alpha != LogProb::ln_one() {
         let dist_events = if smart {
             let mut evts = vec![SimpleEvent::new("ABSENT")];
-            if !smart_ignore_artifact {
+            if !smart_retain_artifacts {
                 evts.push(SimpleEvent::new("ARTIFACT"));
             }
             evts
@@ -151,7 +151,7 @@ where
         &cleaned_events,
         vartype,
         smart,
-        smart_ignore_artifact,
+        smart_retain_artifacts,
     )?;
 
     Ok(())
