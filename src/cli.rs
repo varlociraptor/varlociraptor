@@ -1191,7 +1191,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 vartype,
                 minlen,
                 maxlen,
-                smart_retain_artifacts: smart_ignore_artifact,
+                smart_retain_artifacts,
             } => {
                 let events = events
                     .iter()
@@ -1218,7 +1218,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     LogProb::from(Prob::checked(fdr)?),
                     local,
                     smart,
-                    smart_ignore_artifact,
+                    smart_retain_artifacts,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
