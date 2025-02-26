@@ -203,6 +203,7 @@ fn control_fdr(
     alpha: f64,
     local: bool,
     smart: bool,
+    smart_retain_artifacts: bool,
     vartype: Option<&varlociraptor::variants::model::VariantType>,
 ) {
     let basedir = basedir(test);
@@ -222,6 +223,7 @@ fn control_fdr(
         LogProb::from(Prob(alpha)),
         local,
         smart,
+        smart_retain_artifacts,
     )
     .unwrap();
 }
@@ -256,6 +258,7 @@ fn test_fdr_control1() {
         0.05,
         false,
         false,
+        false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -269,6 +272,7 @@ fn test_fdr_control2() {
         "test_fdr_ev_2",
         &["SOMATIC"],
         0.05,
+        false,
         false,
         false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
@@ -287,6 +291,7 @@ fn test_fdr_control3() {
         0.001,
         false,
         false,
+        false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -300,6 +305,7 @@ fn test_fdr_control4() {
         "test_fdr_ev_4",
         &["SOMATIC_TUMOR"],
         0.05,
+        false,
         false,
         false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
@@ -317,6 +323,7 @@ fn test_fdr_control_local1() {
         0.05,
         true,
         false,
+        false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -331,6 +338,7 @@ fn test_fdr_control_local2() {
         &["SOMATIC"],
         0.25,
         true,
+        false,
         false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
@@ -347,6 +355,23 @@ fn test_fdr_control_local2_smart() {
         0.08,
         true,
         true,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
+    assert_call_number("test_fdr_local2_smart", 1);
+}
+
+#[test]
+fn test_fdr_control_local2_smart_retain_artifacts() {
+    control_fdr(
+        "test_fdr_local2_smart",
+        &["SOMATIC"],
+        0.08,
+        true,
+        true,
+        true,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -361,6 +386,7 @@ fn test_fdr_control_local3() {
         &["GERMLINE", "SOMATIC_TUMOR_LOW"],
         0.05,
         true,
+        false,
         false,
         None,
     );

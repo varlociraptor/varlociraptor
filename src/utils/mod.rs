@@ -292,11 +292,22 @@ pub(crate) fn filter_by_threshold<E: Event>(
     events: &[E],
     vartype: Option<&model::VariantType>,
     smart: bool,
+    smart_retain_artifacts: bool,
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
-    let tags = events_to_tags(events);
-    let absent_and_artifact_tags = ["PROB_ABSENT".to_owned(), "PROB_ARTIFACT".to_owned()];
+    let mut tags = events_to_tags(events);
+    let mut absent_and_artifact_tags = vec!["PROB_ABSENT".to_owned()];
+
+    if smart && smart_retain_artifacts {
+        // in this case, artifact events are wanted, and hence added to the
+        // queried events
+        tags.push("PROB_ARTIFACT".to_owned());
+    } else {
+        // in this case, artifacts are unwanted and hence added to the absent case
+        absent_and_artifact_tags.push("PROB_ARTIFACT".to_owned());
+    }
+
     let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
         let bnd_event = info_tag_event(record).ok().flatten();
         let keep = if let Some(event) = bnd_event.as_ref() {
