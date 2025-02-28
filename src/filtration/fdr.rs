@@ -41,6 +41,7 @@ pub fn control_fdr<R, W>(
     alpha: LogProb,
     local: bool,
     smart: bool,
+    smart_retain_artifacts: bool,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -93,7 +94,11 @@ where
         threshold = Some(alpha.ln_one_minus_exp());
     } else if alpha != LogProb::ln_one() {
         let dist_events = if smart {
-            vec![SimpleEvent::new("ABSENT"), SimpleEvent::new("ARTIFACT")]
+            let mut evts = vec![SimpleEvent::new("ABSENT")];
+            if !smart_retain_artifacts {
+                evts.push(SimpleEvent::new("ARTIFACT"));
+            }
+            evts
         } else {
             cleaned_events.clone()
         };
@@ -146,6 +151,7 @@ where
         &cleaned_events,
         vartype,
         smart,
+        smart_retain_artifacts,
     )?;
 
     Ok(())

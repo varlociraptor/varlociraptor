@@ -770,6 +770,16 @@ pub enum FilterMethod {
             The former behavior is much more intuitive than loosing such variants entirely."
         )]
         mode: ControlFDRMode,
+        #[structopt(
+            long,
+            help = "Whether smart mode shall retain artifact calls \
+            instead of taking the sum of artifact probability and \
+            absent probability for \
+            determining whether a variant shall be filtered. Setting this causes \
+            variants that are marked as artifacts to be kept.
+            "
+        )]
+        smart_retain_artifacts: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
@@ -1199,6 +1209,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 vartype,
                 minlen,
                 maxlen,
+                smart_retain_artifacts,
             } => {
                 let events = events
                     .iter()
@@ -1225,6 +1236,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     LogProb::from(Prob::checked(fdr)?),
                     local,
                     smart,
+                    smart_retain_artifacts,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
