@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.7.1](https://github.com/varlociraptor/varlociraptor/compare/v8.7.0...v8.7.1) (2025-03-05)
+
+
+### Bug Fixes
+
+* properly handle non-informative reads when dealing with strand bias (they don't prefer any option in that case). ([#498](https://github.com/varlociraptor/varlociraptor/issues/498)) ([87e9012](https://github.com/varlociraptor/varlociraptor/commit/87e90123b6bb0b89bebe9a0913155a7df63182fb))
+
 ## [8.7.0](https://github.com/varlociraptor/varlociraptor/compare/v8.6.1...v8.7.0) (2025-02-26)
 
 
