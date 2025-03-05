@@ -36,7 +36,7 @@ impl Bias for StrandBias {
             (StrandBias::Reverse, Strand::Both) => LogProb::ln_zero(),
             (StrandBias::None { .. }, Strand::Both) => observation.prob_double_overlap,
             (StrandBias::None { .. }, Strand::None) => LogProb::ln_one(), // all are none and only None is evaluated, safe to return 1
-            (_, Strand::None) => unreachable!(),
+            (_, Strand::None) => LogProb::ln_one(),
             (StrandBias::None { forward_rate }, observed) => {
                 let rate = match observed {
                     Strand::Forward => **forward_rate,
