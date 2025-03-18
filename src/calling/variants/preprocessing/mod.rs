@@ -938,6 +938,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let encode_logprob = utils::MiniLogProb::new;
     for obs in read_observations {
         ids.push(obs.fragment_id);
+        // prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
         prob_ref.push(encode_logprob(obs.prob_ref()));
         prob_alt.push(encode_logprob(obs.prob_alt()));
