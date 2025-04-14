@@ -38,7 +38,7 @@ itertools-num = "0.1"
 jemallocator = "0.5.4"
 lazy_static = "1"
 log = "0.4"
-lru = "0.7"
+lru = "0.14"
 lru_time_cache = "0.11"
 ndarray = { version = "0.16", features = ["serde"] }
 num-traits = "0.2"
