@@ -125,6 +125,23 @@ pub enum Varlociraptor {
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
+    #[structopt(
+        name = "cnv-candidates",
+        about = "Generate BCF with cnv candidates",
+        usage = "varlociraptor cnv-candidates input.breakends (gridss output) output.bcf"
+    )]
+    CNVCandidates {
+        #[structopt(
+            name = "input",
+            parse(from_os_str),
+            required = true,
+            help = "Input breakends File"
+        )]
+        input: PathBuf,
+
+        #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
+        output: Option<PathBuf>,
+    },
 }
 
 pub struct PreprocessInput {
@@ -1344,6 +1361,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
         },
         Varlociraptor::MethylationCandidates { input, output } => {
             candidates::methylation::find_candidates(input, output)?;
+        }
+        Varlociraptor::CNVCandidates { input, output } => {
+            candidates::cnv::find_candidates(input, output)?;
         }
     }
     Ok(())
