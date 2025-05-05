@@ -21,7 +21,7 @@ fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
     }
 
     header.push_record(
-        b"##INFO=<ID=QUAL,Number=1,Type=String,Description=\"Variant classification\">",
+        b"##INFO=<ID=QUAL_CLASS,Number=1,Type=String,Description=\"Variant classification\">",
     );
     header.push_record(
         b"##INFO=<ID=ENDING,Number=1,Type=String,Description=\"Ending position of breakend\">",
@@ -44,7 +44,6 @@ fn create_breakend_from_record(
     }
     let breakend = Breakend::new(
         Locus::new(contig, record.pos() as u64),
-        // Locus::new(header.rid2name(record.rid())?, record.pos() as u64),
         record.alleles()[0],
         record.alleles()[1],
         &record.id(),
@@ -84,17 +83,21 @@ fn create_record(record: &Record, bcf_writer: &Writer, breakend: Breakend) -> Re
     // and variants with low QUAL score or lack any supporting assemblies are considered to be of low quality.
     let as_val = get_first_info_int(record, b"AS");
     let ras_val = get_first_info_int(record, b"RAS");
-    cnv_record.set_qual(f32::missing());
-    let gridss_qual = match (as_val, ras_val) {
-        (Some(1), Some(1)) if record.qual() > 1000.0 => "HIGH",
-        (Some(1), _) | (_, Some(1)) if record.qual() > 500.0 => "MEDIUM",
+    let asm_left = as_val.unwrap_or(0) > 0;
+    let asm_right = ras_val.unwrap_or(0) > 0;
+    let gridss_qual = match (asm_left, asm_right, record.qual()) {
+        (true, true, q) if q >= 900.0 => "HIGH",
+        (true, false, q) | (false, true, q) if q >= 500.0 => "MEDIUM",
         _ => "LOW",
     };
     cnv_record
-        .push_info_string(b"QUAL", &[gridss_qual.as_bytes()])
-        .with_context(|| "Failed to push QUAL info string")?;
+        .push_info_string(b"QUAL_CLASS", &[gridss_qual.as_bytes()])
+        .with_context(|| "Failed to push QUAL_CLASS info string")?;
 
-    let join = breakend.join().as_ref().unwrap();
+    let join = breakend
+        .join()
+        .as_ref()
+        .with_context(|| "Failed to get join from breakend")?;
     let mate_locus = join.locus();
     let end_value = format!("{}:{}", mate_locus.contig(), mate_locus.pos());
     let end = end_value.as_str();
@@ -124,14 +127,16 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
         .with_context(|| "Failed to create AuxInfoCollector")?;
     for record_result in bcf_reader.records() {
         let record = record_result.with_context(|| "Error reading record")?;
-        let breakend = create_breakend_from_record(&record, &header_orig, &aux_info).unwrap();
-        if breakend.is_left_to_right() {
-            let cnv_record = create_record(&record, &bcf_writer, breakend)?;
+        let breakend = match create_breakend_from_record(&record, &header_orig, &aux_info) {
+            Some(b) if b.is_left_to_right() && b.join().is_some() => b,
+            _ => continue, // skip single-sided or right-to-left bnds
+        };
 
-            bcf_writer
-                .write(&cnv_record)
-                .with_context(|| "Failed to write BCF record".to_string())?;
-        }
+        let cnv_record = create_record(&record, &bcf_writer, breakend)?;
+
+        bcf_writer
+            .write(&cnv_record)
+            .with_context(|| "Failed to write BCF record".to_string())?;
     }
     Ok(())
 }
