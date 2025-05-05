@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use bio_types::genome::Locus;
+use bio_types::genome::{AbstractLocus, Locus};
 use rust_htslib::bcf::header::HeaderView;
 use rust_htslib::bcf::{Format, Header, Read, Reader, Record, Writer};
 use std::path::PathBuf;
@@ -14,7 +14,7 @@ use crate::variants::types::breakends::Breakend;
 /// variants with QUAL >= 500 but that can only be assembled from one breakend (AS > 0 | RAS > 0) are considered of intermediate quality,
 /// and variants with low QUAL score or lack any supporting assemblies are considered to be of low quality.
 fn create_breakend_from_record(
-    record: Record,
+    record: &Record,
     header: &HeaderView,
     aux_info_collector: &AuxInfoCollector,
 ) -> Option<Breakend> {
@@ -25,7 +25,6 @@ fn create_breakend_from_record(
     if let Ok(Some(values)) = record.info(b"MATEID").string() {
         mateid = values.first().map(|v| v.to_vec());
     }
-    // TODO: I dont use breakends
     let breakend = Breakend::new(
         Locus::new(contig, record.pos() as u64),
         // Locus::new(header.rid2name(record.rid())?, record.pos() as u64),
@@ -34,7 +33,7 @@ fn create_breakend_from_record(
         &record.id(),
         mateid,
         VariantPrecision::Precise,
-        aux_info_collector.collect(&record).unwrap(),
+        aux_info_collector.collect(record).unwrap(),
     )
     .unwrap();
     breakend
@@ -51,7 +50,7 @@ fn get_first_info_int(record: &Record, tag: &[u8]) -> Option<i32> {
 }
 
 /// Creates a new CNV record based on an existing BCF record
-pub fn create_record(record: Record, bcf_writer: &Writer) -> Result<Record> {
+fn create_record(record: &Record, bcf_writer: &Writer, breakend: Breakend) -> Result<Record> {
     let mut cnv_record = bcf_writer.empty_record();
 
     cnv_record.set_rid(record.rid());
@@ -61,18 +60,23 @@ pub fn create_record(record: Record, bcf_writer: &Writer) -> Result<Record> {
     let old_allele = record.alleles()[0].to_vec();
     cnv_record.set_alleles(&[old_allele.as_slice(), b"<CNV>"])?;
 
-    let as_val = get_first_info_int(&record, b"AS");
-    let ras_val = get_first_info_int(&record, b"RAS");
+    let as_val = get_first_info_int(record, b"AS");
+    let ras_val = get_first_info_int(record, b"RAS");
 
     let gridss_qual = match (as_val, ras_val) {
         (Some(1), Some(1)) if record.qual() > 1000.0 => "HIGH",
         (Some(1), _) | (_, Some(1)) if record.qual() > 500.0 => "MEDIUM",
         _ => "LOW",
     };
-
     cnv_record
         .push_info_string(b"QUAL", &[gridss_qual.as_bytes()])
         .with_context(|| "Failed to push QUAL info string")?;
+    let mate_locus = breakend.join().as_ref().unwrap().locus();
+    let end_value = format!("{}:{}", mate_locus.contig(), mate_locus.pos());
+    let end = end_value.as_str();
+    cnv_record
+        .push_info_string(b"END", &[end.as_bytes()])
+        .with_context(|| "Failed to push END info string")?;
 
     Ok(cnv_record)
 }
@@ -91,6 +95,9 @@ fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
     header.push_record(
         b"##INFO=<ID=QUAL,Number=1,Type=String,Description=\"Variant classification\">",
     );
+    header.push_record(
+        b"##INFO=<ID=END,Number=1,Type=String,Description=\"Ending position of breakend\">",
+    );
 
     Ok(header)
 }
@@ -99,9 +106,8 @@ fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
 pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Result<()> {
     let mut bcf_reader = Reader::from_path(&breakends_bcf)
         .with_context(|| format!("Error opening input file: {:?}", breakends_bcf))?;
-    let headerview = bcf_reader.header();
 
-    let header = create_header_from_existing(headerview)?;
+    let header = create_header_from_existing(bcf_reader.header())?;
 
     let mut bcf_writer = match outbcf {
         Some(path) => Writer::from_path(path, &header, true, Format::Bcf)
@@ -110,13 +116,19 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
             .with_context(|| "Error opening BCF writer".to_string())?,
     };
 
+    let header_orig = bcf_reader.header().clone();
+    let aux_info = AuxInfoCollector::new(&[], &bcf_reader)
+        .with_context(|| "Failed to create AuxInfoCollector")?;
     for record_result in bcf_reader.records() {
         let record = record_result.with_context(|| "Error reading record")?;
-        let cnv_record = create_record(record, &bcf_writer)?;
-        bcf_writer
-            .write(&cnv_record)
-            .with_context(|| "Failed to write modified BCF record".to_string())?;
-    }
+        let breakend = create_breakend_from_record(&record, &header_orig, &aux_info).unwrap();
+        if breakend.is_left_to_right() {
+            let cnv_record = create_record(&record, &bcf_writer, breakend)?;
 
+            bcf_writer
+                .write(&cnv_record)
+                .with_context(|| "Failed to write BCF record".to_string())?;
+        }
+    }
     Ok(())
 }
