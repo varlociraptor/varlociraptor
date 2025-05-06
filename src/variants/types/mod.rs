@@ -96,9 +96,12 @@ impl AlleleSupport {
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
-        // TODO set read position to None if both allele supports have one
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
+
+        if self.read_position != other.read_position {
+            self.read_position = None;
+        }
 
         if self.strand == Strand::None {
             self.strand = other.strand;
