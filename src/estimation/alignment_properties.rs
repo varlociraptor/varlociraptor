@@ -146,7 +146,8 @@ impl AlignmentProperties {
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate(
-        paths: &[impl AsRef<Path>],
+        bam_paths: &[impl AsRef<Path>],
+        bcf_path: Option<impl AsRef<Path>>,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -218,7 +219,7 @@ impl AlignmentProperties {
         // Use this to estimate the number of alignments needed to estimate the
         // HPHMM's transition probabilities to a certain precision.
         let num_alignments = {
-            let ns = paths
+            let ns = bam_paths
                 .iter()
                 .map(|path| -> Result<u64> {
                     let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
@@ -233,7 +234,7 @@ impl AlignmentProperties {
         };
 
         // FIXME: reset fp/reader in rust-htslib after index_stats call
-        let mut bams = paths
+        let mut bams = bam_paths
             .iter()
             .map(|path| Ok(bam::IndexedReader::from_path(path.as_ref())?))
             .collect::<Result<Vec<_>>>()?;
@@ -1068,6 +1069,7 @@ mod tests {
 
         let props = AlignmentProperties::estimate(
             &[path, path],
+            None::<&Path>,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -1093,6 +1095,7 @@ mod tests {
 
         let props = AlignmentProperties::estimate(
             &[path],
+            None::<&Path>,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -1114,6 +1117,7 @@ mod tests {
 
         let props = AlignmentProperties::estimate(
             &[path],
+            None::<&Path>,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),

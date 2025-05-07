@@ -428,11 +428,11 @@ pub enum EstimateKind {
 
         #[structopt(
             long,
-            help = "VCF file listing known copy number variants (CNVs). \
+            help = "BCF file listing known copy number variants (CNVs). \
             Typically generated via the GRIDSS tool and the `varlociraptor cnv-candidates` subcommand. \
             This is essential for estimating baseline coverage in non-CNV regions."
         )]
-        vcf: PathBuf,
+        bcf: Option<PathBuf>,
 
         #[structopt(long, help = "Number of records to sample from the BAM file")]
         num_records: Option<usize>,
@@ -1307,11 +1307,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             EstimateKind::AlignmentProperties {
                 reference,
                 bams,
+                bcf,
                 num_records,
             } => {
                 let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
                 let alignment_properties = estimate_alignment_properties(
                     &bams,
+                    bcf,
                     false,
                     &mut reference_buffer,
                     num_records,
@@ -1389,6 +1391,12 @@ pub(crate) fn est_or_load_alignment_properties(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(&[bam_file], omit_insert_size, reference_buffer, num_records)
+        estimate_alignment_properties(
+            &[bam_file],
+            None,
+            omit_insert_size,
+            reference_buffer,
+            num_records,
+        )
     }
 }
