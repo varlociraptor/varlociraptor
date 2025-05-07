@@ -426,6 +426,14 @@ pub enum EstimateKind {
         )]
         bams: Vec<PathBuf>,
 
+        #[structopt(
+            long,
+            help = "VCF file listing known copy number variants (CNVs). \
+            Typically generated via the GRIDSS tool and the `varlociraptor cnv-candidates` subcommand. \
+            This is essential for estimating baseline coverage in non-CNV regions."
+        )]
+        vcf: PathBuf,
+
         #[structopt(long, help = "Number of records to sample from the BAM file")]
         num_records: Option<usize>,
     },

@@ -57,7 +57,6 @@ fn create_breakend_from_record(
 
 /// Helper function to extract the first integer value from an INFO field
 fn get_first_info_int(record: &Record, tag: &[u8]) -> Option<i32> {
-    print!("Test");
     record
         .info(tag)
         .integer()
