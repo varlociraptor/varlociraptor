@@ -62,6 +62,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    pub(crate) avg_coverage: u32,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -162,6 +163,7 @@ impl AlignmentProperties {
             frac_max_softclip: None,
             max_read_len: 0,
             max_mapq: 0,
+            avg_coverage: 0,
             cigar_counts: Default::default(),
             transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
@@ -204,6 +206,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
+            read_start_counts: HashMap<(String, i64), u32>,
             max_read_len: u32,
             n_softclips: u32,
             n_not_usable: u32,
@@ -294,8 +297,9 @@ impl AlignmentProperties {
         let mut n_records_skipped = 0;
         let mut record_flag_stats = RecordFlagStats::new();
         let mut all_stats = AlignmentStats::default();
+        let mut read_len_complete = 0;
 
-        for mut bam in bams {
+        for bam in &mut bams {
             let header = bam.header().clone();
             for record in bam.records() {
                 let mut record = record?;
@@ -317,6 +321,7 @@ impl AlignmentProperties {
                     record.cache_cigar();
                 }
 
+                read_len_complete += record.seq().len() as u32;
                 let contig = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
 
                 let (cigar_counts, transition_counts) = cigar_stats(
@@ -344,6 +349,8 @@ impl AlignmentProperties {
                         None
                     }
                 };
+                let key = (contig.to_string(), record.pos());
+                *all_stats.read_start_counts.entry(key).or_insert(0) += 1;
 
                 all_stats.n_reads += 1;
                 all_stats.max_mapq = all_stats.max_mapq.max(record.mapq());
@@ -370,6 +377,17 @@ impl AlignmentProperties {
             }
         }
 
+        let reference_len = reference_buffer.total_reference_length();
+        // TODO: Use interval tree to filter cnv areas
+        let total_num_cnv_reads: u32 = all_stats.read_start_counts.values().sum();
+        let total_num_reads: u32 = all_stats.read_start_counts.values().sum();
+        let avg_read_len = read_len_complete / total_num_reads;
+        let avg_cov = if reference_len > 0 {
+            (total_num_cnv_reads as u64 * avg_read_len as u64) / reference_len
+        } else {
+            0
+        };
+
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
         properties.transition_counts = Some(all_stats.transition_counts.clone());
 
@@ -377,7 +395,7 @@ impl AlignmentProperties {
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
-        properties.max_read_len = all_stats.max_read_len;
+        properties.avg_coverage = avg_cov as u32;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
