@@ -86,6 +86,10 @@ impl AlleleSupport {
         }
     }
 
+    fn is_alt_support(&self) -> bool {
+        self.prob_alt_allele > self.prob_ref_allele
+    }
+
     /// METHOD: This is an estimate of the allele likelihood at the true location in case
     /// the read is mismapped. The value has to be approximately in the range of prob_alt
     /// and prob_ref. Otherwise it could cause numerical problems, by dominating the
@@ -96,7 +100,25 @@ impl AlleleSupport {
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
-        // TODO set read position to None if both allele supports have one
+        if self.is_alt_support() {
+            if other.is_alt_support() {
+                // METHOD: both reads support the alt allele, but if they both do 
+                // at different positions this speaks against read position bias,
+                // hence setting the read position to None.
+                if self.read_position != other.read_position {
+                    self.read_position = None;
+                }
+            }
+            // METHOD: self supports the alt allele, other not.
+            // We take the read position of the one supporting the alt allele.
+            // Nothing to do here.
+        } else if other.is_alt_support() {
+            // METHOD: self supports the ref allele, other the alt allele.
+            // We take the read position of the one supporting the alt allele,
+            // i.e. other.
+            self.read_position = other.read_position;
+        }
+
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
 
