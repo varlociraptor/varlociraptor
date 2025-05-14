@@ -105,6 +105,7 @@ impl AlleleSupport {
                 // METHOD: both reads support the alt allele, but if they both do
                 // at different positions this speaks against read position bias,
                 // hence setting the read position to None.
+                // If both values are None, self.read_position remains None as well.
                 if self.read_position != other.read_position {
                     self.read_position = None;
                 }
