@@ -102,7 +102,7 @@ impl AlleleSupport {
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
         if self.is_alt_support() {
             if other.is_alt_support() {
-                // METHOD: both reads support the alt allele, but if they both do 
+                // METHOD: both reads support the alt allele, but if they both do
                 // at different positions this speaks against read position bias,
                 // hence setting the read position to None.
                 if self.read_position != other.read_position {
