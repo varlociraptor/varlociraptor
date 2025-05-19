@@ -3,11 +3,14 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use rust_htslib::bam::{FetchDefinition, Read};
+use intervaltree::{Element, IntervalTree};
+use rust_htslib::bam::{FetchDefinition, Read as BamRead};
+use rust_htslib::bcf::{Format, Header, Read as BcfRead, Reader, Record, Writer};
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::f64;
+use std::iter::FromIterator;
 use std::ops::AddAssign;
 use std::path::Path;
 use std::str;
@@ -148,7 +151,7 @@ impl AlignmentProperties {
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate(
         bam_paths: &[impl AsRef<Path>],
-        bcf_path: Option<impl AsRef<Path>>,
+        cnv_path: Option<impl AsRef<Path>>,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -374,6 +377,111 @@ impl AlignmentProperties {
             }
             if n_records_analysed >= num_records {
                 break;
+            }
+        }
+        #[derive(Debug)]
+        struct CNV {
+            start: (String, u64), // (CHROM, POS)
+            end: (String, u64),
+            qual_class: Option<String>,
+        }
+        fn chrom_order_map() -> HashMap<String, u64> {
+            // let chroms = vec![
+            //     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
+            //     "16", "17", "18", "19", "20", "21", "22", "X", "Y", "MT",
+            // ];
+            let chroms = vec!["J02459", "J02460", "J02461", "J02462"];
+            chroms
+                .into_iter()
+                .enumerate()
+                .map(|(i, c)| (c.to_string(), i as u64))
+                .collect()
+        }
+
+        // (Chrom, Pos) → lineare Position
+        fn chrom_pos_to_linear(chrom: &str, pos: u64, chrom_order: &HashMap<String, u64>) -> u64 {
+            let offset = chrom_order.get(chrom).expect("Unknown chromosome");
+            offset * 10_000_000_000 + pos
+        }
+
+        // Liest BCF und baut IntervalTree
+        fn parse_cnv_bcf_to_tree(path: &str) -> Result<IntervalTree<u64, CNV>> {
+            let chrom_order = chrom_order_map();
+            let mut intervals = Vec::new();
+
+            let mut bcf = Reader::from_path(path)?;
+            let header = bcf.header().clone();
+
+            for result in bcf.records() {
+                let record = result?;
+
+                let rid = record.rid().ok_or(anyhow!("Missing RID"))?;
+                let chrom = std::str::from_utf8(header.rid2name(rid)?)?.to_string();
+                let pos = record.pos() as u64;
+
+                // Parsing der ENDING und QUAL_CLASS Felder
+                let ending_raw = record.info(b"ENDING").string()?;
+                let qual_class = record
+                    .info(b"QUAL_CLASS")
+                    .string()?
+                    .and_then(|v| v.first().map(|s| String::from_utf8_lossy(s).into_owned()));
+
+                if let Some(ending_vec) = ending_raw {
+                    if let Some(ending_bytes) = ending_vec.first() {
+                        let ending_str = std::str::from_utf8(ending_bytes)?;
+                        if let Some((end_chrom, end_pos_str)) = ending_str.split_once(':') {
+                            let end_pos = end_pos_str.parse::<u64>()?;
+
+                            let start_pos = chrom_pos_to_linear(&chrom, pos, &chrom_order);
+                            let end_pos = chrom_pos_to_linear(end_chrom, end_pos, &chrom_order);
+
+                            // Intervall und zugehörige Daten erstellen
+                            let cnv = CNV {
+                                start: (chrom.clone(), pos),
+                                end: (end_chrom.to_string(), end_pos),
+                                qual_class: qual_class.clone(),
+                            };
+                            let range = start_pos..end_pos;
+                            // Das Intervall in der Vec speichern
+                            intervals.push((range, cnv));
+                        }
+                    }
+                }
+            }
+
+            // Intervallbaum mit den gesammelten Intervallen erstellen
+            Ok(IntervalTree::from_iter(intervals))
+        }
+
+        if let Some(ref path) = cnv_path {
+            let tree = parse_cnv_bcf_to_tree(path.as_ref().to_str().unwrap())?;
+            for element in tree.iter() {
+                let interval = &element.range;
+                let cnv = &element.value;
+                warn!("Interval: {:?}, CNV: {:?}", interval, cnv);
+            }
+
+            let chrom_order = chrom_order_map();
+            let query_chrom = "J02459";
+            let query_pos = 123456;
+
+            let linear_query_pos = chrom_pos_to_linear(query_chrom, query_pos, &chrom_order);
+
+            // Achtung: `query()` erwartet einen Range, also z.B. pos..pos+1
+            let results = tree.query(linear_query_pos..(linear_query_pos + 1));
+            dbg!(&results);
+            let query_chrom = "J02459";
+            let query_pos = 1100;
+
+            let linear_query_pos = chrom_pos_to_linear(query_chrom, query_pos, &chrom_order);
+
+            let results = tree.query(linear_query_pos..(linear_query_pos + 1));
+            dbg!(&results);
+            for element in results {
+                println!(
+                    "Treffer: {:?}, Intervall: {:?}",
+                    element.value, element.range
+                );
             }
         }
 
