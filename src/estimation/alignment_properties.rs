@@ -209,7 +209,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
-            read_start_counts: HashMap<(String, i64), u32>,
+            num_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
             n_not_usable: u32,
@@ -219,6 +219,74 @@ impl AlignmentProperties {
             cigar_counts: CigarStats,
             transition_counts: TransitionCounts,
             tlens: Vec<f64>,
+        }
+
+        #[derive(Debug)]
+        struct CNV {
+            start: (String, u64), // (CHROM, POS)
+            end: (String, u64),
+        }
+        fn chrom_order_map() -> HashMap<String, u64> {
+            // let chroms = vec![
+            //     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
+            //     "16", "17", "18", "19", "20", "21", "22", "X", "Y", "MT",
+            // ];
+            let chroms = vec!["J02459", "J02460", "J02461", "J02462"];
+            chroms
+                .into_iter()
+                .enumerate()
+                .map(|(i, c)| (c.to_string(), i as u64))
+                .collect()
+        }
+
+        // (Chrom, Pos) → lineare Position
+        fn chrom_pos_to_linear(chrom: &str, pos: u64, chrom_order: &HashMap<String, u64>) -> u64 {
+            let offset = chrom_order.get(chrom).expect("Unknown chromosome");
+            offset * 10_000_000_000 + pos
+        }
+
+        // Liest BCF und baut IntervalTree
+        fn bcf_to_cnv_tree(path: &str) -> Result<IntervalTree<u64, CNV>> {
+            let chrom_order = chrom_order_map();
+            let mut intervals = Vec::new();
+
+            let mut bcf = Reader::from_path(path)?;
+            let header = bcf.header().clone();
+
+            for result in bcf.records() {
+                let record = result?;
+
+                let rid = record.rid().ok_or(anyhow!("Missing RID"))?;
+                let chrom = std::str::from_utf8(header.rid2name(rid)?)?.to_string();
+                let pos = record.pos() as u64;
+
+                // Parsing der ENDING und QUAL_CLASS Felder
+                let ending_raw = record.info(b"ENDING").string()?;
+
+                if let Some(ending_vec) = ending_raw {
+                    if let Some(ending_bytes) = ending_vec.first() {
+                        let ending_str = std::str::from_utf8(ending_bytes)?;
+                        if let Some((end_chrom, end_pos_str)) = ending_str.split_once(':') {
+                            let end_pos = end_pos_str.parse::<u64>()?;
+
+                            let start_pos = chrom_pos_to_linear(&chrom, pos, &chrom_order);
+                            let end_pos = chrom_pos_to_linear(end_chrom, end_pos, &chrom_order);
+
+                            // Intervall und zugehörige Daten erstellen
+                            let cnv = CNV {
+                                start: (chrom.clone(), pos),
+                                end: (end_chrom.to_string(), end_pos),
+                            };
+                            let range = start_pos..end_pos;
+                            // Das Intervall in der Vec speichern
+                            intervals.push((range, cnv));
+                        }
+                    }
+                }
+            }
+
+            // Intervallbaum mit den gesammelten Intervallen erstellen
+            Ok(IntervalTree::from_iter(intervals))
         }
 
         // Retrieve number of alignments in the bam file.
@@ -302,6 +370,13 @@ impl AlignmentProperties {
         let mut all_stats = AlignmentStats::default();
         let mut read_len_complete = 0;
 
+        let mut cnv_tree = Option::<IntervalTree<u64, CNV>>::None;
+        let chrom_order = chrom_order_map();
+        if let Some(ref path) = cnv_path {
+            cnv_tree = Some(bcf_to_cnv_tree(path.as_ref().to_str().unwrap())?);
+        }
+        // TODO: How to get the chrome order
+
         for bam in &mut bams {
             let header = bam.header().clone();
             for record in bam.records() {
@@ -352,8 +427,22 @@ impl AlignmentProperties {
                         None
                     }
                 };
-                let key = (contig.to_string(), record.pos());
-                *all_stats.read_start_counts.entry(key).or_insert(0) += 1;
+                match cnv_tree {
+                    Some(ref tree) => {
+                        let linear_query_pos =
+                            chrom_pos_to_linear(contig, record.pos() as u64, &chrom_order);
+                        if tree
+                            .query(linear_query_pos..(linear_query_pos + 1))
+                            .next()
+                            .is_none()
+                        {
+                            all_stats.num_non_cnv_reads += 1;
+                        }
+                    }
+                    None => {
+                        all_stats.num_non_cnv_reads += 1;
+                    }
+                }
 
                 all_stats.n_reads += 1;
                 all_stats.max_mapq = all_stats.max_mapq.max(record.mapq());
@@ -379,108 +468,20 @@ impl AlignmentProperties {
                 break;
             }
         }
-        #[derive(Debug)]
-        struct CNV {
-            start: (String, u64), // (CHROM, POS)
-            end: (String, u64),
-        }
-        fn chrom_order_map() -> HashMap<String, u64> {
-            // let chroms = vec![
-            //     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
-            //     "16", "17", "18", "19", "20", "21", "22", "X", "Y", "MT",
-            // ];
-            let chroms = vec!["J02459", "J02460", "J02461", "J02462"];
-            chroms
-                .into_iter()
-                .enumerate()
-                .map(|(i, c)| (c.to_string(), i as u64))
-                .collect()
-        }
 
-        // (Chrom, Pos) → lineare Position
-        fn chrom_pos_to_linear(chrom: &str, pos: u64, chrom_order: &HashMap<String, u64>) -> u64 {
-            let offset = chrom_order.get(chrom).expect("Unknown chromosome");
-            offset * 10_000_000_000 + pos
-        }
-
-        // Liest BCF und baut IntervalTree
-        fn parse_cnv_bcf_to_tree(path: &str) -> Result<IntervalTree<u64, CNV>> {
-            let chrom_order = chrom_order_map();
-            let mut intervals = Vec::new();
-
-            let mut bcf = Reader::from_path(path)?;
-            let header = bcf.header().clone();
-
-            for result in bcf.records() {
-                let record = result?;
-
-                let rid = record.rid().ok_or(anyhow!("Missing RID"))?;
-                let chrom = std::str::from_utf8(header.rid2name(rid)?)?.to_string();
-                let pos = record.pos() as u64;
-
-                // Parsing der ENDING und QUAL_CLASS Felder
-                let ending_raw = record.info(b"ENDING").string()?;
-
-                if let Some(ending_vec) = ending_raw {
-                    if let Some(ending_bytes) = ending_vec.first() {
-                        let ending_str = std::str::from_utf8(ending_bytes)?;
-                        if let Some((end_chrom, end_pos_str)) = ending_str.split_once(':') {
-                            let end_pos = end_pos_str.parse::<u64>()?;
-
-                            let start_pos = chrom_pos_to_linear(&chrom, pos, &chrom_order);
-                            let end_pos = chrom_pos_to_linear(end_chrom, end_pos, &chrom_order);
-
-                            // Intervall und zugehörige Daten erstellen
-                            let cnv = CNV {
-                                start: (chrom.clone(), pos),
-                                end: (end_chrom.to_string(), end_pos),
-                            };
-                            let range = start_pos..end_pos;
-                            // Das Intervall in der Vec speichern
-                            intervals.push((range, cnv));
-                        }
-                    }
-                }
-            }
-
-            // Intervallbaum mit den gesammelten Intervallen erstellen
-            Ok(IntervalTree::from_iter(intervals))
-        }
-
-        let mut total_num_non_cnv_reads = 0;
         let mut reference_len = reference_buffer.total_reference_length();
-        if let Some(ref path) = cnv_path {
-            let tree = parse_cnv_bcf_to_tree(path.as_ref().to_str().unwrap())?;
-
-            // TODO: How to get the chrome order
-            let chrom_order = chrom_order_map();
-
-            for (key, count) in all_stats.read_start_counts.iter() {
-                let linear_query_pos = chrom_pos_to_linear(&key.0, key.1 as u64, &chrom_order);
-
-                if tree
-                    .query(linear_query_pos..(linear_query_pos + 1))
-                    .next()
-                    .is_none()
-                {
-                    total_num_non_cnv_reads += *count;
-                }
-            }
-
-            let total_cnv_bases: u64 = tree
+        if let Some(ref cnv_tree) = cnv_tree {
+            let num_cnv_reads = cnv_tree
                 .iter()
                 .map(|element| element.range.end - element.range.start)
                 .sum();
-
-            reference_len = reference_len.saturating_sub(total_cnv_bases);
-        } else {
-            total_num_non_cnv_reads = all_stats.read_start_counts.values().sum();
+            reference_len = reference_len.saturating_sub(num_cnv_reads);
         }
-
-        let total_num_reads: u32 = all_stats.read_start_counts.values().sum();
+        dbg!(&reference_len);
+        let total_num_reads = all_stats.n_reads as u32;
         let avg_read_len = read_len_complete / total_num_reads;
         let avg_cov = if reference_len > 0 {
-            (total_num_non_cnv_reads as u64 * avg_read_len as u64) / reference_len
+            (all_stats.num_non_cnv_reads as u64 * avg_read_len as u64) / reference_len
         } else {
             0
         };
