@@ -42,7 +42,13 @@ fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathB
         cnv_record.set_pos(interval.start as i64);
         cnv_record.set_qual(f32::NAN);
         cnv_record.set_alleles(&[b"<CNV>"])?;
-        cnv_record.push_info_integer(b"END", &[interval.end])?;
+        // TODO: Get the chromosome dynamically
+        let end_value = format!("{}:{}", "J02459", interval.end);
+        let end = end_value.as_str();
+        cnv_record
+            .push_info_string(b"ENDING", &[end.as_bytes()])
+            .with_context(|| "Failed to push END info string")?;
+
         cnv_record.push_info_string(b"CNVTYPE", &[cnv_type])?;
 
         bcf_writer
@@ -65,9 +71,8 @@ fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
 
     header.push_record(b"##INFO=<ID=CNVTYPE,Number=1,Type=String,Description=\"Type of CNV\">");
     header.push_record(
-        b"##INFO=<ID=END,Number=1,Type=Integer,Description=\"Ending position of breakend\">",
+        b"##INFO=<ID=ENDING,Number=1,Type=String,Description=\"Ending position of breakend\">",
     );
-
     Ok(header)
 }
 

@@ -383,7 +383,6 @@ impl AlignmentProperties {
         struct CNV {
             start: (String, u64), // (CHROM, POS)
             end: (String, u64),
-            qual_class: Option<String>,
         }
         fn chrom_order_map() -> HashMap<String, u64> {
             // let chroms = vec![
@@ -421,10 +420,6 @@ impl AlignmentProperties {
 
                 // Parsing der ENDING und QUAL_CLASS Felder
                 let ending_raw = record.info(b"ENDING").string()?;
-                let qual_class = record
-                    .info(b"QUAL_CLASS")
-                    .string()?
-                    .and_then(|v| v.first().map(|s| String::from_utf8_lossy(s).into_owned()));
 
                 if let Some(ending_vec) = ending_raw {
                     if let Some(ending_bytes) = ending_vec.first() {
@@ -439,7 +434,6 @@ impl AlignmentProperties {
                             let cnv = CNV {
                                 start: (chrom.clone(), pos),
                                 end: (end_chrom.to_string(), end_pos),
-                                qual_class: qual_class.clone(),
                             };
                             let range = start_pos..end_pos;
                             // Das Intervall in der Vec speichern
@@ -453,45 +447,40 @@ impl AlignmentProperties {
             Ok(IntervalTree::from_iter(intervals))
         }
 
+        let mut total_num_non_cnv_reads = 0;
+        let mut reference_len = reference_buffer.total_reference_length();
         if let Some(ref path) = cnv_path {
             let tree = parse_cnv_bcf_to_tree(path.as_ref().to_str().unwrap())?;
-            for element in tree.iter() {
-                let interval = &element.range;
-                let cnv = &element.value;
-                warn!("Interval: {:?}, CNV: {:?}", interval, cnv);
-            }
 
+            // TODO: How to get the chrome order
             let chrom_order = chrom_order_map();
-            let query_chrom = "J02459";
-            let query_pos = 123456;
 
-            let linear_query_pos = chrom_pos_to_linear(query_chrom, query_pos, &chrom_order);
+            for (key, count) in all_stats.read_start_counts.iter() {
+                let linear_query_pos = chrom_pos_to_linear(&key.0, key.1 as u64, &chrom_order);
 
-            // Achtung: `query()` erwartet einen Range, also z.B. pos..pos+1
-            let results = tree.query(linear_query_pos..(linear_query_pos + 1));
-            dbg!(&results);
-            let query_chrom = "J02459";
-            let query_pos = 1100;
-
-            let linear_query_pos = chrom_pos_to_linear(query_chrom, query_pos, &chrom_order);
-
-            let results = tree.query(linear_query_pos..(linear_query_pos + 1));
-            dbg!(&results);
-            for element in results {
-                println!(
-                    "Treffer: {:?}, Intervall: {:?}",
-                    element.value, element.range
-                );
+                if tree
+                    .query(linear_query_pos..(linear_query_pos + 1))
+                    .next()
+                    .is_none()
+                {
+                    total_num_non_cnv_reads += *count;
+                }
             }
+
+            let total_cnv_bases: u64 = tree
+                .iter()
+                .map(|element| element.range.end - element.range.start)
+                .sum();
+
+            reference_len = reference_len.saturating_sub(total_cnv_bases);
+        } else {
+            total_num_non_cnv_reads = all_stats.read_start_counts.values().sum();
         }
 
-        let reference_len = reference_buffer.total_reference_length();
-        // TODO: Use interval tree to filter cnv areas
-        let total_num_cnv_reads: u32 = all_stats.read_start_counts.values().sum();
         let total_num_reads: u32 = all_stats.read_start_counts.values().sum();
         let avg_read_len = read_len_complete / total_num_reads;
         let avg_cov = if reference_len > 0 {
-            (total_num_cnv_reads as u64 * avg_read_len as u64) / reference_len
+            (total_num_non_cnv_reads as u64 * avg_read_len as u64) / reference_len
         } else {
             0
         };
