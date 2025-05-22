@@ -9,7 +9,7 @@ use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
 use crate::variants::types::breakends::Breakend;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Interval {
     pub start: i32,
     pub end: i32,
@@ -106,26 +106,21 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     let mut deltas = BTreeMap::new();
     for b in breakends {
         if let Some(join) = b.join() {
-            let start = b.locus().pos() as usize;
-            let end = join.locus().pos() as usize;
-
-            if start < end {
-                *deltas.entry(start).or_insert(0) += 1;
-                *deltas.entry(end).or_insert(0) -= 1;
-            } else if start > end {
-                *deltas.entry(end).or_insert(0) -= 1;
-                *deltas.entry(start).or_insert(0) += 1;
-            }
+            let start = b.locus().pos() as i32;
+            let end = join.locus().pos() as i32;
+            dbg!(&start, &end);
+            *deltas.entry(start).or_insert(0) += 1;
+            *deltas.entry(end).or_insert(0) -= 1;
         }
     }
     // Compute intervals from borders
     let mut intervals_deltas = Vec::new();
-    let mut last_pos = 0;
+    let mut last_pos = -1;
     let mut current_cov = 0;
 
     for (&pos, &delta) in deltas.iter() {
-        if last_pos != 0 && last_pos < pos && current_cov != 0 {
-            intervals_deltas.push(Interval::new(last_pos as i32, pos as i32, current_cov));
+        if last_pos != -1 && last_pos < pos && current_cov != 0 {
+            intervals_deltas.push(Interval::new(last_pos, pos, current_cov));
         }
         current_cov += delta;
         last_pos = pos;
