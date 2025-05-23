@@ -19,7 +19,15 @@ impl Bias for ReadPositionBias {
         match (self, observation.read_position) {
             (ReadPositionBias::None, ReadPosition::Major) => observation.prob_hit_base,
             (ReadPositionBias::None, ReadPosition::Some) => {
-                observation.prob_hit_base.ln_one_minus_exp()
+                if observation.prob_hit_base != LogProb::ln_one() {
+                    observation.prob_hit_base.ln_one_minus_exp()
+                } else {
+                    // METHOD: read has length 1. Hence, prob_hit_base is 1.0.
+                    // We cannot distinguish between the major and minor position.
+                    // There is only one possible position, and the probabilit for 
+                    // that is always 1.0.
+                    LogProb::ln_one()
+                }
             }
             (ReadPositionBias::Some, ReadPosition::Major) => LogProb::ln_one(), // bias
             (ReadPositionBias::Some, ReadPosition::Some) => LogProb::ln_zero(), // no bias
