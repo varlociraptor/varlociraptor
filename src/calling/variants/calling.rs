@@ -137,7 +137,9 @@ where
              to 0.5 each. This avoids calls caused by single supporting reads. \
              filtered-non-standard-alignments: non-standard alignments (i.e. \
              alignments with non-standard read orientation) have been removed from the \
-             pileup.\">",
+             pileup. \
+             missing-data: no alignments that properly cover the candidate variant in \
+             any considered sample.\">",
         );
 
         // register sample specific tags
@@ -992,7 +994,7 @@ impl CallProcessor for CallWriter {
 
     fn process_call(
         &mut self,
-        call: Call,
+        mut call: Call,
         _sample_names: &grammar::SampleInfo<String>,
     ) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())
