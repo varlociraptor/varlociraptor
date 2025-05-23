@@ -120,7 +120,11 @@ impl<R: Realigner> Mnv<R> {
                 {
                     if read_position.is_none() {
                         // set first MNV position as read position
-                        read_position = Some(qpos);
+                        // METHOD: hardclips are not part of qpos, but they are part
+                        // of the original read sequence. Hence, they have to be added
+                        // here.
+                        read_position =
+                            Some(qpos + read.cigar_cached().unwrap().leading_hardclips());
                     }
                     let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) }
                         .to_ascii_uppercase();
