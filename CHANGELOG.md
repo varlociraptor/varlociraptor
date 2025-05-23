@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.7.3](https://github.com/varlociraptor/varlociraptor/compare/v8.7.2...v8.7.3) (2025-05-23)
+
+
+### Bug Fixes
+
+* consider leading hardclips when calculating read position ([#510](https://github.com/varlociraptor/varlociraptor/issues/510)) ([0185daf](https://github.com/varlociraptor/varlociraptor/commit/0185daf9d7feb9e83686e8bfd36d8188f3edc0ca))
+* fix bug in read position bias estimation leading to erroneous zero probabilities in case of reads of length 1 (leading to a FloatIsNaN error during calling) ([#508](https://github.com/varlociraptor/varlociraptor/issues/508)) ([aa1471a](https://github.com/varlociraptor/varlociraptor/commit/aa1471ae07654d55146d029e12792d784eb47a4b))
+
 ## [8.7.2](https://github.com/varlociraptor/varlociraptor/compare/v8.7.1...v8.7.2) (2025-05-15)
 
 
