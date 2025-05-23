@@ -424,7 +424,7 @@ impl Call {
         let is_missing_data = variant
             .sample_info
             .iter()
-            .all(|sample| sample.as_ref().map_or(true, |info| info.pileup.is_empty()));
+            .all(|sample| sample.as_ref().is_none_or(|info| info.pileup.is_empty()));
 
         if is_missing_data {
             self.hints.insert(Hint::MissingData);
