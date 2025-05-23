@@ -15,7 +15,7 @@ samples:
 # candidate variant
 candidate: 'candidates.vcf'
 
-scenario: scenario_simple.yaml # 'scenario.yaml'
+scenario: scenario.yaml
 
 # reference sequence
 reference:
