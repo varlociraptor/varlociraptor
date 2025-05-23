@@ -124,7 +124,7 @@ impl<R: Realigner> Mnv<R> {
                         // of the original read sequence. Hence, they have to be added
                         // here.
                         read_position =
-                            Some(qpos + read.cigar_cached().unwrap().leading_hardclips());
+                            Some(qpos + read.cigar_cached().unwrap().leading_hardclips() as u32);
                     }
                     let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) }
                         .to_ascii_uppercase();
