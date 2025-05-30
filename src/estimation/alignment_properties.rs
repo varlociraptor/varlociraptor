@@ -7,7 +7,7 @@ use intervaltree::{Element, IntervalTree};
 use rust_htslib::bam::{FetchDefinition, Read as BamRead};
 use rust_htslib::bcf::{Format, Header, Read as BcfRead, Reader, Record, Writer};
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::f64;
 use std::iter::FromIterator;
@@ -15,7 +15,7 @@ use std::ops::AddAssign;
 use std::path::Path;
 use std::str;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use bio::stats::{LogProb, Prob};
 use counter::Counter;
 use itertools::Itertools;
@@ -66,6 +66,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
     pub(crate) avg_coverage: u32,
+    pub(crate) num_reads_cg_share: BTreeMap<String, u32>,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -167,6 +168,7 @@ impl AlignmentProperties {
             max_read_len: 0,
             max_mapq: 0,
             avg_coverage: 0,
+            num_reads_cg_share: BTreeMap::new(),
             cigar_counts: Default::default(),
             transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
@@ -209,6 +211,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
+            num_reads_cg_share: BTreeMap<String, u32>,
             num_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
@@ -221,72 +224,46 @@ impl AlignmentProperties {
             tlens: Vec<f64>,
         }
 
-        #[derive(Debug)]
-        struct CNV {
-            start: (String, u64), // (CHROM, POS)
-            end: (String, u64),
-        }
-        fn chrom_order_map() -> HashMap<String, u64> {
-            // let chroms = vec![
-            //     "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
-            //     "16", "17", "18", "19", "20", "21", "22", "X", "Y", "MT",
-            // ];
-            let chroms = vec!["J02459", "J02460", "J02461", "J02462"];
-            chroms
-                .into_iter()
-                .enumerate()
-                .map(|(i, c)| (c.to_string(), i as u64))
-                .collect()
-        }
-
-        // (Chrom, Pos) → lineare Position
-        fn chrom_pos_to_linear(chrom: &str, pos: u64, chrom_order: &HashMap<String, u64>) -> u64 {
-            let offset = chrom_order.get(chrom).expect("Unknown chromosome");
-            offset * 10_000_000_000 + pos
-        }
-
-        // Liest BCF und baut IntervalTree
-        fn bcf_to_cnv_tree(path: &str) -> Result<IntervalTree<u64, CNV>> {
-            let chrom_order = chrom_order_map();
+        // Build interval tree of CNVs
+        fn bcf_to_cnv_tree(cnv_bcf: &str) -> Result<IntervalTree<u64, ()>> {
             let mut intervals = Vec::new();
-
-            let mut bcf = Reader::from_path(path)?;
-            let header = bcf.header().clone();
+            let mut bcf = Reader::from_path(cnv_bcf)
+                .with_context(|| format!("Failed to open BCF file: {}", cnv_bcf))?;
 
             for result in bcf.records() {
-                let record = result?;
-
-                let rid = record.rid().ok_or(anyhow!("Missing RID"))?;
-                let chrom = std::str::from_utf8(header.rid2name(rid)?)?.to_string();
+                let record = result.with_context(|| "Error reading record")?;
                 let pos = record.pos() as u64;
+                let ending = record
+                    .info(b"ENDING")
+                    .string()
+                    .with_context(|| "Missing or malformed ENDING field in record")?;
 
-                // Parsing der ENDING und QUAL_CLASS Felder
-                let ending_raw = record.info(b"ENDING").string()?;
-
-                if let Some(ending_vec) = ending_raw {
+                if let Some(ending_vec) = ending {
                     if let Some(ending_bytes) = ending_vec.first() {
                         let ending_str = std::str::from_utf8(ending_bytes)?;
-                        if let Some((end_chrom, end_pos_str)) = ending_str.split_once(':') {
+                        if let Some((_, end_pos_str)) = ending_str.split_once(':') {
                             let end_pos = end_pos_str.parse::<u64>()?;
-
-                            let start_pos = chrom_pos_to_linear(&chrom, pos, &chrom_order);
-                            let end_pos = chrom_pos_to_linear(end_chrom, end_pos, &chrom_order);
-
-                            // Intervall und zugehörige Daten erstellen
-                            let cnv = CNV {
-                                start: (chrom.clone(), pos),
-                                end: (end_chrom.to_string(), end_pos),
-                            };
-                            let range = start_pos..end_pos;
-                            // Das Intervall in der Vec speichern
-                            intervals.push((range, cnv));
+                            intervals.push((pos..end_pos, ()));
                         }
                     }
                 }
             }
-
-            // Intervallbaum mit den gesammelten Intervallen erstellen
             Ok(IntervalTree::from_iter(intervals))
+        }
+
+        // Calculate the CG content of a sequence.
+        fn calculate_cg_ratio(seq: &[u8]) -> f64 {
+            let total = seq.len() as f64;
+            let cg_count = seq
+                .iter()
+                .filter(|&&base| base == b'C' || base == b'G')
+                .count() as f64;
+
+            if total == 0.0 {
+                0.0
+            } else {
+                cg_count / total
+            }
         }
 
         // Retrieve number of alignments in the bam file.
@@ -370,12 +347,10 @@ impl AlignmentProperties {
         let mut all_stats = AlignmentStats::default();
         let mut read_len_complete = 0;
 
-        let mut cnv_tree = Option::<IntervalTree<u64, CNV>>::None;
-        let chrom_order = chrom_order_map();
+        let mut cnv_tree = Option::<IntervalTree<u64, ()>>::None;
         if let Some(ref path) = cnv_path {
             cnv_tree = Some(bcf_to_cnv_tree(path.as_ref().to_str().unwrap())?);
         }
-        // TODO: How to get the chrome order
 
         for bam in &mut bams {
             let header = bam.header().clone();
@@ -429,18 +404,37 @@ impl AlignmentProperties {
                 };
                 match cnv_tree {
                     Some(ref tree) => {
-                        let linear_query_pos =
-                            chrom_pos_to_linear(contig, record.pos() as u64, &chrom_order);
                         if tree
-                            .query(linear_query_pos..(linear_query_pos + 1))
+                            .query(record.pos() as u64..(record.pos() as u64 + 1))
                             .next()
                             .is_none()
                         {
                             all_stats.num_non_cnv_reads += 1;
+                            let cg_content = calculate_cg_ratio(&record.seq().as_bytes());
+                            let lower = (cg_content * 10.0).trunc() / 10.0;
+                            let upper = lower + 0.1;
+                            let key = format!("[{:.1}-{:.1}[", lower, upper);
+
+                            let cg_rounded = (cg_content * 10.0).trunc() as u16;
+                            all_stats
+                                .num_reads_cg_share
+                                .entry(key)
+                                .and_modify(|e| *e += 1)
+                                .or_insert(1);
                         }
                     }
                     None => {
                         all_stats.num_non_cnv_reads += 1;
+                        let cg_content = calculate_cg_ratio(&record.seq().as_bytes());
+                        let lower = (cg_content * 10.0).trunc() / 10.0;
+                        let upper = lower + 0.1;
+                        let key = format!("[{:.1}-{:.1}[", lower, upper);
+
+                        all_stats
+                            .num_reads_cg_share
+                            .entry(key)
+                            .and_modify(|e| *e += 1)
+                            .or_insert(1);
                     }
                 }
 
@@ -477,7 +471,6 @@ impl AlignmentProperties {
                 .sum();
             reference_len = reference_len.saturating_sub(num_cnv_reads);
         }
-        dbg!(&reference_len);
         let total_num_reads = all_stats.n_reads as u32;
         let avg_read_len = read_len_complete / total_num_reads;
         let avg_cov = if reference_len > 0 {
@@ -494,6 +487,7 @@ impl AlignmentProperties {
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
         properties.avg_coverage = avg_cov as u32;
+        properties.num_reads_cg_share = all_stats.num_reads_cg_share;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
