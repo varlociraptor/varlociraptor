@@ -9,15 +9,15 @@ use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
 use crate::variants::types::breakends::Breakend;
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Interval {
-    pub start: i32,
-    pub end: i32,
+    pub start: Locus,
+    pub end: Locus,
     pub dir: i32,
 }
 
 impl Interval {
-    pub fn new(start: i32, end: i32, dir: i32) -> Self {
+    pub fn new(start: Locus, end: Locus, dir: i32) -> Self {
         Self { start, end, dir }
     }
 }
@@ -39,11 +39,11 @@ fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathB
             cnv_type = b"DEL";
         }
         let mut cnv_record = bcf_writer.empty_record();
-        cnv_record.set_pos(interval.start as i64);
+        cnv_record.set_pos(interval.start.pos() as i64);
         cnv_record.set_qual(f32::NAN);
         cnv_record.set_alleles(&[b"<CNV>"])?;
         // TODO: Get the chromosome dynamically
-        let end_value = format!("{}:{}", "J02459", interval.end);
+        let end_value = format!("{}:{}", interval.end.contig(), interval.end.pos());
         let end = end_value.as_str();
         cnv_record
             .push_info_string(b"ENDING", &[end.as_bytes()])
@@ -106,8 +106,8 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     let mut deltas = BTreeMap::new();
     for b in breakends {
         if let Some(join) = b.join() {
-            let start = b.locus().pos() as i32;
-            let end = join.locus().pos() as i32;
+            let start = b.locus().to_owned();
+            let end = join.locus().to_owned();
             dbg!(&start, &end);
             *deltas.entry(start).or_insert(0) += 1;
             *deltas.entry(end).or_insert(0) -= 1;
@@ -115,15 +115,17 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     }
     // Compute intervals from borders
     let mut intervals_deltas = Vec::new();
-    let mut last_pos = -1;
+    let mut last_pos: Option<Locus> = None;
     let mut current_cov = 0;
 
-    for (&pos, &delta) in deltas.iter() {
-        if last_pos != -1 && last_pos < pos && current_cov != 0 {
-            intervals_deltas.push(Interval::new(last_pos, pos, current_cov));
+    for (locus, &delta) in deltas.iter() {
+        if let Some(prev_locus) = last_pos {
+            if prev_locus.pos() < locus.pos() && current_cov != 0 {
+                intervals_deltas.push(Interval::new(prev_locus, locus.to_owned(), current_cov));
+            }
         }
         current_cov += delta;
-        last_pos = pos;
+        last_pos = Some(locus.to_owned());
     }
     intervals_deltas
 }
