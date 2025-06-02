@@ -9,16 +9,35 @@ use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
 use crate::variants::types::breakends::Breakend;
 
+#[derive(Debug, PartialEq)]
+pub enum CnvType {
+    Ins,
+    Del,
+}
+
+impl CnvType {
+    pub fn as_bytes(&self) -> &'static [u8] {
+        match self {
+            CnvType::Ins => b"INS",
+            CnvType::Del => b"DEL",
+        }
+    }
+}
 #[derive(Debug)]
 pub struct Interval {
     pub start: Locus,
     pub end: Locus,
-    pub dir: i32,
+    pub cnv_type: CnvType,
 }
 
 impl Interval {
     pub fn new(start: Locus, end: Locus, dir: i32) -> Self {
-        Self { start, end, dir }
+        let cnv_type = if dir < 0 { CnvType::Ins } else { CnvType::Del };
+        Interval {
+            start,
+            end,
+            cnv_type,
+        }
     }
 }
 
@@ -31,25 +50,17 @@ fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathB
     };
 
     for interval in intervals {
-        let mut cnv_type = b"NAN";
-        if interval.dir < 0 {
-            cnv_type = b"INS";
-        }
-        if interval.dir > 0 {
-            cnv_type = b"DEL";
-        }
         let mut cnv_record = bcf_writer.empty_record();
         cnv_record.set_pos(interval.start.pos() as i64);
         cnv_record.set_qual(f32::NAN);
         cnv_record.set_alleles(&[b"<CNV>"])?;
-        // TODO: Get the chromosome dynamically
         let end_value = format!("{}:{}", interval.end.contig(), interval.end.pos());
         let end = end_value.as_str();
         cnv_record
-            .push_info_string(b"ENDING", &[end.as_bytes()])
+            .push_info_string(b"ENDPOS", &[end.as_bytes()])
             .with_context(|| "Failed to push END info string")?;
 
-        cnv_record.push_info_string(b"CNVTYPE", &[cnv_type])?;
+        cnv_record.push_info_string(b"CNVTYPE", &[interval.cnv_type.as_bytes()])?;
 
         bcf_writer
             .write(&cnv_record)
@@ -71,7 +82,7 @@ fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
 
     header.push_record(b"##INFO=<ID=CNVTYPE,Number=1,Type=String,Description=\"Type of CNV\">");
     header.push_record(
-        b"##INFO=<ID=ENDING,Number=1,Type=String,Description=\"Ending position of breakend\">",
+        b"##INFO=<ID=ENDPOS,Number=1,Type=String,Description=\"Ending position of breakend\">",
     );
     Ok(header)
 }
@@ -80,9 +91,14 @@ fn create_breakend_from_record(
     record: &Record,
     header: &HeaderView,
     aux_info_collector: &AuxInfoCollector,
-) -> Option<Breakend> {
-    let contig =
-        String::from_utf8(header.rid2name(record.rid().unwrap()).unwrap().to_vec()).unwrap();
+) -> Result<Option<Breakend>> {
+    let contig = String::from_utf8(
+        header
+            .rid2name(record.rid().context("Missing rid")?)
+            .context("Invalid RID name")?
+            .to_vec(),
+    )
+    .context("Could not create String from rid")?;
 
     let mut mateid = None;
     if let Ok(Some(values)) = record.info(b"MATEID").string() {
@@ -95,20 +111,21 @@ fn create_breakend_from_record(
         &record.id(),
         mateid,
         VariantPrecision::Precise,
-        aux_info_collector.collect(record).unwrap(),
+        aux_info_collector
+            .collect(record)
+            .context("Auxiliary Info could not be collected from record")?,
     )
-    .unwrap();
-    breakend
+    .context("Breakend could not be created")?;
+    Ok(breakend)
 }
 
 fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
-    // For every Cnv interval set the start of the interval to +1 and the end of the interval to -1
+    // For every CNV interval set the start of the interval to +1 and the end of the interval to -1
     let mut deltas = BTreeMap::new();
     for b in breakends {
         if let Some(join) = b.join() {
             let start = b.locus().to_owned();
             let end = join.locus().to_owned();
-            dbg!(&start, &end);
             *deltas.entry(start).or_insert(0) += 1;
             *deltas.entry(end).or_insert(0) -= 1;
         }
@@ -130,7 +147,7 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     intervals_deltas
 }
 
-/// Reads an input BCF file, processes each record, and writes out modified Cnv records
+/// Reads an input BCF file, processes each record, and writes out modified CNV records
 pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Result<()> {
     let mut bcf_reader = Reader::from_path(&breakends_bcf)
         .with_context(|| format!("Error opening input file: {:?}", breakends_bcf))?;
@@ -145,7 +162,7 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
     // Get all breakends from the input BCF file
     for record_result in bcf_reader.records() {
         let record = record_result.with_context(|| "Error reading record")?;
-        let breakend = match create_breakend_from_record(&record, &header_orig, &aux_info) {
+        let breakend = match create_breakend_from_record(&record, &header_orig, &aux_info)? {
             Some(b) if b.is_left_to_right() && b.join().is_some() => b,
             _ => continue,
         };
