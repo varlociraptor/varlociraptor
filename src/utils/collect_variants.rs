@@ -266,6 +266,9 @@ pub fn collect_variants(
                     }
                     // TODO fail with an error in else case
                 }
+            } else if alt_allele == b"<METH>" {
+                // Methylation
+                push_variant(model::Variant::Methylation(), i);
             } else if alt_allele[0] == b'<' {
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {

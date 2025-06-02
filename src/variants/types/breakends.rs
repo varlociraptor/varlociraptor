@@ -320,7 +320,8 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 None
             }
         } else {
-            let is_valid_overlap = |locus: &SingleLocus, read| !locus.overlap(read, true).is_none();
+            let is_valid_overlap =
+                |locus: &SingleLocus, read| !locus.overlap(read, true, 0, 0).is_none();
 
             let is_valid_ref_bases = |read: &bam::Record| {
                 if let Some(ref interval) = self.enclosable_ref_interval {
