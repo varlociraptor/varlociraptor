@@ -1199,8 +1199,9 @@ impl ExtensionModification {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, new)]
+#[derive(Debug, Clone, PartialEq, Getters, Eq, new)]
 pub(crate) struct Join {
+    #[get = "pub(crate)"]
     locus: genome::Locus,
     side: Side,
     extension_modification: ExtensionModification,
