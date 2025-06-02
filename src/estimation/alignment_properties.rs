@@ -233,15 +233,15 @@ impl AlignmentProperties {
             for result in bcf.records() {
                 let record = result.with_context(|| "Error reading record")?;
                 let pos = record.pos() as u64;
-                let ending = record
-                    .info(b"ENDING")
+                let end_pos = record
+                    .info(b"ENDPOS")
                     .string()
-                    .with_context(|| "Missing or malformed ENDING field in record")?;
+                    .with_context(|| "Missing or malformed ENDPOS field in record")?;
 
-                if let Some(ending_vec) = ending {
-                    if let Some(ending_bytes) = ending_vec.first() {
-                        let ending_str = std::str::from_utf8(ending_bytes)?;
-                        if let Some((_, end_pos_str)) = ending_str.split_once(':') {
+                if let Some(end_vec) = end_pos {
+                    if let Some(end_bytes) = end_vec.first() {
+                        let end_str = std::str::from_utf8(end_bytes)?;
+                        if let Some((_, end_pos_str)) = end_str.split_once(':') {
                             let end_pos = end_pos_str.parse::<u64>()?;
                             intervals.push((pos..end_pos, ()));
                         }
