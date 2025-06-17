@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
-use bio_types::genome::{AbstractLocus, Locus};
+use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use rust_htslib::bcf::header::HeaderView;
 use rust_htslib::bcf::{Format, Header, Read, Reader, Record, Writer};
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::path::PathBuf;
 
 use crate::utils::aux_info::AuxInfoCollector;
@@ -24,24 +25,30 @@ impl CnvType {
     }
 }
 #[derive(Debug)]
-pub struct Interval {
-    pub start: Locus,
-    pub end: Locus,
+pub struct CNVInterval {
+    pub interval: Interval,
     pub cnv_type: CnvType,
 }
 
-impl Interval {
+impl CNVInterval {
     pub fn new(start: Locus, end: Locus, dir: i32) -> Self {
         let cnv_type = if dir < 0 { CnvType::Ins } else { CnvType::Del };
-        Interval {
-            start,
-            end,
-            cnv_type,
-        }
+        let interval = Interval::new(
+            start.contig().to_owned(),
+            Range {
+                start: start.pos(),
+                end: end.pos(),
+            },
+        );
+        CNVInterval { interval, cnv_type }
     }
 }
 
-fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathBuf>) -> Result<()> {
+fn write_records(
+    cnv_intervals: Vec<CNVInterval>,
+    header: &Header,
+    outbcf: Option<PathBuf>,
+) -> Result<()> {
     let mut bcf_writer = match outbcf {
         Some(path) => Writer::from_path(path, header, true, Format::Bcf)
             .with_context(|| "Error opening BCF writer".to_string())?,
@@ -49,18 +56,22 @@ fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathB
             .with_context(|| "Error opening BCF writer".to_string())?,
     };
 
-    for interval in intervals {
+    for cnv_interval in cnv_intervals {
         let mut cnv_record = bcf_writer.empty_record();
-        cnv_record.set_pos(interval.start.pos() as i64);
+        cnv_record.set_pos(cnv_interval.interval.range().start as i64);
         cnv_record.set_qual(f32::NAN);
         cnv_record.set_alleles(&[b"<CNV>"])?;
-        let end_value = format!("{}:{}", interval.end.contig(), interval.end.pos());
+        let end_value = format!(
+            "{}:{}",
+            cnv_interval.interval.contig(),
+            cnv_interval.interval.range().end
+        );
         let end = end_value.as_str();
         cnv_record
-            .push_info_string(b"ENDING", &[end.as_bytes()])
+            .push_info_string(b"ENDPOS", &[end.as_bytes()])
             .with_context(|| "Failed to push END info string")?;
 
-        cnv_record.push_info_string(b"CNVTYPE", &[interval.cnv_type.as_bytes()])?;
+        cnv_record.push_info_string(b"CNVTYPE", &[cnv_interval.cnv_type.as_bytes()])?;
 
         bcf_writer
             .write(&cnv_record)
@@ -82,7 +93,7 @@ fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
 
     header.push_record(b"##INFO=<ID=CNVTYPE,Number=1,Type=String,Description=\"Type of CNV\">");
     header.push_record(
-        b"##INFO=<ID=ENDING,Number=1,Type=String,Description=\"Ending position of breakend\">",
+        b"##INFO=<ID=ENDPOS,Number=1,Type=String,Description=\"Ending position of breakend\">",
     );
     Ok(header)
 }
@@ -119,7 +130,7 @@ fn create_breakend_from_record(
     Ok(breakend)
 }
 
-fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
+fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<CNVInterval> {
     // For every CNV interval set the start of the interval to +1 and the end of the interval to -1
     let mut deltas = BTreeMap::new();
     for b in breakends {
@@ -138,7 +149,7 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     for (locus, &delta) in deltas.iter() {
         if let Some(prev_locus) = last_pos {
             if prev_locus.pos() < locus.pos() && current_cov != 0 {
-                intervals_deltas.push(Interval::new(prev_locus, locus.to_owned(), current_cov));
+                intervals_deltas.push(CNVInterval::new(prev_locus, locus.to_owned(), current_cov));
             }
         }
         current_cov += delta;
@@ -168,7 +179,7 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
         };
         breakends.push(breakend);
     }
-    let intervals: Vec<Interval> = breakends_to_intervals(breakends);
+    let intervals: Vec<CNVInterval> = breakends_to_intervals(breakends);
     // Write bcf file
     write_records(intervals, &header, outbcf)?;
 
