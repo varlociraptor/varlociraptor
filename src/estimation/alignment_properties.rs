@@ -3,9 +3,9 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use intervaltree::{Element, IntervalTree};
-use rust_htslib::bam::{FetchDefinition, Read as BamRead};
-use rust_htslib::bcf::{Format, Header, Read as BcfRead, Reader, Record, Writer};
+use intervaltree::IntervalTree;
+use rust_htslib::bam::{FetchDefinition, Read as BamRead, Record as BamRecord};
+use rust_htslib::bcf::{Read as BcfRead, Reader};
 use std::cmp;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
@@ -66,7 +66,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
     pub(crate) avg_coverage: u32,
-    pub(crate) num_reads_cg_share: BTreeMap<String, u32>,
+    pub(crate) num_reads_cg_share: BTreeMap<i64, u32>,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -211,7 +211,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
-            num_reads_cg_share: BTreeMap<String, u32>,
+            num_reads_cg_share: BTreeMap<i64, u32>,
             num_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
@@ -258,12 +258,22 @@ impl AlignmentProperties {
                 .iter()
                 .filter(|&&base| base == b'C' || base == b'G')
                 .count() as f64;
-
             if total == 0.0 {
                 0.0
             } else {
                 cg_count / total
             }
+        }
+
+        fn update_cg_statistics(record: &BamRecord, stats: &mut AlignmentStats) {
+            stats.num_non_cnv_reads += 1;
+            let cg_content = calculate_cg_ratio(&record.seq().as_bytes());
+            let lower = (cg_content * 100.0).round() as i64;
+            stats
+                .num_reads_cg_share
+                .entry(lower)
+                .and_modify(|e| *e += 1)
+                .or_insert(1);
         }
 
         // Retrieve number of alignments in the bam file.
@@ -410,31 +420,12 @@ impl AlignmentProperties {
                             .is_none()
                         {
                             all_stats.num_non_cnv_reads += 1;
-                            let cg_content = calculate_cg_ratio(&record.seq().as_bytes());
-                            let lower = (cg_content * 10.0).trunc() / 10.0;
-                            let upper = lower + 0.1;
-                            let key = format!("[{:.1}-{:.1}[", lower, upper);
-
-                            let cg_rounded = (cg_content * 10.0).trunc() as u16;
-                            all_stats
-                                .num_reads_cg_share
-                                .entry(key)
-                                .and_modify(|e| *e += 1)
-                                .or_insert(1);
+                            update_cg_statistics(&record, &mut all_stats);
                         }
                     }
                     None => {
                         all_stats.num_non_cnv_reads += 1;
-                        let cg_content = calculate_cg_ratio(&record.seq().as_bytes());
-                        let lower = (cg_content * 10.0).trunc() / 10.0;
-                        let upper = lower + 0.1;
-                        let key = format!("[{:.1}-{:.1}[", lower, upper);
-
-                        all_stats
-                            .num_reads_cg_share
-                            .entry(key)
-                            .and_modify(|e| *e += 1)
-                            .or_insert(1);
+                        update_cg_statistics(&record, &mut all_stats);
                     }
                 }
 
