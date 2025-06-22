@@ -185,7 +185,7 @@ pub enum PreprocessKind {
     Variants {
         #[structopt(
             parse(from_os_str),
-            help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
+            help = "FASTA file with reference genome. Has to be indexed with (e.g. with samtools faidx)."
         )]
         reference: PathBuf,
         #[structopt(
@@ -198,7 +198,7 @@ pub enum PreprocessKind {
         #[structopt(
             long,
             required = true,
-            help = "BAM file with aligned reads from a single sample."
+            help = "BAM file with aligned reads from a single sample. BAM file must be indexed (e.g. with samtools index)."
         )]
         bam: PathBuf,
         #[structopt(
@@ -389,7 +389,7 @@ pub enum EstimateKind {
     #[structopt(
         name = "alignment-properties",
         about = "Estimate properties like insert size, maximum softclip length, and the PCR homopolymer error model.",
-        usage = "varlociraptor estimate alignment-properties reference.fasta --bam sample.bam > sample.alignment-properties.json",
+        usage = "varlociraptor estimate alignment-properties reference.fasta --bams sample.bam > sample.alignment-properties.json",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     AlignmentProperties {
