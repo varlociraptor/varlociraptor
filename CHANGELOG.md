@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.7.4](https://github.com/varlociraptor/varlociraptor/compare/v8.7.3...v8.7.4) (2025-06-22)
+
+
+### Bug Fixes
+
+* improved CLI help messages ([fb9a608](https://github.com/varlociraptor/varlociraptor/commit/fb9a60858d6d4abfc41462f213e30ad39a59c042))
+
 ## [8.7.3](https://github.com/varlociraptor/varlociraptor/compare/v8.7.2...v8.7.3) (2025-05-23)
 
 
