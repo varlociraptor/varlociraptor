@@ -19,7 +19,7 @@ impl Bias for ReadPositionBias {
         match (self, observation.read_position) {
             (ReadPositionBias::None, ReadPosition::Major) => observation.prob_hit_base,
             (ReadPositionBias::None, ReadPosition::Some) => {
-                observation.prob_hit_base.ln_one_minus_exp()
+                Self::one_minus_prob_hit_base(observation)
             }
             (ReadPositionBias::Some, ReadPosition::Major) => LogProb::ln_one(), // bias
             (ReadPositionBias::Some, ReadPosition::Some) => LogProb::ln_zero(), // no bias
@@ -32,7 +32,7 @@ impl Bias for ReadPositionBias {
         // Otherwise, the model can be drawn to wrong AF estimates.
         match observation.read_position {
             ReadPosition::Major => observation.prob_hit_base,
-            ReadPosition::Some => observation.prob_hit_base.ln_one_minus_exp(),
+            ReadPosition::Some => Self::one_minus_prob_hit_base(observation),
         }
     }
 
@@ -48,6 +48,18 @@ impl Bias for ReadPositionBias {
 }
 
 impl ReadPositionBias {
+    fn one_minus_prob_hit_base(observation: &ProcessedReadObservation) -> LogProb {
+        if observation.prob_hit_base != LogProb::ln_one() {
+            observation.prob_hit_base.ln_one_minus_exp()
+        } else {
+            // METHOD: read has length 1. Hence, prob_hit_base is 1.0.
+            // We cannot distinguish between the major and minor position.
+            // There is only one possible position, and the probabilit for
+            // that is always 1.0.
+            LogProb::ln_one()
+        }
+    }
+
     fn has_valid_major_rate(pileups: &[Pileup]) -> bool {
         // TODO what happens when we combine amplicon and WGS here?
         // The former might give a hint for a bias because of the way amplicons

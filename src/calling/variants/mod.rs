@@ -54,6 +54,7 @@ lazy_static! {
 pub(crate) enum Hint {
     AdjustedSingletonEvidence,
     FilteredNonStandardAlignments,
+    MissingData,
 }
 
 #[derive(Default, Clone, Debug, Builder, Getters, CopyGetters)]
@@ -174,7 +175,7 @@ impl Call {
         Ok(())
     }
 
-    pub(crate) fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
+    pub(crate) fn write_final_record(&mut self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
 
         let variant = self.variant.as_ref().unwrap();
@@ -219,11 +220,6 @@ impl Call {
             event_probs.push((event, *prob));
         }
         event_probs.sort_unstable_by_key(|(_, prob)| OrderedFloat(-prob.0));
-
-        let no_obs = variant
-            .sample_info
-            .iter()
-            .all(|sample_info| sample_info.is_none());
 
         for (i, sample_info) in variant.sample_info.iter().enumerate() {
             if let Some(ref sample_info) = sample_info {
@@ -424,6 +420,16 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+
+        let is_missing_data = variant
+            .sample_info
+            .iter()
+            .all(|sample| sample.as_ref().is_none_or(|info| info.pileup.is_empty()));
+
+        if is_missing_data {
+            self.hints.insert(Hint::MissingData);
+        }
+
         if !self.hints.is_empty() {
             let hints: Vec<&[u8]> = self
                 .hints
@@ -439,13 +445,6 @@ impl Call {
         record.set_qual(f32::missing());
 
         // set event probabilities
-        // determine whether marginal probability is zero (prob becomes NaN)
-        // this is a missing data case, which we want to present accordingly
-        let is_missing_data = variant
-            .sample_info
-            .iter()
-            .all(|sample| sample.as_ref().map_or(true, |info| info.pileup.is_empty()));
-
         let mut push_prob =
             |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &[prob]);
         if is_missing_data {
@@ -467,7 +466,7 @@ impl Call {
         }
 
         // set sample info
-        if !no_obs {
+        if !is_missing_data {
             let dp = obs_counts.values().cloned().collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
