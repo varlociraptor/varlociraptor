@@ -1,47 +1,20 @@
 use anyhow::{Context, Result};
-use bio_types::genome::{AbstractLocus, Locus};
+use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use rust_htslib::bcf::header::HeaderView;
 use rust_htslib::bcf::{Format, Header, Read, Reader, Record, Writer};
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::path::PathBuf;
 
 use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
 use crate::variants::types::breakends::Breakend;
 
-#[derive(Debug, PartialEq)]
-pub enum CnvType {
-    Ins,
-    Del,
-}
-
-impl CnvType {
-    pub fn as_bytes(&self) -> &'static [u8] {
-        match self {
-            CnvType::Ins => b"INS",
-            CnvType::Del => b"DEL",
-        }
-    }
-}
-#[derive(Debug)]
-pub struct Interval {
-    pub start: Locus,
-    pub end: Locus,
-    pub cnv_type: CnvType,
-}
-
-impl Interval {
-    pub fn new(start: Locus, end: Locus, dir: i32) -> Self {
-        let cnv_type = if dir < 0 { CnvType::Ins } else { CnvType::Del };
-        Interval {
-            start,
-            end,
-            cnv_type,
-        }
-    }
-}
-
-fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathBuf>) -> Result<()> {
+fn write_records(
+    cnv_intervals: Vec<Interval>,
+    header: &Header,
+    outbcf: Option<PathBuf>,
+) -> Result<()> {
     let mut bcf_writer = match outbcf {
         Some(path) => Writer::from_path(path, header, true, Format::Bcf)
             .with_context(|| "Error opening BCF writer".to_string())?,
@@ -49,18 +22,16 @@ fn write_records(intervals: Vec<Interval>, header: &Header, outbcf: Option<PathB
             .with_context(|| "Error opening BCF writer".to_string())?,
     };
 
-    for interval in intervals {
+    for interval in cnv_intervals {
         let mut cnv_record = bcf_writer.empty_record();
-        cnv_record.set_pos(interval.start.pos() as i64);
+        cnv_record.set_pos(interval.range().start as i64);
         cnv_record.set_qual(f32::NAN);
         cnv_record.set_alleles(&[b"<CNV>"])?;
-        let end_value = format!("{}:{}", interval.end.contig(), interval.end.pos());
+        let end_value = format!("{}:{}", interval.contig(), interval.range().end);
         let end = end_value.as_str();
         cnv_record
             .push_info_string(b"ENDPOS", &[end.as_bytes()])
             .with_context(|| "Failed to push END info string")?;
-
-        cnv_record.push_info_string(b"CNVTYPE", &[interval.cnv_type.as_bytes()])?;
 
         bcf_writer
             .write(&cnv_record)
@@ -124,10 +95,16 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     let mut deltas = BTreeMap::new();
     for b in breakends {
         if let Some(join) = b.join() {
-            let start = b.locus().to_owned();
-            let end = join.locus().to_owned();
-            *deltas.entry(start).or_insert(0) += 1;
-            *deltas.entry(end).or_insert(0) -= 1;
+            let (breakpoint_start, breakpoint_end) = (b.locus(), join.locus());
+
+            let (interval_start, interval_end) = if breakpoint_start.pos() < breakpoint_end.pos() {
+                (breakpoint_start.to_owned(), breakpoint_end.to_owned())
+            } else {
+                (breakpoint_end.to_owned(), breakpoint_start.to_owned())
+            };
+
+            *deltas.entry(interval_start).or_insert(0) += 1;
+            *deltas.entry(interval_end).or_insert(0) -= 1;
         }
     }
     // Compute intervals from borders
@@ -138,9 +115,17 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
     for (locus, &delta) in deltas.iter() {
         if let Some(prev_locus) = last_pos {
             if prev_locus.pos() < locus.pos() && current_cov != 0 {
-                intervals_deltas.push(Interval::new(prev_locus, locus.to_owned(), current_cov));
+                let interval = Interval::new(
+                    prev_locus.contig().to_owned(),
+                    Range {
+                        start: prev_locus.pos() + 1,
+                        end: locus.pos(),
+                    },
+                );
+                intervals_deltas.push(interval);
             }
         }
+
         current_cov += delta;
         last_pos = Some(locus.to_owned());
     }
