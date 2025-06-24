@@ -3,6 +3,8 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use bio_types::annot::contig;
+use bio_types::genome::Interval;
 use intervaltree::IntervalTree;
 use rust_htslib::bam::{FetchDefinition, Read as BamRead, Record as BamRecord};
 use rust_htslib::bcf::{Read as BcfRead, Reader};
@@ -65,8 +67,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
-    pub(crate) avg_coverage: u32,
-    pub(crate) num_reads_cg_share: BTreeMap<i64, u32>,
+    pub(crate) avg_depth: u32,
+    pub(crate) num_reads_cg_ratio: Vec<(i64, u32)>,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -167,8 +169,8 @@ impl AlignmentProperties {
             frac_max_softclip: None,
             max_read_len: 0,
             max_mapq: 0,
-            avg_coverage: 0,
-            num_reads_cg_share: BTreeMap::new(),
+            avg_depth: 0,
+            num_reads_cg_ratio: Vec::new(),
             cigar_counts: Default::default(),
             transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
@@ -211,7 +213,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
-            num_reads_cg_share: BTreeMap<i64, u32>,
+            num_reads_cg_ratio: Vec<(i64, u32)>,
             num_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
@@ -252,26 +254,43 @@ impl AlignmentProperties {
         }
 
         // Calculate the CG content of a sequence.
-        fn calculate_cg_ratio(seq: &[u8]) -> f64 {
+        fn calculate_cg_ratio(seq: &[u8]) -> i64 {
             let total = seq.len() as f64;
             let cg_count = seq
                 .iter()
                 .filter(|&&base| base == b'C' || base == b'G')
                 .count() as f64;
             if total == 0.0 {
-                0.0
+                0
             } else {
-                cg_count / total
+                ((cg_count / total) * 100.0).round() as i64
             }
         }
 
-        fn update_cg_statistics(record: &BamRecord, stats: &mut AlignmentStats) {
-            stats.num_non_cnv_reads += 1;
-            let cg_content = calculate_cg_ratio(&record.seq().as_bytes());
-            let lower = (cg_content * 100.0).round() as i64;
-            stats
-                .num_reads_cg_share
-                .entry(lower)
+        fn update_cg_statistics(
+            record: &BamRecord,
+            contig: &str,
+            reference_buffer: &reference::Buffer,
+            interval_to_cg_ratio: &mut HashMap<Interval, i64>,
+            cg_ratio_to_num_reads: &mut BTreeMap<i64, u32>,
+        ) {
+            let start = record.pos() as usize;
+            let end = record.cigar_cached().unwrap().end_pos() as usize;
+            let interval = Interval::new(contig.to_owned(), start as u64..end as u64);
+
+            let cg_ratio = match interval_to_cg_ratio.get(&interval) {
+                Some(&ratio) => ratio,
+                None => {
+                    let ref_seq = reference_buffer.seq(contig).unwrap();
+                    let ref_subseq = &ref_seq.as_ref()[start..end];
+                    let ratio = calculate_cg_ratio(ref_subseq);
+                    interval_to_cg_ratio.insert(interval.clone(), ratio);
+                    ratio
+                }
+            };
+            // Bucketed CG ratio to integer percent
+            cg_ratio_to_num_reads
+                .entry(cg_ratio)
                 .and_modify(|e| *e += 1)
                 .or_insert(1);
         }
@@ -358,6 +377,9 @@ impl AlignmentProperties {
         let mut read_len_complete = 0;
 
         let mut cnv_tree = Option::<IntervalTree<u64, ()>>::None;
+        let mut interval_to_cg_ratio: HashMap<Interval, i64> = HashMap::new();
+        let mut cg_ratio_to_num_reads: BTreeMap<i64, u32> = BTreeMap::new();
+
         if let Some(ref path) = cnv_path {
             cnv_tree = Some(bcf_to_cnv_tree(path.as_ref().to_str().unwrap())?);
         }
@@ -419,13 +441,25 @@ impl AlignmentProperties {
                             .next()
                             .is_none()
                         {
+                            update_cg_statistics(
+                                &record,
+                                contig,
+                                reference_buffer,
+                                &mut interval_to_cg_ratio,
+                                &mut cg_ratio_to_num_reads,
+                            );
                             all_stats.num_non_cnv_reads += 1;
-                            update_cg_statistics(&record, &mut all_stats);
                         }
                     }
                     None => {
+                        update_cg_statistics(
+                            &record,
+                            contig,
+                            reference_buffer,
+                            &mut interval_to_cg_ratio,
+                            &mut cg_ratio_to_num_reads,
+                        );
                         all_stats.num_non_cnv_reads += 1;
-                        update_cg_statistics(&record, &mut all_stats);
                     }
                 }
 
@@ -464,12 +498,21 @@ impl AlignmentProperties {
         }
         let total_num_reads = all_stats.n_reads as u32;
         let avg_read_len = read_len_complete / total_num_reads;
-        let avg_cov = if reference_len > 0 {
+        let avg_depth = if reference_len > 0 {
             (all_stats.num_non_cnv_reads as u64 * avg_read_len as u64) / reference_len
         } else {
             0
         };
-
+        for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
+            let coverage = if reference_len > 0 {
+                (num_reads as u64 * avg_read_len as u64) as f64 / reference_len as f64
+            } else {
+                0.0
+            };
+            all_stats
+                .num_reads_cg_ratio
+                .push((cg_percent, coverage.round() as u32));
+        }
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
         properties.transition_counts = Some(all_stats.transition_counts.clone());
 
@@ -477,8 +520,8 @@ impl AlignmentProperties {
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
-        properties.avg_coverage = avg_cov as u32;
-        properties.num_reads_cg_share = all_stats.num_reads_cg_share;
+        properties.avg_depth = avg_depth as u32;
+        properties.num_reads_cg_ratio = all_stats.num_reads_cg_ratio;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
