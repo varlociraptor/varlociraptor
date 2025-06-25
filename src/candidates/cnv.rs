@@ -50,7 +50,6 @@ fn create_header_from_existing(old_header: &HeaderView) -> Result<Header> {
         let header_contig_line = format!(r#"##contig=<ID={}>"#, name);
         header.push_record(header_contig_line.as_bytes());
     }
-
     header.push_record(
         b"##INFO=<ID=ENDPOS,Number=1,Type=String,Description=\"Ending position of breakend\">",
     );
