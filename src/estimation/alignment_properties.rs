@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use bio_types::annot::contig;
 use bio_types::genome::Interval;
 use intervaltree::IntervalTree;
 use rust_htslib::bam::{FetchDefinition, Read as BamRead, Record as BamRecord};
@@ -68,7 +67,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
     pub(crate) avg_depth: u32,
-    pub(crate) num_reads_cg_ratio: Vec<(i64, u32)>,
+    pub(crate) avg_depth_per_cg_ratio: Vec<(i64, u32)>,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -170,7 +169,7 @@ impl AlignmentProperties {
             max_read_len: 0,
             max_mapq: 0,
             avg_depth: 0,
-            num_reads_cg_ratio: Vec::new(),
+            avg_depth_per_cg_ratio: Vec::new(),
             cigar_counts: Default::default(),
             transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
@@ -213,7 +212,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
-            num_reads_cg_ratio: Vec<(i64, u32)>,
+            coverage_per_cg_ratio: Vec<(i64, u32)>,
             num_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
@@ -245,6 +244,7 @@ impl AlignmentProperties {
                         let end_str = std::str::from_utf8(end_bytes)?;
                         if let Some((_, end_pos_str)) = end_str.split_once(':') {
                             let end_pos = end_pos_str.parse::<u64>()?;
+                            // TODO: Johannes told me to use interval trees, but I do not need to safe any values to the intervals?
                             intervals.push((pos..end_pos, ()));
                         }
                     }
@@ -255,15 +255,15 @@ impl AlignmentProperties {
 
         // Calculate the CG content of a sequence.
         fn calculate_cg_ratio(seq: &[u8]) -> i64 {
-            let total = seq.len() as f64;
+            let seq_len = seq.len() as f64;
             let cg_count = seq
                 .iter()
                 .filter(|&&base| base == b'C' || base == b'G')
                 .count() as f64;
-            if total == 0.0 {
+            if seq_len == 0.0 {
                 0
             } else {
-                ((cg_count / total) * 100.0).round() as i64
+                ((cg_count / seq_len) * 100.0).round() as i64
             }
         }
 
@@ -277,7 +277,7 @@ impl AlignmentProperties {
             let start = record.pos() as usize;
             let end = record.cigar_cached().unwrap().end_pos() as usize;
             let interval = Interval::new(contig.to_owned(), start as u64..end as u64);
-
+            // If we have already seen this interval, use the cached CG ratio. Else calculate it.
             let cg_ratio = match interval_to_cg_ratio.get(&interval) {
                 Some(&ratio) => ratio,
                 None => {
@@ -372,9 +372,9 @@ impl AlignmentProperties {
 
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
+        let mut read_len_complete = 0;
         let mut record_flag_stats = RecordFlagStats::new();
         let mut all_stats = AlignmentStats::default();
-        let mut read_len_complete = 0;
 
         let mut cnv_tree = Option::<IntervalTree<u64, ()>>::None;
         let mut interval_to_cg_ratio: HashMap<Interval, i64> = HashMap::new();
@@ -434,33 +434,25 @@ impl AlignmentProperties {
                         None
                     }
                 };
-                match cnv_tree {
-                    Some(ref tree) => {
-                        if tree
-                            .query(record.pos() as u64..(record.pos() as u64 + 1))
+
+                let in_cnv = cnv_tree
+                    .as_ref()
+                    .map(|tree| {
+                        tree.query(record.pos() as u64..(record.pos() as u64 + 1))
                             .next()
-                            .is_none()
-                        {
-                            update_cg_statistics(
-                                &record,
-                                contig,
-                                reference_buffer,
-                                &mut interval_to_cg_ratio,
-                                &mut cg_ratio_to_num_reads,
-                            );
-                            all_stats.num_non_cnv_reads += 1;
-                        }
-                    }
-                    None => {
-                        update_cg_statistics(
-                            &record,
-                            contig,
-                            reference_buffer,
-                            &mut interval_to_cg_ratio,
-                            &mut cg_ratio_to_num_reads,
-                        );
-                        all_stats.num_non_cnv_reads += 1;
-                    }
+                            .is_some()
+                    })
+                    .unwrap_or(false);
+
+                if !in_cnv {
+                    update_cg_statistics(
+                        &record,
+                        contig,
+                        reference_buffer,
+                        &mut interval_to_cg_ratio,
+                        &mut cg_ratio_to_num_reads,
+                    );
+                    all_stats.num_non_cnv_reads += 1;
                 }
 
                 all_stats.n_reads += 1;
@@ -488,31 +480,37 @@ impl AlignmentProperties {
             }
         }
 
-        let mut reference_len = reference_buffer.total_reference_length();
-        if let Some(ref cnv_tree) = cnv_tree {
-            let num_cnv_reads = cnv_tree
-                .iter()
-                .map(|element| element.range.end - element.range.start)
-                .sum();
-            reference_len = reference_len.saturating_sub(num_cnv_reads);
-        }
-        let total_num_reads = all_stats.n_reads as u32;
-        let avg_read_len = read_len_complete / total_num_reads;
-        let avg_depth = if reference_len > 0 {
-            (all_stats.num_non_cnv_reads as u64 * avg_read_len as u64) / reference_len
+        let original_ref_len = reference_buffer.total_reference_length();
+
+        let cnv_total_len = cnv_tree
+            .as_ref()
+            .map(|tree| {
+                tree.iter()
+                    .map(|element| element.range.end - element.range.start)
+                    .sum::<u64>()
+            })
+            .unwrap_or(0);
+
+        let effective_ref_len = original_ref_len.saturating_sub(cnv_total_len);
+
+        let avg_read_len = if all_stats.n_reads > 0 {
+            read_len_complete / all_stats.n_reads as u32
         } else {
             0
         };
+
+        // TODO: This is a very rough estimate of the average depth, since the avg_read_len is uncertain
+        let avg_depth =
+            (all_stats.num_non_cnv_reads as u64 * avg_read_len as u64) / effective_ref_len;
+
+        // Compute coverage per CG ratio
         for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
-            let coverage = if reference_len > 0 {
-                (num_reads as u64 * avg_read_len as u64) as f64 / reference_len as f64
-            } else {
-                0.0
-            };
+            let coverage = (num_reads * avg_read_len) as f64 / effective_ref_len as f64;
             all_stats
-                .num_reads_cg_ratio
+                .coverage_per_cg_ratio
                 .push((cg_percent, coverage.round() as u32));
         }
+
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
         properties.transition_counts = Some(all_stats.transition_counts.clone());
 
@@ -521,7 +519,7 @@ impl AlignmentProperties {
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
         properties.avg_depth = avg_depth as u32;
-        properties.num_reads_cg_ratio = all_stats.num_reads_cg_ratio;
+        properties.avg_depth_per_cg_ratio = all_stats.coverage_per_cg_ratio;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
