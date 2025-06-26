@@ -212,8 +212,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
-            coverage_per_cg_ratio: Vec<(i64, u32)>,
-            num_non_cnv_reads: u32,
+            n_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
             n_not_usable: u32,
@@ -452,7 +451,7 @@ impl AlignmentProperties {
                         &mut interval_to_cg_ratio,
                         &mut cg_ratio_to_num_reads,
                     );
-                    all_stats.num_non_cnv_reads += 1;
+                    all_stats.n_non_cnv_reads += 1;
                 }
 
                 all_stats.n_reads += 1;
@@ -501,13 +500,13 @@ impl AlignmentProperties {
 
         // TODO: This is a very rough estimate of the average depth, since the avg_read_len is uncertain
         let avg_depth =
-            (all_stats.num_non_cnv_reads as u64 * avg_read_len as u64) / effective_ref_len;
+            (all_stats.n_non_cnv_reads as u64 * avg_read_len as u64) / effective_ref_len;
 
         // Compute coverage per CG ratio
         for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
             let coverage = (num_reads * avg_read_len) as f64 / effective_ref_len as f64;
-            all_stats
-                .coverage_per_cg_ratio
+            properties
+                .avg_depth_per_cg_ratio
                 .push((cg_percent, coverage.round() as u32));
         }
 
@@ -519,7 +518,6 @@ impl AlignmentProperties {
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
         properties.avg_depth = avg_depth as u32;
-        properties.avg_depth_per_cg_ratio = all_stats.coverage_per_cg_ratio;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
