@@ -3,16 +3,20 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use rust_htslib::bam::{FetchDefinition, Read};
+use bio_types::genome::Interval;
+use intervaltree::IntervalTree;
+use rust_htslib::bam::{FetchDefinition, Read as BamRead, Record as BamRecord};
+use rust_htslib::bcf::{Read as BcfRead, Reader};
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::f64;
+use std::iter::FromIterator;
 use std::ops::AddAssign;
 use std::path::Path;
 use std::str;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use bio::stats::{LogProb, Prob};
 use counter::Counter;
 use itertools::Itertools;
@@ -62,6 +66,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    pub(crate) avg_depth: u32,
+    pub(crate) avg_depth_per_cg_ratio: Vec<(i64, u32)>,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -146,7 +152,8 @@ impl AlignmentProperties {
     /// Estimate `AlignmentProperties` from first NUM_FRAGMENTS fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub(crate) fn estimate(
-        paths: &[impl AsRef<Path>],
+        bam_paths: &[impl AsRef<Path>],
+        cnv_path: Option<impl AsRef<Path>>,
         omit_insert_size: bool,
         reference_buffer: &mut reference::Buffer,
         num_records: Option<usize>,
@@ -161,6 +168,8 @@ impl AlignmentProperties {
             frac_max_softclip: None,
             max_read_len: 0,
             max_mapq: 0,
+            avg_depth: 0,
+            avg_depth_per_cg_ratio: Vec::new(),
             cigar_counts: Default::default(),
             transition_counts: Default::default(),
             wildtype_homopolymer_error_model: HashMap::new(),
@@ -203,6 +212,7 @@ impl AlignmentProperties {
         struct AlignmentStats {
             n_reads: usize,
             max_mapq: u8,
+            n_non_cnv_reads: u32,
             max_read_len: u32,
             n_softclips: u32,
             n_not_usable: u32,
@@ -214,11 +224,81 @@ impl AlignmentProperties {
             tlens: Vec<f64>,
         }
 
+        // Build interval tree of CNVs
+        fn bcf_to_cnv_tree(cnv_bcf: &str) -> Result<IntervalTree<u64, ()>> {
+            let mut intervals = Vec::new();
+            let mut bcf = Reader::from_path(cnv_bcf)
+                .with_context(|| format!("Failed to open BCF file: {}", cnv_bcf))?;
+
+            for result in bcf.records() {
+                let record = result.with_context(|| "Error reading record")?;
+                let pos = record.pos() as u64;
+                let end_pos = record
+                    .info(b"ENDPOS")
+                    .string()
+                    .with_context(|| "Missing or malformed ENDPOS field in record")?;
+
+                if let Some(end_vec) = end_pos {
+                    if let Some(end_bytes) = end_vec.first() {
+                        let end_str = std::str::from_utf8(end_bytes)?;
+                        if let Some((_, end_pos_str)) = end_str.split_once(':') {
+                            let end_pos = end_pos_str.parse::<u64>()?;
+                            // TODO: Johannes told me to use interval trees, but I do not need to safe any values to the intervals?
+                            intervals.push((pos..end_pos, ()));
+                        }
+                    }
+                }
+            }
+            Ok(IntervalTree::from_iter(intervals))
+        }
+
+        // Calculate the CG content of a sequence.
+        fn calculate_cg_ratio(seq: &[u8]) -> i64 {
+            let seq_len = seq.len() as f64;
+            let cg_count = seq
+                .iter()
+                .filter(|&&base| base == b'C' || base == b'G')
+                .count() as f64;
+            if seq_len == 0.0 {
+                0
+            } else {
+                ((cg_count / seq_len) * 100.0).round() as i64
+            }
+        }
+
+        fn update_cg_statistics(
+            record: &BamRecord,
+            contig: &str,
+            reference_buffer: &reference::Buffer,
+            interval_to_cg_ratio: &mut HashMap<Interval, i64>,
+            cg_ratio_to_num_reads: &mut BTreeMap<i64, u32>,
+        ) {
+            let start = record.pos() as usize;
+            let end = record.cigar_cached().unwrap().end_pos() as usize;
+            let interval = Interval::new(contig.to_owned(), start as u64..end as u64);
+            // If we have already seen this interval, use the cached CG ratio. Else calculate it.
+            let cg_ratio = match interval_to_cg_ratio.get(&interval) {
+                Some(&ratio) => ratio,
+                None => {
+                    let ref_seq = reference_buffer.seq(contig).unwrap();
+                    let ref_subseq = &ref_seq.as_ref()[start..end];
+                    let ratio = calculate_cg_ratio(ref_subseq);
+                    interval_to_cg_ratio.insert(interval.clone(), ratio);
+                    ratio
+                }
+            };
+            // Bucketed CG ratio to integer percent
+            cg_ratio_to_num_reads
+                .entry(cg_ratio)
+                .and_modify(|e| *e += 1)
+                .or_insert(1);
+        }
+
         // Retrieve number of alignments in the bam file.
         // Use this to estimate the number of alignments needed to estimate the
         // HPHMM's transition probabilities to a certain precision.
         let num_alignments = {
-            let ns = paths
+            let ns = bam_paths
                 .iter()
                 .map(|path| -> Result<u64> {
                     let mut bam = bam::IndexedReader::from_path(path.as_ref())?;
@@ -233,7 +313,7 @@ impl AlignmentProperties {
         };
 
         // FIXME: reset fp/reader in rust-htslib after index_stats call
-        let mut bams = paths
+        let mut bams = bam_paths
             .iter()
             .map(|path| Ok(bam::IndexedReader::from_path(path.as_ref())?))
             .collect::<Result<Vec<_>>>()?;
@@ -291,10 +371,19 @@ impl AlignmentProperties {
 
         let mut n_records_analysed = 0;
         let mut n_records_skipped = 0;
+        let mut read_len_complete = 0;
         let mut record_flag_stats = RecordFlagStats::new();
         let mut all_stats = AlignmentStats::default();
 
-        for mut bam in bams {
+        let mut cnv_tree = Option::<IntervalTree<u64, ()>>::None;
+        let mut interval_to_cg_ratio: HashMap<Interval, i64> = HashMap::new();
+        let mut cg_ratio_to_num_reads: BTreeMap<i64, u32> = BTreeMap::new();
+
+        if let Some(ref path) = cnv_path {
+            cnv_tree = Some(bcf_to_cnv_tree(path.as_ref().to_str().unwrap())?);
+        }
+
+        for bam in &mut bams {
             let header = bam.header().clone();
             for record in bam.records() {
                 let mut record = record?;
@@ -316,6 +405,7 @@ impl AlignmentProperties {
                     record.cache_cigar();
                 }
 
+                read_len_complete += record.seq().len() as u32;
                 let contig = str::from_utf8(header.tid2name(record.tid() as u32)).unwrap();
 
                 let (cigar_counts, transition_counts) = cigar_stats(
@@ -344,6 +434,26 @@ impl AlignmentProperties {
                     }
                 };
 
+                let in_cnv = cnv_tree
+                    .as_ref()
+                    .map(|tree| {
+                        tree.query(record.pos() as u64..(record.pos() as u64 + 1))
+                            .next()
+                            .is_some()
+                    })
+                    .unwrap_or(false);
+
+                if !in_cnv {
+                    update_cg_statistics(
+                        &record,
+                        contig,
+                        reference_buffer,
+                        &mut interval_to_cg_ratio,
+                        &mut cg_ratio_to_num_reads,
+                    );
+                    all_stats.n_non_cnv_reads += 1;
+                }
+
                 all_stats.n_reads += 1;
                 all_stats.max_mapq = all_stats.max_mapq.max(record.mapq());
                 all_stats.max_read_len = all_stats.max_read_len.max(record.seq().len() as u32);
@@ -369,6 +479,37 @@ impl AlignmentProperties {
             }
         }
 
+        let original_ref_len = reference_buffer.total_reference_length();
+
+        let cnv_total_len = cnv_tree
+            .as_ref()
+            .map(|tree| {
+                tree.iter()
+                    .map(|element| element.range.end - element.range.start)
+                    .sum::<u64>()
+            })
+            .unwrap_or(0);
+
+        let effective_ref_len = original_ref_len.saturating_sub(cnv_total_len);
+
+        let avg_read_len = if all_stats.n_reads > 0 {
+            read_len_complete / all_stats.n_reads as u32
+        } else {
+            0
+        };
+
+        // TODO: This is a very rough estimate of the average depth, since the avg_read_len is uncertain
+        let avg_depth =
+            (all_stats.n_non_cnv_reads as u64 * avg_read_len as u64) / effective_ref_len;
+
+        // Compute coverage per CG ratio
+        for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
+            let coverage = (num_reads * avg_read_len) as f64 / effective_ref_len as f64;
+            properties
+                .avg_depth_per_cg_ratio
+                .push((cg_percent, coverage.round() as u32));
+        }
+
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
         properties.transition_counts = Some(all_stats.transition_counts.clone());
 
@@ -376,7 +517,7 @@ impl AlignmentProperties {
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
-        properties.max_read_len = all_stats.max_read_len;
+        properties.avg_depth = avg_depth as u32;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
@@ -1068,6 +1209,7 @@ mod tests {
 
         let props = AlignmentProperties::estimate(
             &[path, path],
+            None::<&Path>,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -1093,6 +1235,7 @@ mod tests {
 
         let props = AlignmentProperties::estimate(
             &[path],
+            None::<&Path>,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
@@ -1114,6 +1257,7 @@ mod tests {
 
         let props = AlignmentProperties::estimate(
             &[path],
+            None::<&Path>,
             false,
             &mut reference_buffer,
             Some(NUM_FRAGMENTS),
