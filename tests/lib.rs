@@ -141,10 +141,13 @@ testcase!(test_giab_32, exact);
 testcase!(test_giab_33, exact);
 testcase!(test_giab_34, exact);
 testcase!(test_giab_35, exact);
+testcase!(test_mapq_meth, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
 testcase!(test_pcr_homopolymer_error3, exact);
+
+// testcase!(test_prinz_bias, exact);
 
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
