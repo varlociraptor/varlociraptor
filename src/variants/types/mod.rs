@@ -23,6 +23,7 @@ use crate::variants::evidence::observations::read_observation::{
 use crate::variants::sample;
 
 pub(crate) mod breakends;
+pub(crate) mod cnv;
 pub(crate) mod deletion;
 pub(crate) mod duplication;
 pub(crate) mod haplotype_block;
@@ -33,6 +34,7 @@ pub(crate) mod none;
 pub(crate) mod replacement;
 pub(crate) mod snv;
 
+pub(crate) use cnv::Cnv;
 pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;

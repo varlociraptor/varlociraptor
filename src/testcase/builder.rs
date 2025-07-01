@@ -279,6 +279,7 @@ impl Testcase {
                 (pos.saturating_sub(1000), pos + 1 + 1000) // TODO collect entire breakend event!
             }
             Variant::Inversion(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
+            Variant::Cnv(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
             Variant::Duplication(l) => (pos.saturating_sub(1000), pos + { *l } + 1000),
             Variant::Replacement { ref ref_allele, .. } => (
                 pos.saturating_sub(1000),

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use rust_htslib::bcf::header::HeaderView;
+use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{Format, Header, Read, Reader, Record, Writer};
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -24,9 +25,10 @@ fn write_records(
 
     for interval in cnv_intervals {
         let mut cnv_record = bcf_writer.empty_record();
+
         cnv_record.set_pos(interval.range().start as i64);
-        cnv_record.set_qual(f32::NAN);
-        cnv_record.set_alleles(&[b"<CNV>"])?;
+        cnv_record.set_qual(f32::missing());
+        cnv_record.set_alleles(&[b"Test_ref", b"<CNV>"])?;
         let end_value = format!("{}:{}", interval.contig(), interval.range().end);
         let end = end_value.as_str();
         cnv_record

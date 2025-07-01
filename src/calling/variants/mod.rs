@@ -676,6 +676,11 @@ impl VariantBuilder {
                 .alt_allele(b"<INV>".to_vec())
                 .svtype(Some(b"INV".to_vec()))
                 .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
+            model::Variant::Cnv(len) => self
+                .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
+                .alt_allele(b"<CNV>".to_vec())
+                .svtype(Some(b"CNV".to_vec()))
+                .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
             model::Variant::Duplication(len) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<DUP>".to_vec())

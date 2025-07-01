@@ -544,6 +544,16 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             ))
         };
 
+        let parse_cnv = |len| -> Result<variants::types::Cnv<R>> {
+            Ok(variants::types::Cnv::new(
+                interval(len),
+                self.realigner.clone(),
+                self.reference_buffer
+                    .seq(variants.locus().contig())?
+                    .as_ref(),
+            ))
+        };
+
         let parse_duplication = |len| -> Result<variants::types::Duplication<R>> {
             Ok(variants::types::Duplication::new(
                 interval(len),
@@ -576,6 +586,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
                     model::Variant::Insertion(seq) => Box::new(parse_insertion(seq)?),
                     model::Variant::Inversion(len) => Box::new(parse_inversion(*len)?),
+                    model::Variant::Cnv(len) => Box::new(parse_inversion(*len)?),
                     model::Variant::Duplication(len) => Box::new(parse_duplication(*len)?),
                     model::Variant::Replacement {
                         ref_allele,
@@ -716,6 +727,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             model::Variant::Inversion(len) => {
                                 haplotype_block.push_variant(Box::new(parse_inversion(*len)?))
                             }
+                            model::Variant::Cnv(len) => {
+                                haplotype_block.push_variant(Box::new(parse_inversion(*len)?))
+                            }
                             model::Variant::Duplication(len) => {
                                 haplotype_block.push_variant(Box::new(parse_duplication(*len)?))
                             }
@@ -762,6 +776,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     }
                     model::Variant::Inversion(len) => {
                         sample.extract_observations(&parse_inversion(*len)?, &alt_variants)?
+                    }
+                    model::Variant::Cnv(len) => {
+                        sample.extract_observations(&parse_cnv(*len)?, &alt_variants)?
                     }
                     model::Variant::Duplication(len) => {
                         sample.extract_observations(&parse_duplication(*len)?, &alt_variants)?

@@ -209,6 +209,8 @@ pub enum VariantType {
     Breakend,
     #[strum(serialize = "INV")]
     Inversion,
+    #[strum(serialize = "CNV")]
+    Cnv,
     #[strum(serialize = "DUP")]
     Duplication,
     #[strum(serialize = "REP")]
@@ -308,6 +310,7 @@ pub(crate) enum Variant {
         precision: VariantPrecision,
     },
     Inversion(u64),
+    Cnv(u64),
     Duplication(u64),
     Replacement {
         ref_allele: Vec<u8>,
@@ -330,6 +333,7 @@ impl fmt::Display for Variant {
             Variant::Insertion(seq) => write!(f, "ins_{}", fmt_allele(seq)),
             Variant::Mnv(seq) => write!(f, "mnv_{}", fmt_allele(seq)),
             Variant::Inversion(len) => write!(f, "inv_{}", len),
+            Variant::Cnv(len) => write!(f, "cnv_{}", len),
             Variant::Duplication(len) => write!(f, "dup_{}", len),
             Variant::Replacement {
                 ref_allele,
@@ -380,6 +384,7 @@ impl Variant {
             (&Variant::None, &VariantType::None) => true,
             (&Variant::Breakend { .. }, &VariantType::Breakend) => true,
             (&Variant::Inversion { .. }, &VariantType::Inversion) => true,
+            (&Variant::Cnv { .. }, &VariantType::Cnv) => true,
             (&Variant::Duplication { .. }, &VariantType::Duplication) => true,
             (&Variant::Replacement { .. }, &VariantType::Replacement) => true,
             _ => false,
@@ -394,6 +399,7 @@ impl Variant {
             Variant::Mnv(_) => VariantType::Mnv,
             Variant::Breakend { .. } => VariantType::Breakend,
             Variant::Inversion(_) => VariantType::Inversion,
+            Variant::Cnv(_) => VariantType::Cnv,
             Variant::Duplication(_) => VariantType::Duplication,
             Variant::Replacement { .. } => VariantType::Replacement,
             Variant::None => VariantType::None,
@@ -408,6 +414,7 @@ impl Variant {
             Variant::Mnv(ref alt) => alt.len() as u64,
             Variant::Breakend { .. } => 1,
             Variant::Inversion(l) => l,
+            Variant::Cnv(l) => l,
             Variant::Duplication(l) => l,
             Variant::Replacement { ref alt_allele, .. } => alt_allele.len() as u64,
             Variant::None => 1,

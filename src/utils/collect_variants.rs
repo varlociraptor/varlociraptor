@@ -18,10 +18,14 @@ pub enum SkipReason {
     Imprecise,
     #[strum(serialize = "inversions with missing END tag")]
     InversionMissingEndTag,
+    #[strum(serialize = "cnvs with missing END tag")]
+    CnvMissingEndTag,
     #[strum(serialize = "duplications with missing END tag")]
     DuplicationMissingEndTag,
     #[strum(serialize = "inversion with more than a single <INV> allele")]
     InversionInvalidAlt,
+    #[strum(serialize = "cnv with more than a single <INV> allele")]
+    CnvInvalidAlt,
     #[strum(serialize = "duplication with more than a single <DUP> allele")]
     DuplicationInvalidAlt,
     #[strum(serialize = "breakend without EVENT tag (will be supported in a future release)")]
@@ -164,6 +168,16 @@ pub fn collect_variants(
                 push_variant(model::Variant::Inversion(len), 0);
             } else {
                 skip_incr(SkipReason::InversionMissingEndTag);
+            }
+        } else if svtype == b"CNV" {
+            let alleles = record.alleles();
+            if alleles.len() != 2 {
+                skip_incr(SkipReason::CnvInvalidAlt);
+            } else if let Some(end) = end {
+                let len = end + 1 - pos; // end is inclusive, pos as well.
+                push_variant(model::Variant::Cnv(len), 0);
+            } else {
+                skip_incr(SkipReason::CnvMissingEndTag);
             }
         } else if svtype == b"DUP" {
             let alleles = record.alleles();
