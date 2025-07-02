@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use rust_htslib::bcf::header::HeaderView;
-use rust_htslib::bcf::{Format, Header, Read, Reader, Record, Writer};
+use rust_htslib::bcf::{record::Numeric, Format, Header, Read, Reader, Record, Writer};
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
@@ -10,7 +10,7 @@ use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
 use crate::variants::types::breakends::Breakend;
 
-fn write_records(
+fn write_cnv_records(
     cnv_intervals: Vec<Interval>,
     header: &Header,
     outbcf: Option<PathBuf>,
@@ -25,13 +25,14 @@ fn write_records(
     for interval in cnv_intervals {
         let mut cnv_record = bcf_writer.empty_record();
         cnv_record.set_pos(interval.range().start as i64);
-        cnv_record.set_qual(f32::NAN);
+        cnv_record.set_qual(f32::missing());
         cnv_record.set_alleles(&[b"<CNV>"])?;
-        let end_value = format!("{}:{}", interval.contig(), interval.range().end);
-        let end = end_value.as_str();
         cnv_record
-            .push_info_string(b"ENDPOS", &[end.as_bytes()])
+            .push_info_integer(b"END", &[interval.range().end as i32])
             .with_context(|| "Failed to push END info string")?;
+        cnv_record
+            .push_info_string(b"SVTYPE", &[b"CNV"])
+            .with_context(|| "Failed to push SVTYPE info string")?;
 
         bcf_writer
             .write(&cnv_record)
@@ -41,24 +42,25 @@ fn write_records(
 }
 
 /// Builds a new BCF header based on the input header
-fn create_header_from_existing(existing: &HeaderView) -> Result<Header> {
+fn create_header_from_existing(old_header: &HeaderView) -> Result<Header> {
     let mut header = Header::new();
 
-    for rid in 0..existing.contig_count() {
-        let name =
-            std::str::from_utf8(existing.rid2name(rid)?).context("Invalid UTF-8 in contig name")?;
+    for rid in 0..old_header.contig_count() {
+        let name = std::str::from_utf8(old_header.rid2name(rid)?)
+            .context("Invalid UTF-8 in contig name")?;
         let header_contig_line = format!(r#"##contig=<ID={}>"#, name);
         header.push_record(header_contig_line.as_bytes());
     }
-
-    header.push_record(b"##INFO=<ID=CNVTYPE,Number=1,Type=String,Description=\"Type of CNV\">");
     header.push_record(
-        b"##INFO=<ID=ENDPOS,Number=1,Type=String,Description=\"Ending position of breakend\">",
+        b"##INFO=<ID=END,Number=1,Type=Integer,Description=\"Ending position of breakend\">",
+    );
+    header.push_record(
+        b"##INFO=<ID=SVTYPE,Number=2,Type=String,Description=\"Type of structural variant\">",
     );
     Ok(header)
 }
 
-fn create_breakend_from_record(
+fn parse_breakend(
     record: &Record,
     header: &HeaderView,
     aux_info_collector: &AuxInfoCollector,
@@ -91,8 +93,7 @@ fn create_breakend_from_record(
 }
 
 fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
-    // For every CNV interval set the start of the interval to +1 and the end of the interval to -1
-    let mut deltas = BTreeMap::new();
+    let mut all_intervals = BTreeMap::new();
     for b in breakends {
         if let Some(join) = b.join() {
             let (breakpoint_start, breakpoint_end) = (b.locus(), join.locus());
@@ -103,18 +104,21 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
                 (breakpoint_end.to_owned(), breakpoint_start.to_owned())
             };
 
-            *deltas.entry(interval_start).or_insert(0) += 1;
-            *deltas.entry(interval_end).or_insert(0) -= 1;
+            *all_intervals.entry(interval_start).or_insert(0) += 1;
+            *all_intervals.entry(interval_end).or_insert(0) -= 1;
         }
     }
     // Compute intervals from borders
-    let mut intervals_deltas = Vec::new();
+    let mut cnv_intervals = Vec::new();
     let mut last_pos: Option<Locus> = None;
     let mut current_cov = 0;
 
-    for (locus, &delta) in deltas.iter() {
+    for (locus, &delta) in all_intervals.iter() {
         if let Some(prev_locus) = last_pos {
-            if prev_locus.pos() < locus.pos() && current_cov != 0 {
+            if prev_locus.contig() == locus.contig()
+                && prev_locus.pos() < locus.pos()
+                && current_cov != 0
+            {
                 let interval = Interval::new(
                     prev_locus.contig().to_owned(),
                     Range {
@@ -122,14 +126,13 @@ fn breakends_to_intervals(breakends: Vec<Breakend>) -> Vec<Interval> {
                         end: locus.pos(),
                     },
                 );
-                intervals_deltas.push(interval);
+                cnv_intervals.push(interval);
             }
         }
-
         current_cov += delta;
         last_pos = Some(locus.to_owned());
     }
-    intervals_deltas
+    cnv_intervals
 }
 
 /// Reads an input BCF file, processes each record, and writes out modified CNV records
@@ -147,7 +150,7 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
     // Get all breakends from the input BCF file
     for record_result in bcf_reader.records() {
         let record = record_result.with_context(|| "Error reading record")?;
-        let breakend = match create_breakend_from_record(&record, &header_orig, &aux_info)? {
+        let breakend = match parse_breakend(&record, &header_orig, &aux_info)? {
             Some(b) if b.is_left_to_right() && b.join().is_some() => b,
             _ => continue,
         };
@@ -155,7 +158,7 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
     }
     let intervals: Vec<Interval> = breakends_to_intervals(breakends);
     // Write bcf file
-    write_records(intervals, &header, outbcf)?;
+    write_cnv_records(intervals, &header, outbcf)?;
 
     Ok(())
 }
