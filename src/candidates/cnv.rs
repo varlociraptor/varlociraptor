@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use rust_htslib::bcf::header::HeaderView;
-use rust_htslib::bcf::{Format, Header, Read, Reader, Record, Writer};
+use rust_htslib::bcf::{record::Numeric, Format, Header, Read, Reader, Record, Writer};
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
@@ -25,13 +25,14 @@ fn write_cnv_records(
     for interval in cnv_intervals {
         let mut cnv_record = bcf_writer.empty_record();
         cnv_record.set_pos(interval.range().start as i64);
-        cnv_record.set_qual(f32::NAN);
+        cnv_record.set_qual(f32::missing());
         cnv_record.set_alleles(&[b"<CNV>"])?;
-        let end_value = format!("{}:{}", interval.contig(), interval.range().end);
-        let end = end_value.as_str();
         cnv_record
-            .push_info_string(b"ENDPOS", &[end.as_bytes()])
+            .push_info_integer(b"END", &[interval.range().end as i32])
             .with_context(|| "Failed to push END info string")?;
+        cnv_record
+            .push_info_string(b"SVTYPE", &[b"CNV"])
+            .with_context(|| "Failed to push SVTYPE info string")?;
 
         bcf_writer
             .write(&cnv_record)
@@ -51,7 +52,10 @@ fn create_header_from_existing(old_header: &HeaderView) -> Result<Header> {
         header.push_record(header_contig_line.as_bytes());
     }
     header.push_record(
-        b"##INFO=<ID=ENDPOS,Number=1,Type=String,Description=\"Ending position of breakend\">",
+        b"##INFO=<ID=END,Number=1,Type=Integer,Description=\"Ending position of breakend\">",
+    );
+    header.push_record(
+        b"##INFO=<ID=SVTYPE,Number=2,Type=String,Description=\"Type of structural variant\">",
     );
     Ok(header)
 }
