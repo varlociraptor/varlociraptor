@@ -10,8 +10,6 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
@@ -23,18 +21,12 @@ use serde::Serialize;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
-use super::pileup::Pileup;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils::homopolymers::HomopolymerErrorModel;
-use crate::utils::{self, PROB_05};
-use crate::utils::{bayes_factor_to_letter, PROB_095};
-use crate::variants::sample;
-use crate::variants::types::ReadVariant;
+use crate::utils::{self};
+use crate::utils::bayes_factor_to_letter;
 
-use crate::variants::evidence::realignment::Realignable;
 
-use super::fragment_id_factory::FragmentIdFactory;
 
 const INVALID_XA_FORMAT_MSG: &str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
 

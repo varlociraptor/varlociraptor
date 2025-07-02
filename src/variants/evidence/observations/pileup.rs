@@ -2,7 +2,7 @@ use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::variants::evidence::observations::depth_observation::ProcessedDepthObservation;
 
-use super::{depth_observation::DepthObservation, read_observation::ProcessedReadObservation};
+use super::read_observation::ProcessedReadObservation;
 
 #[derive(Debug, Getters, MutGetters, Default)]
 #[getset(get = "pub", get_mut = "pub(crate)")]

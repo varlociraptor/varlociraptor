@@ -22,7 +22,6 @@ use crate::variants::evidence::observations::depth_observation::{
 };
 use crate::variants::evidence::observations::observation::{Evidence, Strand};
 use crate::variants::evidence::observations::read_observation::{ReadObservable, ReadObservation};
-use crate::variants::model::bias::homopolymer_error;
 use crate::variants::sample;
 
 pub(crate) mod breakends;
