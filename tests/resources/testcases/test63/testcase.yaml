@@ -13,15 +13,15 @@ expected:
 samples:
   mother:
     path: 'mother.bam'
-    properties: '{"insert_size":{"mean":196.35620824053453,"sd":45.45246940744724},"max_del_cigar_len":5,"max_ins_cigar_len":5,"frac_max_softclip":0.8609271523178808,"max_read_len":151}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":196.35620824053453,"sd":45.45246940744724},"max_del_cigar_len":5,"max_ins_cigar_len":5,"frac_max_softclip":0.8609271523178808,"max_read_len":151}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/E18-0788.freebayes.3-of-16.filtered.bcf","bam":"results/recal/KEL-Chr_S6.sorted.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"results/observations/E18-0788/KEL-Chr_S6.freebayes.3-of-16.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}'
   index:
     path: 'father.bam'
-    properties: '{"insert_size":{"mean":198.17337117472852,"sd":44.08220392222849},"max_del_cigar_len":7,"max_ins_cigar_len":4,"frac_max_softclip":0.847682119205298,"max_read_len":151}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":198.17337117472852,"sd":44.08220392222849},"max_del_cigar_len":7,"max_ins_cigar_len":4,"frac_max_softclip":0.847682119205298,"max_read_len":151}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/E18-0788.freebayes.3-of-16.filtered.bcf","bam":"results/recal/KEL-har_S7.sorted.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"results/observations/E18-0788/KEL-har_S7.freebayes.3-of-16.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}'
   father:
     path: 'index.bam'
-    properties: '{"insert_size":{"mean":187.46175166297118,"sd":42.576695208040626},"max_del_cigar_len":4,"max_ins_cigar_len":10,"frac_max_softclip":0.8741721854304636,"max_read_len":151}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":187.46175166297118,"sd":42.576695208040626},"max_del_cigar_len":4,"max_ins_cigar_len":10,"frac_max_softclip":0.8741721854304636,"max_read_len":151}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/E18-0788.freebayes.3-of-16.filtered.bcf","bam":"results/recal/KEL-Cat_S5.sorted.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"results/observations/E18-0788/KEL-Cat_S5.freebayes.3-of-16.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}'
   
 
