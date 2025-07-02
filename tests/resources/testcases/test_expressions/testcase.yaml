@@ -2,7 +2,7 @@
 samples:
   normal:
     path: 'normal.bam'
-    properties: '{"insert_size":{"mean":188.0,"sd":47.96668741972611},"max_del_cigar_len":10,"max_ins_cigar_len":9,"frac_max_softclip":0.7920792079207921}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":188.0,"sd":47.96668741972611},"max_del_cigar_len":10,"max_ins_cigar_len":9,"frac_max_softclip":0.7920792079207921}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"/vol/tiny/ref/autoref/ncbi-pipelines-genomes/homo_sapiens/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna","candidates":null,"bam":"recal/H021-M8LTP4-N1-D1.sorted.bam","alignment_properties":null,"output":"observations/H021-M8LTP4/H021-M8LTP4-N1-D1.freebayes.5.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":64,"max_depth":200}}}}'
   
 
