@@ -157,10 +157,12 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::SingleEndSequencingRead(read) => {
                 if !self.locus.overlap(read, true).is_none() {
                     Some(vec![0])
@@ -203,11 +205,13 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::SingleEndSequencingRead(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
                     record,
@@ -264,10 +268,12 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::PairedEndSequencingRead { left, right } => {
                 if alignment_properties.insert_size.is_some() {
                     self.prob_sample_alt_fragment(

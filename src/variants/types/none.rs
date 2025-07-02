@@ -93,10 +93,12 @@ impl Variant for None {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::SingleEndSequencingRead(read) => {
                 if let Overlap::Enclosing = self.locus().overlap(read, false) {
                     Some(vec![0])
@@ -122,11 +124,13 @@ impl Variant for None {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         _: &AlignmentProperties,
         _: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::SingleEndSequencingRead(read) => Ok(self.allele_support_per_read(read)?),
             Evidence::PairedEndSequencingRead { left, right } => {
                 let left_support = self.allele_support_per_read(left)?;
@@ -145,7 +149,7 @@ impl Variant for None {
         }
     }
 
-    fn prob_sample_alt(&self, _: &Evidence, _: &AlignmentProperties) -> LogProb {
+    fn prob_sample_alt(&self, _: &[Evidence], _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

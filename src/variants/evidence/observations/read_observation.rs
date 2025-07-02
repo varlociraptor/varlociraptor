@@ -635,7 +635,11 @@ pub(crate) trait Observable: Variant {
             .map(|factory| factory.register(evidence));
 
         Ok(
-            match self.allele_support(evidence, alignment_properties, alt_variants)? {
+            match self.allele_support(
+                std::slice::from_ref(evidence),
+                alignment_properties,
+                alt_variants,
+            )? {
                 // METHOD: for precise variants,
                 // only consider allele support if it comes either from forward or reverse strand.
                 // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
@@ -651,7 +655,12 @@ pub(crate) trait Observable: Variant {
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())
                         .prob_ref(allele_support.prob_ref_allele())
-                        .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
+                        .prob_sample_alt(
+                            self.prob_sample_alt(
+                                std::slice::from_ref(evidence),
+                                alignment_properties,
+                            ),
+                        )
                         .prob_missed_allele(allele_support.prob_missed_allele())
                         .prob_overlap(if allele_support.strand() == Strand::Both {
                             LogProb::ln_one()

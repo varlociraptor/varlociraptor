@@ -153,10 +153,12 @@ impl<R: Realigner> Variant for Replacement<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        if match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        if match read_evidence {
             Evidence::SingleEndSequencingRead(read) => !self.locus().overlap(read, true).is_none(),
             Evidence::PairedEndSequencingRead { left, right } => {
                 !self.locus().overlap(left, true).is_none()
@@ -177,11 +179,13 @@ impl<R: Realigner> Variant for Replacement<R> {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::SingleEndSequencingRead(record) => {
                 Ok(Some(self.realigner.borrow_mut().allele_support(
                     record,
@@ -218,10 +222,12 @@ impl<R: Realigner> Variant for Replacement<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        match evidence {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
+        match read_evidence {
             Evidence::PairedEndSequencingRead { left, right } => {
                 // METHOD: we do not require the fragment to enclose the variant.
                 // Hence, we treat both reads independently.

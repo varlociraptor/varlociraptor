@@ -307,14 +307,16 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
         if self.imprecise {
             // METHOD: imprecise (for now) means that we have a breakend pair.
             // We only support paired end evidence, and just check whether the pair starts
             // either left of the left or right of the right breakend.
-            if self.classify_imprecise_evidence(evidence).is_some() {
+            if self.classify_imprecise_evidence(read_evidence).is_some() {
                 Some((0..2).collect_vec())
             } else {
                 None
@@ -342,7 +344,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 }
             };
 
-            let overlapping: Vec<_> = match evidence {
+            let overlapping: Vec<_> = match read_evidence {
                 Evidence::SingleEndSequencingRead(read) => {
                     if !is_valid_ref_bases(read) {
                         return None;
@@ -394,14 +396,16 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
         if self.imprecise {
-            if let Some(classification) = self.classify_imprecise_evidence(evidence) {
+            if let Some(classification) = self.classify_imprecise_evidence(read_evidence) {
                 if self.is_deletion() {
-                    match evidence {
+                    match read_evidence {
                         Evidence::PairedEndSequencingRead { left, right } => {
                             if let Some((left_bnd, right_bnd)) = self.breakend_pair() {
                                 // METHOD: we consider all possible lengths of the deletion,
@@ -484,7 +488,7 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
                 );
             }
         } else {
-            match evidence {
+            match read_evidence {
                 Evidence::SingleEndSequencingRead(record) => {
                     Ok(Some(self.realigner.borrow_mut().allele_support(
                         record,
@@ -523,15 +527,17 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
+        // The evidence consist of only one Readobservation
+        let read_evidence = &evidence[0];
         if self.imprecise {
             // METHOD: no overlap of reads and breakends, hence, it is not harder to map the reads
             // to the alt than to the reference allele at all.
             LogProb::ln_one()
         } else {
-            match evidence {
+            match read_evidence {
                 Evidence::PairedEndSequencingRead { left, right } => {
                     // METHOD: we do not require the fragment to enclose the breakend group.
                     // Hence, we treat both reads independently.

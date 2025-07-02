@@ -143,7 +143,7 @@ pub(crate) trait Variant {
     /// The index of the loci for which this evidence is valid, `None` if invalid.
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>>;
 
@@ -153,7 +153,7 @@ pub(crate) trait Variant {
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>>;
@@ -161,7 +161,7 @@ pub(crate) trait Variant {
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
 
@@ -337,14 +337,18 @@ where
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
-                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                if let Some(idx) =
+                    self.is_valid_evidence(std::slice::from_ref(&evidence), alignment_properties)
+                {
                     push_evidence(evidence, idx);
                 }
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = Evidence::SingleEndSequencingRead(Rc::clone(&candidate.left));
-                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                if let Some(idx) =
+                    self.is_valid_evidence(std::slice::from_ref(&evidence), alignment_properties)
+                {
                     push_evidence(evidence, idx);
                 }
             }

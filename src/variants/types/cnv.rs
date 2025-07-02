@@ -101,9 +101,10 @@ impl<R: Realigner> Variant for Cnv<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        // The evidence consist of only one Readobservation
         dbg!(&self.breakends);
         dbg!(&self.len);
         self.breakends
@@ -116,10 +117,11 @@ impl<R: Realigner> Variant for Cnv<R> {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
+        // The evidence consist of only one Readobservation
         let support =
             self.breakends
                 .allele_support(evidence, alignment_properties, alt_variants)?;
@@ -129,9 +131,10 @@ impl<R: Realigner> Variant for Cnv<R> {
 
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
+        // The evidence consist of only one Readobservation
         self.breakends
             .prob_sample_alt(evidence, alignment_properties)
     }

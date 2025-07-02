@@ -50,9 +50,10 @@ impl Variant for HaplotypeBlock {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        // The evidence consist of only one Readobservation
         let mut locus_offset = 0;
         let valid_indices: Vec<usize> = self
             .variants
@@ -85,7 +86,7 @@ impl Variant for HaplotypeBlock {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -104,7 +105,7 @@ impl Variant for HaplotypeBlock {
 
     fn prob_sample_alt(
         &self,
-        _evidence: &Evidence,
+        _evidence: &[Evidence],
         _alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO combine sampling probs of all involved variants, reuse is_valid_evidence information for that
