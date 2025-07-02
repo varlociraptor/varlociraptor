@@ -101,13 +101,14 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
 
     fn is_valid_evidence(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        dbg!(&self.breakends);
-        dbg!(&self.len);
-        self.breakends
-            .is_valid_evidence(evidence, alignment_properties)
+        // dbg!(&self.breakends);
+        // dbg!(&self.len);
+        // self.breakends
+        //     .is_valid_evidence(evidence, alignment_properties)
+        None
     }
 
     fn loci(&self) -> &MultiLocus {
@@ -116,24 +117,26 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
 
     fn allele_support(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let support =
-            self.breakends
-                .allele_support(evidence, alignment_properties, alt_variants)?;
+        // let support =
+        //     self.breakends
+        //         .allele_support(evidence, alignment_properties, alt_variants)?;
 
-        Ok(support)
+        // Ok(support)
+        Ok(None)
     }
 
     fn prob_sample_alt(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        self.breakends
-            .prob_sample_alt(evidence, alignment_properties)
+        // self.breakends
+        //     .prob_sample_alt(evidence, alignment_properties)
+        LogProb(0.0)
     }
 }
 
