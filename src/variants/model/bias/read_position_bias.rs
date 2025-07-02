@@ -1,10 +1,9 @@
 use bio::stats::probs::LogProb;
 use itertools::Itertools;
 
+use crate::variants::evidence::observations::observation::ReadPosition;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::{
-    ProcessedReadObservation, ReadPosition,
-};
+use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, Default, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]

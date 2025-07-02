@@ -18,13 +18,17 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::reference;
-use crate::variants::evidence::observations::read_observation::{
-    major_read_position, Observable, ReadObservation,
+use crate::variants::evidence::observations::depth_observation::{
+    major_read_position as depth_major_read_position, DepthObservable, DepthObservation,
 };
-use crate::variants::types::Variant;
+use crate::variants::evidence::observations::read_observation::{
+    major_read_position as read_major_read_position, ReadObservable, ReadObservation,
+};
+use crate::variants::types::{DepthVariant, ReadVariant};
 
+use super::evidence::observations::depth_observation::major_alt_locus as depth_major_alt_locus;
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
-use super::evidence::observations::read_observation::major_alt_locus;
+use super::evidence::observations::read_observation::major_alt_locus as read_major_alt_locus;
 use super::evidence::realignment::Realignable;
 use super::types::Loci;
 use crate::variants::evidence::observations::pileup::Pileup;
@@ -215,13 +219,13 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub(crate) fn extract_observations<V>(
+    pub(crate) fn extract_read_observations<V>(
         &mut self,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Pileup>
     where
-        V: Variant + Observable,
+        V: ReadVariant + ReadObservable,
     {
         let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
             if self.report_fragment_ids {
@@ -247,8 +251,8 @@ impl Sample {
             &mut observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
-        let major_pos = major_read_position(&observations);
-        let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
+        let major_pos = read_major_read_position(&observations);
+        let major_alt_locus = read_major_alt_locus(&observations, &self.alignment_properties);
         let mut observations: Vec<_> = observations
             .iter()
             .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
@@ -257,5 +261,49 @@ impl Sample {
             ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
         }
         Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
+    }
+
+    pub(crate) fn extract_depth_observations<V>(
+        &mut self,
+        variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Pileup>
+    where
+        V: DepthVariant + DepthObservable,
+    {
+        let mut observation_id_factory = if let Some(contig) = variant.loci().contig() {
+            if self.report_fragment_ids {
+                // METHOD: we only report read IDs for single contig variants.
+                // Reason: we expect those to come in sorted, so that we can clear the
+                // read ID registry at each new contig, saving lots of memory.
+                // TODO: In the future, we might find a smarter way and thereby also include
+                // multi-contig variants into the calculation.
+                self.fragment_id_factory.register_contig(contig);
+                Some(&mut self.fragment_id_factory)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let observations = variant.extract_observations(
+            &mut self.record_buffer,
+            &mut self.alignment_properties,
+            self.max_depth,
+            alt_variants,
+            &mut observation_id_factory,
+        )?;
+        // Process for each observation whether it is from the major read position or not.
+        let major_pos = depth_major_read_position(&observations);
+        let major_alt_locus = depth_major_alt_locus(&observations, &self.alignment_properties);
+        let mut observations: Vec<_> = observations
+            .iter()
+            .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
+            .collect();
+        if self.adjust_prob_mapping {
+            DepthObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        }
+        Ok(Pileup::new(Vec::new(), observations)) // TODO add depth observations!
     }
 }

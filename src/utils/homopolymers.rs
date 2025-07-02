@@ -7,7 +7,7 @@ use bio::{
 
 use itertools::Itertools;
 
-use crate::{estimation::alignment_properties::AlignmentProperties, variants::types::Variant};
+use crate::{estimation::alignment_properties::AlignmentProperties, variants::types::ReadVariant};
 
 #[derive(Clone, Debug, CopyGetters)]
 #[getset(get_copy = "pub(crate)")]
@@ -174,7 +174,7 @@ pub(crate) struct HomopolymerErrorModel {
 impl HomopolymerErrorModel {
     pub(crate) fn new<V>(variant: &V, alignment_properties: &AlignmentProperties) -> Option<Self>
     where
-        V: Variant,
+        V: ReadVariant,
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
             let is_valid = |item_len| {

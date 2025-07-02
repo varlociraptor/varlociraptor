@@ -9,9 +9,9 @@ use bio::stats::LogProb;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::sampling_bias::SamplingBias;
-use crate::variants::types::Variant;
+use crate::variants::types::ReadVariant;
 
-pub(crate) trait ReadSamplingBias: Variant + SamplingBias {
+pub(crate) trait ReadSamplingBias: ReadVariant + SamplingBias {
     /// Probability to sample read from alt allele given the average feasible positions observed
     /// from a subsample of the mapped reads.
     ///

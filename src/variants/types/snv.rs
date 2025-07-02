@@ -20,7 +20,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::observations::observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
@@ -28,7 +28,7 @@ use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, ReadVariant, SingleLocus,
 };
 
 use super::MultiLocus;
@@ -173,7 +173,7 @@ impl<R: Realigner> Realignable for Snv<R> {
     }
 }
 
-impl<R: Realigner> Variant for Snv<R> {
+impl<R: Realigner> ReadVariant for Snv<R> {
     fn is_imprecise(&self) -> bool {
         false
     }

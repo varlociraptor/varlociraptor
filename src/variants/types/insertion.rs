@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, ReadVariant};
 
 use super::ToVariantRepresentation;
 
@@ -123,7 +123,7 @@ impl<R: Realigner> SamplingBias for Insertion<R> {
 
 impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 
-impl<R: Realigner> Variant for Insertion<R> {
+impl<R: Realigner> ReadVariant for Insertion<R> {
     fn is_imprecise(&self) -> bool {
         false
     }

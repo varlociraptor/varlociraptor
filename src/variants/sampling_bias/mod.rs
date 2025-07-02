@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::types::Variant;
+use crate::variants::types::ReadVariant;
 
 pub(crate) mod fragments;
 pub(crate) mod reads;
@@ -12,7 +12,7 @@ pub(crate) mod reads;
 pub(crate) use fragments::FragmentSamplingBias;
 pub(crate) use reads::ReadSamplingBias;
 
-pub(crate) trait SamplingBias: Variant {
+pub(crate) trait SamplingBias: ReadVariant {
     /// Number of bases that are feasible for overlapping the variant.
     /// Can return None if no information is available.
     fn feasible_bases(

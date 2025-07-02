@@ -11,16 +11,21 @@ use bio::stats::LogProb;
 use itertools::Itertools;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observations::read_observation::Observable;
+use crate::variants::evidence::observations::read_observation::ReadObservable;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::Realignable;
-use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, Variant};
+use crate::variants::types::{
+    AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, ReadVariant,
+};
 
 use super::ToVariantRepresentation;
 
-pub(crate) trait HaplotypeVariant: Variant + Observable + ToVariantRepresentation {}
+pub(crate) trait HaplotypeVariant:
+    ReadVariant + ReadObservable + ToVariantRepresentation
+{
+}
 
-impl<V> HaplotypeVariant for V where V: Variant + Observable + ToVariantRepresentation {}
+impl<V> HaplotypeVariant for V where V: ReadVariant + ReadObservable + ToVariantRepresentation {}
 
 #[derive(Default, Getters)]
 pub(crate) struct HaplotypeBlock {
@@ -43,7 +48,7 @@ impl HaplotypeBlock {
     }
 }
 
-impl Variant for HaplotypeBlock {
+impl ReadVariant for HaplotypeBlock {
     fn is_imprecise(&self) -> bool {
         false
     }

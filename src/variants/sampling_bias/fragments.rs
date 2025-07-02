@@ -12,9 +12,9 @@ use rgsl::randist::gaussian::ugaussian_P;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::sampling_bias::SamplingBias;
-use crate::variants::types::Variant;
+use crate::variants::types::ReadVariant;
 
-pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
+pub(crate) trait FragmentSamplingBias: ReadVariant + SamplingBias {
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
     fn isize_pmf_range(&self, alignment_properties: &AlignmentProperties) -> Range<u64> {

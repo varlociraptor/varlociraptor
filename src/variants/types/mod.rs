@@ -17,9 +17,12 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
-use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, ReadObservation, Strand,
+use crate::variants::evidence::observations::depth_observation::{
+    DepthObservable, DepthObservation,
 };
+use crate::variants::evidence::observations::observation::{Evidence, Strand};
+use crate::variants::evidence::observations::read_observation::{ReadObservable, ReadObservation};
+use crate::variants::model::bias::homopolymer_error;
 use crate::variants::sample;
 
 pub(crate) mod breakends;
@@ -132,7 +135,7 @@ impl AlleleSupport {
     }
 }
 
-pub(crate) trait Variant {
+pub(crate) trait ReadVariant {
     fn is_imprecise(&self) -> bool;
 
     /// Determine whether the evidence is suitable to assessing probabilities
@@ -171,7 +174,46 @@ pub(crate) trait Variant {
     }
 }
 
-pub(crate) trait IsizeObservable: Variant + FragmentSamplingBias {
+pub(crate) trait DepthVariant {
+    fn is_imprecise(&self) -> bool;
+
+    /// Determine whether the evidence is suitable to assessing probabilities
+    /// (i.e. overlaps the variant in the right way).
+    ///
+    /// # Returns
+    ///
+    /// The index of the loci for which this evidence is valid, `None` if invalid.
+    fn is_valid_evidence(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>>;
+
+    /// Return variant loci.
+    fn loci(&self) -> &MultiLocus;
+
+    /// Calculate probability for alt and reference allele.
+    fn allele_support(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Option<AlleleSupport>>;
+
+    /// Calculate probability to sample a record length like the given one from the alt allele.
+    fn prob_sample_alt(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb;
+
+    /// Return the homopolymer indel len of the variant, if any.
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        None
+    }
+}
+
+pub(crate) trait IsizeObservable: ReadVariant + FragmentSamplingBias {
     fn allele_support_isize(
         &self,
         left_record: &bam::Record,
@@ -225,9 +267,9 @@ pub(crate) trait ToVariantRepresentation {
     fn to_variant_representation(&self) -> model::Variant;
 }
 
-impl<V> Observable for V
+impl<V> ReadObservable for V
 where
-    V: Variant,
+    V: ReadVariant,
 {
     fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
@@ -272,6 +314,156 @@ where
 
         let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
 
+        let mut fetches = buffer.build_fetches(true);
+        for locus in self.loci().iter() {
+            fetches.push(locus);
+        }
+        for interval in fetches.iter() {
+            // Fetch intervals cannot overlap. This is ensured by the way they are built.
+            buffer.fetch(interval, true)?;
+
+            for record in buffer.iter() {
+                // METHOD: First, we check whether the record contains an indel in the cigar.
+                // We store the maximum indel size to update the global estimates, in case
+                // it is larger in this region.
+                alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
+
+                // We look at the whole fragment at once.
+
+                // TODO move this text to the right place:
+                // We ensure fair sampling by checking if the whole fragment overlaps the
+                // centerpoint. Only taking the internal segment would not be fair,
+                // because then the second read of reference fragments tends to cross
+                // the centerpoint and the fragment would be discarded.
+                // The latter would not happen for alt (deletion) fragments, because the second
+                // read would map right of the variant in that case.
+
+                // We always choose the leftmost and the rightmost alignment, thereby also
+                // considering supplementary alignments.
+
+                if !candidate_records.contains_key(record.qname()) {
+                    // this is the first (primary or supplementary alignment in the pair
+                    candidate_records.insert(record.qname().to_owned(), Candidate::new(record));
+                } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
+                    // this is either the last alignment or one in the middle
+                    if (candidate.left.is_first_in_template() && record.is_first_in_template())
+                        && (candidate.left.is_last_in_template() && record.is_last_in_template())
+                    {
+                        // Ignore another partial alignment right of the first.
+                        continue;
+                    }
+                    // replace right record (we seek for the rightmost (partial) alignment)
+                    candidate.right = Some(record);
+                }
+            }
+        }
+
+        let mut candidates = Vec::new();
+        let mut locus_depth = VecMap::new();
+        let mut push_evidence = |evidence: Evidence, idx| {
+            candidates.push(evidence);
+            for i in idx {
+                let count = locus_depth.entry(i).or_insert(0);
+                *count += 1;
+            }
+        };
+
+        for candidate in candidate_records.values() {
+            if let Some(ref right) = candidate.right {
+                if candidate.left.mapq() == 0 || right.mapq() == 0 {
+                    // Ignore pairs with ambiguous alignments.
+                    // The statistical model does not consider them anyway.
+                    continue;
+                }
+                let evidence = Evidence::PairedEndSequencingRead {
+                    left: Rc::clone(&candidate.left),
+                    right: Rc::clone(right),
+                };
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    push_evidence(evidence, idx);
+                }
+            } else {
+                // this is a single alignment with unmapped mate or mate outside of the
+                // region of interest
+                let evidence = Evidence::SingleEndSequencingRead(Rc::clone(&candidate.left));
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
+                    push_evidence(evidence, idx);
+                }
+            }
+        }
+
+        // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
+        // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
+        let subsample = locus_depth.values().all(|depth| *depth > max_depth);
+        let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+
+        let mut observations = Vec::new();
+        for evidence in &candidates {
+            if !subsample || subsampler.keep() {
+                if let Some(obs) = self.evidence_to_observation(
+                    evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                    alt_variants,
+                    observation_id_factory,
+                )? {
+                    observations.push(obs);
+                }
+            }
+        }
+
+        Ok(observations)
+    }
+}
+
+impl<V> DepthObservable for V
+where
+    V: DepthVariant,
+{
+    fn prob_mapping(&self, evidence: &Evidence) -> LogProb {
+        let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
+        match evidence {
+            Evidence::SingleEndSequencingRead(record) => prob(record).ln_one_minus_exp(),
+            Evidence::PairedEndSequencingRead { left, right } => {
+                // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
+                // In BWA, MAPQ is influenced by the mate, hence they are not independent
+                // and we can therefore not multiply them. By taking the maximum, we
+                // make a conservative choice (since 1-mapq is the mapping probability).
+                let mut p = prob(left);
+                let mut q = prob(right);
+                if p < q {
+                    std::mem::swap(&mut p, &mut q);
+                }
+                p.ln_one_minus_exp()
+            }
+        }
+    }
+
+    fn min_mapq(&self, evidence: &Evidence) -> u8 {
+        match evidence {
+            Evidence::SingleEndSequencingRead(record) => record.mapq(),
+            Evidence::PairedEndSequencingRead { left, right } => {
+                cmp::min(left.mapq(), right.mapq())
+            }
+        }
+    }
+
+    fn extract_observations(
+        &self,
+        buffer: &mut sample::RecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
+        max_depth: usize,
+        alt_variants: &[Box<dyn Realignable>],
+        observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+    ) -> Result<Vec<DepthObservation>> {
+        // We cannot use a hash function here because candidates have to be considered
+        // in a deterministic order. Otherwise, subsampling high-depth regions will result
+        // in slightly different probabilities each time.
+        let mut candidate_records = BTreeMap::new();
+
+        // TODO: Work on support for HomopoolymerErrorModel for DepthObservations
+        // let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
+        let homopolymer_error_model = None;
         let mut fetches = buffer.build_fetches(true);
         for locus in self.loci().iter() {
             fetches.push(locus);

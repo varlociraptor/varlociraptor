@@ -25,7 +25,7 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::aux_info::AuxInfo;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::observations::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
@@ -33,8 +33,8 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model::{self, VariantPrecision};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, SingleLocus, SingleLocusBuilder,
-    Variant,
+    AlleleSupport, AlleleSupportBuilder, Evidence, MultiLocus, ReadVariant, SingleLocus,
+    SingleLocusBuilder,
 };
 
 use super::IsizeObservable;
@@ -300,7 +300,7 @@ impl<R: Realigner> BreakendGroup<R> {
     }
 }
 
-impl<R: Realigner> Variant for BreakendGroup<R> {
+impl<R: Realigner> ReadVariant for BreakendGroup<R> {
     fn is_imprecise(&self) -> bool {
         self.imprecise
     }

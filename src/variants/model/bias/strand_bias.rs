@@ -5,9 +5,9 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 
 use crate::utils::PROB_05;
+use crate::variants::evidence::observations::observation::Strand;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
-use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Ord, EnumIter, Hash)]

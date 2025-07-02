@@ -424,8 +424,9 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::variants::evidence::observations::read_observation::{
-        AltLocus, ProcessedReadObservation, ReadObservationBuilder, ReadPosition, Strand,
+    use crate::variants::evidence::observations::{
+        observation::{AltLocus, ReadPosition, Strand},
+        read_observation::{ProcessedReadObservation, ReadObservationBuilder},
     };
     use bio_types::sequence::SequenceReadPairOrientation;
 

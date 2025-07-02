@@ -25,7 +25,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, ReadVariant, SingleLocus};
 
 #[derive(Debug)]
 pub(crate) struct Replacement<R: Realigner> {
@@ -142,7 +142,7 @@ impl<R: Realigner> SamplingBias for Replacement<R> {
 
 impl<R: Realigner> ReadSamplingBias for Replacement<R> {}
 
-impl<R: Realigner> Variant for Replacement<R> {
+impl<R: Realigner> ReadVariant for Replacement<R> {
     fn is_imprecise(&self) -> bool {
         false
     }

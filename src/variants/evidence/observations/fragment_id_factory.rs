@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::read_observation::{Evidence, EvidenceIdentifier};
+use super::observation::{Evidence, EvidenceIdentifier};
 
 #[derive(Default, Debug)]
 pub(crate) struct FragmentIdFactory {

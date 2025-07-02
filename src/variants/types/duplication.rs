@@ -8,7 +8,7 @@ use crate::variants::model;
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
-use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, ReadVariant};
 
 use super::ToVariantRepresentation;
 
@@ -98,7 +98,7 @@ impl<R: Realigner> Duplication<R> {
     }
 }
 
-impl<R: Realigner> Variant for Duplication<R> {
+impl<R: Realigner> ReadVariant for Duplication<R> {
     fn is_imprecise(&self) -> bool {
         false
     }

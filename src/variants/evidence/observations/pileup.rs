@@ -1,19 +1,21 @@
 use bio_types::sequence::SequenceReadPairOrientation;
 
+use crate::variants::evidence::observations::depth_observation::ProcessedDepthObservation;
+
 use super::{depth_observation::DepthObservation, read_observation::ProcessedReadObservation};
 
 #[derive(Debug, Getters, MutGetters, Default)]
 #[getset(get = "pub", get_mut = "pub(crate)")]
 pub struct Pileup {
     read_observations: Vec<ProcessedReadObservation>,
-    depth_observations: Vec<DepthObservation>,
+    depth_observations: Vec<ProcessedDepthObservation>,
     n_filtered_out_observations: usize,
 }
 
 impl Pileup {
     pub(crate) fn new(
         read_observations: Vec<ProcessedReadObservation>,
-        depth_observations: Vec<DepthObservation>,
+        depth_observations: Vec<ProcessedDepthObservation>,
     ) -> Self {
         Self {
             read_observations,

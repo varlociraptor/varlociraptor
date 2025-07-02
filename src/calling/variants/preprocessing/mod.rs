@@ -31,10 +31,9 @@ use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
+use crate::variants::evidence::observations::observation::{AltLocus, ReadPosition, Strand};
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::{
-    AltLocus, ReadObservationBuilder, ReadPosition, Strand,
-};
+use crate::variants::evidence::observations::read_observation::ReadObservationBuilder;
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
@@ -657,7 +656,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                             .write()
                                             .unwrap()
                                             .insert(event.to_owned(), breakend_group);
-                                        sample.extract_observations(
+                                        sample.extract_read_observations(
                                             &*self
                                                 .breakend_groups
                                                 .read()
@@ -750,7 +749,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             .unwrap()
                             == variants.record_info().index()
                         {
-                            sample.extract_observations(&*haplotype_block, &Vec::new())?
+                            sample.extract_read_observations(&*haplotype_block, &Vec::new())?
                         } else {
                             return Ok(None);
                         }
@@ -760,33 +759,32 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 // single variants
                 match variants.variant_of_interest().variant() {
                     model::Variant::Snv(alt) => {
-                        sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
+                        sample.extract_read_observations(&parse_snv(*alt)?, &Vec::new())?
                     }
                     model::Variant::Mnv(alt) => {
-                        sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
+                        sample.extract_read_observations(&parse_mnv(alt)?, &alt_variants)?
                     }
                     model::Variant::None => {
-                        sample.extract_observations(&parse_none()?, &alt_variants)?
+                        sample.extract_read_observations(&parse_none()?, &alt_variants)?
                     }
                     model::Variant::Deletion(l) => {
-                        sample.extract_observations(&parse_deletion(*l)?, &alt_variants)?
+                        sample.extract_read_observations(&parse_deletion(*l)?, &alt_variants)?
                     }
                     model::Variant::Insertion(seq) => {
-                        sample.extract_observations(&parse_insertion(seq)?, &alt_variants)?
+                        sample.extract_read_observations(&parse_insertion(seq)?, &alt_variants)?
                     }
                     model::Variant::Inversion(len) => {
-                        sample.extract_observations(&parse_inversion(*len)?, &alt_variants)?
+                        sample.extract_read_observations(&parse_inversion(*len)?, &alt_variants)?
                     }
                     model::Variant::Cnv(len) => {
-                        sample.extract_observations(&parse_cnv(*len)?, &alt_variants)?
+                        sample.extract_depth_observations(&parse_cnv(*len)?, &alt_variants)?
                     }
-                    model::Variant::Duplication(len) => {
-                        sample.extract_observations(&parse_duplication(*len)?, &alt_variants)?
-                    }
+                    model::Variant::Duplication(len) => sample
+                        .extract_read_observations(&parse_duplication(*len)?, &alt_variants)?,
                     model::Variant::Replacement {
                         ref_allele,
                         alt_allele,
-                    } => sample.extract_observations(
+                    } => sample.extract_read_observations(
                         &parse_replacement(ref_allele, alt_allele)?,
                         &alt_variants,
                     )?,

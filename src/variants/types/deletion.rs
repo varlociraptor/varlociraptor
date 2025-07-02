@@ -24,7 +24,7 @@ use crate::variants::evidence::realignment::pairhmm::{
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, Evidence, MultiLocus, ReadVariant, SingleLocus};
 
 use super::{IsizeObservable, ToVariantRepresentation};
 
@@ -141,7 +141,7 @@ impl<R: Realigner> Realignable for Deletion<R> {
     }
 }
 
-impl<R: Realigner> Variant for Deletion<R> {
+impl<R: Realigner> ReadVariant for Deletion<R> {
     fn is_imprecise(&self) -> bool {
         false
     }
