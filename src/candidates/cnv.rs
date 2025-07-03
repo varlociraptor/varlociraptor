@@ -26,6 +26,7 @@ fn write_cnv_records(
         let mut cnv_record = bcf_writer.empty_record();
         cnv_record.set_pos(interval.range().start as i64);
         cnv_record.set_qual(f32::missing());
+        // TODO: What is the REF allele?
         cnv_record.set_alleles(&[b"<CNV>"])?;
         cnv_record
             .push_info_integer(b"END", &[interval.range().end as i32])
