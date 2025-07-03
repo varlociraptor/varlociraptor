@@ -492,19 +492,11 @@ impl AlignmentProperties {
 
         let effective_ref_len = original_ref_len.saturating_sub(cnv_total_len);
 
-        let avg_read_len = if all_stats.n_reads > 0 {
-            read_len_complete / all_stats.n_reads as u32
-        } else {
-            0
-        };
-
-        // TODO: This is a very rough estimate of the average depth, since the avg_read_len is uncertain
-        let avg_depth =
-            (all_stats.n_non_cnv_reads as u64 * avg_read_len as u64) / effective_ref_len;
+        let avg_depth = all_stats.n_non_cnv_reads as f64 / effective_ref_len as f64;
 
         // Compute coverage per CG ratio
         for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
-            let coverage = (num_reads * avg_read_len) as f64 / effective_ref_len as f64;
+            let coverage = num_reads as f64 / effective_ref_len as f64;
             properties
                 .avg_depth_per_cg_ratio
                 .push((cg_percent, coverage.round() as u32));
