@@ -233,18 +233,16 @@ impl AlignmentProperties {
             for result in bcf.records() {
                 let record = result.with_context(|| "Error reading record")?;
                 let pos = record.pos() as u64;
-                let end_pos = record
-                    .info(b"ENDPOS")
-                    .string()
-                    .with_context(|| "Missing or malformed ENDPOS field in record")?;
 
-                if let Some(end_vec) = end_pos {
-                    if let Some(end_bytes) = end_vec.first() {
-                        let end_str = std::str::from_utf8(end_bytes)?;
-                        if let Some((_, end_pos_str)) = end_str.split_once(':') {
-                            let end_pos = end_pos_str.parse::<u64>()?;
-                            // TODO: Johannes told me to use interval trees, but I do not need to safe any values to the intervals?
-                            intervals.push((pos..end_pos, ()));
+                if let Some(svtype_buf) = record.info(b"SVTYPE").string()? {
+                    if let Some(svtype_val) = svtype_buf.first() {
+                        if std::str::from_utf8(svtype_val)? == "CNV" {
+                            if let Some(end_buf) = record.info(b"END").integer()? {
+                                if let Some(&end) = end_buf.first() {
+                                    let end_pos = end as u64;
+                                    intervals.push((pos..end_pos, ()));
+                                }
+                            }
                         }
                     }
                 }
