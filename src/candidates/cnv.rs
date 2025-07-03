@@ -56,7 +56,7 @@ fn create_header_from_existing(old_header: &HeaderView) -> Result<Header> {
         b"##INFO=<ID=END,Number=1,Type=Integer,Description=\"Ending position of breakend\">",
     );
     header.push_record(
-        b"##INFO=<ID=SVTYPE,Number=2,Type=String,Description=\"Type of structural variant\">",
+        b"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">",
     );
     Ok(header)
 }
