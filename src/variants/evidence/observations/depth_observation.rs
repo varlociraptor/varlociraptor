@@ -11,7 +11,6 @@ use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self};
 use bio_types::sequence::SequenceReadPairOrientation;
 
-
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
@@ -20,7 +19,7 @@ use itertools::Itertools;
 use super::pileup::Pileup;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
-use crate::utils::{PROB_05};
+use crate::utils::PROB_05;
 use crate::utils::PROB_095;
 use crate::variants::evidence::observations::observation::{
     calc_major_feature, locus_to_bucket, AltLocus, Evidence, ExactAltLoci, MaxBayesFactor,
@@ -326,22 +325,18 @@ pub(crate) trait DepthObservable: DepthVariant {
     /// Calculate an observation from the given evidence.
     fn evidence_to_observation(
         &self,
-        evidence: &Evidence,
+        evidence: &[Evidence],
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
     ) -> Result<Option<DepthObservation>> {
-        let id = observation_id_factory
-            .as_mut()
-            .map(|factory| factory.register(evidence));
+        // let id = observation_id_factory
+        //     .as_mut()
+        //     .map(|factory| factory.register(evidence));
 
         Ok(
-            match self.allele_support(
-                std::slice::from_ref(&evidence),
-                alignment_properties,
-                alt_variants,
-            )? {
+            match self.allele_support(evidence, alignment_properties, alt_variants)? {
                 // METHOD: for precise variants,
                 // only consider allele support if it comes either from forward or reverse strand.
                 // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
@@ -352,32 +347,32 @@ pub(crate) trait DepthObservable: DepthVariant {
                     let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                     let mut obs = DepthObservationBuilder::default();
-                    obs.name(Some(evidence.id().to_string().to_owned()))
-                        .fragment_id(id)
-                        .prob_mapping_mismapping(self.prob_mapping(evidence))
-                        .prob_alt(allele_support.prob_alt_allele())
-                        .prob_ref(allele_support.prob_ref_allele())
-                        .prob_sample_alt(
-                            self.prob_sample_alt(
-                                std::slice::from_ref(&evidence),
-                                alignment_properties,
-                            ),
-                        )
-                        .prob_missed_allele(allele_support.prob_missed_allele())
-                        .prob_overlap(if allele_support.strand() == Strand::Both {
-                            LogProb::ln_one()
-                        } else {
-                            LogProb::ln_zero()
-                        })
-                        .strand(allele_support.strand())
-                        .read_orientation(evidence.read_orientation()?)
-                        .softclipped(evidence.softclipped())
-                        .read_position(allele_support.read_position())
-                        .paired(evidence.is_paired())
-                        .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
-                        .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
-                        .alt_locus(evidence.alt_loci())
-                        .third_allele_evidence(allele_support.third_allele_evidence().map(|d| *d));
+                    // obs.name(Some(evidence.id().to_string().to_owned()))
+                    //     .fragment_id(id)
+                    //     .prob_mapping_mismapping(self.prob_mapping(evidence))
+                    //     .prob_alt(allele_support.prob_alt_allele())
+                    //     .prob_ref(allele_support.prob_ref_allele())
+                    //     .prob_sample_alt(
+                    //         self.prob_sample_alt(
+                    //             std::slice::from_ref(&evidence),
+                    //             alignment_properties,
+                    //         ),
+                    //     )
+                    //     .prob_missed_allele(allele_support.prob_missed_allele())
+                    //     .prob_overlap(if allele_support.strand() == Strand::Both {
+                    //         LogProb::ln_one()
+                    //     } else {
+                    //         LogProb::ln_zero()
+                    //     })
+                    //     .strand(allele_support.strand())
+                    //     .read_orientation(evidence.read_orientation()?)
+                    //     .softclipped(evidence.softclipped())
+                    //     .read_position(allele_support.read_position())
+                    //     .paired(evidence.is_paired())
+                    //     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
+                    //     .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
+                    //     .alt_locus(evidence.alt_loci())
+                    //     .third_allele_evidence(allele_support.third_allele_evidence().map(|d| *d));
 
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
                         let ref_indel_len =

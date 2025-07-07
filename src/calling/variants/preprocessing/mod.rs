@@ -585,7 +585,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
                     model::Variant::Insertion(seq) => Box::new(parse_insertion(seq)?),
                     model::Variant::Inversion(len) => Box::new(parse_inversion(*len)?),
-                    model::Variant::Cnv(len) => Box::new(parse_inversion(*len)?),
+                    model::Variant::Cnv(len) => Box::new(parse_cnv(*len)?),
                     model::Variant::Duplication(len) => Box::new(parse_duplication(*len)?),
                     model::Variant::Replacement {
                         ref_allele,

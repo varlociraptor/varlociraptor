@@ -184,7 +184,7 @@ pub(crate) trait DepthVariant {
     /// The index of the loci for which this evidence is valid, `None` if invalid.
     fn is_valid_evidence(
         &self,
-        evidence: &[Evidence],
+        evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>>;
 
@@ -528,18 +528,14 @@ where
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
-                if let Some(idx) =
-                    self.is_valid_evidence(std::slice::from_ref(&evidence), alignment_properties)
-                {
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = Evidence::SingleEndSequencingRead(Rc::clone(&candidate.left));
-                if let Some(idx) =
-                    self.is_valid_evidence(std::slice::from_ref(&evidence), alignment_properties)
-                {
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
             }
@@ -551,17 +547,15 @@ where
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
         let mut observations = Vec::new();
-        for evidence in &candidates {
-            if !subsample || subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(
-                    evidence,
-                    alignment_properties,
-                    &homopolymer_error_model,
-                    alt_variants,
-                    observation_id_factory,
-                )? {
-                    observations.push(obs);
-                }
+        if !subsample || subsampler.keep() {
+            if let Some(obs) = self.evidence_to_observation(
+                &candidates,
+                alignment_properties,
+                &homopolymer_error_model,
+                alt_variants,
+                observation_id_factory,
+            )? {
+                observations.push(obs);
             }
         }
 
