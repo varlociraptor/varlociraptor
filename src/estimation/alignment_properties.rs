@@ -233,18 +233,16 @@ impl AlignmentProperties {
             for result in bcf.records() {
                 let record = result.with_context(|| "Error reading record")?;
                 let pos = record.pos() as u64;
-                let end_pos = record
-                    .info(b"ENDPOS")
-                    .string()
-                    .with_context(|| "Missing or malformed ENDPOS field in record")?;
 
-                if let Some(end_vec) = end_pos {
-                    if let Some(end_bytes) = end_vec.first() {
-                        let end_str = std::str::from_utf8(end_bytes)?;
-                        if let Some((_, end_pos_str)) = end_str.split_once(':') {
-                            let end_pos = end_pos_str.parse::<u64>()?;
-                            // TODO: Johannes told me to use interval trees, but I do not need to safe any values to the intervals?
-                            intervals.push((pos..end_pos, ()));
+                if let Some(svtype_buf) = record.info(b"SVTYPE").string()? {
+                    if let Some(svtype_val) = svtype_buf.first() {
+                        if std::str::from_utf8(svtype_val)? == "CNV" {
+                            if let Some(end_buf) = record.info(b"END").integer()? {
+                                if let Some(&end) = end_buf.first() {
+                                    let end_pos = end as u64;
+                                    intervals.push((pos..end_pos, ()));
+                                }
+                            }
                         }
                     }
                 }
@@ -492,19 +490,11 @@ impl AlignmentProperties {
 
         let effective_ref_len = original_ref_len.saturating_sub(cnv_total_len);
 
-        let avg_read_len = if all_stats.n_reads > 0 {
-            read_len_complete / all_stats.n_reads as u32
-        } else {
-            0
-        };
-
-        // TODO: This is a very rough estimate of the average depth, since the avg_read_len is uncertain
-        let avg_depth =
-            (all_stats.n_non_cnv_reads as u64 * avg_read_len as u64) / effective_ref_len;
+        let avg_depth = all_stats.n_non_cnv_reads as f64 / effective_ref_len as f64;
 
         // Compute coverage per CG ratio
         for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
-            let coverage = (num_reads * avg_read_len) as f64 / effective_ref_len as f64;
+            let coverage = num_reads as f64 / effective_ref_len as f64;
             properties
                 .avg_depth_per_cg_ratio
                 .push((cg_percent, coverage.round() as u32));
