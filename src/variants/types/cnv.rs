@@ -141,8 +141,8 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
         _: &[Box<dyn Realignable>],
     ) -> Result<Option<Vec<f64>>> {
         let cnv_start = self.breakends.loci()[0].range().start;
-        let cnv_end = self.breakends.loci()[1].range().end;
-        let mut cnv_read_depth = vec![0.0; self.len as usize];
+        let cnv_end = self.breakends.loci()[1].range().end - 1;
+        let mut cnv_read_depth = vec![0.0; self.len as usize - 1];
         for ev in evidence {
             let starts = match ev {
                 Evidence::SingleEndSequencingRead(read) => {

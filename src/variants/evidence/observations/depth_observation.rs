@@ -32,7 +32,7 @@ impl DepthObservation {
 
     pub fn compute_cnv_probs(
         cnv_positions_depth: Vec<f64>,
-        avg_depth: u32,
+        avg_depth: f64,
         max_number_cn: usize,
     ) -> Self {
         // TODO How to know the ploidy?
@@ -40,11 +40,11 @@ impl DepthObservation {
 
         let cnv_probs = (0..=max_number_cn)
             .map(|cn| {
-                let lambda = (cn as f64 / ploidy) * avg_depth as f64;
+                let lambda = (cn as f64 / ploidy) * avg_depth;
 
                 let log_likelihood = if lambda == 0.0 {
                     if cnv_positions_depth.iter().all(|&d| d == 0.0) {
-                        LogProb(0.0)
+                        LogProb(1.0)
                     } else {
                         LogProb(f64::NEG_INFINITY)
                     }
