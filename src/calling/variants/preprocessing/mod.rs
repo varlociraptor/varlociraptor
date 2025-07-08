@@ -11,6 +11,7 @@ use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{bail, Context, Result};
+use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
@@ -31,6 +32,7 @@ use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
+use crate::variants::evidence::observations::depth_observation::DepthObservation;
 use crate::variants::evidence::observations::observation::{AltLocus, ReadPosition, Strand};
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ReadObservationBuilder;
@@ -74,6 +76,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
     variant_heterozygosity_field: Option<Vec<u8>>,
+    max_number_cn: usize,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
 
@@ -777,9 +780,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Inversion(len) => {
                         sample.extract_read_observations(&parse_inversion(*len)?, &alt_variants)?
                     }
-                    model::Variant::Cnv(len) => {
-                        sample.extract_depth_observations(&parse_cnv(*len)?, &alt_variants)?
-                    }
+                    model::Variant::Cnv(len) => sample.extract_depth_observations(
+                        &parse_cnv(*len)?,
+                        &alt_variants,
+                        self.max_number_cn,
+                    )?,
                     model::Variant::Duplication(len) => sample
                         .extract_read_observations(&parse_duplication(*len)?, &alt_variants)?,
                     model::Variant::Replacement {
@@ -836,75 +841,90 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
 
         Ok(values)
     }
+    let has_fragment_id = record.info(b"FRAGMENT_ID").integer()?.is_some();
+    let (read_obserations, is_homopolymer_indel) = if has_fragment_id {
+        let ids: Vec<Option<u64>> = read_values(record, b"FRAGMENT_ID", false)?;
+        let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
+        let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
+        let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT", false)?;
+        let prob_missed_allele: Vec<MiniLogProb> =
+            read_values(record, b"PROB_MISSED_ALLELE", false)?;
+        let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT", false)?;
+        let prob_double_overlap: Vec<MiniLogProb> =
+            read_values(record, b"PROB_DOUBLE_OVERLAP", false)?;
+        let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE", false)?;
+        let strand: Vec<Strand> = read_values(record, b"STRAND", false)?;
+        let read_orientation: Vec<SequenceReadPairOrientation> =
+            read_values(record, b"READ_ORIENTATION", false)?;
+        let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION", false)?;
+        let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
+        let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
+        let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
+            read_values(record, b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE", true)?;
+        let prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
+            read_values(record, b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE", true)?;
+        let homopolymer_indel_len: Vec<Option<i8>> =
+            read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
+        let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
+        let is_max_mapq: BitVec<u8> = read_values(record, b"IS_MAX_MAPQ", false)?;
+        let alt_locus: Vec<AltLocus> = read_values(record, b"ALT_LOCUS", false)?;
+        let third_allele_evidence: Vec<Option<u32>> =
+            read_values(record, b"THIRD_ALLELE_EVIDENCE", false)?;
 
-    let ids: Vec<Option<u64>> = read_values(record, b"FRAGMENT_ID", false)?;
-    let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
-    let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
-    let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT", false)?;
-    let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE", false)?;
-    let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT", false)?;
-    let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP", false)?;
-    let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE", false)?;
-    let strand: Vec<Strand> = read_values(record, b"STRAND", false)?;
-    let read_orientation: Vec<SequenceReadPairOrientation> =
-        read_values(record, b"READ_ORIENTATION", false)?;
-    let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION", false)?;
-    let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
-    let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
-    let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
-        read_values(record, b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE", true)?;
-    let prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
-        read_values(record, b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE", true)?;
-    let homopolymer_indel_len: Vec<Option<i8>> =
-        read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
-    let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
-    let is_max_mapq: BitVec<u8> = read_values(record, b"IS_MAX_MAPQ", false)?;
-    let alt_locus: Vec<AltLocus> = read_values(record, b"ALT_LOCUS", false)?;
-    let third_allele_evidence: Vec<Option<u32>> =
-        read_values(record, b"THIRD_ALLELE_EVIDENCE", false)?;
+        let read_obs = (0..prob_mapping.len())
+            .map(|i| {
+                let mut obs = ReadObservationBuilder::default();
+                obs.name(None) // we do not pass the read names to the calling process
+                    .fragment_id(ids[i])
+                    .prob_mapping_mismapping(prob_mapping[i].to_logprob())
+                    .prob_alt(prob_alt[i].to_logprob())
+                    .prob_ref(prob_ref[i].to_logprob())
+                    .prob_missed_allele(prob_missed_allele[i].to_logprob())
+                    .prob_sample_alt(prob_sample_alt[i].to_logprob())
+                    .prob_overlap(prob_double_overlap[i].to_logprob())
+                    .prob_hit_base(prob_hit_base[i].to_logprob())
+                    .strand(strand[i])
+                    .read_orientation(read_orientation[i])
+                    .read_position(read_position[i])
+                    .softclipped(softclipped[i as u64])
+                    .paired(paired[i as u64])
+                    .is_max_mapq(is_max_mapq[i as u64])
+                    .alt_locus(alt_locus[i])
+                    .third_allele_evidence(third_allele_evidence[i]);
 
-    let read_obs = (0..prob_mapping.len())
-        .map(|i| {
-            let mut obs = ReadObservationBuilder::default();
-            obs.name(None) // we do not pass the read names to the calling process
-                .fragment_id(ids[i])
-                .prob_mapping_mismapping(prob_mapping[i].to_logprob())
-                .prob_alt(prob_alt[i].to_logprob())
-                .prob_ref(prob_ref[i].to_logprob())
-                .prob_missed_allele(prob_missed_allele[i].to_logprob())
-                .prob_sample_alt(prob_sample_alt[i].to_logprob())
-                .prob_overlap(prob_double_overlap[i].to_logprob())
-                .prob_hit_base(prob_hit_base[i].to_logprob())
-                .strand(strand[i])
-                .read_orientation(read_orientation[i])
-                .read_position(read_position[i])
-                .softclipped(softclipped[i as u64])
-                .paired(paired[i as u64])
-                .is_max_mapq(is_max_mapq[i as u64])
-                .alt_locus(alt_locus[i])
-                .third_allele_evidence(third_allele_evidence[i]);
+                if is_homopolymer_indel {
+                    obs.homopolymer_indel_len(homopolymer_indel_len[i])
+                        .prob_observable_at_homopolymer_artifact(
+                            prob_observable_at_homopolymer_artifact[i]
+                                .map(|prob| prob.to_logprob()),
+                        )
+                        .prob_observable_at_homopolymer_variant(
+                            prob_observable_at_homopolymer_variant[i].map(|prob| prob.to_logprob()),
+                        );
+                } else {
+                    obs.homopolymer_indel_len(None)
+                        .prob_observable_at_homopolymer_artifact(None)
+                        .prob_observable_at_homopolymer_variant(None);
+                }
+                obs.build().unwrap()
+            })
+            .collect_vec();
+        (read_obs, is_homopolymer_indel)
+    } else {
+        (Vec::new(), false)
+    };
 
-            if is_homopolymer_indel {
-                obs.homopolymer_indel_len(homopolymer_indel_len[i])
-                    .prob_observable_at_homopolymer_artifact(
-                        prob_observable_at_homopolymer_artifact[i].map(|prob| prob.to_logprob()),
-                    )
-                    .prob_observable_at_homopolymer_variant(
-                        prob_observable_at_homopolymer_variant[i].map(|prob| prob.to_logprob()),
-                    );
-            } else {
-                obs.homopolymer_indel_len(None)
-                    .prob_observable_at_homopolymer_artifact(None)
-                    .prob_observable_at_homopolymer_variant(None);
-            }
-            obs.build().unwrap()
-        })
-        .collect_vec();
-
-    let depth_obs = Vec::new(); // TODO: read depth observations!
+    let is_cnv = record.info(b"PROBS_CNV").integer()?.is_some();
+    let depth_observation = if is_cnv {
+        let cnv_probs: Vec<LogProb> = read_values(record, b"PROBS_CNV", false)?;
+        let depth_obs = DepthObservation::new(cnv_probs);
+        Vec::from([depth_obs])
+    } else {
+        Vec::new()
+    };
 
     Ok(Observations {
-        pileup: Pileup::new(read_obs, depth_obs),
+        pileup: Pileup::new(read_obserations, depth_observation),
         is_homopolymer_indel,
     })
 }

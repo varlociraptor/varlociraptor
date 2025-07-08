@@ -442,6 +442,7 @@ where
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+        max_number_cn: usize,
     ) -> Result<Vec<DepthObservation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
@@ -542,6 +543,7 @@ where
                 &homopolymer_error_model,
                 alt_variants,
                 observation_id_factory,
+                max_number_cn,
             )? {
                 observations.push(obs);
             }

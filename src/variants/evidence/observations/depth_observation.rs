@@ -19,18 +19,26 @@ use crate::variants::evidence::realignment::Realignable;
 
 use super::fragment_id_factory::FragmentIdFactory;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Getters)]
 pub struct DepthObservation {
+    #[getset(get = "pub")]
     pub cnv_probs: Vec<LogProb>,
 }
 
 impl DepthObservation {
-    pub fn new(cnv_positions_depth: Vec<f64>, avg_depth: u32) -> Self {
+    pub fn new(cnv_probs: Vec<LogProb>) -> Self {
+        Self { cnv_probs }
+    }
+
+    pub fn compute_cnv_probs(
+        cnv_positions_depth: Vec<f64>,
+        avg_depth: u32,
+        max_number_cn: usize,
+    ) -> Self {
         // TODO How to know the ploidy?
         let ploidy = 2.0;
-        let max_cn = 100;
 
-        let cnv_probs = (0..=max_cn)
+        let cnv_probs = (0..=max_number_cn)
             .map(|cn| {
                 let lambda = (cn as f64 / ploidy) * avg_depth as f64;
 
@@ -65,6 +73,7 @@ pub(crate) trait DepthObservable: DepthVariant {
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+        max_number_cn: usize,
     ) -> Result<Vec<DepthObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -82,6 +91,7 @@ pub(crate) trait DepthObservable: DepthVariant {
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+        max_number_cn: usize,
     ) -> Result<Option<DepthObservation>> {
         // let id = observation_id_factory
         //     .as_mut()
@@ -94,8 +104,11 @@ pub(crate) trait DepthObservable: DepthVariant {
                 // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
                 // any information (e.g. no overlap).
                 Some(cnv_read_depths) => {
-                    let mut obs =
-                        DepthObservation::new(cnv_read_depths, alignment_properties.avg_depth);
+                    let mut obs = DepthObservation::compute_cnv_probs(
+                        cnv_read_depths,
+                        alignment_properties.avg_depth,
+                        max_number_cn,
+                    );
                     // if allele_support.strand() != Strand::None || self.is_imprecise() =>
                     // {
                     // let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);

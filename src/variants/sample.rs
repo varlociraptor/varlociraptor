@@ -264,6 +264,7 @@ impl Sample {
         &mut self,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
+        max_number_cn: usize,
     ) -> Result<Pileup>
     where
         V: DepthVariant + DepthObservable,
@@ -290,6 +291,7 @@ impl Sample {
             self.max_depth,
             alt_variants,
             &mut observation_id_factory,
+            max_number_cn,
         )?;
         // Process for each observation whether it is from the major read position or not.
         // let major_pos = depth_major_read_position(&observations);

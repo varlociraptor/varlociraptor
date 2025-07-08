@@ -105,6 +105,7 @@ impl Testcase for TestcaseVersion0 {
                         atomic_candidate_variants: false,
                         variant_heterozygosity_field: None,
                         variant_somatic_effective_mutation_rate_field: None,
+                        max_number_cn: 100, // Default value for test cases
                     },
                 };
 

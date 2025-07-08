@@ -186,6 +186,10 @@ fn default_min_bam_refetch_distance() -> u64 {
     1
 }
 
+fn default_max_number_cn() -> usize {
+    100
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -352,6 +356,14 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         output_raw_observations: Option<PathBuf>,
+        #[structopt(
+            long = "max-number-cn",
+            required = false,
+            default_value = "100",
+            help = "Maximum number of expected copy numbers in search for copy-number-variants"
+        )]
+        #[serde(default = "default_max_number_cn")]
+        max_number_cn: usize,
     },
 }
 
@@ -861,6 +873,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     output_raw_observations,
                     variant_heterozygosity_field,
                     variant_somatic_effective_mutation_rate_field,
+                    max_number_cn,
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
@@ -901,7 +914,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     match pairhmm_mode.as_ref() {
                         "homopolymer" => {
                             let hop_params = alignment_properties.hop_params.clone();
-                            let mut processor =
+                            let mut processor: calling::variants::preprocessing::ObservationProcessor<realignment::HomopolyPairHMMRealigner> =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
@@ -930,6 +943,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .max_number_cn(max_number_cn)
                                     .build();
                             processor.process()?;
                         }
@@ -962,6 +976,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .max_number_cn(max_number_cn)
                                     .build();
                             processor.process()?;
                         }
@@ -994,6 +1009,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .max_number_cn(max_number_cn)
                                     .build();
                             processor.process()?;
                         }

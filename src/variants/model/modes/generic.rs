@@ -239,7 +239,7 @@ impl GenericPosterior {
                         // Hence we always assume that there is no clear ref support and do the full
                         // evaluation below.
                         // This should be fine since there should be much less CNV calls than small variants.
-                        (pileup.depth_observations().len(), false)
+                        (pileup.depth_observations()[0].cnv_probs().len(), false)
                     } else {
                         // normal variants, only consider read observations for these heuristic markers
                         let n_obs = pileup.read_observations().len();
