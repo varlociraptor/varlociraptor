@@ -66,8 +66,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
-    pub(crate) avg_depth: u32,
-    pub(crate) avg_depth_per_cg_ratio: Vec<(i64, u32)>,
+    pub(crate) avg_depth: f64,
+    pub(crate) avg_depth_per_cg_ratio: Vec<(i64, f64)>,
     #[serde(default = "BackwardsCompatibility::default_max_mapq")]
     pub(crate) max_mapq: u8,
     #[serde(skip, default)]
@@ -168,7 +168,7 @@ impl AlignmentProperties {
             frac_max_softclip: None,
             max_read_len: 0,
             max_mapq: 0,
-            avg_depth: 0,
+            avg_depth: 0.0,
             avg_depth_per_cg_ratio: Vec::new(),
             cigar_counts: Default::default(),
             transition_counts: Default::default(),
@@ -494,10 +494,11 @@ impl AlignmentProperties {
 
         // Compute coverage per CG ratio
         for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
+            dbg!(cg_percent, num_reads, effective_ref_len);
             let coverage = num_reads as f64 / effective_ref_len as f64;
             properties
                 .avg_depth_per_cg_ratio
-                .push((cg_percent, coverage.round() as u32));
+                .push((cg_percent, coverage));
         }
 
         properties.cigar_counts = Some(all_stats.cigar_counts.clone());
@@ -507,7 +508,7 @@ impl AlignmentProperties {
 
         properties.gap_params = properties.estimate_gap_params().unwrap_or_default();
         properties.hop_params = properties.estimate_hop_params().unwrap_or_default();
-        properties.avg_depth = avg_depth as u32;
+        properties.avg_depth = avg_depth;
         properties.max_del_cigar_len = all_stats.max_del;
         properties.max_ins_cigar_len = all_stats.max_ins;
         properties.frac_max_softclip = all_stats.frac_max_softclip;
