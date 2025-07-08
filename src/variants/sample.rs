@@ -18,15 +18,12 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::reference;
-use crate::variants::evidence::observations::depth_observation::{
-    major_read_position as depth_major_read_position, DepthObservable, DepthObservation,
-};
+use crate::variants::evidence::observations::depth_observation::DepthObservable;
 use crate::variants::evidence::observations::read_observation::{
     major_read_position as read_major_read_position, ReadObservable, ReadObservation,
 };
 use crate::variants::types::{DepthVariant, ReadVariant};
 
-use super::evidence::observations::depth_observation::major_alt_locus as depth_major_alt_locus;
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus as read_major_alt_locus;
 use super::evidence::realignment::Realignable;
@@ -295,15 +292,15 @@ impl Sample {
             &mut observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
-        let major_pos = depth_major_read_position(&observations);
-        let major_alt_locus = depth_major_alt_locus(&observations, &self.alignment_properties);
-        let mut observations: Vec<_> = observations
-            .iter()
-            .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
-            .collect();
-        if self.adjust_prob_mapping {
-            DepthObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
-        }
+        // let major_pos = depth_major_read_position(&observations);
+        // let major_alt_locus = depth_major_alt_locus(&observations, &self.alignment_properties);
+        // let mut observations: Vec<_> = observations
+        //     .iter()
+        //     .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
+        //     .collect();
+        // if self.adjust_prob_mapping {
+        //     DepthObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        // }
         Ok(Pileup::new(Vec::new(), observations)) // TODO add depth observations!
     }
 }

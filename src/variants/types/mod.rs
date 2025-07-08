@@ -197,19 +197,7 @@ pub(crate) trait DepthVariant {
         evidence: &[Evidence],
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Option<AlleleSupport>>;
-
-    /// Calculate probability to sample a record length like the given one from the alt allele.
-    fn prob_sample_alt(
-        &self,
-        evidence: &[Evidence],
-        alignment_properties: &AlignmentProperties,
-    ) -> LogProb;
-
-    /// Return the homopolymer indel len of the variant, if any.
-    fn homopolymer_indel_len(&self) -> Option<i8> {
-        None
-    }
+    ) -> Result<Option<Vec<f64>>>;
 }
 
 pub(crate) trait IsizeObservable: ReadVariant + FragmentSamplingBias {

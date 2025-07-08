@@ -149,6 +149,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "IS_MAX_MAPQ",
             "ALT_LOCUS",
             "THIRD_ALLELE_EVIDENCE",
+            "PROBS_CNV",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\">", name).as_bytes()
@@ -909,62 +910,6 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
 }
 
 pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> Result<()> {
-    // TODO: write depth observations
-    let read_observations = pileup.read_observations();
-
-    let vec = || Vec::with_capacity(read_observations.len());
-    let mut ids = Vec::with_capacity(read_observations.len());
-    let mut prob_mapping = vec();
-    let mut prob_ref = vec();
-    let mut prob_alt = vec();
-    let mut prob_missed_allele = vec();
-    let mut prob_sample_alt = vec();
-    let mut prob_double_overlap = vec();
-    let mut strand = Vec::with_capacity(read_observations.len());
-    let mut read_orientation = Vec::with_capacity(read_observations.len());
-    let mut softclipped: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
-    let mut paired: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
-    let mut read_position = Vec::with_capacity(read_observations.len());
-    let mut prob_hit_base = vec();
-    let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
-        Vec::with_capacity(read_observations.len());
-    let mut prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
-        Vec::with_capacity(read_observations.len());
-    let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(read_observations.len());
-    let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
-    let mut alt_locus = Vec::with_capacity(read_observations.len());
-    let mut third_allele_evidence = Vec::with_capacity(read_observations.len());
-
-    let encode_logprob = utils::MiniLogProb::new;
-    for obs in read_observations {
-        ids.push(obs.fragment_id);
-        prob_mapping.push(encode_logprob(obs.prob_mapping()));
-        prob_ref.push(encode_logprob(obs.prob_ref()));
-        prob_alt.push(encode_logprob(obs.prob_alt()));
-        prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
-        prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
-        prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
-        prob_hit_base.push(encode_logprob(obs.prob_hit_base));
-        strand.push(obs.strand);
-        read_orientation.push(obs.read_orientation);
-        softclipped.push(obs.softclipped);
-        paired.push(obs.paired);
-        read_position.push(obs.read_position);
-        is_max_mapq.push(obs.is_max_mapq);
-        alt_locus.push(obs.alt_locus);
-        third_allele_evidence.push(obs.third_allele_evidence);
-
-        prob_observable_at_homopolymer_artifact.push(
-            obs.prob_observable_at_homopolymer_artifact
-                .map(encode_logprob),
-        );
-        prob_observable_at_homopolymer_variant.push(
-            obs.prob_observable_at_homopolymer_variant
-                .map(encode_logprob),
-        );
-        homopolymer_indel_len.push(obs.homopolymer_indel_len);
-    }
-
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
     where
         T: serde::Serialize + Debug,
@@ -989,41 +934,104 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         Ok(())
     }
 
-    push_values(record, b"FRAGMENT_ID", &ids)?;
-    push_values(record, b"PROB_MAPPING", &prob_mapping)?;
-    push_values(record, b"PROB_REF", &prob_ref)?;
-    push_values(record, b"PROB_ALT", &prob_alt)?;
-    push_values(record, b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
-    push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
-    push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
-    push_values(record, b"STRAND", &strand)?;
-    push_values(record, b"READ_ORIENTATION", &read_orientation)?;
-    push_values(record, b"SOFTCLIPPED", &softclipped)?;
-    push_values(record, b"PAIRED", &paired)?;
-    push_values(record, b"READ_POSITION", &read_position)?;
-    push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
-    push_values(record, b"IS_MAX_MAPQ", &is_max_mapq)?;
-    push_values(record, b"ALT_LOCUS", &alt_locus)?;
-    push_values(record, b"THIRD_ALLELE_EVIDENCE", &third_allele_evidence)?;
+    // TODO: write depth observations
+    let read_observations = pileup.read_observations();
+    if !read_observations.is_empty() {
+        let vec = || Vec::with_capacity(read_observations.len());
+        let mut ids = Vec::with_capacity(read_observations.len());
+        let mut prob_mapping = vec();
+        let mut prob_ref = vec();
+        let mut prob_alt = vec();
+        let mut prob_missed_allele = vec();
+        let mut prob_sample_alt = vec();
+        let mut prob_double_overlap = vec();
+        let mut strand = Vec::with_capacity(read_observations.len());
+        let mut read_orientation = Vec::with_capacity(read_observations.len());
+        let mut softclipped: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+        let mut paired: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+        let mut read_position = Vec::with_capacity(read_observations.len());
+        let mut prob_hit_base = vec();
+        let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
+            Vec::with_capacity(read_observations.len());
+        let mut prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
+            Vec::with_capacity(read_observations.len());
+        let mut homopolymer_indel_len: Vec<Option<i8>> =
+            Vec::with_capacity(read_observations.len());
+        let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+        let mut alt_locus = Vec::with_capacity(read_observations.len());
+        let mut third_allele_evidence = Vec::with_capacity(read_observations.len());
 
-    if prob_observable_at_homopolymer_artifact
-        .iter()
-        .any(|prob| prob.is_some())
-    {
-        // only record values if there is any homopolymer error observation
-        push_values(
-            record,
-            b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE",
-            &prob_observable_at_homopolymer_artifact,
-        )?;
-        push_values(
-            record,
-            b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE",
-            &prob_observable_at_homopolymer_variant,
-        )?;
-        push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
+        let encode_logprob = utils::MiniLogProb::new;
+        for obs in read_observations {
+            ids.push(obs.fragment_id);
+            prob_mapping.push(encode_logprob(obs.prob_mapping()));
+            prob_ref.push(encode_logprob(obs.prob_ref()));
+            prob_alt.push(encode_logprob(obs.prob_alt()));
+            prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
+            prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
+            prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
+            prob_hit_base.push(encode_logprob(obs.prob_hit_base));
+            strand.push(obs.strand);
+            read_orientation.push(obs.read_orientation);
+            softclipped.push(obs.softclipped);
+            paired.push(obs.paired);
+            read_position.push(obs.read_position);
+            is_max_mapq.push(obs.is_max_mapq);
+            alt_locus.push(obs.alt_locus);
+            third_allele_evidence.push(obs.third_allele_evidence);
+
+            prob_observable_at_homopolymer_artifact.push(
+                obs.prob_observable_at_homopolymer_artifact
+                    .map(encode_logprob),
+            );
+            prob_observable_at_homopolymer_variant.push(
+                obs.prob_observable_at_homopolymer_variant
+                    .map(encode_logprob),
+            );
+            homopolymer_indel_len.push(obs.homopolymer_indel_len);
+        }
+
+        push_values(record, b"FRAGMENT_ID", &ids)?;
+        push_values(record, b"PROB_MAPPING", &prob_mapping)?;
+        push_values(record, b"PROB_REF", &prob_ref)?;
+        push_values(record, b"PROB_ALT", &prob_alt)?;
+        push_values(record, b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
+        push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
+        push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
+        push_values(record, b"STRAND", &strand)?;
+        push_values(record, b"READ_ORIENTATION", &read_orientation)?;
+        push_values(record, b"SOFTCLIPPED", &softclipped)?;
+        push_values(record, b"PAIRED", &paired)?;
+        push_values(record, b"READ_POSITION", &read_position)?;
+        push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
+        push_values(record, b"IS_MAX_MAPQ", &is_max_mapq)?;
+        push_values(record, b"ALT_LOCUS", &alt_locus)?;
+        push_values(record, b"THIRD_ALLELE_EVIDENCE", &third_allele_evidence)?;
+
+        if prob_observable_at_homopolymer_artifact
+            .iter()
+            .any(|prob| prob.is_some())
+        {
+            // only record values if there is any homopolymer error observation
+            push_values(
+                record,
+                b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE",
+                &prob_observable_at_homopolymer_artifact,
+            )?;
+            push_values(
+                record,
+                b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE",
+                &prob_observable_at_homopolymer_variant,
+            )?;
+            push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
+        }
     }
 
+    let depth_observations = pileup.depth_observations();
+    if !depth_observations.is_empty() {
+        let depth_values = &depth_observations[0].cnv_probs;
+        push_values(record, b"PROBS_CNV", &depth_values)?;
+    }
     Ok(())
 }
 
@@ -1047,6 +1055,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"IS_MAX_MAPQ");
     header.remove_info(b"ALT_LOCUS");
     header.remove_info(b"THIRD_ALLELE_EVIDENCE");
+    header.remove_info(b"PROBS_CNV");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

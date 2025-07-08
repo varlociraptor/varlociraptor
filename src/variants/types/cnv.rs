@@ -137,13 +137,12 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
     fn allele_support(
         &self,
         evidence: &[Evidence],
-        alignment_properties: &AlignmentProperties,
-        alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Option<AlleleSupport>> {
+        _: &AlignmentProperties,
+        _: &[Box<dyn Realignable>],
+    ) -> Result<Option<Vec<f64>>> {
         let cnv_start = self.breakends.loci()[0].range().start;
         let cnv_end = self.breakends.loci()[1].range().end;
-        let expected_depth = alignment_properties.avg_depth as f64;
-        let mut cnv_positions = vec![0.0; self.len as usize];
+        let mut cnv_read_depth = vec![0.0; self.len as usize];
         for ev in evidence {
             let starts = match ev {
                 Evidence::SingleEndSequencingRead(read) => {
@@ -157,25 +156,13 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
             for start in starts {
                 if start >= cnv_start && start < cnv_end {
                     let idx = (start - cnv_start) as usize;
-                    if idx < cnv_positions.len() {
-                        cnv_positions[idx] += 1.0;
+                    if idx < cnv_read_depth.len() {
+                        cnv_read_depth[idx] += 1.0;
                     }
                 }
             }
         }
-
-        dbg!(&cnv_positions);
-        Ok(None)
-    }
-
-    fn prob_sample_alt(
-        &self,
-        evidence: &[Evidence],
-        alignment_properties: &AlignmentProperties,
-    ) -> LogProb {
-        // self.breakends
-        //     .prob_sample_alt(evidence, alignment_properties)
-        LogProb(0.0)
+        Ok(Some(cnv_read_depth))
     }
 }
 
