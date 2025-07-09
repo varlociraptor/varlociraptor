@@ -27,7 +27,8 @@ fn write_cnv_records(
 
         cnv_record.set_pos(interval.range().start as i64);
         cnv_record.set_qual(f32::missing());
-        cnv_record.set_alleles(&[b"<CNV>"])?;
+        // TODO: What is the REF allele?
+        cnv_record.set_alleles(&[b"N", b"<CNV>"])?;
         cnv_record
             .push_info_integer(b"END", &[interval.range().end as i32])
             .with_context(|| "Failed to push END info string")?;
@@ -56,7 +57,7 @@ fn create_header_from_existing(old_header: &HeaderView) -> Result<Header> {
         b"##INFO=<ID=END,Number=1,Type=Integer,Description=\"Ending position of breakend\">",
     );
     header.push_record(
-        b"##INFO=<ID=SVTYPE,Number=2,Type=String,Description=\"Type of structural variant\">",
+        b"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">",
     );
     Ok(header)
 }
