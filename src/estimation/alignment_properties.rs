@@ -4,15 +4,14 @@
 // except according to those terms.
 
 use bio_types::genome::Interval;
-use intervaltree::IntervalTree;
+use range_set::RangeSet;
 use rust_htslib::bam::{FetchDefinition, Read as BamRead, Record as BamRecord};
 use rust_htslib::bcf::{Read as BcfRead, Reader};
 use std::cmp;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::f64;
-use std::iter::FromIterator;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, RangeInclusive};
 use std::path::Path;
 use std::str;
 
@@ -224,9 +223,8 @@ impl AlignmentProperties {
             tlens: Vec<f64>,
         }
 
-        // Build interval tree of CNVs
-        fn bcf_to_cnv_tree(cnv_bcf: &str) -> Result<IntervalTree<u64, ()>> {
-            let mut intervals = Vec::new();
+        fn bcf_to_cnv_set(cnv_bcf: &str) -> Result<RangeSet<[RangeInclusive<u64>; 8]>> {
+            let mut set = RangeSet::new();
             let mut bcf = Reader::from_path(cnv_bcf)
                 .with_context(|| format!("Failed to open BCF file: {}", cnv_bcf))?;
 
@@ -240,14 +238,16 @@ impl AlignmentProperties {
                             if let Some(end_buf) = record.info(b"END").integer()? {
                                 if let Some(&end) = end_buf.first() {
                                     let end_pos = end as u64;
-                                    intervals.push((pos..end_pos, ()));
+                                    // start is inclusive, end is exclusive
+                                    let inclusive_range = pos..=end_pos;
+                                    set.insert_range(inclusive_range);
                                 }
                             }
                         }
                     }
                 }
             }
-            Ok(IntervalTree::from_iter(intervals))
+            Ok(set)
         }
 
         // Calculate the CG content of a sequence.
@@ -373,12 +373,12 @@ impl AlignmentProperties {
         let mut record_flag_stats = RecordFlagStats::new();
         let mut all_stats = AlignmentStats::default();
 
-        let mut cnv_tree = Option::<IntervalTree<u64, ()>>::None;
+        let mut cnv_set = None;
         let mut interval_to_cg_ratio: HashMap<Interval, i64> = HashMap::new();
         let mut cg_ratio_to_num_reads: BTreeMap<i64, u32> = BTreeMap::new();
 
         if let Some(ref path) = cnv_path {
-            cnv_tree = Some(bcf_to_cnv_tree(path.as_ref().to_str().unwrap())?);
+            cnv_set = Some(bcf_to_cnv_set(path.as_ref().to_str().unwrap())?);
         }
 
         for bam in &mut bams {
@@ -432,13 +432,9 @@ impl AlignmentProperties {
                     }
                 };
 
-                let in_cnv = cnv_tree
+                let in_cnv = cnv_set
                     .as_ref()
-                    .map(|tree| {
-                        tree.query(record.pos() as u64..(record.pos() as u64 + 1))
-                            .next()
-                            .is_some()
-                    })
+                    .map(|set| set.contains(record.pos() as u64))
                     .unwrap_or(false);
 
                 if !in_cnv {
@@ -479,11 +475,12 @@ impl AlignmentProperties {
 
         let original_ref_len = reference_buffer.total_reference_length();
 
-        let cnv_total_len = cnv_tree
+        let cnv_total_len = cnv_set
             .as_ref()
-            .map(|tree| {
-                tree.iter()
-                    .map(|element| element.range.end - element.range.start)
+            .map(|set| {
+                set.as_ref()
+                    .iter()
+                    .map(|r| r.end() - r.start())
                     .sum::<u64>()
             })
             .unwrap_or(0);
@@ -494,7 +491,6 @@ impl AlignmentProperties {
 
         // Compute coverage per CG ratio
         for (&cg_percent, &num_reads) in cg_ratio_to_num_reads.iter() {
-            dbg!(cg_percent, num_reads, effective_ref_len);
             let coverage = num_reads as f64 / effective_ref_len as f64;
             properties
                 .avg_depth_per_cg_ratio
