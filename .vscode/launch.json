@@ -61,7 +61,7 @@
                 "variants",
                 "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/resources/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/candidates/candidates.bcf",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/candidates_safe/candidates.bcf",
                 "--bam",
                 "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/resources/mason_simulated/alignment_sorted.bam",
                 "--max-depth",

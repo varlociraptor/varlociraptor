@@ -7,10 +7,11 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
+use crate::variants::evidence::observations::depth_observation::DepthObservation;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
+use crate::variants::evidence::observations::read_observation::{self, ProcessedReadObservation};
 use crate::variants::model::bias::Artifacts;
-use crate::variants::model::AlleleFreq;
+use crate::variants::model::{likelihood, AlleleFreq};
 
 pub(crate) type ContaminatedSampleCache = LruCache<ContaminatedSampleEvent, LogProb>;
 pub(crate) type SingleSampleCache = LruCache<Event, LogProb>;
@@ -168,7 +169,7 @@ impl SampleLikelihoodModel {
     }
 
     /// Likelihood to observe a read given allele frequency for a single sample.
-    fn likelihood_observation(
+    fn likelihood_read_observation(
         &self,
         allele_freq: LogProb,
         biases: &Artifacts,
@@ -188,6 +189,45 @@ impl SampleLikelihoodModel {
                 + biases.prob_any(observation),
         );
 
+        assert!(!total.is_nan());
+        total
+    }
+
+    // TODO: Implement likelihood for depth observations.
+    /// Likelihood to observe a read given allele frequency for a single sample.
+    fn likelihood_depth_observation(
+        &self,
+        allele_freq: LogProb,
+        biases: &Artifacts,
+        observation: &DepthObservation,
+    ) -> LogProb {
+        // Step 1: likelihood for the mapping case.
+        // let prob = likelihood_mapping(allele_freq, biases, observation);
+
+        let prob_alt = observation.cnv_probs
+            [(allele_freq.0.exp() * (observation.cnv_probs.len() - 1) as f64).round() as usize];
+        // Step 2: read comes from case sample and is correctly mapped
+        warn!(
+            "{:?} \n {:?}, {:?}, {:?}, {:?}, \n {:?}, {:?}, {:?} \n\n",
+            observation.cnv_probs,
+            allele_freq.0.exp(),
+            (observation.cnv_probs.len() - 1),
+            (allele_freq.0.exp() * (observation.cnv_probs.len() - 1) as f64).round() as usize,
+            observation.cnv_probs
+                [(allele_freq.0.exp() * (observation.cnv_probs.len() - 1) as f64).round() as usize],
+            allele_freq,
+            prob_alt.0.exp(),
+            allele_freq.ln_one_minus_exp(),
+            // prob_alt.ln_one_minus_exp(),
+        );
+
+        let prob = LogProb::ln_sum_exp(&[
+            // alt allele
+            allele_freq + prob_alt,
+            // ref allele
+            allele_freq.ln_one_minus_exp() + (prob_alt.ln_one_minus_exp()),
+        ]);
+        let total = prob;
         assert!(!total.is_nan());
         total
     }
@@ -229,17 +269,25 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
             *prob
         } else {
             let ln_af = LogProb(event.allele_freq.ln());
-
+            // TODO: Combine likelihood out of read and depth observations in the pileup.
+            let likelihood: LogProb;
             // calculate product of per-read likelihoods in log space
-            let likelihood =
-                pileup
-                    .read_observations()
-                    .iter()
-                    .fold(LogProb::ln_one(), |prob, obs| {
-                        let lh = self.likelihood_observation(ln_af, &event.artifacts, obs);
-                        prob + lh
-                    });
-
+            likelihood = pileup
+                .read_observations()
+                .iter()
+                .fold(LogProb::ln_one(), |prob, obs| {
+                    let lh = self.likelihood_read_observation(ln_af, &event.artifacts, obs);
+                    prob + lh
+                });
+            // } else {
+            //     // If there are no observations, the likelihood is just the prior probability
+            //     // of the event, which is the bias probability for the event.
+            //     likelihood = self.likelihood_depth_observation(
+            //         ln_af,
+            //         &event.artifacts,
+            //         &pileup.depth_observations()[0],
+            //     )
+            // }
             assert!(!likelihood.is_nan());
 
             cache.put(event.clone(), likelihood);
@@ -276,8 +324,11 @@ mod tests {
 
         let model = SampleLikelihoodModel::new();
 
-        let lh =
-            model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &biases(), &observation);
+        let lh = model.likelihood_read_observation(
+            LogProb(AlleleFreq(0.0).ln()),
+            &biases(),
+            &observation,
+        );
         assert_relative_eq!(*lh, *biases().prob_ref(&observation));
     }
 
