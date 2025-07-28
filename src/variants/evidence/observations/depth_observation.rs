@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use anyhow::Result;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use statrs::distribution::{Discrete, Poisson};
@@ -38,7 +38,7 @@ impl DepthObservation {
         // TODO How to know the ploidy?
         let ploidy = 2.0;
 
-        let cnv_probs = (0..=max_number_cn)
+        let cnv_probs = (0..=max_number_cn - 1)
             .map(|cn| {
                 let lambda = (cn as f64 / ploidy) * avg_depth;
 
@@ -50,9 +50,9 @@ impl DepthObservation {
                     }
                 } else {
                     let poisson = Poisson::new(lambda).unwrap();
-                    let cnv_prob: LogProb = cnv_positions_depth
+                    let cnv_prob = cnv_positions_depth
                         .iter()
-                        .map(|&d| LogProb::from(poisson.pmf(d as u64)))
+                        .map(|&d| LogProb::from(Prob(poisson.pmf(d as u64))))
                         .sum();
                     cnv_prob
                 };
