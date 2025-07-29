@@ -109,6 +109,47 @@ impl<R: Realigner> Cnv<R> {
     }
 }
 
+impl<R: Realigner> ReadVariant for Cnv<R> {
+    fn is_imprecise(&self) -> bool {
+        false
+    }
+
+    fn is_valid_evidence(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        self.breakends
+            .is_valid_evidence(evidence, alignment_properties)
+    }
+
+    fn loci(&self) -> &MultiLocus {
+        self.breakends.loci()
+    }
+
+    fn allele_support(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Option<AlleleSupport>> {
+        let support =
+            self.breakends
+                .allele_support(evidence, alignment_properties, alt_variants)?;
+
+        Ok(support)
+    }
+
+    fn prob_sample_alt(
+        &self,
+        evidence: &Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb {
+        self.breakends
+            .prob_sample_alt(evidence, alignment_properties)
+    }
+}
+
 impl<R: Realigner> DepthVariant for Cnv<R> {
     fn is_imprecise(&self) -> bool {
         false

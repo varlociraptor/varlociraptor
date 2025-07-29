@@ -780,7 +780,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Inversion(len) => {
                         sample.extract_read_observations(&parse_inversion(*len)?, &alt_variants)?
                     }
-                    model::Variant::Cnv(len) => sample.extract_depth_observations(
+                    model::Variant::Cnv(len) => sample.extract_read_and_depth_observations(
                         &parse_cnv(*len)?,
                         &alt_variants,
                         self.max_number_cn,

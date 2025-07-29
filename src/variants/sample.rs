@@ -18,9 +18,12 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::reference;
-use crate::variants::evidence::observations::depth_observation::DepthObservable;
+use crate::variants::evidence::observations::depth_observation::{
+    DepthObservable, DepthObservation,
+};
+use crate::variants::evidence::observations::observation::{AltLocus, ReadPosition};
 use crate::variants::evidence::observations::read_observation::{
-    major_read_position as read_major_read_position, ReadObservable, ReadObservation,
+    self, major_read_position as read_major_read_position, ReadObservable, ReadObservation,
 };
 use crate::variants::types::{DepthVariant, ReadVariant};
 
@@ -215,12 +218,61 @@ fn is_valid_record(record: &bam::Record) -> bool {
 }
 
 impl Sample {
-    /// Extract observations for the given variant.
+    fn combine_pileup(
+        read_obs: Option<Vec<ReadObservation<ReadPosition, AltLocus>>>,
+        depth_obs: Option<Vec<DepthObservation>>,
+    ) -> Result<Pileup> {
+        Ok(Pileup::new(
+            read_obs.unwrap_or_default(),
+            depth_obs.unwrap_or_default(),
+        ))
+    }
+
+    pub(crate) fn extract_read_and_depth_observations<V>(
+        &mut self,
+        variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
+        max_number_cn: usize,
+    ) -> Result<Pileup>
+    where
+        V: ReadVariant + ReadObservable + DepthVariant + DepthObservable,
+    {
+        let read_obs = self.compute_read_observations(variant, alt_variants)?;
+        let depth_obs = self.compute_depth_observations(variant, alt_variants, max_number_cn)?;
+        Self::combine_pileup(Some(read_obs), Some(depth_obs))
+    }
+
     pub(crate) fn extract_read_observations<V>(
         &mut self,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Pileup>
+    where
+        V: ReadVariant + ReadObservable,
+    {
+        let read_obs = self.compute_read_observations(variant, alt_variants)?;
+        Self::combine_pileup(Some(read_obs), None)
+    }
+
+    pub(crate) fn extract_depth_observations<V>(
+        &mut self,
+        variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
+        max_number_cn: usize,
+    ) -> Result<Pileup>
+    where
+        V: DepthVariant + DepthObservable,
+    {
+        let depth_obs = self.compute_depth_observations(variant, alt_variants, max_number_cn)?;
+        Self::combine_pileup(None, Some(depth_obs))
+    }
+
+    /// Extract observations for the given variant.
+    pub(crate) fn compute_read_observations<V>(
+        &mut self,
+        variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Vec<ReadObservation<ReadPosition, AltLocus>>>
     where
         V: ReadVariant + ReadObservable,
     {
@@ -257,15 +309,15 @@ impl Sample {
         if self.adjust_prob_mapping {
             ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
         }
-        Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
+        Ok(observations) // TODO add depth observations!
     }
 
-    pub(crate) fn extract_depth_observations<V>(
+    pub(crate) fn compute_depth_observations<V>(
         &mut self,
         variant: &V,
         alt_variants: &[Box<dyn Realignable>],
         max_number_cn: usize,
-    ) -> Result<Pileup>
+    ) -> Result<Vec<DepthObservation>>
     where
         V: DepthVariant + DepthObservable,
     {
@@ -303,6 +355,6 @@ impl Sample {
         // if self.adjust_prob_mapping {
         //     DepthObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
         // }
-        Ok(Pileup::new(Vec::new(), observations)) // TODO add depth observations!
+        Ok(observations) // TODO add depth observations!
     }
 }
