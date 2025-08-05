@@ -152,7 +152,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "IS_MAX_MAPQ",
             "ALT_LOCUS",
             "THIRD_ALLELE_EVIDENCE",
-            "PROBS_CNV",
+            "PROB_DEPTH",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\">", name).as_bytes()
@@ -227,6 +227,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .report_fragment_ids(self.report_fragment_ids)
             .adjust_prob_mapping(self.adjust_prob_mapping)
             .alignments(
+                &self.inbam,
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
@@ -268,6 +269,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })?;
 
             for obs in pileup.read_observations().iter() {
+                wrt.serialize(obs)?;
+            }
+            for obs in pileup.depth_observations().iter() {
                 wrt.serialize(obs)?;
             }
         }
@@ -780,11 +784,34 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Inversion(len) => {
                         sample.extract_read_observations(&parse_inversion(*len)?, &alt_variants)?
                     }
-                    model::Variant::Cnv(len) => sample.extract_read_and_depth_observations(
-                        &parse_cnv(*len)?,
-                        &alt_variants,
-                        self.max_number_cn,
-                    )?,
+                    model::Variant::Cnv(len) => {
+                        let mut pileup = sample.extract_read_and_depth_observations(
+                            &parse_cnv(*len)?,
+                            &alt_variants,
+                            self.max_number_cn,
+                        )?;
+                        sample.reset_record_buffer();
+
+                        // Determine if CNV should be treated as a deletion based on depth probabilities.
+                        if let Some((max_idx, _)) =
+                            pileup.depth_observations().first().and_then(|obs| {
+                                obs.cnv_probs()
+                                    .iter()
+                                    .enumerate()
+                                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                            })
+                        {
+                            let ploidy = 2; // TODO: make dynamic
+                            if max_idx < ploidy {
+                                pileup = sample.extract_read_observations(
+                                    &parse_deletion(*len)?,
+                                    &alt_variants,
+                                )?;
+                            }
+                        }
+
+                        pileup
+                    }
                     model::Variant::Duplication(len) => sample
                         .extract_read_observations(&parse_duplication(*len)?, &alt_variants)?,
                     model::Variant::Replacement {
@@ -842,7 +869,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
         Ok(values)
     }
     let has_fragment_id = record.info(b"FRAGMENT_ID").integer()?.is_some();
-    let (read_obserations, is_homopolymer_indel) = if has_fragment_id {
+    let (read_observations, is_homopolymer_indel) = if has_fragment_id {
         let ids: Vec<Option<u64>> = read_values(record, b"FRAGMENT_ID", false)?;
         let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
         let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
@@ -914,17 +941,16 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
         (Vec::new(), false)
     };
 
-    let is_cnv = record.info(b"PROBS_CNV").integer()?.is_some();
+    let is_cnv = record.info(b"PROB_DEPTH").integer()?.is_some();
     let depth_observation = if is_cnv {
-        let cnv_probs: Vec<LogProb> = read_values(record, b"PROBS_CNV", false)?;
+        let cnv_probs: Vec<LogProb> = read_values(record, b"PROB_DEPTH", false)?;
         let depth_obs = DepthObservation::new(cnv_probs);
         Vec::from([depth_obs])
     } else {
         Vec::new()
     };
-
     Ok(Observations {
-        pileup: Pileup::new(read_obserations, depth_observation),
+        pileup: Pileup::new(read_observations, depth_observation),
         is_homopolymer_indel,
     })
 }
@@ -954,7 +980,6 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         Ok(())
     }
 
-    // TODO: write depth observations
     let read_observations = pileup.read_observations();
     if !read_observations.is_empty() {
         let vec = || Vec::with_capacity(read_observations.len());
@@ -1050,7 +1075,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let depth_observations = pileup.depth_observations();
     if !depth_observations.is_empty() {
         let depth_values = &depth_observations[0].cnv_probs;
-        push_values(record, b"PROBS_CNV", &depth_values)?;
+        push_values(record, b"PROB_DEPTH", &depth_values)?;
     }
     Ok(())
 }
@@ -1075,7 +1100,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"IS_MAX_MAPQ");
     header.remove_info(b"ALT_LOCUS");
     header.remove_info(b"THIRD_ALLELE_EVIDENCE");
-    header.remove_info(b"PROBS_CNV");
+    header.remove_info(b"PROB_DEPTH");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

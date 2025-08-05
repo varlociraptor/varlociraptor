@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::f64;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str;
 
@@ -173,6 +173,10 @@ pub(crate) struct Sample {
     fragment_id_factory: FragmentIdFactory,
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
+    #[builder(private)]
+    bam_path: std::path::PathBuf,
+    #[builder(private)]
+    min_refetch_distance: u64,
 }
 
 impl SampleBuilder {
@@ -182,6 +186,7 @@ impl SampleBuilder {
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
     pub(crate) fn alignments(
         self,
+        bam_path: &PathBuf,
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
@@ -207,6 +212,8 @@ impl SampleBuilder {
                 single_read_window,
                 read_pair_window,
             ))
+            .bam_path(bam_path.into()) // Pfad speichern
+            .min_refetch_distance(min_refetch_distance)
     }
 }
 
@@ -226,6 +233,22 @@ impl Sample {
             read_obs.unwrap_or_default(),
             depth_obs.unwrap_or_default(),
         ))
+    }
+
+    // This method is required when CNV probabilities are computed and subsequently recomputed for deletions,
+    // as the probability computation alters the state of the record_buffer and it needs to be reset.
+
+    pub(crate) fn reset_record_buffer(&mut self) -> Result<()> {
+        let bam_reader = bam::IndexedReader::from_path(&self.bam_path)?;
+        let mut new_inner = bam::RecordBuffer::new(bam_reader, true);
+        new_inner.set_min_refetch_distance(self.min_refetch_distance);
+
+        self.record_buffer = RecordBuffer::new(
+            new_inner,
+            self.record_buffer.single_read_window,
+            self.record_buffer.read_pair_window,
+        );
+        Ok(())
     }
 
     pub(crate) fn extract_read_and_depth_observations<V>(
