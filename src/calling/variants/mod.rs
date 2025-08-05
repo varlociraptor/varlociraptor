@@ -28,6 +28,7 @@ use crate::utils::aux_info::AuxInfo;
 use crate::utils::bayes_factor_to_letter;
 use crate::variants::evidence::observations::observation::ReadPosition;
 use crate::variants::evidence::observations::observation::{AltLocus, Strand};
+use crate::variants::evidence::observations::pileup;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::model;
@@ -149,12 +150,18 @@ impl Call {
         record.set_qual(f32::missing());
 
         // add raw observations
-        if let Some(ref pileup) = variant.pileup {
+        if let (Some(pileup), Some(svtype)) = (&variant.pileup, &variant.svtype) {
+            if svtype == b"CNV" {
+                let depth_obs = pileup.depth_observations();
+                if depth_obs.is_empty() {
+                    record.set_alleles(&[&variant.ref_allele[..], b"<DEL>"])?;
+                    record.push_info_string(b"SVTYPE", &[b"DEL"])?;
+                }
+            }
             write_observations(pileup, &mut record)?;
         }
 
         bcf_writer.write(&record)?;
-
         Ok(())
     }
 
@@ -680,6 +687,7 @@ impl VariantBuilder {
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<CNV>".to_vec())
                 .svtype(Some(b"CNV".to_vec()))
+                .svlen(Some(-(*len as i32)))
                 .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
             model::Variant::Duplication(len) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
