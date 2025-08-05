@@ -127,6 +127,8 @@ impl<R: Realigner> ReadVariant for Cnv<R> {
         self.breakends.loci()
     }
 
+    // If I understand it correctly, I can completely overtake this implementation from inversions, since it just uses the breakends defined in the struct as genomic regions.
+    // Afterwards it compute the probabilities of prob_ref/ prob_alt by computing the minimum edit distance between the read and the prob_ref/ prob_alt alleles.
     fn allele_support(
         &self,
         evidence: &Evidence,

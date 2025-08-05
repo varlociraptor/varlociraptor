@@ -44,7 +44,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "preprocess Inversion",
+            "name": "preprocess CNV",
             "cargo": {
                 "args": [
                     "build",
@@ -61,7 +61,37 @@
                 "variants",
                 "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/resources/genome.fasta",
                 "--candidates",
-                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/candidates_safe/candidates.bcf",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/candidates/candidates_cnv.bcf",
+                "--bam",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/resources/mason_simulated/alignment_sorted.bam",
+                "--max-depth",
+                "1000000",
+                "--max-number-cn",
+                "50",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "preprocess Deletion",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor",
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "preprocess",
+                "variants",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/resources/genome.fasta",
+                "--candidates",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/candidates/candidates_del.bcf",
                 "--bam",
                 "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/resources/mason_simulated/alignment_sorted.bam",
                 "--max-depth",

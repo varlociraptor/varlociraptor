@@ -136,6 +136,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "PROB_MAPPING",
             "PROB_ALT",
             "PROB_REF",
+            "PROB_DEPTH",
             "PROB_MISSED_ALLELE",
             "PROB_SAMPLE_ALT",
             "PROB_DOUBLE_OVERLAP",
@@ -152,7 +153,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "IS_MAX_MAPQ",
             "ALT_LOCUS",
             "THIRD_ALLELE_EVIDENCE",
-            "PROB_DEPTH",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\">", name).as_bytes()

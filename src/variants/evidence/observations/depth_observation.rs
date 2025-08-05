@@ -19,7 +19,7 @@ use crate::variants::evidence::realignment::Realignable;
 
 use super::fragment_id_factory::FragmentIdFactory;
 
-#[derive(Debug, Clone, Getters)]
+#[derive(Debug, Clone, Getters, Serialize, PartialEq, PartialOrd)]
 pub struct DepthObservation {
     #[getset(get = "pub")]
     pub cnv_probs: Vec<LogProb>,
@@ -104,7 +104,7 @@ pub(crate) trait DepthObservable: DepthVariant {
                 // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
                 // any information (e.g. no overlap).
                 Some(cnv_read_depths) => {
-                    let mut obs = DepthObservation::compute_cnv_probs(
+                    let obs = DepthObservation::compute_cnv_probs(
                         cnv_read_depths,
                         alignment_properties.avg_depth,
                         max_number_cn,
