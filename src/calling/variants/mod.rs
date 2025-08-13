@@ -481,6 +481,13 @@ impl Call {
             let afs = allelefreq_estimates.values().cloned().collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
+            if svtypes.contains(&b"CNV".as_ref()) {
+                let ploidy = 2.0; // TODO: Dynamically
+                let max_cn = (vaf_densities[0].as_ref().map_or(0, |m| m.len()) - 1) as f32;
+                let cn = afs[0] * max_cn + ploidy;
+                record.push_format_float(b"CN", &[cn])?;
+            }
+
             let saobs = simple_alt_observations
                 .values()
                 .map(|sample_obs| {
@@ -568,6 +575,10 @@ impl Call {
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
+            if svtypes.contains(&b"CNV".as_ref()) {
+                record
+                    .push_format_float(b"CN", &vec![f32::missing(); variant.sample_info.len()])?;
+            }
             record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SROBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;

@@ -150,6 +150,10 @@ where
               Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
         header.push_record(
+            b"##FORMAT=<ID=CN,Number=A,Type=Float,\
+              Description=\"Copy Number Estimate\">",
+        );
+        header.push_record(
             b"##FORMAT=<ID=SAOBS,Number=A,Type=String,\
               Description=\"Summary of simplified observations favoring the ALT allele (has to be considered together with SROBS). Each entry is encoded as CB, with C being a count, \
               B being the posterior odds for the alt allele. \
