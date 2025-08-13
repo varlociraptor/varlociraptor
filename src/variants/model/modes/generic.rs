@@ -2,6 +2,7 @@ use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use derive_builder::Builder;
 use itertools::Itertools;
+use ordered_float::{NotNan, OrderedFloat};
 use vec_map::{Values, VecMap};
 
 use crate::grammar;
@@ -13,6 +14,7 @@ use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
 use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination};
+use std::collections::BTreeMap;
 use std::ops::Index;
 
 #[derive(new, Clone, Debug)]
@@ -325,12 +327,41 @@ impl GenericPosterior {
                         } else {
                             // METHOD: enough data and large enough interval, use adaptive integration
                             // at the desired resolution.
-                            adaptive_integration::ln_integrate_exp(
-                                density,
-                                min_vaf,
-                                max_vaf,
-                                **resolution,
-                            )
+                            let pileup = &data.pileups[*sample];
+
+                            if let Some(depth_obs) = pileup.depth_observations().first() {
+                                // TODO: Dynamically get ploidy
+                                let ploidy = 2;
+
+                                let mut probs: BTreeMap<OrderedFloat<f64>, LogProb> =
+                                    BTreeMap::new();
+                                let cn_probs = depth_obs.cnv_probs();
+                                let len = cn_probs.len() - 1;
+
+                                for (idx, cn_prob) in cn_probs
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(idx, _)| *idx >= ploidy)
+                                {
+                                    let theta_cn = (idx - ploidy) as f64 / (len - ploidy) as f64;
+                                    probs.insert(OrderedFloat(theta_cn), *cn_prob);
+                                    density(NotNan::new(theta_cn).unwrap());
+                                }
+
+                                let sorted_grid_points: Vec<f64> =
+                                    probs.keys().map(|k| k.0).collect();
+                                LogProb::ln_trapezoidal_integrate_grid_exp::<f64, _>(
+                                    |_, g| *probs.get(&OrderedFloat(g)).unwrap(),
+                                    &sorted_grid_points,
+                                )
+                            } else {
+                                adaptive_integration::ln_integrate_exp(
+                                    density,
+                                    min_vaf,
+                                    max_vaf,
+                                    **resolution,
+                                )
+                            }
                         }
                     }
                 }
