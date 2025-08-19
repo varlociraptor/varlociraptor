@@ -27,3 +27,4 @@ tests/resources/prior/.snakemake/**
 .micromamba
 Cargo.lock
 launch.json
+.vscode/**
