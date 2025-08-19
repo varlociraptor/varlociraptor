@@ -466,10 +466,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 
     fn process_pileup(&self, variants: &Variants, sample: &mut Sample) -> Result<Option<Pileup>> {
-        let interval = |len: u64| {
+        let interval = |len: u64, offset: u64| {
             genome::Interval::new(
                 variants.locus().contig().to_owned(),
-                variants.locus().pos()..variants.locus().pos() + len,
+                variants.locus().pos() - offset..variants.locus().pos() - offset + len,
             )
         };
 
@@ -531,7 +531,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         };
 
         let parse_deletion =
-            |len| variants::types::Deletion::new(interval(len), self.realigner.clone());
+            |len| variants::types::Deletion::new(interval(len, 0), self.realigner.clone());
+
+        let cnv_alt =
+            |len| variants::types::Deletion::new(interval(len, 1), self.realigner.clone());
 
         let parse_insertion = |seq: &Vec<u8>| {
             variants::types::Insertion::new(
@@ -543,7 +546,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_inversion = |len| -> Result<variants::types::Inversion<R>> {
             Ok(variants::types::Inversion::new(
-                interval(len),
+                interval(len, 0),
                 self.realigner.clone(),
                 self.reference_buffer
                     .seq(variants.locus().contig())?
@@ -553,7 +556,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_cnv = |len| -> Result<variants::types::Cnv<R>> {
             Ok(variants::types::Cnv::new(
-                interval(len),
+                interval(len, 0),
                 self.realigner.clone(),
                 self.reference_buffer
                     .seq(variants.locus().contig())?
@@ -563,7 +566,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let parse_duplication = |len| -> Result<variants::types::Duplication<R>> {
             Ok(variants::types::Duplication::new(
-                interval(len),
+                interval(len, 0),
                 self.realigner.clone(),
                 self.reference_buffer
                     .seq(variants.locus().contig())?
@@ -575,13 +578,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                  alt_allele: &Vec<u8>|
          -> Result<variants::types::Replacement<R>> {
             variants::types::Replacement::new(
-                interval(ref_allele.len() as u64),
+                interval(ref_allele.len() as u64, 0),
                 alt_allele.to_owned(),
                 self.realigner.clone(),
             )
         };
 
-        let alt_variants = variants
+        let mut alt_variants = variants
             .alt_variants()
             .filter(|variant_info| {
                 !variant_info.variant().is_breakend() && !variant_info.variant().is_none()
@@ -785,6 +788,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         sample.extract_read_observations(&parse_inversion(*len)?, &alt_variants)?
                     }
                     model::Variant::Cnv(len) => {
+                        // Add deletion of the cn as an alternative variant.
+                        alt_variants.push(Box::new(cnv_alt(*len)?));
                         let mut pileup = sample.extract_read_and_depth_observations(
                             &parse_cnv(*len)?,
                             &alt_variants,
