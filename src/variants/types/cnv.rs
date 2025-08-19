@@ -29,52 +29,53 @@ impl<R: Realigner> Cnv<R> {
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..(pos + 1) as usize];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
-        // TODO: Understand how ref_allele works and why the two extra breakpoints are added here.
-        // Encode Cnv via breakends, see VCF spec.
-        // let ref_allele = get_ref_allele(interval.range().start - 1);
-        // breakend_group_builder.push_breakend(Breakend::from_operations(
-        //     get_locus(interval.range().start - 1),
-        //     ref_allele,
-        //     ref_allele.to_owned(),
-        //     Join::new(
-        //         genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
-        //         Side::LeftOfPos,
-        //         ExtensionModification::ReverseComplement,
-        //     ),
-        //     true,
-        //     b"w",
-        //     b"u",
-        // ));
 
+        // Duplication:
         let ref_allele = get_ref_allele(interval.range().start);
         breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().start),
             ref_allele,
             ref_allele.to_owned(),
             Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
-                Side::RightOfPos,
-                ExtensionModification::ReverseComplement,
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
+                Side::LeftOfPos,
+                ExtensionModification::None,
             ),
             false,
-            b"v",
-            b"x",
+            b"u",
+            b"w",
         ));
 
-        // let ref_allele = get_ref_allele(interval.range().end - 1);
-        // breakend_group_builder.push_breakend(Breakend::from_operations(
-        //     get_locus(interval.range().end - 1),
-        //     ref_allele,
-        //     ref_allele.to_owned(),
-        //     Join::new(
-        //         genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
-        //         Side::LeftOfPos,
-        //         ExtensionModification::ReverseComplement,
-        //     ),
-        //     true,
-        //     b"u",
-        //     b"w",
-        // ));
+        let ref_allele = get_ref_allele(interval.range().end - 1);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().end - 1),
+            ref_allele,
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
+                Side::RightOfPos,
+                ExtensionModification::None,
+            ),
+            true,
+            b"w",
+            b"u",
+        ));
+
+        // Deletion:
+        let ref_allele = get_ref_allele(interval.range().start - 1);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().start - 1),
+            ref_allele,
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
+                Side::RightOfPos,
+                ExtensionModification::None,
+            ),
+            true,
+            b"a",
+            b"b",
+        ));
 
         let ref_allele = get_ref_allele(interval.range().end);
         breakend_group_builder.push_breakend(Breakend::from_operations(
@@ -82,13 +83,13 @@ impl<R: Realigner> Cnv<R> {
             ref_allele,
             ref_allele.to_owned(),
             Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
-                Side::RightOfPos,
-                ExtensionModification::ReverseComplement,
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
+                Side::LeftOfPos,
+                ExtensionModification::None,
             ),
             false,
-            b"x",
-            b"v",
+            b"b",
+            b"a",
         ));
 
         Cnv {
