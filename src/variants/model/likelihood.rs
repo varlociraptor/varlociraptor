@@ -3,9 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use bincode::de;
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 use lru::LruCache;
 use ordered_float::NotNan;
+use rusty_machine::learning::glm::Log;
 
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observations::depth_observation::DepthObservation;
@@ -194,7 +196,6 @@ impl SampleLikelihoodModel {
         total
     }
 
-    // TODO: Implement likelihood for depth observations.
     /// Likelihood to observe a read given allele frequency for a single sample.
     fn likelihood_depth_observation(
         &self,
@@ -205,7 +206,7 @@ impl SampleLikelihoodModel {
         // Step 1: likelihood for the mapping case.
         // let prob = likelihood_mapping(allele_freq, biases, observation);
         let len = (observation.cnv_probs.len() - 1) as f64;
-        let ploidy = 2.0; // TODO: dynamically
+        let ploidy = 1.0; // TODO: dynamically
         let cn = (allele_freq.into_inner() * (len - ploidy) + ploidy) as usize;
         let prob = observation.cnv_probs[cn];
 
@@ -250,7 +251,6 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
             *prob
         } else {
             // calculate product of per-read likelihoods in log space
-            // TODO: Combine likelihood out of read and depth observations in the pileup.
             let likelihood = if pileup.depth_observations().is_empty() {
                 let ln_af = LogProb(event.allele_freq.ln());
                 pileup
@@ -261,12 +261,35 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                         prob + lh
                     })
             } else {
-                self.likelihood_depth_observation(
+                let depth_likelihood = self.likelihood_depth_observation(
                     event.allele_freq,
                     &event.artifacts,
                     &pileup.depth_observations()[0],
-                )
+                );
+                let ploidy = 1; //TODO: dynamically
+                let cn_max = pileup.depth_observations()[0].cnv_probs.len();
+                let factor = (cn_max as f64 - ploidy as f64) / (cn_max as f64 + ploidy as f64);
+                let scaled_allele_freq = event.allele_freq * factor;
+
+                let ln_af = LogProb(scaled_allele_freq.ln());
+                let read_likelihood =
+                    pileup
+                        .read_observations()
+                        .iter()
+                        .fold(LogProb::ln_one(), |prob, obs| {
+                            let lh = self.likelihood_read_observation(ln_af, &event.artifacts, obs);
+                            prob + lh
+                        });
+
+                let w = 1.0; // TODO: dynamically (it is the other way round, since we are dealing with logprobs)
+                let depth_factor = LogProb::from(LogProb::from(w).ln());
+                let read_factor = LogProb::from(LogProb::from(1.0 - w).ln());
+
+                let depth = depth_factor + depth_likelihood;
+                let read = read_factor + read_likelihood;
+                depth.ln_add_exp(read)
             };
+
             assert!(!likelihood.is_nan());
 
             cache.put(event.clone(), likelihood);

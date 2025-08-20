@@ -806,7 +806,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
                             })
                         {
-                            let ploidy = 2; // TODO: make dynamic
+                            let ploidy = 1; // TODO: make dynamic
                             if max_idx < ploidy {
                                 pileup = sample.extract_read_observations(
                                     &parse_deletion(*len)?,

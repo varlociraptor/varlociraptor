@@ -35,8 +35,7 @@ impl DepthObservation {
         avg_depth: f64,
         max_number_cn: usize,
     ) -> Self {
-        // TODO How to know the ploidy?
-        let ploidy = 2.0;
+        let ploidy = 1.0; //TODO: Dynamically
 
         let cnv_probs = (0..=max_number_cn - 1)
             .map(|cn| {
