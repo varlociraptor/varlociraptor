@@ -261,6 +261,7 @@ impl Sample {
         V: ReadVariant + ReadObservable + DepthVariant + DepthObservable,
     {
         let read_obs = self.compute_read_observations(variant, alt_variants)?;
+        self.reset_record_buffer()?;
         let depth_obs = self.compute_depth_observations(variant, alt_variants, max_number_cn)?;
         Self::combine_pileup(Some(read_obs), Some(depth_obs))
     }

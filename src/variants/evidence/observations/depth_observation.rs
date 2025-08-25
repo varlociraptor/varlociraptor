@@ -35,7 +35,7 @@ impl DepthObservation {
         avg_depth: f64,
         max_number_cn: usize,
     ) -> Self {
-        let ploidy = 1.0; //TODO: Dynamically
+        let ploidy = 2.0; //TODO: Dynamically
 
         let cnv_probs = (0..=max_number_cn - 1)
             .map(|cn| {
@@ -49,6 +49,8 @@ impl DepthObservation {
                     }
                 } else {
                     let poisson = Poisson::new(lambda).unwrap();
+                    let cnv_sum: f64 = cnv_positions_depth.iter().sum();
+
                     let cnv_prob = cnv_positions_depth
                         .iter()
                         .map(|&d| LogProb::from(Prob(poisson.pmf(d as u64))))
@@ -95,7 +97,6 @@ pub(crate) trait DepthObservable: DepthVariant {
         // let id = observation_id_factory
         //     .as_mut()
         //     .map(|factory| factory.register(evidence));
-
         Ok(
             match self.allele_support(evidence, alignment_properties, alt_variants)? {
                 // METHOD: for precise variants,

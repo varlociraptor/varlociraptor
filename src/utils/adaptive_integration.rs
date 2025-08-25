@@ -67,6 +67,10 @@ where
             first_middle = middle;
         }
 
+        warn!(
+            "left: {:?}, middle1: {:?}, middle2: {:?}, middle: {:?}, right: {:?}",
+            left, middle1, middle2, middle, right
+        );
         let mut probs_list = HashMap::new();
         let x_values = [left, middle1, middle2, right];
         for &x in &x_values {
@@ -80,7 +84,6 @@ where
                 max_idx1 = x_values.iter().position(|&v| v == x).unwrap();
             }
         }
-
         if max_idx1 > 0 {
             left = x_values[max_idx1 - 1];
         } else {

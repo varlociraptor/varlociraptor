@@ -727,7 +727,6 @@ impl bayesian::model::Prior for Prior {
             }
             let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
             self.cache.borrow_mut().put(key, prob);
-
             prob
         };
 

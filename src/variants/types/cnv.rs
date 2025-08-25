@@ -1,3 +1,4 @@
+use std::fs::read;
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -120,6 +121,8 @@ impl<R: Realigner> ReadVariant for Cnv<R> {
         evidence: &Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
+        warn!("Read {:?}", &evidence);
+
         self.breakends
             .is_valid_evidence(evidence, alignment_properties)
     }
@@ -164,6 +167,7 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
         _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
         // TODO: Understand and consider REF, understand interval borders (Are they included in the breakend?)
+        warn!("Depth {:?}", &evidence);
         match evidence {
             Evidence::SingleEndSequencingRead(read) => self.read_starts_in_cnv(read.inner.core.pos),
             Evidence::PairedEndSequencingRead { left, right } => self

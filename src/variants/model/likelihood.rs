@@ -206,7 +206,8 @@ impl SampleLikelihoodModel {
         // Step 1: likelihood for the mapping case.
         // let prob = likelihood_mapping(allele_freq, biases, observation);
         let len = (observation.cnv_probs.len() - 1) as f64;
-        let ploidy = 1.0; // TODO: dynamically
+        let ploidy = 2.0; // TODO: dynamically
+                          // TODO: Use integral to accept continuous  CNs
         let cn = (allele_freq.into_inner() * (len - ploidy) + ploidy) as usize;
         let prob = observation.cnv_probs[cn];
 
@@ -266,12 +267,13 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                     &event.artifacts,
                     &pileup.depth_observations()[0],
                 );
-                let ploidy = 1; //TODO: dynamically
-                let cn_max = pileup.depth_observations()[0].cnv_probs.len();
-                let factor = (cn_max as f64 - ploidy as f64) / (cn_max as f64 + ploidy as f64);
-                let scaled_allele_freq = event.allele_freq * factor;
-
-                let ln_af = LogProb(scaled_allele_freq.ln());
+                let ploidy = 2.0; //TODO: dynamically
+                let cn_max = pileup.depth_observations()[0].cnv_probs.len() as f64;
+                let af_read = (event.allele_freq * (cn_max - ploidy))
+                    / (event.allele_freq * (cn_max - ploidy) + 2.0 * ploidy);
+                dbg!(&event.allele_freq);
+                dbg!(&af_read);
+                let ln_af = LogProb(af_read.ln());
                 let read_likelihood =
                     pileup
                         .read_observations()
@@ -281,19 +283,18 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                             prob + lh
                         });
 
-                let w = 1.0; // TODO: dynamically (it is the other way round, since we are dealing with logprobs)
+                let w = 0.0; // TODO: dynamically (it is the other way round, since we are dealing with logprobs), 1 = depth, 0 = read
                 let depth_factor = LogProb::from(LogProb::from(w).ln());
                 let read_factor = LogProb::from(LogProb::from(1.0 - w).ln());
-
                 let depth = depth_factor + depth_likelihood;
                 let read = read_factor + read_likelihood;
                 depth.ln_add_exp(read)
             };
 
             assert!(!likelihood.is_nan());
-
+            dbg!(&likelihood);
+            dbg!("#################################################");
             cache.put(event.clone(), likelihood);
-
             likelihood
         }
     }

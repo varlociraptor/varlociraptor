@@ -482,9 +482,10 @@ impl Call {
             record.push_format_float(b"AF", &afs)?;
 
             if svtypes.contains(&b"CNV".as_ref()) {
-                let ploidy = 1.0; // TODO: Dynamically
-                let max_cn = (vaf_densities[0].as_ref().map_or(0, |m| m.len()) - 1) as f32;
-                let cn = afs[0] * max_cn + ploidy;
+                let ploidy = 2.0; // TODO: Dynamically
+                let max_cn = 100.0; //TODO: Dynamically
+                                    // let max_cn = (vaf_densities[0].as_ref().map_or(0, |m| m.len()) - 1) as f32;
+                let cn = afs[0] * (max_cn - ploidy) + ploidy;
                 record.push_format_float(b"CN", &[cn])?;
             }
 
