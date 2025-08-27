@@ -98,13 +98,18 @@ fn parse_breakend(
 }
 
 fn breakends_to_intervals(candidates: Vec<CnvCandidate>) -> Vec<BreakendIterval> {
-    #[derive(Default, Clone, Debug)]
+    #[derive(Clone, Debug)]
     struct BorderInfo {
         delta: i32,
         af_new_interval: f64,
         af_old_interval: f64,
         zero_af_count: i32,
         event_probs_prod: BTreeMap<String, f64>,
+    }
+    impl Default for BorderInfo {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl BorderInfo {
