@@ -1230,6 +1230,31 @@ impl VAFRange {
     fn is_adjustment_possible(&self, n_obs: usize) -> bool {
         Self::expected_observation_count(self.end - self.start, n_obs) > 1.0
     }
+
+    pub(crate) fn intersect(&self, other: &Self) -> Self {
+        let inner = self.inner.start.max(other.inner.start)..self.inner.end.min(other.inner.end);
+
+        let left_exclusive = if self.start > other.start {
+            self.left_exclusive
+        } else if self.start < other.start {
+            other.left_exclusive
+        } else {
+            self.left_exclusive || other.left_exclusive
+        };
+        let right_exclusive = if self.end < other.end {
+            self.right_exclusive
+        } else if self.end > other.end {
+            other.right_exclusive
+        } else {
+            self.right_exclusive || other.right_exclusive
+        };
+
+        VAFRange::builder()
+            .inner(inner)
+            .left_exclusive(left_exclusive)
+            .right_exclusive(right_exclusive)
+            .build()
+    }
 }
 
 use auto_ops::impl_op_ex;

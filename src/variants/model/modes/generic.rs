@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use vec_map::{Values, VecMap};
 
-use crate::grammar;
+use crate::grammar::{self, VAFRange};
 use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
@@ -144,6 +144,30 @@ impl LikelihoodOperands {
     pub(crate) fn is_absent(&self) -> bool {
         self.events.values().all(|evt| evt.is_absent())
     }
+
+    pub(crate) fn lfc_bounds(&self) -> Option<VAFRange> {
+        let mut lfc_bounds: Option<VAFRange> = None;
+        for lfc in &self.lfcs {
+            let (other_event, invert) = self.events.get(lfc.sample_a).map_or_else(
+                || (self.events.get(lfc.sample_b), true),
+                |evt| (Some(evt), false),
+            );
+            if let Some(other_event) = other_event {
+                let vaf = other_event.allele_freq;
+                let bounds = if invert {
+                    lfc.predicate.invert().infer_vaf_bounds(vaf)
+                } else {
+                    lfc.predicate.infer_vaf_bounds(vaf)
+                };
+                if let Some(prev_bounds) = &lfc_bounds {
+                    lfc_bounds = Some(prev_bounds.intersect(&bounds));
+                } else {
+                    lfc_bounds = Some(bounds);
+                }
+            }
+        }
+        lfc_bounds
+    }
 }
 
 impl Index<usize> for LikelihoodOperands {
@@ -229,6 +253,17 @@ impl GenericPosterior {
                         );
                     };
 
+                let lfc_bounds = likelihood_operands.lfc_bounds();
+
+                if lfc_bounds
+                    .as_ref()
+                    .map_or(false, |bounds| bounds.is_empty())
+                {
+                    // METHOD: The current set of log fold changes is impossible to satisfy.
+                    // Hence, we can immediately return a probability of zero.
+                    return LogProb::ln_zero();
+                }
+
                 let (n_obs, is_clear_ref) = {
                     let pileup = &data.pileups[*sample];
                     if pileup.read_observations().is_empty()
@@ -260,6 +295,14 @@ impl GenericPosterior {
                             // immediately stop, returning a probability of zero.
                             return LogProb::ln_zero();
                         }
+                        let vafs = if let Some(lfc_bounds) = &lfc_bounds {
+                            vafs.iter()
+                                .filter(|vaf| lfc_bounds.contains(**vaf))
+                                .cloned()
+                                .collect()
+                        } else {
+                            vafs.clone()
+                        };
 
                         if vafs.len() == 1 {
                             push_base_event(
@@ -283,6 +326,12 @@ impl GenericPosterior {
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
+                        let vafs = if let Some(lfc_bounds) = &lfc_bounds {
+                            vafs.intersect(lfc_bounds)
+                        } else {
+                            vafs.clone()
+                        };
+
                         if vafs.is_empty() {
                             // METHOD: empty interval, integral must be zero.
                             return LogProb::ln_zero();

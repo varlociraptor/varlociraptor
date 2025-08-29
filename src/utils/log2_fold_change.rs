@@ -1,8 +1,11 @@
 use std::ops::Not;
 
+use num_traits::ops;
 use ordered_float::NotNan;
 
-use crate::utils::comparison::ComparisonOperator;
+use crate::{
+    grammar::VAFRange, utils::comparison::ComparisonOperator, variants::model::AlleleFreq,
+};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Derefable)]
@@ -46,6 +49,54 @@ impl Log2FoldChangePredicate {
             ComparisonOperator::Less => lfc < v,
             ComparisonOperator::LessEqual => lfc <= v,
             ComparisonOperator::NotEqual => relative_ne!(lfc, v),
+        }
+    }
+
+    /// For the given VAF, infer the possible VAF range based on the log2 fold change predicate,
+    /// given the vaf of the left operand.
+    pub(crate) fn infer_vaf_bounds(&self, vaf: AlleleFreq) -> VAFRange {
+        let projection_right_operand = vaf * self.value.exp2();
+        if *projection_right_operand < 0.0 || *projection_right_operand > 1.0 {
+            return VAFRange::empty();
+        }
+        match self.comparison {
+            ComparisonOperator::Equal => VAFRange::builder()
+                .inner(projection_right_operand..projection_right_operand)
+                .left_exclusive(true)
+                .right_exclusive(true)
+                .build(),
+            ComparisonOperator::Greater => VAFRange::builder()
+                .inner(projection_right_operand..AlleleFreq(1.0))
+                .left_exclusive(true)
+                .right_exclusive(false)
+                .build(),
+            ComparisonOperator::GreaterEqual => VAFRange::builder()
+                .inner(projection_right_operand..AlleleFreq(1.0))
+                .left_exclusive(false)
+                .right_exclusive(false)
+                .build(),
+            ComparisonOperator::Less => VAFRange::builder()
+                .inner(AlleleFreq(0.0)..projection_right_operand)
+                .left_exclusive(false)
+                .right_exclusive(true)
+                .build(),
+            ComparisonOperator::LessEqual => VAFRange::builder()
+                .inner(AlleleFreq(0.0)..projection_right_operand)
+                .left_exclusive(false)
+                .right_exclusive(false)
+                .build(),
+            ComparisonOperator::NotEqual => VAFRange::builder()
+                .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
+                .left_exclusive(false)
+                .right_exclusive(false)
+                .build(), // not much we can do here
+        }
+    }
+
+    pub(crate) fn invert(&self) -> Self {
+        Self {
+            comparison: self.comparison.invert(),
+            value: -self.value,
         }
     }
 }
