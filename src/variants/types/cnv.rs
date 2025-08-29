@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
-use rust_htslib::bam::Record;
-use statrs::distribution::{Discrete, Poisson};
+use ordered_float::NotNan;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::{Realignable, Realigner};
@@ -20,10 +17,16 @@ use super::ToVariantRepresentation;
 pub(crate) struct Cnv<R: Realigner> {
     breakends: BreakendGroup<R>,
     len: u64,
+    af: NotNan<f64>,
 }
 
 impl<R: Realigner> Cnv<R> {
-    pub(crate) fn new(interval: genome::Interval, realigner: R, chrom_seq: &[u8]) -> Self {
+    pub(crate) fn new(
+        interval: genome::Interval,
+        realigner: R,
+        chrom_seq: &[u8],
+        af: NotNan<f64>,
+    ) -> Self {
         let mut breakend_group_builder = BreakendGroupBuilder::new();
         breakend_group_builder.realigner(realigner);
 
@@ -61,40 +64,10 @@ impl<R: Realigner> Cnv<R> {
             b"u",
         ));
 
-        // Deletion:
-        let ref_allele = get_ref_allele(interval.range().start - 1);
-        breakend_group_builder.push_breakend(Breakend::from_operations(
-            get_locus(interval.range().start - 1),
-            ref_allele,
-            ref_allele.to_owned(),
-            Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
-                Side::RightOfPos,
-                ExtensionModification::None,
-            ),
-            true,
-            b"a",
-            b"b",
-        ));
-
-        let ref_allele = get_ref_allele(interval.range().end);
-        breakend_group_builder.push_breakend(Breakend::from_operations(
-            get_locus(interval.range().end),
-            ref_allele,
-            ref_allele.to_owned(),
-            Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
-                Side::LeftOfPos,
-                ExtensionModification::None,
-            ),
-            false,
-            b"b",
-            b"a",
-        ));
-
         Cnv {
             breakends: breakend_group_builder.build().unwrap(),
             len: interval.range().end - interval.range().start,
+            af,
         }
     }
 
@@ -212,7 +185,7 @@ impl<R: Realigner> DepthVariant for Cnv<R> {
 
 impl<R: Realigner> ToVariantRepresentation for Cnv<R> {
     fn to_variant_representation(&self) -> model::Variant {
-        model::Variant::Cnv(self.len)
+        model::Variant::Cnv(self.len, self.af)
     }
 }
 

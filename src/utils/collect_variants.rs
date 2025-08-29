@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::AbstractLocus;
 use itertools::Itertools;
+use ordered_float::NotNan;
 use rust_htslib::{bcf, bcf::record::Numeric};
 
 use crate::errors;
@@ -175,7 +176,11 @@ pub fn collect_variants(
                 skip_incr(SkipReason::CnvInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
-                push_variant(model::Variant::Cnv(len), 0);
+                let af = match record.info(b"AF").float() {
+                    Ok(Some(af)) => af[0].to_owned(),
+                    _ => 0.0,
+                };
+                push_variant(model::Variant::Cnv(len, NotNan::new(af as f64).unwrap()), 0);
             } else {
                 skip_incr(SkipReason::CnvMissingEndTag);
             }

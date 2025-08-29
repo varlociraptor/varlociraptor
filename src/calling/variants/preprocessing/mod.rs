@@ -21,7 +21,7 @@ use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
 
-use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
+use crate::calling::variants::{Call, CallBuilder, SampleInfoBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -37,6 +37,7 @@ use crate::variants::evidence::observations::observation::{AltLocus, ReadPositio
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ReadObservationBuilder;
 use crate::variants::evidence::realignment::{self, Realignable};
+use crate::variants::model::bias::Artifacts;
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
 use crate::variants::sample::SampleBuilder;
@@ -245,6 +246,91 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         Ok(())
     }
 
+    pub(crate) fn compute_cn(&mut self) -> Result<()> {
+        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+        bcf_reader.set_threads(1)?;
+
+        let progress_logger = ProgressLogger::builder()
+            .with_items_name("records")
+            .with_frequency(std::time::Duration::from_secs(20))
+            .start();
+
+        let aux_info_collector = AuxInfoCollector::new(&self.aux_info_fields, &bcf_reader)?;
+        // dbg!(&aux_info_collector);
+        // let mut bcf_writer = self.writer(&aux_info_collector)?;
+
+        // Build writer
+        let mut header = bcf::Header::from_template(bcf_reader.header());
+        header.push_record(
+            b"##INFO=<ID=SVLEN,Number=.,Type=Integer,\
+              Description=\"Difference in length between REF and ALT alleles\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=CN,Number=.,Type=Integer,\
+              Description=\"Copy Number\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=AF,Number=.,Type=Float,\
+              Description=\"Allele Frequency\">",
+        );
+        // Last column in: #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	sample1
+        // I do not know why you need it yet.
+        header.push_sample(b"sample1");
+
+        let mut bcf_writer = if let Some(ref path) = self.outbcf {
+            bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)
+                .context(format!("Unable to write BCF to {}.", path.display()))?
+        } else {
+            bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)
+                .context("Unable to write BCF to STDOUT.")?
+        };
+        bcf_writer.set_threads(1)?;
+
+        let mut variant_buffer = VariantBuffer::new(
+            bcf_reader,
+            progress_logger,
+            self.log_each_record,
+            aux_info_collector,
+            self.variant_heterozygosity_field.clone(),
+            self.variant_somatic_effective_mutation_rate_field.clone(),
+        );
+
+        let mut bam_reader =
+            bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
+        bam_reader.set_threads(1)?;
+        bam_reader
+            .set_reference(
+                self.reference_buffer.reference_path().expect(
+                    "bug: reference buffer seemingly has not been created from reference file",
+                ),
+            )
+            .context("Unable to read reference FASTA")?;
+
+        let mut sample = SampleBuilder::default()
+            .max_depth(self.max_depth)
+            .report_fragment_ids(self.report_fragment_ids)
+            .adjust_prob_mapping(self.adjust_prob_mapping)
+            .alignments(
+                &self.inbam,
+                bam_reader,
+                self.alignment_properties.clone(),
+                self.min_bam_refetch_distance,
+            )
+            .build()
+            .unwrap();
+
+        while let Some(variants) = variant_buffer.next()? {
+            dbg!(&variants.variant_of_interest());
+            let calls = self.process_variant(variants, &mut sample)?;
+            for call in calls {
+                call.write_final_record(&mut bcf_writer)?;
+                // dbg!(&call);
+            }
+        }
+
+        Ok(())
+    }
+
     fn write_observations(&self, pileup: &Pileup, variants: &Variants) -> Result<()> {
         if let Some(prefix) = &self.raw_observation_output {
             let path = prefix.join(format!(
@@ -320,20 +406,53 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 let pileup = self.process_pileup(&variants, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 self.write_observations(&pileup, &variants)?;
+                match variant {
+                    model::Variant::Cnv(_, af) => {
+                        // add variant information
 
-                // add variant information
-                call.variant = Some(
-                    VariantBuilder::default()
-                        .variant(
-                            variant,
-                            &None,
-                            variants.locus().pos() as usize,
-                            Some(chrom_seq.as_ref()),
-                        )
-                        .pileup(Some(Rc::new(pileup)))
-                        .build()
-                        .unwrap(),
-                );
+                        let sample_info = SampleInfoBuilder::default()
+                            .allelefreq_estimate(*af)
+                            .pileup(Rc::new(pileup.clone()))
+                            .artifacts(Artifacts::none())
+                            .vaf_dist(None)
+                            .build()
+                            .unwrap();
+
+                        // let mut dummy_event_probs: HashMap<String, LogProb> = HashMap::new();
+                        // dummy_event_probs.insert("high".to_string(), LogProb::from(0.0)); // 0.0 als Dummy
+
+                        call.variant = Some(
+                            VariantBuilder::default()
+                                .variant(
+                                    variant,
+                                    &None,
+                                    variants.locus().pos() as usize,
+                                    Some(chrom_seq.as_ref()),
+                                )
+                                .pileup(Some(Rc::new(pileup)))
+                                .sample_info(vec![Some(sample_info)])
+                                // .event_probs(Some(dummy_event_probs))
+                                .build()
+                                .unwrap(),
+                        );
+                    }
+                    _ => {
+                        // add variant information
+                        call.variant = Some(
+                            VariantBuilder::default()
+                                .variant(
+                                    variant,
+                                    &None,
+                                    variants.locus().pos() as usize,
+                                    Some(chrom_seq.as_ref()),
+                                )
+                                .pileup(Some(Rc::new(pileup)))
+                                .build()
+                                .unwrap(),
+                        );
+                    }
+                }
+
                 Ok(vec![call])
             }
             VariantInfo {
@@ -554,13 +673,14 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             ))
         };
 
-        let parse_cnv = |len| -> Result<variants::types::Cnv<R>> {
+        let parse_cnv = |len, af| -> Result<variants::types::Cnv<R>> {
             Ok(variants::types::Cnv::new(
                 interval(len, 0),
                 self.realigner.clone(),
                 self.reference_buffer
                     .seq(variants.locus().contig())?
                     .as_ref(),
+                af,
             ))
         };
 
@@ -596,7 +716,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
                     model::Variant::Insertion(seq) => Box::new(parse_insertion(seq)?),
                     model::Variant::Inversion(len) => Box::new(parse_inversion(*len)?),
-                    model::Variant::Cnv(len) => Box::new(parse_cnv(*len)?),
+                    model::Variant::Cnv(len, af) => Box::new(parse_cnv(*len, *af)?),
                     model::Variant::Duplication(len) => Box::new(parse_duplication(*len)?),
                     model::Variant::Replacement {
                         ref_allele,
@@ -737,8 +857,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             model::Variant::Inversion(len) => {
                                 haplotype_block.push_variant(Box::new(parse_inversion(*len)?))
                             }
-                            model::Variant::Cnv(len) => {
-                                haplotype_block.push_variant(Box::new(parse_inversion(*len)?))
+                            model::Variant::Cnv(len, af) => {
+                                haplotype_block.push_variant(Box::new(parse_cnv(*len, *af)?))
                             }
                             model::Variant::Duplication(len) => {
                                 haplotype_block.push_variant(Box::new(parse_duplication(*len)?))
@@ -787,35 +907,35 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Inversion(len) => {
                         sample.extract_read_observations(&parse_inversion(*len)?, &alt_variants)?
                     }
-                    model::Variant::Cnv(len) => {
+                    model::Variant::Cnv(len, af) => {
                         // Add deletion of the cn as an alternative variant.
-                        alt_variants.push(Box::new(cnv_alt(*len)?));
-                        let mut pileup = sample.extract_read_and_depth_observations(
-                            &parse_cnv(*len)?,
+                        // alt_variants.push(Box::new(cnv_alt(*len, *af)?));
+                        sample.extract_depth_observations(
+                            &parse_cnv(*len, *af)?,
                             &alt_variants,
                             self.max_number_cn,
-                        )?;
-                        sample.reset_record_buffer();
+                        )?
+                        // sample.reset_record_buffer();
 
-                        // Determine if CNV should be treated as a deletion based on depth probabilities.
-                        if let Some((max_idx, _)) =
-                            pileup.depth_observations().first().and_then(|obs| {
-                                obs.cnv_probs()
-                                    .iter()
-                                    .enumerate()
-                                    .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                            })
-                        {
-                            let ploidy = 2; // TODO: make dynamic
-                            if max_idx < ploidy {
-                                pileup = sample.extract_read_observations(
-                                    &parse_deletion(*len)?,
-                                    &alt_variants,
-                                )?;
-                            }
-                        }
+                        // // Determine if CNV should be treated as a deletion based on depth probabilities.
+                        // if let Some((max_idx, _)) =
+                        //     pileup.depth_observations().first().and_then(|obs| {
+                        //         obs.cnv_probs()
+                        //             .iter()
+                        //             .enumerate()
+                        //             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                        //     })
+                        // {
+                        //     let ploidy = 2; // TODO: make dynamic
+                        //     if max_idx < ploidy {
+                        //         pileup = sample.extract_read_observations(
+                        //             &parse_deletion(*len)?,
+                        //             &alt_variants,
+                        //         )?;
+                        //     }
+                        // }
 
-                        pileup
+                        // pileup
                     }
                     model::Variant::Duplication(len) => sample
                         .extract_read_observations(&parse_duplication(*len)?, &alt_variants)?,

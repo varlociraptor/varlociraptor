@@ -4,7 +4,7 @@ use crate::variants::evidence::observations::depth_observation::DepthObservation
 
 use super::read_observation::ProcessedReadObservation;
 
-#[derive(Debug, Getters, MutGetters, Default)]
+#[derive(Debug, Getters, MutGetters, Default, Clone)]
 #[getset(get = "pub", get_mut = "pub(crate)")]
 pub struct Pileup {
     read_observations: Vec<ProcessedReadObservation>,
