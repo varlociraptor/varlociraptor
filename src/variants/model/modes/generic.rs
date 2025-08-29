@@ -338,12 +338,11 @@ impl GenericPosterior {
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
-                        let vafs = if let Some(lfc_bounds) = &lfc_bounds {
-                            vafs.intersect(lfc_bounds)
+                        let vafs = if let Some(bounds) = &lfc_bounds {
+                            vafs.intersect(bounds)
                         } else {
                             vafs.clone()
                         };
-
                         if vafs.is_empty() {
                             // METHOD: empty interval, integral must be zero.
                             return LogProb::ln_zero();
