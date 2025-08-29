@@ -146,40 +146,31 @@ impl LikelihoodOperands {
     }
 
     pub(crate) fn lfc_bounds(&self, sample: usize) -> Option<VAFRange> {
-        let mut lfc_bounds: Option<VAFRange> = None;
+        let mut acc: Option<VAFRange> = None;
         for lfc in &self.lfcs {
-            let (other_event, invert) = self.events.get(lfc.sample_a).map_or_else(
-                || {
-                    if sample == lfc.sample_a {
-                        (self.events.get(lfc.sample_b), true)
-                    } else {
-                        (None, false)
-                    }
-                },
-                |evt| {
-                    if sample == lfc.sample_b {
-                        (Some(evt), false)
-                    } else {
-                        (None, false)
-                    }
-                },
-            );
+            let maybe_bounds = if lfc.sample_a == sample {
+                // sample is on side A: invert the predicate against B’s allele_freq
+                self.events
+                    .get(lfc.sample_b)
+                    .map(|evt_b| lfc.predicate.invert().infer_vaf_bounds(evt_b.allele_freq))
+            } else if lfc.sample_b == sample {
+                // sample is on side B: use the predicate directly against A’s allele_freq
+                self.events
+                    .get(lfc.sample_a)
+                    .map(|evt_a| lfc.predicate.infer_vaf_bounds(evt_a.allele_freq))
+            } else {
+                // this LFC doesn’t involve the current sample
+                None
+            };
 
-            if let Some(other_event) = other_event {
-                let vaf = other_event.allele_freq;
-                let bounds = if invert {
-                    lfc.predicate.invert().infer_vaf_bounds(vaf)
-                } else {
-                    lfc.predicate.infer_vaf_bounds(vaf)
-                };
-                if let Some(prev_bounds) = &lfc_bounds {
-                    lfc_bounds = Some(prev_bounds.intersect(&bounds));
-                } else {
-                    lfc_bounds = Some(bounds);
-                }
+            if let Some(bounds) = maybe_bounds {
+                acc = Some(match acc {
+                    Some(prev) => prev.intersect(&bounds),
+                    None => bounds,
+                });
             }
         }
-        lfc_bounds
+        acc
     }
 }
 
