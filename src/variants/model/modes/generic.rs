@@ -255,10 +255,7 @@ impl GenericPosterior {
 
                 let lfc_bounds = likelihood_operands.lfc_bounds();
 
-                if !lfc_bounds
-                    .as_ref()
-                    .is_none_or(|bounds| !bounds.is_empty())
-                {
+                if !lfc_bounds.as_ref().is_none_or(|bounds| !bounds.is_empty()) {
                     // METHOD: The current set of log fold changes is impossible to satisfy.
                     // Hence, we can immediately return a probability of zero.
                     return LogProb::ln_zero();

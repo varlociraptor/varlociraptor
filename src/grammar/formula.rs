@@ -1236,7 +1236,7 @@ impl VAFRange {
         if overlap == VAFRangeOverlap::None {
             return VAFRange::empty();
         }
-        
+
         let inner = self.inner.start.max(other.inner.start)..self.inner.end.min(other.inner.end);
 
         let left_exclusive = if self.start > other.start {
