@@ -214,16 +214,18 @@ impl Call {
         let mut events = Vec::new();
         let mut svtypes = Vec::new();
         let mut ends = Vec::new();
+        let mut cn = Vec::new();
         alleles.push(&ref_allele[..]);
 
         alleles.push(&variant.alt_allele[..]);
-
-        for (event, prob) in variant
-            .event_probs
-            .as_ref()
-            .expect("bug: event probs must be set")
-        {
-            event_probs.push((event, *prob));
+        if variant.svtype.as_deref() != Some(b"CNV") {
+            for (event, prob) in variant
+                .event_probs
+                .as_ref()
+                .expect("bug: event probs must be set")
+            {
+                event_probs.push((event, *prob));
+            }
         }
         event_probs.sort_unstable_by_key(|(_, prob)| OrderedFloat(-prob.0));
 
@@ -278,6 +280,18 @@ impl Call {
                         AltLocusBias::Some => b'*',
                     },
                 );
+
+                if variant.svtype.as_deref() == Some(b"CNV") {
+                    let max_idx = sample_info.pileup.depth_observations()[0]
+                        .cnv_probs()
+                        .iter()
+                        .enumerate()
+                        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                        .map(|(idx, _)| idx)
+                        .unwrap_or(0); // fallback
+
+                    cn.insert(i, max_idx as i32);
+                }
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
                 obs_counts.insert(
@@ -474,10 +488,12 @@ impl Call {
         }
 
         // set sample info
-        if !no_obs {
+        if !no_obs && variant.svtype.as_deref() != Some(b"CNV") {
             let dp = obs_counts.values().cloned().collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
+            let n_samples = record.header().sample_count();
+            dbg!(n_samples);
             let afs = allelefreq_estimates.values().cloned().collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
@@ -565,9 +581,13 @@ impl Call {
                 })
                 .collect_vec();
             record.push_format_string(b"AFD", &vaf_densities)?;
+        } else if variant.svtype.as_deref() == Some(b"CNV") {
+            let n_samples = record.header().sample_count();
+            let afs = allelefreq_estimates.values().cloned().collect_vec();
+            record.push_format_float(b"AF", &afs)?;
+            record.push_format_integer(b"CN", &cn)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
-            record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SROBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
@@ -577,6 +597,11 @@ impl Call {
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            if variant.svtype.as_deref() == Some(b"CNV") {
+                record.push_format_integer(b"CN", &cn)?;
+                let afs = allelefreq_estimates.values().cloned().collect_vec();
+                record.push_format_float(b"AF", &afs)?;
+            }
         }
 
         bcf_writer.write(&record)?;
@@ -683,7 +708,7 @@ impl VariantBuilder {
                 .alt_allele(b"<INV>".to_vec())
                 .svtype(Some(b"INV".to_vec()))
                 .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
-            model::Variant::Cnv(len) => self
+            model::Variant::Cnv(len, _) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<CNV>".to_vec())
                 .svtype(Some(b"CNV".to_vec()))
