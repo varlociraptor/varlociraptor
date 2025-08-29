@@ -145,13 +145,26 @@ impl LikelihoodOperands {
         self.events.values().all(|evt| evt.is_absent())
     }
 
-    pub(crate) fn lfc_bounds(&self) -> Option<VAFRange> {
+    pub(crate) fn lfc_bounds(&self, sample: usize) -> Option<VAFRange> {
         let mut lfc_bounds: Option<VAFRange> = None;
         for lfc in &self.lfcs {
             let (other_event, invert) = self.events.get(lfc.sample_a).map_or_else(
-                || (self.events.get(lfc.sample_b), true),
-                |evt| (Some(evt), false),
+                || {
+                    if sample == lfc.sample_a {
+                        (self.events.get(lfc.sample_b), true)
+                    } else {
+                        (None, false)
+                    }
+                },
+                |evt| {
+                    if sample == lfc.sample_b {
+                        (Some(evt), false)
+                    } else {
+                        (None, false)
+                    }
+                },
             );
+
             if let Some(other_event) = other_event {
                 let vaf = other_event.allele_freq;
                 let bounds = if invert {
@@ -253,12 +266,14 @@ impl GenericPosterior {
                         );
                     };
 
-                let lfc_bounds = likelihood_operands.lfc_bounds();
+                let lfc_bounds = likelihood_operands.lfc_bounds(*sample);
 
-                if !lfc_bounds.as_ref().is_none_or(|bounds| !bounds.is_empty()) {
-                    // METHOD: The current set of log fold changes is impossible to satisfy.
-                    // Hence, we can immediately return a probability of zero.
-                    return LogProb::ln_zero();
+                if let Some(bounds) = &lfc_bounds {
+                    if bounds.is_empty() {
+                        // METHOD: The current set of log fold changes is impossible to satisfy.
+                        // Hence, we can immediately return a probability of zero.
+                        return LogProb::ln_zero();
+                    }
                 }
 
                 let (n_obs, is_clear_ref) = {
