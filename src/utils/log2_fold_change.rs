@@ -55,7 +55,7 @@ impl Log2FoldChangePredicate {
     /// For the given VAF, infer the possible VAF range based on the log2 fold change predicate,
     /// given the vaf of the left operand.
     pub(crate) fn infer_vaf_bounds(&self, vaf: AlleleFreq) -> VAFRange {
-        let projection_right_operand = vaf * self.value.exp2();
+        let projection_right_operand = vaf / self.value.exp2();
         if *projection_right_operand < 0.0 || *projection_right_operand > 1.0 {
             return VAFRange::empty();
         }
