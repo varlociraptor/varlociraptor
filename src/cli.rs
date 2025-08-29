@@ -142,6 +142,173 @@ pub enum Varlociraptor {
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
+    #[structopt(
+        name = "cnv-number",
+        about = "Compute copy number for given CNV candidates",
+        usage = "varlociraptor cnv-number input.bcf --bam sample.bam >   output.bcf"
+    )]
+    CNVNumber {
+        #[structopt(
+            parse(from_os_str),
+            help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
+        )]
+        reference: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            required = true,
+            help = "sorted VCF/BCF file to process (if omitted, read from STDIN)."
+        )]
+        candidates: PathBuf,
+        #[structopt(
+            long,
+            required = true,
+            help = "BAM file with aligned reads from a single sample."
+        )]
+        bam: PathBuf,
+        #[structopt(
+            long,
+            help = "Name of INFO field containing an expected heterozygosity per variant allele (can be e.g. a population allele frequency). Field needs to have as many entries as ALT alleles per VCF/BCF record."
+        )]
+        variant_heterozygosity_field: Option<String>,
+        #[structopt(
+            long,
+            help = "Name of INFO field containing an expected somatic effective mutation rate per variant allele (can be e.g. a poplulation scale prevalence of a known cancer variant from a database). Field needs to have as many entries as ALT alleles per VCF/BCF record."
+        )]
+        variant_somatic_effective_mutation_rate_field: Option<String>,
+        #[structopt(
+            long,
+            help = "Report fragment IDs in output BCF. This information can be used for phasing."
+        )]
+        #[serde(default)]
+        report_fragment_ids: bool,
+        #[structopt(
+            long,
+            help = "Assume that candidate variants are given in atomic form (unlike e.g. \
+            provided by freebayes which combines adjacent variants that appear to be in \
+            phase into longer haplotypes). If variants are atomic, we do not want to perform \
+            realignment against SNVs and MNVs because those can lead to false positives if \
+            they are immediately followed or preceeded by indels."
+        )]
+        #[serde(default)]
+        atomic_candidate_variants: bool,
+        #[structopt(
+            long,
+            help = "Do not adjust mapping quality (MAPQ). By default Varlociraptor will adjust mapping qualities \
+            in order to avoid false positive hits caused by inflated MAPQ values at ambiguous loci. \
+            This happens by conservatively averaging MAPQs of all reads that overlap a given locus. \
+            While this is usually a good idea and has been validated by extensive benchmarking, there can be cases \
+            where this is not desired, e.g. when solely evaluating known variants."
+        )]
+        #[serde(default)]
+        omit_mapq_adjustment: bool,
+        #[structopt(
+            long = "reference-buffer-size",
+            short = "b",
+            default_value = "10",
+            help = "Number of reference sequences to keep in buffer. Use a smaller value \
+                    to save memory at the expense of sometimes reduced parallelization."
+        )]
+        #[serde(default = "default_reference_buffer_size")]
+        reference_buffer_size: usize,
+        #[structopt(
+            long = "min-bam-refetch-distance",
+            default_value = "1",
+            help = "Base pair distance to last fetched BAM interval such that a refetching is performed \
+                  instead of reading through until the next interval is reached. Making this too small \
+                  can cause unnecessary random access. Making this too large can lead to unneccessary \
+                  iteration over irrelevant records. Benchmarking has shown that at least for short reads, \
+                  a value of 1 (e.g. always refetch) does not incur additional costs and is a reasonable \
+                  default."
+        )]
+        #[serde(default = "default_min_bam_refetch_distance")]
+        min_bam_refetch_distance: u64,
+        #[structopt(
+            long = "alignment-properties",
+            help = "Alignment properties JSON file for sample. If not provided, properties \
+                    will be estimated from the given BAM file. It is recommended to estimate alignment \
+                    properties separately, see 'varlociraptor estimate alignment-properties --help'."
+        )]
+        alignment_properties: Option<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
+        )]
+        output: Option<PathBuf>,
+        #[structopt(
+            long = "propagate-info-fields",
+            help = "Additional INFO fields in the input BCF that shall be propagated to the output BCF \
+            (not supported for variants connected via EVENT tags except breakends)."
+        )]
+        #[serde(default)]
+        propagate_info_fields: Vec<String>,
+        #[structopt(
+            long = "indel-window",
+            default_value = "64",
+            help = "Number of bases to consider left and right of breakpoint when \
+                    calculating read support. Currently implemented maximum \
+                    value is 64."
+        )]
+        realignment_window: u64,
+        #[structopt(
+            long = "max-depth",
+            default_value = "200",
+            help = "Maximum number of observations to use for calling. If locus is exceeding this \
+                    number, downsampling is performed."
+        )]
+        max_depth: usize,
+        #[structopt(
+            long = "omit-insert-size",
+            help = "Do not consider insert size when calculating support for a variant. Use this flag when \
+                    processing amplicon data, where indels do not impact the observed insert size"
+        )]
+        #[serde(default)]
+        omit_insert_size: bool,
+        #[structopt(
+            long = "pairhmm-mode",
+            possible_values = &["fast", "exact", "homopolymer"],
+            default_value = "exact",
+            help = "PairHMM computation mode (either fast, exact or homopolymer). Fast mode means that only the best \
+                    alignment path is considered for probability calculation. In rare cases, this can lead \
+                    to wrong results for single reads. Hence, we advice to not use it when \
+                    discrete allele frequences are of interest (0.5, 1.0). For continuous \
+                    allele frequencies, fast mode should cause almost no deviations from the \
+                    exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
+                    in large cohorts), fast mode can be safely used. \
+                    Note that fast and exact mode are not suitable for ONT data.\
+                    The homopolymer mode should be used for ONT data; it is similar to the exact mode \
+                    but considers homopolymer errors to be different from gaps."
+        )]
+        #[serde(default = "default_pairhmm_mode")]
+        pairhmm_mode: String,
+        #[structopt(
+            long = "log-mode",
+            possible_values = &["default", "each-record"],
+            default_value = "default",
+            help = "Specify how progress should be logged. By default, a record count will be printed. With 'each-record', \
+            Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
+            useful for debugging."
+        )]
+        #[serde(default = "default_log_mode")]
+        log_mode: String,
+        #[structopt(
+            parse(from_os_str),
+            long = "output-raw-observations",
+            help = "Output raw observations as TSV files at the given prefix. Attention, only use this for debugging when processing \
+            a single variant. Otherwise it will cause a lots of files and a significant performance hit."
+        )]
+        #[serde(default)]
+        output_raw_observations: Option<PathBuf>,
+        #[structopt(
+            long = "max-number-cn",
+            required = false,
+            default_value = "100",
+            help = "Maximum number of expected copy numbers in search for copy-number-variants"
+        )]
+        #[serde(default = "default_max_number_cn")]
+        max_number_cn: usize,
+    },
 }
 
 pub struct PreprocessInput {
@@ -1390,6 +1557,94 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
         }
         Varlociraptor::CNVCandidates { input, output } => {
             candidates::cnv::find_candidates(input, output)?;
+        }
+        Varlociraptor::CNVNumber {
+            reference,
+            candidates,
+            bam,
+            report_fragment_ids,
+            atomic_candidate_variants,
+            omit_mapq_adjustment,
+            alignment_properties,
+            output,
+            propagate_info_fields,
+            realignment_window,
+            max_depth,
+            omit_insert_size,
+            pairhmm_mode,
+            reference_buffer_size,
+            min_bam_refetch_distance,
+            log_mode,
+            output_raw_observations,
+            variant_heterozygosity_field,
+            variant_somatic_effective_mutation_rate_field,
+            max_number_cn,
+        } => {
+            // TODO: handle testcases
+            if realignment_window > (128 / 2) {
+                return Err(
+                            structopt::clap::Error::with_description(
+                                "Command-line option --indel-window requires a value <= 64 with the current implementation.", 
+                                structopt::clap::ErrorKind::ValueValidation
+                            ).into()
+                        );
+            };
+
+            let variant_heterozygosity_field = variant_heterozygosity_field.map(Vec::from);
+            let variant_somatic_effective_mutation_rate_field =
+                variant_somatic_effective_mutation_rate_field.map(Vec::from);
+
+            let mut reference_buffer = Arc::new(
+                reference::Buffer::from_path(&reference, reference_buffer_size)
+                    .context("Unable to read genome reference.")?,
+            );
+
+            let alignment_properties = est_or_load_alignment_properties(
+                &alignment_properties,
+                &bam,
+                omit_insert_size,
+                Arc::get_mut(&mut reference_buffer).unwrap(),
+                Some(crate::estimation::alignment_properties::NUM_FRAGMENTS),
+            )?;
+
+            let gap_params = alignment_properties.gap_params.clone();
+
+            let log_each_record = log_mode == "each-record";
+
+            let propagate_info_fields = propagate_info_fields
+                .iter()
+                .map(|s| s.as_bytes().to_owned())
+                .collect();
+
+            let mut processor = calling::variants::preprocessing::ObservationProcessor::builder()
+                .report_fragment_ids(report_fragment_ids)
+                .adjust_prob_mapping(!omit_mapq_adjustment)
+                .alignment_properties(alignment_properties)
+                .max_depth(max_depth)
+                .inbam(bam)
+                .min_bam_refetch_distance(min_bam_refetch_distance)
+                .reference_buffer(Arc::clone(&reference_buffer))
+                .haplotype_feature_index(HaplotypeFeatureIndex::new(&candidates)?)
+                .inbcf(candidates)
+                .aux_info_fields(propagate_info_fields)
+                .options(opt_clone)
+                .outbcf(output)
+                .raw_observation_output(output_raw_observations)
+                .log_each_record(log_each_record)
+                .realigner(realignment::PairHMMRealigner::new(
+                    reference_buffer,
+                    gap_params,
+                    realignment_window,
+                ))
+                .atomic_candidate_variants(atomic_candidate_variants)
+                .variant_heterozygosity_field(variant_heterozygosity_field)
+                .variant_somatic_effective_mutation_rate_field(
+                    variant_somatic_effective_mutation_rate_field,
+                )
+                .max_number_cn(max_number_cn)
+                .build();
+
+            processor.compute_cn()?;
         }
     }
     Ok(())
