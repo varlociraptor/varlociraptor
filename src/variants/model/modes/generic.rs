@@ -347,6 +347,7 @@ impl GenericPosterior {
                             // METHOD: empty interval, integral must be zero.
                             return LogProb::ln_zero();
                         }
+                        dbg!(&vafs);
                         if is_clear_ref && (*vafs.start > 0.0) {
                             // METHOD: shortcut for the case that all obs support the reference but the vaf
                             // range in this event is > 0. Then, we don't need to recurse further and can
