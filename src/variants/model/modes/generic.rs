@@ -346,6 +346,14 @@ impl GenericPosterior {
                             return LogProb::ln_zero();
                         }
 
+                        if vafs.is_singleton() {
+                            // METHOD: interval represents a single value, no need
+                            // to integrate.
+                            let vaf = vafs.start;
+                            push_base_event(vaf, &mut likelihood_operands, true);
+                            return subdensity(&mut likelihood_operands);
+                        }
+
                         let resolution = &self.resolutions[*sample];
                         let min_vaf = vafs.observable_min(n_obs);
                         let max_vaf = vafs.observable_max(n_obs);
