@@ -349,8 +349,8 @@ impl GenericPosterior {
                             // METHOD: interval represents a single value, no need
                             // to integrate.
                             let vaf = vafs.start;
-                            push_base_event(vaf, &mut likelihood_operands, true);
-                            return subdensity(&mut likelihood_operands);
+                            push_base_event(vaf, likelihood_operands, true);
+                            return subdensity(likelihood_operands);
                         }
 
                         let resolution = &self.resolutions[*sample];
