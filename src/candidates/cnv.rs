@@ -2,14 +2,67 @@ use anyhow::{Context, Result};
 use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use rust_htslib::bcf::header::HeaderView;
 use rust_htslib::bcf::{record::Numeric, Format, Header, Read, Reader, Record, Writer};
+use rust_htslib::bgzf;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
 
-use crate::candidates;
 use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
 use crate::variants::types::breakends::Breakend;
+
+#[derive(Builder, Getters, Debug)]
+// Computed interval out of the breakends
+pub struct BreakendInterval {
+    #[getset(get = "pub")]
+    interval: Interval,
+    #[getset(get = "pub")]
+    info_probs: BTreeMap<String, f64>,
+}
+
+#[derive(Builder, Getters, Debug)]
+// Representative for every breakend in the call file
+pub struct CnvCandidate {
+    #[getset(get = "pub")]
+    breakend: Breakend,
+    // Map with all relevant info fields as keys and their values in PHRED scale
+    #[getset(get = "pub")]
+    info_probs: BTreeMap<String, f64>,
+}
+
+#[derive(Clone, Debug, Default)]
+// For every border, keep track of the accumulated probabilities of all intervals starting/ending there
+struct BorderProbs {
+    prob_interval_start: f64,
+    prob_interval_end: f64,
+    // Number of intervals with probability zero
+    count_prob_zero: i32,
+}
+
+impl BorderProbs {
+    fn update_start(&mut self, value: f64) {
+        if value != f64::NEG_INFINITY {
+            self.prob_interval_start += value;
+        } else {
+            self.count_prob_zero += 1;
+        }
+    }
+
+    fn update_end(&mut self, value: f64) {
+        if value != f64::NEG_INFINITY {
+            self.prob_interval_end += value;
+        } else {
+            self.count_prob_zero += 1;
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct BorderInfo {
+    // How many times does an interval start or end here? 1 for start, -1 for end
+    delta: i32,
+    info_probs_borders: BTreeMap<String, BorderProbs>,
+}
 
 fn write_cnv_records(
     cnv_candidates: Vec<BreakendInterval>,
@@ -53,26 +106,6 @@ fn write_cnv_records(
     Ok(())
 }
 
-// /// Builds a new BCF header based on the input header
-// fn create_header_from_existing(old_header: &HeaderView) -> Result<Header> {
-//     let mut header = Header::new();
-
-//     for rid in 0..old_header.contig_count() {
-//         let name = std::str::from_utf8(old_header.rid2name(rid)?)
-//             .context("Invalid UTF-8 in contig name")?;
-//         let header_contig_line = format!(r#"##contig=<ID={}>"#, name);
-//         header.push_record(header_contig_line.as_bytes());
-//     }
-//     header.push_record(
-//         b"##INFO=<ID=END,Number=1,Type=Integer,Description=\"Ending position of breakend\">",
-//     );
-//     header.push_record(
-//         b"##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">",
-//     );
-//     header.push_record(b"##INFO=<ID=AF,Number=1,Type=Float,Description=\"Allele frequency\">");
-//     Ok(header)
-// }
-
 fn create_header_from_existing(old_header: &HeaderView) -> anyhow::Result<Header> {
     // kompletten Header aus der View klonen
     let mut header = Header::from_template(old_header);
@@ -114,48 +147,11 @@ fn parse_breakend(
     Ok(breakend)
 }
 
-fn breakends_to_intervals(candidates: Vec<CnvCandidate>) -> Vec<BreakendInterval> {
-    #[derive(Clone, Debug, Default)]
-    struct BorderProbs {
-        prob_interval_start: f64,
-        prob_interval_end: f64,
-        count_prob_zero: i32,
-    }
-
-    impl BorderProbs {
-        fn update_start(&mut self, value: f64) {
-            if value != f64::NEG_INFINITY {
-                self.prob_interval_start += value;
-            } else {
-                self.count_prob_zero += 1;
-            }
-        }
-
-        fn update_end(&mut self, value: f64) {
-            if value != f64::NEG_INFINITY {
-                self.prob_interval_end += value;
-            } else {
-                self.count_prob_zero += 1;
-            }
-        }
-    }
-
-    #[derive(Clone, Debug, Default)]
-    struct BorderInfo {
-        delta: i32,
-        info_probs_borders: BTreeMap<String, BorderProbs>,
-    }
-
-    #[derive(Clone, Debug, Default)]
-    struct ProbTracking {
-        current_prob_product: f64,
-        count_prob_zero: i32,
-    }
-
+fn breakends_to_interval_borders(candidates: Vec<CnvCandidate>) -> BTreeMap<Locus, BorderInfo> {
     let mut all_intervals: BTreeMap<Locus, BorderInfo> = BTreeMap::new();
 
-    // 1) Sammle alle Borders
     for c in candidates {
+        // Find left and right side of the interval
         if let Some(join) = c.breakend.join() {
             let (bp_start, bp_end) = (c.breakend.locus(), join.locus());
             let (interval_start, interval_end) = if bp_start.pos() < bp_end.pos() {
@@ -164,7 +160,7 @@ fn breakends_to_intervals(candidates: Vec<CnvCandidate>) -> Vec<BreakendInterval
                 (bp_end.to_owned(), bp_start.to_owned())
             };
 
-            // Start-Border
+            // Start-Border, whenever two intervals start or end at the same position, accumulate their probabilities
             let entry_start = all_intervals.entry(interval_start).or_default();
             entry_start.delta += 1;
             for (k, &v) in &c.info_probs {
@@ -175,9 +171,10 @@ fn breakends_to_intervals(candidates: Vec<CnvCandidate>) -> Vec<BreakendInterval
                     .update_start(v);
             }
 
-            // End-Border
+            // End-Border, whenever two intervals start or end at the same position, accumulate their probabilities
             let entry_end = all_intervals.entry(interval_end).or_default();
-            entry_end.delta += 1;
+            entry_end.delta -= 1;
+
             for (k, &v) in &c.info_probs {
                 entry_end
                     .info_probs_borders
@@ -187,74 +184,62 @@ fn breakends_to_intervals(candidates: Vec<CnvCandidate>) -> Vec<BreakendInterval
             }
         }
     }
+    all_intervals
+}
 
-    // 2) Erzeuge Intervalle
+fn interval_borders_to_intervals(borders: BTreeMap<Locus, BorderInfo>) -> Vec<BreakendInterval> {
     let mut cnv_intervals = Vec::new();
     let mut last_pos: Option<Locus> = None;
-    let mut current_cov = 0;
-    let mut interval_probs: BTreeMap<String, ProbTracking> = BTreeMap::new();
-    let mut current_info_probs: BTreeMap<String, f64> = BTreeMap::new();
-    for (locus, border_info) in all_intervals.iter() {
-        // Update zero counts
-        for (k, v) in &border_info.info_probs_borders {
-            if v.count_prob_zero > 0 {
-                interval_probs.entry(k.clone()).or_default().count_prob_zero += v.count_prob_zero;
-            }
-        }
+    let mut interval_cov = 0;
+    let mut interval_info_probs: BTreeMap<String, f64> = BTreeMap::new();
 
-        // Erzeuge Intervalle
-        if let Some(prev_locus) = last_pos {
-            if prev_locus.contig() == locus.contig()
-                && prev_locus.pos() < locus.pos()
-                && current_cov != 0
-            {
-                let interval = Interval::new(
-                    prev_locus.contig().to_owned(),
-                    Range {
-                        start: prev_locus.pos() + 1,
-                        end: locus.pos(),
-                    },
-                );
+    for (locus, border_info) in &borders {
+        dbg!(border_info);
+        // If we have a previous position and the coverage is not zero, create an interval
+        if let Some(prev) = &last_pos {
+            if prev.contig() == locus.contig() && prev.pos() < locus.pos() && interval_cov != 0 {
                 cnv_intervals.push(BreakendInterval {
-                    interval,
-                    info_probs: current_info_probs.clone(),
+                    interval: Interval::new(
+                        prev.contig().to_owned(),
+                        Range {
+                            start: prev.pos() + 1,
+                            end: locus.pos(),
+                        },
+                    ),
+                    info_probs: interval_info_probs.clone(),
                 });
             }
         }
-        // Update Wahrscheinlichkeiten
-        for (k, v) in &border_info.info_probs_borders {
-            let old_prob = current_info_probs.get(k).copied().unwrap_or(0.0);
-            let new_prob = if v.count_prob_zero > 0 {
-                0.0
-            } else {
-                old_prob + (v.prob_interval_start - v.prob_interval_end)
-            };
-            current_info_probs.insert(k.clone(), new_prob);
-        }
 
-        current_cov += border_info.delta;
-        last_pos = Some(locus.to_owned());
+        // Update current_info_probs by adding the start probabilities and
+        // subtracting the end probabilities at this border
+        for (k, v) in &border_info.info_probs_borders {
+            interval_info_probs
+                .entry(k.clone())
+                .and_modify(|prob| {
+                    // If any of the intervals contributing to this border has probability zero, the resulting interval has probability zero
+                    *prob = if v.count_prob_zero > 0 {
+                        0.0
+                    } else {
+                        let delta = v.prob_interval_start - v.prob_interval_end;
+                        let delta = if delta.is_finite() { delta } else { 0.0 };
+
+                        *prob + delta
+                    };
+                })
+                .or_insert_with(|| {
+                    if v.count_prob_zero > 0 {
+                        0.0
+                    } else {
+                        v.prob_interval_start - v.prob_interval_end
+                    }
+                });
+        }
+        interval_cov += border_info.delta;
+        last_pos = Some(locus.clone());
     }
 
     cnv_intervals
-}
-
-#[derive(Builder, Getters, Debug)]
-// Computed interval out of the breakends
-pub struct BreakendInterval {
-    #[getset(get = "pub")]
-    interval: Interval,
-    #[getset(get = "pub")]
-    info_probs: BTreeMap<String, f64>,
-}
-
-#[derive(Builder, Getters, Debug)]
-// Representative for every breakend in the call file
-pub struct CnvCandidate {
-    #[getset(get = "pub")]
-    breakend: Breakend,
-    #[getset(get = "pub")]
-    info_probs: BTreeMap<String, f64>,
 }
 
 /// Reads an input BCF file, processes each record, and writes out modified CNV records
@@ -315,10 +300,9 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
 
         breakends.push(candidate);
     }
-    dbg!(&breakends);
+    let interval_borders = breakends_to_interval_borders(breakends);
     // Compute intervals out of all breakends
-    let intervals: Vec<BreakendInterval> = breakends_to_intervals(breakends);
-    dbg!(&intervals);
+    let intervals: Vec<BreakendInterval> = interval_borders_to_intervals(interval_borders);
     write_cnv_records(intervals, &header, outbcf)?;
 
     Ok(())
