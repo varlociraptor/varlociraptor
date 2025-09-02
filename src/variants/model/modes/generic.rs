@@ -260,7 +260,6 @@ impl GenericPosterior {
                 let lfc_bounds = likelihood_operands.lfc_bounds(*sample);
 
                 if let Some(bounds) = &lfc_bounds {
-                    assert!(!likelihood_operands.events.is_empty());
                     if bounds.is_empty() {
                         // METHOD: The current set of log fold changes is impossible to satisfy.
                         // Hence, we can immediately return a probability of zero.
@@ -365,7 +364,7 @@ impl GenericPosterior {
                             subdensity(&mut likelihood_operands)
                         };
 
-                        let p = if (max_vaf - min_vaf) < **resolution {
+                        if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.
                             LogProb::ln_simpsons_integrate_exp(
@@ -392,9 +391,7 @@ impl GenericPosterior {
                                 max_vaf,
                                 **resolution,
                             )
-                        };
-
-                        p
+                        }
                     }
                 }
             }
@@ -448,7 +445,6 @@ impl Posterior for GenericPosterior {
             bias.is_possible(&data.pileups)
                 && bias.is_informative(&data.pileups)
                 && bias.is_likely(&data.pileups)
-                && !bias.is_artifact() // dbg remove this!
         });
 
         LogProb::ln_sum_exp(
