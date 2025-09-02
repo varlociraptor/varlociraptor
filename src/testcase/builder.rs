@@ -16,7 +16,7 @@ use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
 
-use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+use crate::calling::variants::obs_processing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::errors;
 use crate::utils;
 use crate::utils::anonymize::Anonymizer;

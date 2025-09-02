@@ -17,7 +17,7 @@ use progress_logger::ProgressLogger;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
 
-use crate::calling::variants::preprocessing::{
+use crate::calling::variants::obs_processing::{
     read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
 };
 use crate::calling::variants::SampleInfo;
@@ -39,8 +39,8 @@ use crate::variants::model::{self, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
 
-use super::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
-use super::preprocessing::Observations;
+use super::obs_processing::haplotype_feature_index::HaplotypeFeatureIndex;
+use super::obs_processing::Observations;
 use super::Hint;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
