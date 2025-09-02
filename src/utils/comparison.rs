@@ -39,16 +39,3 @@ impl Not for ComparisonOperator {
         }
     }
 }
-
-impl ComparisonOperator {
-    pub fn invert(&self) -> Self {
-        match self {
-            ComparisonOperator::Equal => ComparisonOperator::Equal,
-            ComparisonOperator::Greater => ComparisonOperator::Less,
-            ComparisonOperator::GreaterEqual => ComparisonOperator::LessEqual,
-            ComparisonOperator::Less => ComparisonOperator::Greater,
-            ComparisonOperator::LessEqual => ComparisonOperator::GreaterEqual,
-            ComparisonOperator::NotEqual => ComparisonOperator::NotEqual,
-        }
-    }
-}

@@ -368,10 +368,19 @@ pub trait Testcase {
                             let id = values.get("ID").unwrap().clone();
                             if id.starts_with("PROB_") {
                                 if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
-                                    expr = expr.value(id.clone(), values[0]);
+                                    // expressions framework does not handle
+                                    // comparisons with infinity correctly
+                                    let phred_prob = if values[0] == f32::INFINITY {
+                                        f32::MAX
+                                    } else if values[0] == f32::NEG_INFINITY {
+                                        f32::MIN
+                                    } else {
+                                        values[0]
+                                    };
+                                    expr = expr.value(id.clone(), phred_prob);
                                     expr = expr.value(
                                         format!("PLAIN_{id}"),
-                                        Prob::from(PHREDProb(values[0] as f64)),
+                                        Prob::from(PHREDProb(phred_prob as f64)),
                                     );
                                 }
                             }

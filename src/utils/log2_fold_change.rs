@@ -62,26 +62,26 @@ impl Log2FoldChangePredicate {
         match self.comparison {
             ComparisonOperator::Equal => VAFRange::builder()
                 .inner(projection_right_operand..projection_right_operand)
-                .left_exclusive(true)
-                .right_exclusive(true)
-                .build(),
-            ComparisonOperator::Greater => VAFRange::builder()
-                .inner(projection_right_operand..AlleleFreq(1.0))
-                .left_exclusive(true)
+                .left_exclusive(false)
                 .right_exclusive(false)
                 .build(),
+            ComparisonOperator::Greater => VAFRange::builder()
+                .inner(AlleleFreq(0.0)..projection_right_operand)
+                .left_exclusive(false)
+                .right_exclusive(true)
+                .build(),
             ComparisonOperator::GreaterEqual => VAFRange::builder()
-                .inner(projection_right_operand..AlleleFreq(1.0))
+                .inner(AlleleFreq(0.0)..projection_right_operand)
                 .left_exclusive(false)
                 .right_exclusive(false)
                 .build(),
             ComparisonOperator::Less => VAFRange::builder()
-                .inner(AlleleFreq(0.0)..projection_right_operand)
-                .left_exclusive(false)
-                .right_exclusive(true)
+                .inner(projection_right_operand..AlleleFreq(1.0))
+                .left_exclusive(true)
+                .right_exclusive(false)
                 .build(),
             ComparisonOperator::LessEqual => VAFRange::builder()
-                .inner(AlleleFreq(0.0)..projection_right_operand)
+                .inner(projection_right_operand..AlleleFreq(1.0))
                 .left_exclusive(false)
                 .right_exclusive(false)
                 .build(),
@@ -94,9 +94,31 @@ impl Log2FoldChangePredicate {
     }
 
     pub(crate) fn invert(&self) -> Self {
-        Self {
-            comparison: self.comparison.invert(),
-            value: -self.value,
+        match self.comparison {
+            ComparisonOperator::Equal => Self {
+                comparison: ComparisonOperator::Equal,
+                value: self.value,
+            },
+            ComparisonOperator::Greater => Self {
+                comparison: ComparisonOperator::LessEqual,
+                value: -self.value,
+            },
+            ComparisonOperator::GreaterEqual => Self {
+                comparison: ComparisonOperator::Less,
+                value: -self.value,
+            },
+            ComparisonOperator::Less => Self {
+                comparison: ComparisonOperator::GreaterEqual,
+                value: -self.value,
+            },
+            ComparisonOperator::LessEqual => Self {
+                comparison: ComparisonOperator::Greater,
+                value: -self.value,
+            },
+            ComparisonOperator::NotEqual => Self {
+                comparison: ComparisonOperator::NotEqual,
+                value: self.value,
+            },
         }
     }
 }
