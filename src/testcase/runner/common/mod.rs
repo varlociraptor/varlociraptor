@@ -370,13 +370,7 @@ pub trait Testcase {
                                 if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
                                     // expressions framework does not handle
                                     // comparisons with infinity correctly
-                                    let phred_prob = if values[0] == f32::INFINITY {
-                                        f32::MAX
-                                    } else if values[0] == f32::NEG_INFINITY {
-                                        f32::MIN
-                                    } else {
-                                        values[0]
-                                    };
+                                    let phred_prob = values[0];
                                     expr = expr.value(id.clone(), phred_prob);
                                     expr = expr.value(
                                         format!("PLAIN_{id}"),
