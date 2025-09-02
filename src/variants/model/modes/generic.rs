@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use vec_map::{Values, VecMap};
 
-use crate::grammar;
+use crate::grammar::{self, VAFRange};
 use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
@@ -144,6 +144,34 @@ impl LikelihoodOperands {
     pub(crate) fn is_absent(&self) -> bool {
         self.events.values().all(|evt| evt.is_absent())
     }
+
+    pub(crate) fn lfc_bounds(&self, sample: usize) -> Option<VAFRange> {
+        let mut acc: Option<VAFRange> = None;
+        for lfc in &self.lfcs {
+            let maybe_bounds = if lfc.sample_a == sample {
+                // sample is on side A: invert the predicate against B’s allele_freq
+                self.events
+                    .get(lfc.sample_b)
+                    .map(|evt_b| lfc.predicate.invert().infer_vaf_bounds(evt_b.allele_freq))
+            } else if lfc.sample_b == sample {
+                // sample is on side B: use the predicate directly against A’s allele_freq
+                self.events
+                    .get(lfc.sample_a)
+                    .map(|evt_a| lfc.predicate.infer_vaf_bounds(evt_a.allele_freq))
+            } else {
+                // this LFC doesn’t involve the current sample
+                None
+            };
+
+            if let Some(bounds) = maybe_bounds {
+                acc = Some(match acc {
+                    Some(prev) => prev.intersect(&bounds),
+                    None => bounds,
+                });
+            }
+        }
+        acc
+    }
 }
 
 impl Index<usize> for LikelihoodOperands {
@@ -229,6 +257,16 @@ impl GenericPosterior {
                         );
                     };
 
+                let lfc_bounds = likelihood_operands.lfc_bounds(*sample);
+
+                if let Some(bounds) = &lfc_bounds {
+                    if bounds.is_empty() {
+                        // METHOD: The current set of log fold changes is impossible to satisfy.
+                        // Hence, we can immediately return a probability of zero.
+                        return LogProb::ln_zero();
+                    }
+                }
+
                 let (n_obs, is_clear_ref) = {
                     let pileup = &data.pileups[*sample];
                     if pileup.read_observations().is_empty()
@@ -260,6 +298,14 @@ impl GenericPosterior {
                             // immediately stop, returning a probability of zero.
                             return LogProb::ln_zero();
                         }
+                        let vafs = if let Some(lfc_bounds) = &lfc_bounds {
+                            vafs.iter()
+                                .filter(|vaf| lfc_bounds.contains(**vaf))
+                                .cloned()
+                                .collect()
+                        } else {
+                            vafs.clone()
+                        };
 
                         if vafs.len() == 1 {
                             push_base_event(
@@ -283,6 +329,12 @@ impl GenericPosterior {
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
+                        let vafs = if let Some(bounds) = &lfc_bounds {
+                            vafs.intersect(bounds)
+                        } else {
+                            vafs.clone()
+                        };
+
                         if vafs.is_empty() {
                             // METHOD: empty interval, integral must be zero.
                             return LogProb::ln_zero();
@@ -292,6 +344,14 @@ impl GenericPosterior {
                             // range in this event is > 0. Then, we don't need to recurse further and can
                             // immediately stop, returning a probability of zero.
                             return LogProb::ln_zero();
+                        }
+
+                        if vafs.is_singleton() {
+                            // METHOD: interval represents a single value, no need
+                            // to integrate.
+                            let vaf = vafs.start;
+                            push_base_event(vaf, likelihood_operands, true);
+                            return subdensity(likelihood_operands);
                         }
 
                         let resolution = &self.resolutions[*sample];
