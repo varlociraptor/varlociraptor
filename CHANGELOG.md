@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.7.4](https://github.com/varlociraptor/varlociraptor/compare/v8.7.3...v8.7.4) (2025-09-02)
+
+
+### Bug Fixes
+
+* improved CLI help messages ([fb9a608](https://github.com/varlociraptor/varlociraptor/commit/fb9a60858d6d4abfc41462f213e30ad39a59c042))
+
+
+### Performance Improvements
+
+* restrict formula evaluation recursion by allowed values according to log2fc operands ([#513](https://github.com/varlociraptor/varlociraptor/issues/513)) ([3dc3074](https://github.com/varlociraptor/varlociraptor/commit/3dc3074b5146aaf8d866cd33a678e26d156a329e))
+
 ## [8.7.3](https://github.com/varlociraptor/varlociraptor/compare/v8.7.2...v8.7.3) (2025-05-23)
 
 
