@@ -176,9 +176,9 @@ pub fn collect_variants(
                 skip_incr(SkipReason::CnvInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
-                let af = match record.info(b"AF").float() {
-                    Ok(Some(af)) => af[0].to_owned(),
-                    _ => 0.0,
+                let af = match record.format(b"AF").float() {
+                    Ok(values) => values.first().map(|v| v[0]).unwrap_or(0.0),
+                    Err(_) => 0.0,
                 };
                 push_variant(model::Variant::Cnv(len, NotNan::new(af as f64).unwrap()), 0);
             } else {

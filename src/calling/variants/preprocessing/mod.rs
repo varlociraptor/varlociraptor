@@ -273,9 +273,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             b"##FORMAT=<ID=AF,Number=.,Type=Float,\
               Description=\"Allele Frequency\">",
         );
-        // Last column in: #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	sample1
-        // I do not know why you need it yet.
-        header.push_sample(b"sample1");
 
         let mut bcf_writer = if let Some(ref path) = self.outbcf {
             bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)

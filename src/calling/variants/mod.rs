@@ -582,10 +582,10 @@ impl Call {
                 .collect_vec();
             record.push_format_string(b"AFD", &vaf_densities)?;
         } else if variant.svtype.as_deref() == Some(b"CNV") {
-            let n_samples = record.header().sample_count();
             let afs = allelefreq_estimates.values().cloned().collect_vec();
-            record.push_format_float(b"AF", &afs)?;
+
             record.push_format_integer(b"CN", &cn)?;
+            record.push_format_float(b"AF", &afs)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
