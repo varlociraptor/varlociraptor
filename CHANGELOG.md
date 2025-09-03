@@ -2,6 +2,33 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.7.4](https://github.com/varlociraptor/varlociraptor/compare/v8.7.3...v8.7.4) (2025-09-02)
+
+
+### Bug Fixes
+
+* improved CLI help messages ([fb9a608](https://github.com/varlociraptor/varlociraptor/commit/fb9a60858d6d4abfc41462f213e30ad39a59c042))
+
+
+### Performance Improvements
+
+* restrict formula evaluation recursion by allowed values according to log2fc operands ([#513](https://github.com/varlociraptor/varlociraptor/issues/513)) ([3dc3074](https://github.com/varlociraptor/varlociraptor/commit/3dc3074b5146aaf8d866cd33a678e26d156a329e))
+
+## [8.7.3](https://github.com/varlociraptor/varlociraptor/compare/v8.7.2...v8.7.3) (2025-05-23)
+
+
+### Bug Fixes
+
+* consider leading hardclips when calculating read position ([#510](https://github.com/varlociraptor/varlociraptor/issues/510)) ([0185daf](https://github.com/varlociraptor/varlociraptor/commit/0185daf9d7feb9e83686e8bfd36d8188f3edc0ca))
+* fix bug in read position bias estimation leading to erroneous zero probabilities in case of reads of length 1 (leading to a FloatIsNaN error during calling) ([#508](https://github.com/varlociraptor/varlociraptor/issues/508)) ([aa1471a](https://github.com/varlociraptor/varlociraptor/commit/aa1471ae07654d55146d029e12792d784eb47a4b))
+
+## [8.7.2](https://github.com/varlociraptor/varlociraptor/compare/v8.7.1...v8.7.2) (2025-05-15)
+
+
+### Bug Fixes
+
+* fixed handling of read position information when merging read pairs ([#505](https://github.com/varlociraptor/varlociraptor/issues/505)) ([44aefa9](https://github.com/varlociraptor/varlociraptor/commit/44aefa90c4798fdd26609de7884bbfe5e4408b19))
+
 ## [8.7.1](https://github.com/varlociraptor/varlociraptor/compare/v8.7.0...v8.7.1) (2025-03-05)
 
 

@@ -1,0 +1,7 @@
+samples:
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+
+events:
+  somatic: "tumor:]0.0,1.0]"
