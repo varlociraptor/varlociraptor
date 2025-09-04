@@ -121,11 +121,12 @@ fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
     )
 }
 
-/// Computes the positions of methylated Cs in PacBio and Nanopore read data
+
+/// Computes the positions of methylated bases in PacBio and Nanopore read data.
+/// Handles multiple MM blocks (e.g. A+a., C+h., etc.)
 ///
 /// # Returns
-///
-/// pos_methylated_cs: Vector of positions of methylated Cs in Read
+/// pos_methylated_bases: Vector of positions (0-based read indices) of methylated bases
 pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
@@ -142,85 +143,99 @@ pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>>
     if let Aux::String(tag_value) = mm_tag {
         let mut mm = tag_value.to_owned();
 
-        if !mm.is_empty() {
-            let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
+        if mm.is_empty() {
+            return Some(Vec::new());
+        }
 
+        let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
+
+        let mut all_methyl_positions: Vec<usize> = Vec::new();
+
+        // Jeder Block ist durch `;` getrennt
+        for block in mm.split(';') {
+            if block.is_empty() {
+                continue;
+            }
+
+            // Header (z.B. "C+h.") und Positionen trennen
+            let (header, positions_str) = match block.split_once(',') {
+                Some(x) => x,
+                None => {
+                    warn!("Invalid MM block format: {}", block);
+                    continue;
+                }
+            };
+
+            // Welche Base ist betroffen?
+            let base_char = header.chars().next().unwrap_or('C'); // fallback C
             let mut pos_read_base: Vec<usize> = read_seq
                 .chars()
                 .enumerate()
                 .filter(|&(_, c)| {
-                    (c == 'C' && !read_reverse_orientation(read))
-                        || (c == 'G' && read_reverse_orientation(read))
+                    (c == base_char && !read_reverse_orientation(read))
+                        || (c == complement_base(base_char) && read_reverse_orientation(read))
                 })
                 .map(|(index, _)| index)
                 .collect();
 
             if read_reverse_orientation(read) {
-                pos_read_base.reverse()
+                pos_read_base.reverse();
             }
 
-            // Compute which Cs are methylated with help of the MM-tag
-            mm.pop();
-            if let Some(remaining) = mm.strip_prefix("C+m") {
-                // There is no convention if the MM tag starts with C+m, or C+m.,
-                let methylated_part = if remaining.starts_with(',') {
-                    remaining.strip_prefix(',').unwrap_or("")
-                } else if remaining.starts_with(".,") {
-                    remaining.strip_prefix(".,").unwrap_or("")
-                } else {
-                    remaining.strip_prefix("?,").unwrap_or("")
+            // Deltas in absolute Positionen umwandeln
+            let mut meth_pos = 0;
+            for position_str in positions_str.split(',') {
+                if position_str.is_empty() {
+                    continue;
+                }
+
+                let position: usize = match position_str.parse::<usize>() {
+                    Ok(position) => position,
+                    Err(_) => {
+                        warn!("Invalid position format: {}", position_str);
+                        return None;
+                    }
                 };
 
-                let mut meth_pos = 0;
+                meth_pos += position + 1;
 
-                let mut pos_methylated_cs: Vec<usize> = Vec::new(); // Initialize empty vector
-
-                for position_str in methylated_part.split(',') {
-                    let position: usize = match position_str.parse::<usize>() {
-                        Ok(position) => position,
-                        Err(_) => {
-                            warn!("Invalid position format: {}", position_str);
-                            return None; // Return empty vector on invalid format
-                        }
-                    };
-
-                    meth_pos += position + 1;
-
-                    if meth_pos <= pos_read_base.len() {
-                        pos_methylated_cs.push(pos_read_base[meth_pos - 1]);
-                    } else {
-                        warn!(
-                            "MM tag too long for read on id {:?}, chrom {:?}, pos {:?}",
-                            String::from_utf8_lossy(read.qname()),
-                            read.inner.core.tid,
-                            read.inner.core.pos
-                        );
-                        return None; // Return empty vector on out-of-bounds index
-                    }
+                if meth_pos <= pos_read_base.len() {
+                    all_methyl_positions.push(pos_read_base[meth_pos - 1]);
+                } else {
+                    warn!(
+                        "MM tag too long for read id {:?}, chrom {:?}, pos {:?}",
+                        String::from_utf8_lossy(read.qname()),
+                        read.inner.core.tid,
+                        read.inner.core.pos
+                    );
+                    return None;
                 }
-
-                if read_reverse_orientation(read) {
-                    pos_methylated_cs.reverse();
-                }
-                return Some(pos_methylated_cs);
             }
         }
-        // No methylation info in this read
-        else {
-            return Some(Vec::new());
+
+        if read_reverse_orientation(read) {
+            all_methyl_positions.sort_unstable();
         }
+
+        Some(all_methyl_positions)
     } else {
         warn!(
             "MM tag in bam file is not valid on chrom {:?}, pos {:?}",
             read.inner.core.tid, read.inner.core.pos
         );
-        return None;
+        None
     }
-    warn!(
-        "Error while obtaining MM:Z tag on chrom {:?}, pos {:?}",
-        read.inner.core.tid, read.inner.core.pos
-    );
-    None
+}
+
+/// Liefert die komplementäre Base (nur für A,T,C,G)
+fn complement_base(base: char) -> char {
+    match base {
+        'A' => 'T',
+        'T' => 'A',
+        'C' => 'G',
+        'G' => 'C',
+        _ => base,
+    }
 }
 
 /// Computes the probability of methylation in PacBio and Nanopore read data
