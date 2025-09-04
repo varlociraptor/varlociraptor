@@ -9,6 +9,8 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::calling::variants::obs_processing::observation_processor::ObservationProcessor;
+
 use anyhow::{bail, Context, Result};
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -20,7 +22,7 @@ use crate::calling;
 use crate::calling::variants::calling::{
     call_generic, CallWriter, DefaultCandidateFilter, SampleInfos,
 };
-use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+use crate::calling::variants::obs_processing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::candidates;
 use crate::conversion;
 use crate::errors;
@@ -1081,8 +1083,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     match pairhmm_mode.as_ref() {
                         "homopolymer" => {
                             let hop_params = alignment_properties.hop_params.clone();
-                            let mut processor: calling::variants::preprocessing::ObservationProcessor<realignment::HomopolyPairHMMRealigner> =
-                                calling::variants::preprocessing::ObservationProcessor::builder()
+                            let mut processor =
+                                calling::variants::obs_processing::preprocessing::Preprocessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
@@ -1116,7 +1118,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         }
                         "fast" => {
                             let mut processor =
-                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                calling::variants::obs_processing::preprocessing::Preprocessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
@@ -1149,7 +1151,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         }
                         "exact" => {
                             let mut processor =
-                                calling::variants::preprocessing::ObservationProcessor::builder()
+                                calling::variants::obs_processing::preprocessing::Preprocessor::builder()
                                     .report_fragment_ids(report_fragment_ids)
                                     .adjust_prob_mapping(!omit_mapq_adjustment)
                                     .alignment_properties(alignment_properties)
@@ -1233,7 +1235,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     for (i, (sample_name, obspath)) in
                                         sample_observations.iter().enumerate()
                                     {
-                                        let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
+                                        let options = calling::variants::obs_processing::read_preprocess_options(obspath)?;
                                         let preprocess_input = options.preprocess_input();
                                         testcase_builder = testcase_builder.register_sample(
                                             sample_name,
@@ -1287,11 +1289,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         } => {
                             if let Some(testcase_builder) = testcase_builder {
                                 let tumor_options =
-                                    calling::variants::preprocessing::read_preprocess_options(
+                                    calling::variants::obs_processing::read_preprocess_options(
                                         &tumor_observations,
                                     )?;
                                 let normal_options =
-                                    calling::variants::preprocessing::read_preprocess_options(
+                                    calling::variants::obs_processing::read_preprocess_options(
                                         &normal_observations,
                                     )?;
                                 let mut testcase = testcase_builder

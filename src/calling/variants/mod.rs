@@ -4,7 +4,7 @@
 // except according to those terms.
 
 pub(crate) mod calling;
-pub mod preprocessing;
+pub mod obs_processing;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -22,7 +22,7 @@ use ordered_float::OrderedFloat;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
-use crate::calling::variants::preprocessing::write_observations;
+use crate::calling::variants::obs_processing::write_observations;
 use crate::utils;
 use crate::utils::aux_info::AuxInfo;
 use crate::utils::bayes_factor_to_letter;
