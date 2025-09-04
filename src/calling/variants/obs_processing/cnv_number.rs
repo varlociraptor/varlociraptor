@@ -15,7 +15,7 @@ use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
 
 use crate::calling::variants::obs_processing::observation_processor::ObservationProcessor;
-use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
+use crate::calling::variants::{Call, CallBuilder, SampleInfoBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -26,6 +26,7 @@ use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::variants;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::realignment::{self, Realignable};
+use crate::variants::model::bias::Artifacts;
 use crate::variants::model::{self, HaplotypeIdentifier};
 use crate::variants::sample::Sample;
 use crate::variants::sample::SampleBuilder;
@@ -36,7 +37,7 @@ use crate::calling::variants::obs_processing::haplotype_feature_index::Haplotype
 use crate::calling::variants::obs_processing::OBSERVATION_FORMAT_VERSION;
 
 #[derive(TypedBuilder)]
-pub(crate) struct Preprocessor<R: realignment::Realigner + Clone + 'static> {
+pub(crate) struct ComputeCN<R: realignment::Realigner + Clone + 'static> {
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     reference_buffer: Arc<reference::Buffer>,
@@ -65,10 +66,11 @@ pub(crate) struct Preprocessor<R: realignment::Realigner + Clone + 'static> {
     atomic_candidate_variants: bool,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
+    max_number_cn: usize,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> ObservationProcessor
-    for Preprocessor<R>
+    for ComputeCN<R>
 {
     type Realigner = R;
 
@@ -125,6 +127,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
             "PROB_MAPPING",
             "PROB_ALT",
             "PROB_REF",
+            "PROB_DEPTH",
             "PROB_MISSED_ALLELE",
             "PROB_SAMPLE_ALT",
             "PROB_DOUBLE_OVERLAP",
@@ -186,8 +189,31 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
             .start();
 
         let aux_info_collector = AuxInfoCollector::new(&self.aux_info_fields, &bcf_reader)?;
+        // dbg!(&aux_info_collector);
+        // let mut bcf_writer = self.writer(&aux_info_collector)?;
 
-        let mut bcf_writer = self.writer(&aux_info_collector)?;
+        // Build writer
+        let mut header = bcf::Header::from_template(bcf_reader.header());
+        header.push_record(
+            b"##INFO=<ID=SVLEN,Number=.,Type=Integer,\
+              Description=\"Difference in length between REF and ALT alleles\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=CN,Number=.,Type=Integer,\
+              Description=\"Copy Number\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=AF,Number=.,Type=Float,\
+              Description=\"Allele Frequency\">",
+        );
+
+        let mut bcf_writer = if let Some(ref path) = self.outbcf {
+            bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)
+                .context(format!("Unable to write BCF to {}.", path.display()))?
+        } else {
+            bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)
+                .context("Unable to write BCF to STDOUT.")?
+        };
         bcf_writer.set_threads(1)?;
 
         let mut variant_buffer = VariantBuffer::new(
@@ -225,8 +251,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
 
         while let Some(variants) = variant_buffer.next()? {
             let calls = self.process_variant(variants, &mut sample)?;
-            for call in calls {
-                call.write_preprocessed_record(&mut bcf_writer)?;
+            for mut call in calls {
+                call.write_final_record(&mut bcf_writer)?;
             }
         }
 
@@ -257,6 +283,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
                 })?;
 
             for obs in pileup.read_observations().iter() {
+                wrt.serialize(obs)?;
+            }
+            for obs in pileup.depth_observations().iter() {
                 wrt.serialize(obs)?;
             }
         }
@@ -305,20 +334,53 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
                 let pileup = self.process_pileup(&variants, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 self.write_observations(&pileup, &variants)?;
+                match variant {
+                    model::Variant::Cnv(_, af) => {
+                        // add variant information
 
-                // add variant information
-                call.variant = Some(
-                    VariantBuilder::default()
-                        .variant(
-                            variant,
-                            &None,
-                            variants.locus().pos() as usize,
-                            Some(chrom_seq.as_ref()),
-                        )
-                        .pileup(Some(Rc::new(pileup)))
-                        .build()
-                        .unwrap(),
-                );
+                        let sample_info = SampleInfoBuilder::default()
+                            .allelefreq_estimate(*af)
+                            .pileup(Rc::new(pileup.clone()))
+                            .artifacts(Artifacts::none())
+                            .vaf_dist(None)
+                            .build()
+                            .unwrap();
+
+                        // let mut dummy_event_probs: HashMap<String, LogProb> = HashMap::new();
+                        // dummy_event_probs.insert("high".to_string(), LogProb::from(0.0)); // 0.0 als Dummy
+
+                        call.variant = Some(
+                            VariantBuilder::default()
+                                .variant(
+                                    variant,
+                                    &None,
+                                    variants.locus().pos() as usize,
+                                    Some(chrom_seq.as_ref()),
+                                )
+                                .pileup(Some(Rc::new(pileup)))
+                                .sample_info(vec![Some(sample_info)])
+                                // .event_probs(Some(dummy_event_probs))
+                                .build()
+                                .unwrap(),
+                        );
+                    }
+                    _ => {
+                        // add variant information
+                        call.variant = Some(
+                            VariantBuilder::default()
+                                .variant(
+                                    variant,
+                                    &None,
+                                    variants.locus().pos() as usize,
+                                    Some(chrom_seq.as_ref()),
+                                )
+                                .pileup(Some(Rc::new(pileup)))
+                                .build()
+                                .unwrap(),
+                        );
+                    }
+                }
+
                 Ok(vec![call])
             }
             VariantInfo {
@@ -779,7 +841,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
                         sample.extract_depth_observations(
                             &parse_cnv(*len, *af)?,
                             &alt_variants,
-                            100,
+                            self.max_number_cn,
                         )?
                         // sample.reset_record_buffer();
 

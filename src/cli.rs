@@ -1112,7 +1112,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
-                                    .max_number_cn(max_number_cn)
                                     .build();
                             processor.process()?;
                         }
@@ -1145,7 +1144,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
-                                    .max_number_cn(max_number_cn)
                                     .build();
                             processor.process()?;
                         }
@@ -1178,7 +1176,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
-                                    .max_number_cn(max_number_cn)
                                     .build();
                             processor.process()?;
                         }
@@ -1618,7 +1615,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 .map(|s| s.as_bytes().to_owned())
                 .collect();
 
-            let mut processor = calling::variants::preprocessing::ObservationProcessor::builder()
+            let mut processor = calling::variants::obs_processing::cnv_number::ComputeCN::builder()
                 .report_fragment_ids(report_fragment_ids)
                 .adjust_prob_mapping(!omit_mapq_adjustment)
                 .alignment_properties(alignment_properties)
@@ -1646,7 +1643,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 .max_number_cn(max_number_cn)
                 .build();
 
-            processor.compute_cn()?;
+            processor.process()?;
         }
     }
     Ok(())

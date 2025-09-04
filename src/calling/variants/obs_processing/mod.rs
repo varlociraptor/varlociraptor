@@ -4,26 +4,26 @@
 // except according to those terms.
 
 use std::fmt::Debug;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str;
+
+use anyhow::Result;
+use bio_types::genome::AbstractLocus;
+use bio_types::sequence::SequenceReadPairOrientation;
+use bv::BitVec;
+use byteorder::{ByteOrder, LittleEndian};
+use itertools::Itertools;
+use rust_htslib::bcf::{self, Read as BCFRead};
 
 use crate::cli;
 use crate::errors;
 use crate::utils;
 use crate::utils::MiniLogProb;
+use crate::variants::evidence::observations::observation::{AltLocus, ReadPosition, Strand};
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::{
-    AltLocus, ReadObservationBuilder, ReadPosition, Strand,
-};
-use anyhow::{bail, Context, Result};
-use bio_types::genome::{self, AbstractLocus};
-use bio_types::sequence::SequenceReadPairOrientation;
-use bv::BitVec;
-use byteorder::{ByteOrder, LittleEndian};
-use itertools::Itertools;
-use rust_htslib::bam::{self, Read as BAMRead};
-use rust_htslib::bcf::{self, Read as BCFRead};
+use crate::variants::evidence::observations::read_observation::ReadObservationBuilder;
 
+pub(crate) mod cnv_number;
 pub(crate) mod haplotype_feature_index;
 pub(crate) mod observation_processor;
 pub(crate) mod preprocessing;
