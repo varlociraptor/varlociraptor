@@ -121,110 +121,100 @@ fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
     )
 }
 
-
-/// Computes the positions of methylated bases in PacBio and Nanopore read data.
+fn is_5mc_header(header: &str) -> bool {
+    header.starts_with("C+m") || header.starts_with("C-m")
+}
+/// Computes the positions and probabilities of methylated bases in PacBio and Nanopore read data.
 /// Handles multiple MM blocks (e.g. A+a., C+h., etc.)
 ///
 /// # Returns
 /// pos_methylated_bases: Vector of positions (0-based read indices) of methylated bases
-pub fn extract_mm_methylation_positions(read: &Rc<Record>) -> Option<Vec<usize>> {
+///
+///
+pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
-        _ => {
-            warn!(
-                "MM value not found on chrom {:?}, pos {:?}",
-                read.inner.core.tid, read
-            );
-            return None;
-        }
+        _ => return None,
     };
 
-    if let Aux::String(tag_value) = mm_tag {
-        let mut mm = tag_value.to_owned();
+    let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
+        (Ok(tag), _) => tag,
+        (_, Ok(tag)) => tag,
+        _ => return None,
+    };
 
-        if mm.is_empty() {
-            return Some(Vec::new());
+    let mm = if let Aux::String(tag_value) = mm_tag {
+        tag_value.to_owned()
+    } else {
+        return None;
+    };
+
+    let ml = if let Aux::ArrayU8(tag_value) = ml_tag {
+        tag_value
+    } else {
+        return None;
+    };
+
+    let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
+
+    let mut pos_to_prob: HashMap<usize, LogProb> = HashMap::new();
+    let mut ml_index = 0;
+
+    for block in mm.split(';') {
+        if block.is_empty() {
+            continue;
         }
 
-        let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
+        let (header, positions_str) = match block.split_once(',') {
+            Some(x) => x,
+            None => continue,
+        };
 
-        let mut all_methyl_positions: Vec<usize> = Vec::new();
+        let mut meth_pos = 0;
+        let meth_positions: Vec<usize> = positions_str
+            .split(',')
+            .filter_map(|s| s.parse::<usize>().ok())
+            .collect();
 
-        // Jeder Block ist durch `;` getrennt
-        for block in mm.split(';') {
-            if block.is_empty() {
-                continue;
-            }
-
-            // Header (z.B. "C+h.") und Positionen trennen
-            let (header, positions_str) = match block.split_once(',') {
-                Some(x) => x,
-                None => {
-                    warn!("Invalid MM block format: {}", block);
-                    continue;
-                }
-            };
-
-            // Welche Base ist betroffen?
-            let base_char = header.chars().next().unwrap_or('C'); // fallback C
+        if is_5mc_header(header) {
             let mut pos_read_base: Vec<usize> = read_seq
                 .chars()
                 .enumerate()
                 .filter(|&(_, c)| {
-                    (c == base_char && !read_reverse_orientation(read))
-                        || (c == complement_base(base_char) && read_reverse_orientation(read))
+                    (c == 'C' && !read_reverse_orientation(read))
+                        || (c == complement_base('C') && read_reverse_orientation(read))
                 })
-                .map(|(index, _)| index)
+                .map(|(i, _)| i)
                 .collect();
 
             if read_reverse_orientation(read) {
                 pos_read_base.reverse();
             }
 
-            // Deltas in absolute Positionen umwandeln
-            let mut meth_pos = 0;
-            for position_str in positions_str.split(',') {
-                if position_str.is_empty() {
-                    continue;
-                }
-
-                let position: usize = match position_str.parse::<usize>() {
-                    Ok(position) => position,
-                    Err(_) => {
-                        warn!("Invalid position format: {}", position_str);
-                        return None;
-                    }
-                };
-
-                meth_pos += position + 1;
-
+            for position in meth_positions {
+                meth_pos += position;
                 if meth_pos <= pos_read_base.len() {
-                    all_methyl_positions.push(pos_read_base[meth_pos - 1]);
-                } else {
-                    warn!(
-                        "MM tag too long for read id {:?}, chrom {:?}, pos {:?}",
-                        String::from_utf8_lossy(read.qname()),
-                        read.inner.core.tid,
-                        read.inner.core.pos
-                    );
-                    return None;
+                    let abs_pos = pos_read_base[meth_pos];
+                    let prob_val = ml.get(ml_index).unwrap_or(0);
+                    let prob = LogProb::from(Prob((f64::from(prob_val) + 0.5) / 256.0));
+
+                    pos_to_prob.insert(abs_pos, prob);
                 }
+                ml_index += 1;
+                meth_pos += 1; // Move to the next position
             }
+        } else {
+            // Werte überspringen, weil sie nicht zu 5mC gehören
+            ml_index += meth_positions.len();
         }
-
-        if read_reverse_orientation(read) {
-            all_methyl_positions.sort_unstable();
-        }
-
-        Some(all_methyl_positions)
-    } else {
-        warn!(
-            "MM tag in bam file is not valid on chrom {:?}, pos {:?}",
-            read.inner.core.tid, read.inner.core.pos
-        );
-        None
     }
+    let mut items: Vec<_> = pos_to_prob.iter().collect();
+
+    // Absteigend nach Key sortieren
+    items.sort_by(|a, b| b.0.cmp(a.0));
+    dbg!(&items);
+    Some(pos_to_prob)
 }
 
 /// Liefert die komplementäre Base (nur für A,T,C,G)
@@ -235,42 +225,6 @@ fn complement_base(base: char) -> char {
         'C' => 'G',
         'G' => 'C',
         _ => base,
-    }
-}
-
-/// Computes the probability of methylation in PacBio and Nanopore read data
-///
-/// # Returns
-///
-/// ml: Vector of methylation probabilities
-pub fn extract_ml_methylation_probabilities(read: &Rc<Record>) -> Option<Vec<LogProb>> {
-    let ml_tag = match (read.aux(b"Ml"), read.aux(b"ML")) {
-        (Ok(tag), _) => tag,
-        (_, Ok(tag)) => tag,
-        _ => {
-            warn!(
-                "ML value not found on chrom {:?}, pos {:?}",
-                read.inner.core.tid, read.inner.core.pos
-            );
-            return None;
-        }
-    };
-
-    if let Aux::ArrayU8(tag_value) = ml_tag {
-        let mut ml: Vec<LogProb> = tag_value
-            .iter()
-            .map(|val| LogProb::from(Prob((f64::from(val) + 0.5) / 256.0)))
-            .collect();
-        if read_reverse_orientation(read) {
-            ml.reverse();
-        }
-        Some(ml)
-    } else {
-        warn!(
-            "MM tag in bam file is not valid on chrom {:?}, pos {:?}",
-            read.inner.core.tid, read.inner.core.pos
-        );
-        None
     }
 }
 
