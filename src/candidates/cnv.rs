@@ -1,17 +1,16 @@
 use anyhow::{Context, Result};
 use bio_types::genome::{AbstractInterval, AbstractLocus, Interval, Locus};
 use itertools::Itertools;
-use rust_htslib::bcf::header::HeaderView;
+use rust_htslib::bcf::header::{HeaderView, Id};
+use rust_htslib::bcf::HeaderRecord;
 use rust_htslib::bcf::{record::Numeric, Format, Header, Read, Reader, Record, Writer};
-use rust_htslib::bgzf;
 use std::collections::{BTreeMap, HashSet};
 use std::ops::Range;
 use std::path::PathBuf;
-use yaml_rust::yaml::Hash;
 
 use crate::utils::aux_info::AuxInfoCollector;
 use crate::variants::model::VariantPrecision;
-use crate::variants::types::breakends::Breakend;
+use crate::variants::types::breakends::{self, Breakend};
 
 #[derive(Builder, Getters, Debug)]
 // Computed interval out of the breakends
@@ -108,7 +107,7 @@ fn write_cnv_records(
         None => Writer::from_stdout(header, true, Format::Bcf)
             .with_context(|| "Error opening BCF writer".to_string())?,
     };
-    for mut candidate in cnv_candidates {
+    for candidate in cnv_candidates {
         let mut cnv_record = bcf_writer.empty_record();
         cnv_record.set_pos(candidate.interval.range().start as i64);
         cnv_record.set_qual(f32::missing());
@@ -164,16 +163,18 @@ fn parse_breakend(
 ) -> Result<Option<Breakend>> {
     let contig = String::from_utf8(
         header
-            .rid2name(record.rid().context("Missing rid")?)
+            .rid2name(record.rid().context("Missing RID")?)
             .context("Invalid RID name")?
             .to_vec(),
     )
-    .context("Could not create String from rid")?;
+    .context("Could not convert RID to String")?;
 
-    let mut mateid = None;
-    if let Ok(Some(values)) = record.info(b"MATEID").string() {
-        mateid = values.first().map(|v| v.to_vec());
-    }
+    let mateid = record
+        .info(b"MATEID")
+        .string()
+        .ok() // ignore error for missing field
+        .and_then(|vals| vals.unwrap().first().map(|v| v.to_vec()));
+
     let breakend = Breakend::new(
         Locus::new(contig, record.pos() as u64),
         record.alleles()[0],
@@ -183,15 +184,77 @@ fn parse_breakend(
         VariantPrecision::Precise,
         aux_info_collector
             .collect(record)
-            .context("Auxiliary Info could not be collected from record")?,
+            .context("Auxiliary info could not be collected from record")?,
     )
     .context("Breakend could not be created")?;
+
     Ok(breakend)
+}
+
+fn breakends_from_bcf(
+    bcf_reader: &mut Reader,
+    header: &HeaderView,
+    prob_keys: &[String],
+) -> Result<Vec<CnvCandidate>> {
+    // Initialize auxiliary info collector for breakend parsing
+    let aux_info = AuxInfoCollector::new(&[], bcf_reader)
+        .with_context(|| "Failed to create AuxInfoCollector")?;
+
+    // Iterate over BCF records and parse breakends
+    let breakends: Vec<CnvCandidate> = bcf_reader
+        .records()
+        .filter_map(|bcf_record| {
+            let record = match bcf_record {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("Error reading record: {:?}", e);
+                    return None;
+                }
+            };
+
+            // Parse breakend, skip if invalid or unjoined
+            let breakend = match parse_breakend(&record, header, &aux_info) {
+                Ok(Some(b)) if b.is_left_to_right() && b.join().is_some() => b,
+                _ => return None,
+            };
+
+            // Extract allele frequency (AF) field
+            let af = record
+                .format(b"AF")
+                .float()
+                .ok()
+                .and_then(|vals| vals.first().and_then(|v| v.first()).copied()) // copy f32 out
+                .map(|v| v as f64) // convert to f64
+                .unwrap_or(f64::NAN);
+
+            // Collect PROB_* values
+            let probs: BTreeMap<String, f64> = prob_keys
+                .iter()
+                .filter_map(|key| {
+                    record
+                        .info(key.as_bytes())
+                        .float()
+                        .ok()
+                        .and_then(|vals_opt| {
+                            vals_opt.and_then(|vals| vals.first().map(|&v| (key.clone(), v as f64)))
+                        })
+                })
+                .collect();
+
+            // Build CnvCandidate
+            CnvCandidateBuilder::default()
+                .breakend(breakend)
+                .info_probs(probs)
+                .af(af)
+                .build()
+                .ok() // convert Result<CnvCandidate, _> to Option<CnvCandidate>
+        })
+        .collect(); // Vec<CnvCandidate>
+    Ok(breakends)
 }
 
 fn breakends_to_interval_borders(
     candidates: Vec<CnvCandidate>,
-    number_combo_intervals: usize,
     // In the first step we do not want to apply all probs to the borders since we do not autoinclude all candidates over this border.
     // In the second step we do want to apply all probs to the borders since we want to compute the final intervals for specific combinations of candidates
     apply_probs: bool,
@@ -231,14 +294,10 @@ fn breakends_to_interval_borders(
             // End-Border, whenever two intervals start or end at the same position, accumulate their probabilities
             let entry_end = all_intervals.entry(interval_end).or_default();
             entry_end.delta -= 1;
-            // if number_combo_intervals == 1 {
             match &mut entry_end.afs_end {
                 Some(afs) => afs.push(c.af),
                 None => entry_end.afs_end = Some(vec![c.af]),
             }
-            // }
-
-            // entry_end.breakends.push(&c);
             if apply_probs {
                 let map = entry_end
                     .info_probs_borders
@@ -253,12 +312,12 @@ fn breakends_to_interval_borders(
     all_intervals
 }
 
-fn compute_overlapping_intervals(candidates: &Vec<CnvCandidate>) -> HashSet<BreakendInterval> {
+fn compute_overlapping_intervals(candidates: &[CnvCandidate]) -> HashSet<BreakendInterval> {
     let mut common_intervals = HashSet::new();
     for k in 1..=candidates.len() {
         for combo in candidates.iter().combinations(k) {
             let combo_owned: Vec<CnvCandidate> = combo.into_iter().cloned().collect();
-            let interval_borders = breakends_to_interval_borders(combo_owned, k, true);
+            let interval_borders = breakends_to_interval_borders(combo_owned, true);
             let new_intervals = interval_borders_to_intervals_with_probs(interval_borders);
             common_intervals.extend(new_intervals);
         }
@@ -289,7 +348,6 @@ fn interval_borders_to_intervals_with_probs(
                     info_probs: interval_info_probs.clone(),
                     involved_afs: border_afs.clone(),
                 });
-                dbg!(&cnv_intervals.last());
             }
         }
 
@@ -317,9 +375,8 @@ fn interval_borders_to_intervals_with_probs(
                     }
                 });
         }
-        border_afs.extend(border_info.afs_start.clone().unwrap_or_else(|| vec![]));
+        border_afs.extend(border_info.afs_start.clone().unwrap_or_else(Vec::new));
 
-        dbg!(&border_afs);
         let to_remove = border_info.afs_end.clone().unwrap_or_else(Vec::new);
         border_afs.retain(|x| !to_remove.contains(x));
         interval_cov += border_info.delta;
@@ -328,15 +385,11 @@ fn interval_borders_to_intervals_with_probs(
     cnv_intervals
 }
 
-fn borders_to_intervals(
-    borders: BTreeMap<Locus, BorderInfo>,
-    apply_probs: bool,
-) -> HashSet<BreakendInterval> {
+fn borders_to_intervals(borders: BTreeMap<Locus, BorderInfo>) -> HashSet<BreakendInterval> {
     let mut cnv_intervals: HashSet<BreakendInterval> = HashSet::new();
     let mut current_candidates = Vec::new();
     let mut last_pos: Option<Locus> = None;
     let mut interval_cov = 0;
-    let mut interval_info_probs: BTreeMap<String, f64> = BTreeMap::new();
 
     for (locus, border_info) in &borders {
         // If we have a previous position and the coverage is not zero, create an interval
@@ -345,16 +398,6 @@ fn borders_to_intervals(
             if prev.contig() == locus.contig() && prev.pos() < locus.pos() {
                 // Apply probability adjustments
                 if interval_cov == 0 {
-                    // cnv_intervals.push(BreakendInterval {
-                    //     interval: Interval::new(
-                    //         prev.contig().to_owned(),
-                    //         Range {
-                    //             start: prev.pos() + 1,
-                    //             end: locus.pos(),
-                    //         },
-                    //     ),
-                    //     info_probs: interval_info_probs.clone(),
-                    // });
                     cnv_intervals.extend(compute_overlapping_intervals(&current_candidates));
                     current_candidates.clear();
 
@@ -368,34 +411,8 @@ fn borders_to_intervals(
         } else {
             current_candidates.extend(border_info.breakends.clone());
         }
-
-        // // Update current_info_probs by adding the start probabilities and
-        // // subtracting the end probabilities at this border
-        // for (k, v) in &border_info.info_probs_borders {
-        //     interval_info_probs
-        //         .entry(k.clone())
-        //         .and_modify(|prob| {
-        //             // If any of the intervals contributing to this border has probability zero, the resulting interval has probability zero
-        //             *prob = if v.count_prob_zero > 0 {
-        //                 0.0
-        //             } else {
-        //                 let delta = v.prob_interval_start - v.prob_interval_end;
-        //                 let delta = if delta.is_finite() { delta } else { 0.0 };
-
-        //                 *prob + delta
-        //             };
-        //         })
-        //         .or_insert_with(|| {
-        //             if v.count_prob_zero > 0 {
-        //                 0.0
-        //             } else {
-        //                 v.prob_interval_start - v.prob_interval_end
-        //             }
-        //         });
-        // }
         last_pos = Some(locus.clone());
     }
-
     cnv_intervals
 }
 
@@ -403,63 +420,33 @@ fn borders_to_intervals(
 pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Result<()> {
     let mut bcf_reader = Reader::from_path(&breakends_bcf)
         .with_context(|| format!("Error opening input file: {:?}", breakends_bcf))?;
-
-    // Create header for interval bcf
-    let header = create_header_from_existing(bcf_reader.header())?;
     let header_orig = bcf_reader.header().clone();
 
-    let mut breakends = Vec::new();
-
-    // TODO: Compute dynamicall (problem: Cant extract INFO information from Header(View)
-    let prob_keys = vec![
-        "PROB_HIGH".to_string(),
-        "PROB_LOW".to_string(),
-        "PROB_ABSENT".to_string(),
-        "PROB_ARTIFACT".to_string(),
-    ];
-    let aux_info = AuxInfoCollector::new(&[], &bcf_reader)
-        .with_context(|| "Failed to create AuxInfoCollector")?;
-
-    // Exract breakends + information out of every record in this for loop
-    for record_result in bcf_reader.records() {
-        let record = record_result.with_context(|| "Error reading record")?;
-
-        let breakend = match parse_breakend(&record, &header_orig, &aux_info)? {
-            Some(b) if b.is_left_to_right() && b.join().is_some() => b,
-            _ => continue,
-        };
-
-        let af = {
-            let af_values = record.format(b"AF").float()?;
-            if af_values.is_empty() || af_values[0].is_empty() {
-                f64::NAN
+    // Extract all INFO fields that start with "PROB" from header
+    let prob_keys: Vec<String> = header_orig
+        .header_records()
+        .iter()
+        .filter_map(|rec| {
+            if let HeaderRecord::Info { values, .. } = rec {
+                values
+                    .get("ID")
+                    .filter(|id| id.starts_with("PROB"))
+                    .map(|s| s.to_string())
             } else {
-                af_values[0][0] as f64
+                None
             }
-        };
+        })
+        .collect();
 
-        let mut probs = BTreeMap::new();
-        for key in &prob_keys {
-            if let Ok(Some(value)) = record.info(key.as_bytes()).float() {
-                if let Some(&val) = value.first() {
-                    // Probs in the PROB tags are PHRED encoded, convert to linear scale
+    let breakends = breakends_from_bcf(&mut bcf_reader, &header_orig, &prob_keys)?;
 
-                    probs.insert(key.clone(), val as f64);
-                }
-            }
-        }
-        // Create new breakend candidate out of record
-        let candidate = CnvCandidateBuilder::default()
-            .breakend(breakend)
-            .info_probs(probs)
-            .af(af)
-            .build()?;
+    // Convert breakends into interval borders, then intervals
+    let interval_borders = breakends_to_interval_borders(breakends, false);
+    let intervals: HashSet<BreakendInterval> = borders_to_intervals(interval_borders);
 
-        breakends.push(candidate);
-    }
-    let interval_borders = breakends_to_interval_borders(breakends, 0, false);
-    // Compute intervals out of all breakends
-    let intervals: HashSet<BreakendInterval> = borders_to_intervals(interval_borders, false);
-    write_cnv_records(intervals, &header, outbcf)?;
+    // Create new header and write CNV records
+    let header_new = create_header_from_existing(&header_orig)?;
+    write_cnv_records(intervals, &header_new, outbcf)?;
+
     Ok(())
 }
