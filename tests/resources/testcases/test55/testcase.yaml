@@ -8,7 +8,7 @@ expected:
 samples:
   tumor:
     path: 'tumor.bam'
-    properties: '{"insert_size":{"mean":347.146529562982,"sd":128.19522373664768},"max_del_cigar_len":15,"max_ins_cigar_len":15,"frac_max_softclip":0.86,"max_read_len":295}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":347.146529562982,"sd":128.19522373664768},"max_del_cigar_len":15,"max_ins_cigar_len":15,"frac_max_softclip":0.86,"max_read_len":295}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/R-2017-00323-1A.freebayes.5.bcf","bam":"results/recal/R-2017-00323-1A.sorted.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"results/observations/R-2017-00323-1A/R-2017-00323-1A.freebayes.5.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}'
   
 
