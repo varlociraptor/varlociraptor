@@ -1,0 +1,12 @@
+samples:
+  normal:
+    conversion: C>T
+    resolution: 0.1
+    universe: "[0.0,1.0]"
+
+events:
+  present:
+    "normal:]0.0,1.0]"
+  not_there:
+    "normal:0.0"
+
