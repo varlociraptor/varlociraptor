@@ -322,7 +322,9 @@ pub(crate) fn collect_estimates(
             )
         }
         Mode::Table => {
-            let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(std::io::stdout());
+            let mut writer = csv::WriterBuilder::new()
+                .delimiter(b'\t')
+                .from_writer(std::io::stdout());
             // calculate mutational burden (mb) function (expected number of variants per minimum allele frequency)
             for min_vaf in min_vafs {
                 let groups = mb

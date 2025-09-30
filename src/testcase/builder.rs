@@ -26,8 +26,7 @@ use crate::variants::sample;
 use crate::{cli, reference};
 
 lazy_static! {
-    static ref TESTCASE_RE: Regex =
-        Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)$").unwrap();
+    static ref TESTCASE_RE: Regex = Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)$").unwrap();
 }
 
 lazy_static! {
