@@ -133,7 +133,7 @@ impl LikelihoodOperands {
         self.events.insert(self.events.len(), event);
     }
 
-    pub(crate) fn iter(&self) -> Values<Event> {
+    pub(crate) fn iter(&self) -> Values<'_, Event> {
         self.events.values()
     }
 

@@ -1,6 +1,5 @@
 use std::ops::Not;
 
-use num_traits::ops;
 use ordered_float::NotNan;
 
 use crate::{
