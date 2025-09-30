@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use std::char;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::rc::Rc;
@@ -700,12 +701,41 @@ pub(crate) trait Observable: Variant {
     }
 }
 
+#[derive(Getters, Clone, Debug, Derefable)]
+pub struct ExtendedRecord {
+    #[getset(get = "pub")]
+    #[deref]
+    record: Rc<bam::Record>,
+    #[getset(get = "pub")]
+    prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+}
+
+impl ExtendedRecord {
+    pub(crate) fn new(
+        record: Rc<bam::Record>,
+        prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+    ) -> Self {
+        ExtendedRecord {
+            record,
+            prob_methylation,
+        }
+    }
+}
+
+impl PartialEq for ExtendedRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.record == other.record
+    }
+}
+
+impl Eq for ExtendedRecord {}
+
 #[derive(Clone, Eq, Debug)]
 pub(crate) enum Evidence {
-    SingleEndSequencingRead(Rc<bam::Record>),
+    SingleEndSequencingRead(ExtendedRecord),
     PairedEndSequencingRead {
-        left: Rc<bam::Record>,
-        right: Rc<bam::Record>,
+        left: ExtendedRecord,
+        right: ExtendedRecord,
     },
 }
 
