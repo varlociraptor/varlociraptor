@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.8.0](https://github.com/varlociraptor/varlociraptor/compare/v8.7.4...v8.8.0) (2025-09-30)
+
+
+### Features
+
+* allow outputting mutational burden as TSV table ([#514](https://github.com/varlociraptor/varlociraptor/issues/514)) ([83e79b9](https://github.com/varlociraptor/varlociraptor/commit/83e79b9b616aaf2f3f4f1112cd0d4f194e6352a4))
+
 ## [8.7.4](https://github.com/varlociraptor/varlociraptor/compare/v8.7.3...v8.7.4) (2025-09-02)
 
 
