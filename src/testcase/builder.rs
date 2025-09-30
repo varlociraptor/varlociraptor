@@ -26,8 +26,7 @@ use crate::variants::sample;
 use crate::{cli, reference};
 
 lazy_static! {
-    static ref TESTCASE_RE: Regex =
-        Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)(:(?P<idx>\d+))?$").unwrap();
+    static ref TESTCASE_RE: Regex = Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)$").unwrap();
 }
 
 lazy_static! {
@@ -67,8 +66,6 @@ pub struct Testcase {
     chrom_name: Option<Vec<u8>>,
     #[builder(private)]
     pos: Option<u64>,
-    #[builder(private)]
-    idx: usize,
     #[builder(private)]
     reference_buffer: reference::Buffer,
     candidates: PathBuf,
@@ -112,7 +109,7 @@ impl TestcaseBuilder {
 
     pub(crate) fn locus(self, locus: &str) -> Result<Self> {
         if locus == "all" {
-            Ok(self.chrom_name(None).pos(None).idx(0))
+            Ok(self.chrom_name(None).pos(None))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
             let chrom_name = captures
                 .name("chrom")
@@ -122,14 +119,8 @@ impl TestcaseBuilder {
                 .to_owned();
             let mut pos: u64 = captures.name("pos").unwrap().as_str().parse()?;
             pos -= 1;
-            let idx = if let Some(m) = captures.name("idx") {
-                let idx: usize = m.as_str().parse()?;
-                idx - 1
-            } else {
-                0
-            };
 
-            Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
+            Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)))
         } else {
             Err(errors::Error::InvalidLocus.into())
         }

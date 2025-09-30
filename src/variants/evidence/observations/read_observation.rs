@@ -815,14 +815,12 @@ impl Hash for Evidence {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum EvidenceIdentifier {
     Bytes(Vec<u8>),
-    Integer(u32),
 }
 
 impl std::fmt::Display for EvidenceIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EvidenceIdentifier::Bytes(id) => write!(f, "{}", str::from_utf8(id).unwrap()),
-            EvidenceIdentifier::Integer(id) => write!(f, "{}", id),
         }
     }
 }
@@ -831,7 +829,6 @@ impl Hash for EvidenceIdentifier {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             EvidenceIdentifier::Bytes(id) => id.hash(state),
-            EvidenceIdentifier::Integer(id) => id.hash(state),
         }
     }
 }
