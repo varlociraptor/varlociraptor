@@ -463,7 +463,7 @@ pub enum EstimateKind {
         usage = "varlociraptor estimate mutational-burden --mode curve --coding-genome-size 3e7 --events SOMATIC_TUMOR \
                  --sample tumor < calls.bcf | vg2svg > tmb.svg\n    \
                  varlociraptor estimate mutational-burden --mode table --coding-genome-size 3e7 --events SOMATIC_TUMOR \
-                 --sample tumor < calls.bcf | vg2svg > tmb.tsv",
+                 --sample tumor < calls.bcf > tmb.tsv",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     MutationalBurden {
