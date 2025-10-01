@@ -558,7 +558,7 @@ impl Call {
                 .collect_vec();
             record.push_format_string(b"AFD", &vaf_densities)?;
         } else {
-            record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
+            record.push_format_integer(b"DP", &vec![0; variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SROBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
