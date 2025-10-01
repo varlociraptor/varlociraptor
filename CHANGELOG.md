@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.8.1](https://github.com/varlociraptor/varlociraptor/compare/v8.8.0...v8.8.1) (2025-10-01)
+
+
+### Bug Fixes
+
+* output DP=0 in case of missing data ([#516](https://github.com/varlociraptor/varlociraptor/issues/516)) ([99f88e9](https://github.com/varlociraptor/varlociraptor/commit/99f88e9a64c6344c8b8f3d6fdaf786aa5e9cc747))
+
 ## [8.8.0](https://github.com/varlociraptor/varlociraptor/compare/v8.7.4...v8.8.0) (2025-09-30)
 
 
