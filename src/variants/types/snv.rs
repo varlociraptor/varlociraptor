@@ -127,7 +127,12 @@ impl<R: Realigner> Snv<R> {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
-                    .read_position(Some(qpos))
+                    // METHOD: hardclips are not part of qpos, but they are part
+                    // of the original read sequence. Hence, they have to be added
+                    // here.
+                    .read_position(Some(
+                        qpos + read.cigar_cached().unwrap().leading_hardclips() as u32,
+                    ))
                     .third_allele_evidence(if is_third_allele {
                         Some(EditDistance(1))
                     } else {

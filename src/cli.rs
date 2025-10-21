@@ -190,7 +190,7 @@ pub enum PreprocessKind {
     Variants {
         #[structopt(
             parse(from_os_str),
-            help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
+            help = "FASTA file with reference genome. Has to be indexed with (e.g. with samtools faidx)."
         )]
         reference: PathBuf,
         #[structopt(
@@ -203,7 +203,7 @@ pub enum PreprocessKind {
         #[structopt(
             long,
             required = true,
-            help = "BAM file with aligned reads from a single sample."
+            help = "BAM file with aligned reads from a single sample. BAM file must be indexed (e.g. with samtools index)."
         )]
         bam: PathBuf,
         #[structopt(
@@ -403,7 +403,7 @@ pub enum EstimateKind {
     #[structopt(
         name = "alignment-properties",
         about = "Estimate properties like insert size, maximum softclip length, and the PCR homopolymer error model.",
-        usage = "varlociraptor estimate alignment-properties reference.fasta --bam sample.bam > sample.alignment-properties.json",
+        usage = "varlociraptor estimate alignment-properties reference.fasta --bams sample.bam > sample.alignment-properties.json",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     AlignmentProperties {
@@ -474,8 +474,10 @@ pub enum EstimateKind {
         about = "Estimate mutational burden. Takes Varlociraptor calls (must be annotated \
                  with e.g. VEP but using ANN instead of CSQ) from STDIN, prints mutational burden estimate in Vega-lite JSON format to STDOUT. \
                  It can be converted to an image via vega-lite-cli (see conda package).",
-        usage = "varlociraptor estimate mutational-burden --coding-genome-size 3e7 --events SOMATIC_TUMOR \
-                 --sample tumor < calls.bcf | vg2svg > tmb.svg",
+        usage = "varlociraptor estimate mutational-burden --mode curve --coding-genome-size 3e7 --events SOMATIC_TUMOR \
+                 --sample tumor < calls.bcf | vg2svg > tmb.svg\n    \
+                 varlociraptor estimate mutational-burden --mode table --coding-genome-size 3e7 --events SOMATIC_TUMOR \
+                 --sample tumor < calls.bcf > tmb.tsv",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     MutationalBurden {
@@ -493,11 +495,11 @@ pub enum EstimateKind {
         )]
         coding_genome_size: f64,
         #[structopt(
-            long = "plot-mode",
-            possible_values = &estimation::mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
-            help = "How to plot (as stratified curve, histogram or multi-sample barplot)."
+            long = "mode",
+            possible_values = &estimation::mutational_burden::Mode::iter().map(|v| v.into()).collect_vec(),
+            help = "How to output to STDOUT (as stratified curve, histogram, or multi-sample barplot, or TSV table)."
         )]
-        mode: estimation::mutational_burden::PlotMode,
+        mode: estimation::mutational_burden::Mode,
         #[structopt(
             long = "vaf-cutoff",
             default_value = "0.2",
@@ -584,9 +586,7 @@ pub enum CallKind {
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
-                    CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
-                    variant at the locus, counting from 1. If IDX is not specified, the first \
-                    variant will be chosen. Alternatively, for single variant VCFs, you can \
+                    CHROM:POS. Alternatively, for single variant VCFs, you can \
                     specify 'all'."
         )]
         testcase_locus: Option<String>,

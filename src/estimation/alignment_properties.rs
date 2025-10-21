@@ -191,14 +191,6 @@ impl AlignmentProperties {
             }
         }
 
-        struct RecordStats {
-            mapq: u8,
-            read_len: u32,
-            cigar_counts: CigarStats,
-            transition_counts: TransitionCounts,
-            insert_size: Option<f64>,
-        }
-
         #[derive(Default, Debug)]
         struct AlignmentStats {
             n_reads: usize,
