@@ -44,7 +44,7 @@ pub(crate) struct RecordBuffer {
     // Hashmap containing as a key the read and as a value a hashmap with the position of methylation and the probability of methylation
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
-    failed_reads: Option<Vec<ByAddress<Rc<Record>>>>,
+    failed_reads: Option<HashSet<ByAddress<Rc<Record>>>>,
 }
 
 impl RecordBuffer {
@@ -64,7 +64,7 @@ impl RecordBuffer {
                 None
             },
             failed_reads: if methylation_mm_ml_tag {
-                Some(Vec::new())
+                Some(HashSet::new())
             } else {
                 None
             },
@@ -113,7 +113,7 @@ impl RecordBuffer {
                         let pos_to_probs = extract_mm_ml_5mc(rec).map(Rc::new);
 
                         if pos_to_probs.is_none() {
-                            failed_reads.push(rec_id);
+                            failed_reads.insert(rec_id);
                         } else {
                             methylation_probs.insert(rec_id, pos_to_probs);
                         }

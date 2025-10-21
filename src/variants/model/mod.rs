@@ -317,6 +317,7 @@ impl Variant {
             (&Variant::Insertion(_), &VariantType::Insertion(Some(ref range))) => {
                 self.len() >= range.start && self.len() < range.end
             }
+            (&Variant::Methylation(), &VariantType::Methylation) => true,
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
             (&Variant::Snv(_), &VariantType::Snv) => true,

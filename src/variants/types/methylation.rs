@@ -12,20 +12,12 @@ use crate::variants::types::{
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
-use lazy_static::lazy_static;
 use log::warn;
 use rust_htslib::bam;
 use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Mutex;
-
-// We save methylation info of the single reads for PacBio and Nanopore in order to not recompute the information for every candidate
-lazy_static! {
-    static ref READ_TO_METH_PROBS: Mutex<HashMap<String, HashMap<usize, f64>>> =
-        Mutex::new(HashMap::new());
-}
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
@@ -314,7 +306,7 @@ fn mutation_occurred(
     is_long_read: bool,
 ) -> bool {
     let (read_base, mutation_bases) = if read_reverse {
-        let read_base = unsafe { record.seq().decoded_base_unchecked((qpos) as usize) };
+        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
         let mutation_bases = if is_long_read {
             vec![b'C', b'A', b'T']
         } else {
@@ -348,10 +340,7 @@ fn mutation_occurred(
 ///
 /// bool: True, if read is valid, else false
 fn read_invalid(flag: u16) -> bool {
-    if flag == 0 || flag == 16 || flag == 99 || flag == 83 || flag == 147 || flag == 163 {
-        return false;
-    }
-    true
+    !matches!(flag, 0 | 16 | 83 | 99 | 147 | 163)
 }
 
 impl Variant for Methylation {
