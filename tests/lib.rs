@@ -147,8 +147,6 @@ testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
 testcase!(test_pcr_homopolymer_error3, exact);
 
-// testcase!(test_prinz_bias, exact);
-
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);

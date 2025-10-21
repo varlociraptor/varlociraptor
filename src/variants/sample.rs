@@ -47,17 +47,6 @@ pub(crate) struct RecordBuffer {
     failed_reads: Option<Vec<ByAddress<Rc<Record>>>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
-pub struct RecId {
-    qname: String,
-    pos: i64,
-    flag: u16,
-    tid: i32,
-    // cigar: String,
-}
-
-impl RecId {}
-
 impl RecordBuffer {
     pub(crate) fn new(
         inner: bam::RecordBuffer,
@@ -117,7 +106,6 @@ impl RecordBuffer {
         // If we are interested in methylation on PacBio or Nanopore data we need to compute the methylation probabilities
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
-                // let mut first_it = true;
                 for rec in self.inner.iter() {
                     let rec_id = ByAddress(rec.clone());
                     // Compute methylation probs out of MM and ML tag and save in methylation_probs

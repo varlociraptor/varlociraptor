@@ -345,7 +345,7 @@ pub enum PreprocessKind {
             required = false,
             default_value = "Illumina",
             possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
-            help = "Sequencing method used to gain the reads, important for chosing methylation method."
+            help = "Sequencing method to sequence the input data, important for chosing methylation method."
         )]
         #[serde(default = "default_read_type")]
         read_type: Readtype,
