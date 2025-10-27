@@ -38,12 +38,7 @@ pub fn find_candidates(
     }
     //Write the BCF header (every contig appears once)
     let mut bcf_header = Header::new();
-    for contig_id in data
-        .clone()
-        .into_iter()
-        .map(|(contig, _, _)| contig)
-        .unique()
-    {
+    for contig_id in data.iter().map(|(contig, _, _)| contig.as_str()).unique() {
         let header_contig_line = format!(r#"##contig=<ID={}>"#, contig_id);
         bcf_header.push_record(header_contig_line.as_bytes());
     }
