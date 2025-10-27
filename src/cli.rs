@@ -121,7 +121,14 @@ pub enum Varlociraptor {
             help = "Input FASTA File"
         )]
         input: PathBuf,
-
+        #[structopt(
+            long = "motifs",
+            help = "List of methylation motifs to search for in the input chromosome (default: [CG])",
+            required = false,
+            use_delimiter = true
+        )]
+        #[serde(default = "default_methylation_motifs")]
+        motifs: Vec<String>,
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
@@ -151,6 +158,10 @@ impl Varlociraptor {
             panic!("bug: these are not preprocess options.");
         }
     }
+}
+
+fn default_methylation_motifs() -> Vec<String> {
+    vec!["CG".to_string()]
 }
 
 fn default_reference_buffer_size() -> usize {
@@ -1342,8 +1353,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
-        Varlociraptor::MethylationCandidates { input, output } => {
-            candidates::methylation::find_candidates(input, output)?;
+        Varlociraptor::MethylationCandidates {
+            input,
+            motifs,
+            output,
+        } => {
+            candidates::methylation::find_candidates(input, motifs, output)?;
         }
     }
     Ok(())
