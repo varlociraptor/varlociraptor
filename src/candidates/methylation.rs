@@ -6,36 +6,49 @@ use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{Format, Header, Writer};
 use std::path::PathBuf;
 
+use crate::cli::MethylationMotif;
+
 /// Find all methylation candidates in a FASTA File
 ///
 /// # Arguments
 ///
 /// * `infasta` - path to FASTA with genome
 /// * `outbcf` - path to BCF with found methylation candidates (None for stdout)
-// TODO: add implementation for other methylation types (CHH, ..., given via a pattern arg)
 pub fn find_candidates(
     infasta: PathBuf,
-    motifs: Vec<String>,
+    motifs: Vec<MethylationMotif>,
     outbcf: Option<PathBuf>,
 ) -> Result<()> {
     // Open FASTA File
     let reader =
         Reader::from_file(infasta).with_context(|| "error reading FASTA file".to_string())?;
     let mut data = Vec::new();
-    let ac_motifs = AhoCorasick::new(&motifs)?;
+
+    // Expand motifs into concrete sequences
+    let mut sequences = Vec::new();
+    let mut sequence_to_motif = Vec::new();
+    for motif in &motifs {
+        let expanded = expand_motif(*motif);
+        sequence_to_motif.extend(std::iter::repeat(motif).take(expanded.len()));
+        sequences.extend(expanded);
+    }
+    let ac_motifs = AhoCorasick::new(&sequences)?;
+
     // Collect all chromosomes and positions of candidates
-    // TODO: consider using an IndexedReader to write the BCF header first and then write the methylation candidate records on the fly while reading the FASTA.
     for result in reader.records() {
         let fasta_record = result.with_context(|| "error parsing FASTA record".to_string())?;
         let sequence = String::from_utf8_lossy(fasta_record.seq()).to_string();
         let contig = fasta_record.id().to_owned();
-
         for mat in ac_motifs.find_iter(&sequence) {
-            let pos = mat.start() as i64;
-            let motif = motifs[mat.pattern()].to_string();
-            data.push((contig.clone(), pos, motif));
+            let motif_enum: &MethylationMotif = &sequence_to_motif[mat.pattern()];
+            data.push((
+                contig.to_string(),
+                mat.start() as i64,
+                motif_enum.to_string(),
+            ));
         }
     }
+
     //Write the BCF header (every contig appears once)
     let mut bcf_header = Header::new();
     for contig_id in data.iter().map(|(contig, _, _)| contig.as_str()).unique() {
@@ -77,4 +90,24 @@ pub fn find_candidates(
             .with_context(|| "failed to write BCF record with methylation candidate".to_string())?;
     }
     Ok(())
+}
+
+/// Expands a motif into all concrete sequences.
+fn expand_motif(motif: MethylationMotif) -> Vec<String> {
+    match motif {
+        MethylationMotif::CG => vec!["CG".into()],
+        MethylationMotif::GATC => vec!["GATC".into()],
+        MethylationMotif::CHG => ['A', 'C', 'T']
+            .iter()
+            .map(|&h| format!("C{}G", h))
+            .collect(),
+        MethylationMotif::CHH => ['A', 'C', 'T']
+            .iter()
+            .flat_map(|&h1| {
+                ['A', 'C', 'T']
+                    .iter()
+                    .map(move |&h2| format!("C{}{}", h1, h2))
+            })
+            .collect(),
+    }
 }

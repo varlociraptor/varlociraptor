@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
@@ -123,12 +124,12 @@ pub enum Varlociraptor {
         input: PathBuf,
         #[structopt(
             long = "motifs",
-            help = "List of methylation motifs to search for in the input chromosome (default: [CG])",
+            help = "Comma-separated list of methylation motifs to search for in the input chromosome. Supported motifs: CG, CHG, CHH, GATC. Default: CG.",
             required = false,
             use_delimiter = true
         )]
         #[serde(default = "default_methylation_motifs")]
-        motifs: Vec<String>,
+        motifs: Vec<MethylationMotif>,
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
@@ -159,9 +160,34 @@ impl Varlociraptor {
         }
     }
 }
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Display)]
+pub enum MethylationMotif {
+    /// CpG dinucleotide context (5-methylcytosine)
+    CG,
+    /// CHG context (H = A/C/T), common in plants
+    CHG,
+    /// CHH context (H = A/C/T), asymmetric methylation
+    CHH,
+    /// GATC motif (adenine methylation, 6mA)
+    GATC,
+}
 
-fn default_methylation_motifs() -> Vec<String> {
-    vec!["CG".to_string()]
+impl FromStr for MethylationMotif {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "CG" => Ok(MethylationMotif::CG),
+            "CHG" => Ok(MethylationMotif::CHG),
+            "CHH" => Ok(MethylationMotif::CHH),
+            "GATC" => Ok(MethylationMotif::GATC),
+            _ => Err(format!("Invalid methylation motif: {}", s)),
+        }
+    }
+}
+
+fn default_methylation_motifs() -> Vec<MethylationMotif> {
+    vec![MethylationMotif::CG]
 }
 
 fn default_reference_buffer_size() -> usize {
