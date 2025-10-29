@@ -6,8 +6,6 @@ use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{Format, Header, Writer};
 use std::path::PathBuf;
 
-use crate::cli::MethylationMotif;
-
 /// Find all methylation candidates in a FASTA File
 ///
 /// # Arguments
@@ -110,4 +108,16 @@ fn expand_motif(motif: MethylationMotif) -> Vec<String> {
             })
             .collect(),
     }
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Display)]
+pub enum MethylationMotif {
+    /// CpG dinucleotide context (5-methylcytosine)
+    CG,
+    /// CHG context (H = A/C/T), common in plants
+    CHG,
+    /// CHH context (H = A/C/T), asymmetric methylation
+    CHH,
+    /// GATC motif (adenine methylation, 6mA)
+    GATC,
 }

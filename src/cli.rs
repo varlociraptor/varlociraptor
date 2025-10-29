@@ -10,23 +10,23 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{LogProb, Prob};
-use itertools::Itertools;
-use structopt::StructOpt;
-use strum::IntoEnumIterator;
-
 use crate::calling;
 use crate::calling::variants::calling::{
     call_generic, CallWriter, DefaultCandidateFilter, SampleInfos,
 };
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::candidates;
+use crate::candidates::methylation::MethylationMotif;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use anyhow::{bail, Context, Result};
+use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
+use bio::stats::{LogProb, Prob};
+use itertools::Itertools;
+use structopt::StructOpt;
+use strum::IntoEnumIterator;
 //use crate::estimation::sample_variants;
 //use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
@@ -159,17 +159,6 @@ impl Varlociraptor {
             panic!("bug: these are not preprocess options.");
         }
     }
-}
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Display)]
-pub enum MethylationMotif {
-    /// CpG dinucleotide context (5-methylcytosine)
-    CG,
-    /// CHG context (H = A/C/T), common in plants
-    CHG,
-    /// CHH context (H = A/C/T), asymmetric methylation
-    CHH,
-    /// GATC motif (adenine methylation, 6mA)
-    GATC,
 }
 
 impl FromStr for MethylationMotif {
