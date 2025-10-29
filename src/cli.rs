@@ -124,10 +124,9 @@ pub enum Varlociraptor {
         input: PathBuf,
         #[structopt(
             long = "motifs",
-            help = "Comma-separated list of methylation motifs to search for in the input chromosome. Supported motifs: CG, CHG, CHH, GATC. Default: CG.",
+            help = "Comma-separated list of methylation motifs to search for in the input chromosome. Supported motifs: CG, CHG, CHH, GATC.",
             required = false,
-            use_delimiter = true,
-            default_value = "CG"
+            use_delimiter = true
         )]
         #[serde(default = "default_methylation_motifs")]
         motifs: Vec<MethylationMotif>,
