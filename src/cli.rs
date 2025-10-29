@@ -126,7 +126,8 @@ pub enum Varlociraptor {
             long = "motifs",
             help = "Comma-separated list of methylation motifs to search for in the input chromosome. Supported motifs: CG, CHG, CHH, GATC. Default: CG.",
             required = false,
-            use_delimiter = true
+            use_delimiter = true,
+            default_value = "CG"
         )]
         #[serde(default = "default_methylation_motifs")]
         motifs: Vec<MethylationMotif>,
