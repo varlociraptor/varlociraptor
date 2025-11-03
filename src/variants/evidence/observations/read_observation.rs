@@ -702,7 +702,7 @@ pub(crate) trait Observable: Variant {
 }
 
 #[derive(Getters, Clone, Debug, Derefable)]
-pub struct ExtendedRecord {
+pub struct AlignmentRecord {
     #[getset(get = "pub")]
     #[deref]
     record: Rc<bam::Record>,
@@ -710,32 +710,32 @@ pub struct ExtendedRecord {
     prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
 }
 
-impl ExtendedRecord {
+impl AlignmentRecord {
     pub(crate) fn new(
         record: Rc<bam::Record>,
         prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
     ) -> Self {
-        ExtendedRecord {
+        AlignmentRecord {
             record,
             prob_methylation,
         }
     }
 }
 
-impl PartialEq for ExtendedRecord {
+impl PartialEq for AlignmentRecord {
     fn eq(&self, other: &Self) -> bool {
         self.record == other.record
     }
 }
 
-impl Eq for ExtendedRecord {}
+impl Eq for AlignmentRecord {}
 
 #[derive(Clone, Eq, Debug)]
 pub(crate) enum Evidence {
-    SingleEndSequencingRead(ExtendedRecord),
+    SingleEndSequencingRead(AlignmentRecord),
     PairedEndSequencingRead {
-        left: ExtendedRecord,
-        right: ExtendedRecord,
+        left: AlignmentRecord,
+        right: AlignmentRecord,
     },
 }
 

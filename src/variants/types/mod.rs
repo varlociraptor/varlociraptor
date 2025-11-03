@@ -18,7 +18,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, ExtendedRecord, Observable, ReadObservation, Strand,
+    AlignmentRecord, Evidence, Observable, ReadObservation, Strand,
 };
 use crate::variants::sample;
 
@@ -358,11 +358,11 @@ where
                 }
                 let evidence = Evidence::PairedEndSequencingRead {
                     // buffer.get_read_specific_meth_probs returns None if we do not deal with PacBio or Nanopore methylation
-                    left: ExtendedRecord::new(
+                    left: AlignmentRecord::new(
                         candidate.left.clone(),
                         buffer.get_read_specific_meth_probs(candidate.left.clone()),
                     ),
-                    right: ExtendedRecord::new(
+                    right: AlignmentRecord::new(
                         right.clone(),
                         buffer.get_read_specific_meth_probs(right.clone()),
                     ),
@@ -373,7 +373,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = Evidence::SingleEndSequencingRead(ExtendedRecord::new(
+                let evidence = Evidence::SingleEndSequencingRead(AlignmentRecord::new(
                     candidate.left.to_owned(),
                     buffer.get_read_specific_meth_probs(candidate.left.to_owned()),
                 ));

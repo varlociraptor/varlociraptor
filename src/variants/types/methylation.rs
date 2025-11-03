@@ -5,7 +5,7 @@ use crate::{estimation::alignment_properties::AlignmentProperties, variants::sam
 
 use super::MultiLocus;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observations::read_observation::{ExtendedRecord, Strand};
+use crate::variants::evidence::observations::read_observation::{AlignmentRecord, Strand};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
 };
@@ -38,7 +38,7 @@ impl Methylation {
 
     fn allele_support_per_read(
         &self,
-        read: &ExtendedRecord,
+        read: &AlignmentRecord,
         is_long_read: bool,
     ) -> Result<Option<AlleleSupport>> {
         let mut position = self.locus().range().start;
