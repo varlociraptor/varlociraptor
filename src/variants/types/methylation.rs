@@ -148,7 +148,7 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
         return None;
     };
 
-    let read_seq = String::from_utf8_lossy(&read.seq().as_bytes()).to_string();
+    let read_seq = read.seq().as_bytes();
 
     let mut pos_to_prob: HashMap<usize, LogProb> = HashMap::new();
     let mut ml_index = 0;
@@ -171,11 +171,11 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
 
         if is_5mc_header(header) {
             let mut pos_read_base: Vec<usize> = read_seq
-                .chars()
+                .iter()
                 .enumerate()
-                .filter(|&(_, c)| {
-                    (c == 'C' && !read_reverse_orientation(read))
-                        || (c == complement_base('C') && read_reverse_orientation(read))
+                .filter(|&(_, &c)| {
+                    (c == b'C' && !read_reverse_orientation(read))
+                        || (c == complement_base(b'C') && read_reverse_orientation(read))
                 })
                 .map(|(i, _)| i)
                 .collect();
@@ -210,12 +210,12 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
 }
 
 /// Liefert die komplementäre Base (nur für A,T,C,G)
-fn complement_base(base: char) -> char {
+fn complement_base(base: u8) -> u8 {
     match base {
-        'A' => 'T',
-        'T' => 'A',
-        'C' => 'G',
-        'G' => 'C',
+        b'A' => b'T',
+        b'T' => b'A',
+        b'C' => b'G',
+        b'G' => b'C',
         _ => base,
     }
 }
