@@ -359,12 +359,12 @@ where
                 let evidence = Evidence::PairedEndSequencingRead {
                     // buffer.get_read_specific_meth_probs returns None if we do not deal with PacBio or Nanopore methylation
                     left: AlignmentRecord::new(
-                        candidate.left.clone(),
-                        buffer.get_read_specific_meth_probs(candidate.left.clone()),
+                        Rc::clone(&candidate.left),
+                        buffer.get_read_specific_meth_probs(&candidate.left),
                     ),
                     right: AlignmentRecord::new(
-                        right.clone(),
-                        buffer.get_read_specific_meth_probs(right.clone()),
+                        Rc::clone(right),
+                        buffer.get_read_specific_meth_probs(&right),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -375,7 +375,7 @@ where
                 // region of interest
                 let evidence = Evidence::SingleEndSequencingRead(AlignmentRecord::new(
                     candidate.left.to_owned(),
-                    buffer.get_read_specific_meth_probs(candidate.left.to_owned()),
+                    buffer.get_read_specific_meth_probs(&candidate.left),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);

@@ -83,11 +83,14 @@ impl RecordBuffer {
 
     pub(crate) fn get_read_specific_meth_probs(
         &self,
-        rec: Rc<Record>,
+        rec: &Rc<Record>,
     ) -> Option<Rc<HashMap<usize, LogProb>>> {
-        self.methylation_probs
-            .as_ref()
-            .and_then(|meth_probs| meth_probs.get(&ByAddress(rec)).cloned().flatten())
+        self.methylation_probs.as_ref().and_then(|meth_probs| {
+            meth_probs
+                .get(&ByAddress(rec.to_owned()))
+                .cloned()
+                .flatten()
+        })
     }
 
     pub(crate) fn fetch(
