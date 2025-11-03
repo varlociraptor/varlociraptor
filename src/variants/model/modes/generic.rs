@@ -495,13 +495,14 @@ impl Likelihood<Cache> for GenericLikelihood {
                             primary: event.clone(),
                             secondary: operands.events[by].clone(),
                         };
+                        // If we deal with a conversion on a SNV, we need to adjust the allele frequency accordingly.
                         if let Some(conversion) = conversion {
                             if let Some(snv) = &data.snv {
                                 if snv.refbase == conversion.from && snv.altbase == conversion.to {
                                     let density = |_, conversion_rate| {
                                         let mut event_var_or_conversion =
                                             contaminated_event.clone();
-                                        // Frage Johannes: Soll ich auf primary aufrechnen?
+                                        // TODO: Frage Johannes: Soll ich auf primary aufrechnen?
                                         event_var_or_conversion.primary.allele_freq +=
                                             conversion_rate;
                                         likelihood_model.compute(
@@ -519,6 +520,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                                 }
                             }
                         }
+                        // Else, just compute the likelihood normally.
                         likelihood_model.compute(contaminated_event, pileup, cache)
                     } else {
                         unreachable!();
@@ -532,6 +534,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                         .entry(sample)
                         .or_insert_with(|| CacheEntry::new(false))
                     {
+                        // If we deal with a conversion on a SNV, we need to adjust the allele frequency accordingly.
                         if let Some(conversion) = conversion {
                             if let Some(snv) = &data.snv {
                                 if snv.refbase == conversion.from && snv.altbase == conversion.to {
@@ -554,6 +557,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                                 }
                             }
                         }
+                        // Else, just compute the likelihood normally.
                         likelihood_model.compute(event, pileup, cache)
                     } else {
                         unreachable!();
