@@ -650,41 +650,42 @@ impl FromStr for Conversion {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.split('>').collect();
-        if parts.len() == 2 {
-            if parts[0].chars().count() == 1 && parts[1].chars().count() == 1 {
-                let from_char = parts[0].chars().next().unwrap();
-                let to_char = parts[1].chars().next().unwrap();
-                if from_char.is_ascii() && to_char.is_ascii() {
-                    let is_nucleotide =
-                        |c: char| matches!(c.to_ascii_uppercase(), 'A' | 'T' | 'G' | 'C' | 'N');
-                    if !is_nucleotide(from_char) || !is_nucleotide(to_char) {
-                        return Err(format!(
-                            "Invalid nucleotides in conversion string '{}'. Expected A,T,G,C,N.",
-                            s
-                        ));
-                    }
-                    Ok(Conversion {
-                        from: from_char as u8,
-                        to: to_char as u8,
-                    })
-                } else {
-                    Err(format!(
-                        "Non-ASCII characters are not supported in conversion string '{}'",
-                        s
-                    ))
-                }
-            } else {
-                Err(format!(
-                    "Expected single ASCII characters before and after '>' in '{}'",
-                    s
-                ))
-            }
-        } else {
-            Err(format!("Expected format 'X>Y' but got '{}'", s))
+        let is_nucleotide = |c: char| matches!(c.to_ascii_uppercase(), 'A' | 'T' | 'G' | 'C' | 'N');
+
+        let (left, right) = s.split_once('>')
+            .ok_or_else(|| format!("Expected format 'X>Y' but got '{}'", s))?;
+
+        if left.len() != 1 || right.len() != 1 {
+            return Err(format!(
+                "Expected single ASCII characters before and after '>' in '{}'",
+                s
+            ));
         }
+
+        let from = left.chars().next().unwrap();
+        let to = right.chars().next().unwrap();
+
+        if !from.is_ascii() || !to.is_ascii() {
+            return Err(format!(
+                "Non-ASCII characters are not supported in conversion string '{}'",
+                s
+            ));
+        }
+
+        if !is_nucleotide(from) || !is_nucleotide(to) {
+            return Err(format!(
+                "Invalid nucleotides in conversion string '{}'. Expected A,T,G,C,N.",
+                s
+            ));
+        }
+
+        Ok(Conversion {
+            from: from as u8,
+            to: to as u8,
+        })
     }
 }
+
 
 impl<'de> Deserialize<'de> for Conversion {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
