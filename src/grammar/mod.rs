@@ -652,7 +652,8 @@ impl FromStr for Conversion {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let is_nucleotide = |c: char| matches!(c.to_ascii_uppercase(), 'A' | 'T' | 'G' | 'C' | 'N');
 
-        let (left, right) = s.split_once('>')
+        let (left, right) = s
+            .split_once('>')
             .ok_or_else(|| format!("Expected format 'X>Y' but got '{}'", s))?;
 
         if left.len() != 1 || right.len() != 1 {
@@ -685,7 +686,6 @@ impl FromStr for Conversion {
         })
     }
 }
-
 
 impl<'de> Deserialize<'de> for Conversion {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
