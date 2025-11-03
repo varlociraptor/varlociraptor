@@ -75,7 +75,7 @@ impl Methylation {
                 Ok(None)
             }
         } else {
-            // a read that spans an SNV might have the respective position in the
+            // a read that shows methylation might have the respective position in the
             // reference skipped (Cigar op 'N'), and the library should not choke on those reads
             // but instead needs to know NOT to add those reads (as observations) further up
             Ok(None)
@@ -87,7 +87,7 @@ impl Methylation {
     }
 }
 
-/// Looks if the read has MM information
+/// Checks if the read has MM information
 ///
 /// # Returns
 ///

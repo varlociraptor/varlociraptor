@@ -364,7 +364,7 @@ where
                     ),
                     right: AlignmentRecord::new(
                         Rc::clone(right),
-                        buffer.get_read_specific_meth_probs(&right),
+                        buffer.get_read_specific_meth_probs(right),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
