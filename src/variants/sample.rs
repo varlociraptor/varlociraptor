@@ -110,7 +110,7 @@ impl RecordBuffer {
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 for rec in self.inner.iter() {
-                    let rec_id = ByAddress(rec.clone());
+                    let rec_id = ByAddress(Rc::clone(rec));
                     // If the read has been processed in a previous fetch we skip it.
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         // Extract methylation probs out of MM and ML tag and save in methylation_probs
@@ -126,7 +126,7 @@ impl RecordBuffer {
                 let buffer_ids: HashSet<_> = self
                     .inner
                     .iter()
-                    .map(|rec| ByAddress(rec.clone()))
+                    .map(|rec| ByAddress(Rc::clone(rec)))
                     .collect();
                 // Clean up methylation_probs to only keep entries for reads that are still in the buffer.
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
