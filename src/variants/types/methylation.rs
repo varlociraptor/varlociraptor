@@ -1,7 +1,9 @@
 use super::ToVariantRepresentation;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
-use crate::{estimation::alignment_properties::AlignmentProperties, variants::sample::Readtype};
+use crate::{
+    estimation::alignment_properties::AlignmentProperties, variants::sample::MethylationReadtype,
+};
 
 use super::MultiLocus;
 use crate::variants::evidence::bases::prob_read_base;
@@ -22,24 +24,24 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub(crate) struct Methylation {
     loci: MultiLocus,
-    readtype: Readtype,
+    methylation_readtype: MethylationReadtype,
 }
 
 impl Methylation {
-    pub(crate) fn new(locus: genome::Locus, readtype: Readtype) -> Self {
+    pub(crate) fn new(locus: genome::Locus, methylation_readtype: MethylationReadtype) -> Self {
         Methylation {
             loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
             ))),
-            readtype,
+            methylation_readtype,
         }
     }
 
     fn allele_support_per_read(&self, read: &AlignmentRecord) -> Result<Option<AlleleSupport>> {
-        let annotated_read = match self.readtype {
-            Readtype::Converted => false,
-            Readtype::Annotated => true,
+        let annotated_read = match self.methylation_readtype {
+            MethylationReadtype::Converted => false,
+            MethylationReadtype::Annotated => true,
         };
 
         let mut position = self.locus().range().start;
@@ -407,10 +409,10 @@ impl Variant for Methylation {
                 )
             }
         } {
-            if match self.readtype {
+            if match self.methylation_readtype {
                 // Some single PacBio reads don't have an MM:Z value and are therefore not legal
-                Readtype::Converted => true,
-                Readtype::Annotated => mm_exists(evidence),
+                MethylationReadtype::Converted => true,
+                MethylationReadtype::Annotated => mm_exists(evidence),
             } {
                 Some(vec![0])
             } else {

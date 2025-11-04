@@ -343,8 +343,8 @@ impl Sample {
     IntoStaticStr,
     VariantNames,
 )]
-// The Readtype enum is used to specify the type of sequencing. This is important for the type of methylation extraction.
-pub enum Readtype {
+// The MethylationReadtype enum is used to specify the type of sequencing. This is important for the type of methylation extraction.
+pub enum MethylationReadtype {
     #[strum(serialize = "Annotated")]
     Annotated,
     #[strum(serialize = "Converted")]

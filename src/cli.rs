@@ -38,7 +38,7 @@ use crate::variants::evidence::realignment;
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
-use crate::variants::sample::{estimate_alignment_properties, Readtype};
+use crate::variants::sample::{estimate_alignment_properties, MethylationReadtype};
 
 use crate::SimpleEvent;
 
@@ -170,8 +170,8 @@ fn default_min_bam_refetch_distance() -> u64 {
     1
 }
 
-fn default_read_type() -> Readtype {
-    Readtype::Converted
+fn default_methylation_readtype() -> MethylationReadtype {
+    MethylationReadtype::Converted
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -344,11 +344,11 @@ pub enum PreprocessKind {
             long = "read-type",
             required = false,
             default_value = "Converted",
-            possible_values = &Readtype::iter().map(|v| v.into()).collect_vec(),
+            possible_values = &MethylationReadtype::iter().map(|v| v.into()).collect_vec(),
             help = "Sequencing method to sequence the input data, important for chosing methylation method."
         )]
-        #[serde(default = "default_read_type")]
-        read_type: Readtype,
+        #[serde(default = "default_methylation_readtype")]
+        methylation_readtype: MethylationReadtype,
     },
 }
 
@@ -848,7 +848,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
-                    read_type,
+                    methylation_readtype,
                     variant_heterozygosity_field,
                     variant_somatic_effective_mutation_rate_field,
                 } => {
@@ -916,7 +916,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
-                                    .readtype(read_type)
+                                    .methylation_readtype(methylation_readtype)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -949,7 +949,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         reference_buffer,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
-                                    .readtype(read_type)
+                                    .methylation_readtype(methylation_readtype)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -982,7 +982,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
-                                    .readtype(read_type)
+                                    .methylation_readtype(methylation_readtype)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
