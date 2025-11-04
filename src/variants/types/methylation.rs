@@ -163,7 +163,6 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
             None => continue,
         };
 
-        let mut meth_pos = 0;
         let meth_positions: Vec<usize> = positions_str
             .split(',')
             .filter_map(|s| s.parse::<usize>().ok())
@@ -184,6 +183,7 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
                 pos_read_base.reverse();
             }
 
+            let mut meth_pos = 0;
             for position in meth_positions {
                 meth_pos += position;
                 if meth_pos <= pos_read_base.len() {
@@ -197,19 +197,19 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
                 meth_pos += 1; // Move to the next position
             }
         } else {
-            // Werte überspringen, weil sie nicht zu 5mC gehören
+            // Skip other modification types (no 5mC)
             ml_index += meth_positions.len();
         }
     }
     let mut items: Vec<_> = pos_to_prob.iter().collect();
 
-    // Absteigend nach Key sortieren
+    // Sort by position in descending order
     items.sort_by(|a, b| b.0.cmp(a.0));
     dbg!(&items);
     Some(pos_to_prob)
 }
 
-/// Liefert die komplementäre Base (nur für A,T,C,G)
+// Returns the complement base for a given base
 fn complement_base(base: u8) -> u8 {
     match base {
         b'A' => b'T',
@@ -226,15 +226,6 @@ fn process_read(
     qpos: u32,
     is_long_read: bool,
 ) -> Option<(LogProb, LogProb)> {
-    // warn!(
-    //     "Debugging read {:?} on position {:?}, direction {:?}",
-    //     String::from_utf8_lossy(read.qname()),
-    //     qpos,
-    //     read_reverse_orientation(read)
-    // );
-    // We do not consider a read if:
-    //    the CpG site is at the end of the read and therefore the C is not included in the reverse read
-    //    there are unexpected bases (A, G for short reads, A, G, T for long reads) at the CpG site
     if (is_long_read && meth_info.is_none())
         || mutation_occurred(read_reverse_orientation(read), read, qpos, is_long_read)
         || read_invalid(read.inner.core.flag)
