@@ -37,7 +37,7 @@ impl Methylation {
     }
 
     fn allele_support_per_read(&self, read: &AlignmentRecord) -> Result<Option<AlleleSupport>> {
-        let is_long_read = match self.readtype {
+        let annotated_read = match self.readtype {
             Readtype::Illumina => false,
             Readtype::PacBio | Readtype::Nanopore => true,
         };
@@ -53,7 +53,7 @@ impl Methylation {
             .read_pos(position as u32, false, false)?
         {
             if let Some((prob_alt, prob_ref)) =
-                process_read(read, read.prob_methylation(), qpos, is_long_read)
+                process_read(read, read.prob_methylation(), qpos, annotated_read)
             {
                 let strand = if prob_ref != prob_alt {
                     Strand::from_record_and_pos(read, qpos as usize)?
@@ -107,6 +107,7 @@ fn mm_exists(evidence: &Evidence) -> bool {
 }
 
 /// Helper function to check MM tags for a single record
+/// Sometimes single PacBio reads do not have methylation information
 fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
     matches!(
         (record.aux(b"Mm"), record.aux(b"MM")),
@@ -210,7 +211,7 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
     Some(pos_to_prob)
 }
 
-// Returns the complement base for a given base
+/// Returns the complement base for a given base
 fn complement_base(base: u8) -> u8 {
     match base {
         b'A' => b'T',
@@ -221,23 +222,42 @@ fn complement_base(base: u8) -> u8 {
     }
 }
 
+/// Computes methylation probabilities for a CpG site in a read.
+///
+/// This function looks at a read at a given query position (`qpos`) and tries to
+/// determine how likely it is that the corresponding CpG site is methylated or
+/// unmethylated. Depending on whether the read already carries methylation
+/// annotations (`annotated_read`) in the form of MM and ML tags, the probabilities are either taken directly
+/// from the annotation (`meth_info`) or inferred from the observed bases in the
+/// read.
+///
+/// The function returns `None` and the read is ignored in several cases:
+/// - The read is marked as annotated, but no annotation (`meth_info`) was provided.
+/// - The read is considered invalid based on its BAM flags.
+/// - unexpected bases occur at the CpG site (A/G for bisulfite treated reads, A/G/T for reads with methylation annotation).
+///
+///
+/// Returns `Some((meth, unmeth))` on success, or `None` if the read should be skipped.
 fn process_read(
     read: &Rc<Record>,
     meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
     qpos: u32,
-    is_long_read: bool,
+    annotated_read: bool,
 ) -> Option<(LogProb, LogProb)> {
-    if (is_long_read && meth_info.is_none())
-        || mutation_occurred(read_reverse_orientation(read), read, qpos, is_long_read)
+    if (annotated_read && meth_info.is_none())
+        || mutation_occurred(read_reverse_orientation(read), read, qpos, annotated_read)
         || read_invalid(read.inner.core.flag)
     {
         return None;
     }
 
-    if is_long_read {
-        Some(compute_probs_long_read(meth_info.as_ref().unwrap(), qpos))
+    if annotated_read {
+        Some(compute_probs_annotated_read(
+            meth_info.as_ref().unwrap(),
+            qpos,
+        ))
     } else {
-        Some(compute_probs_short_read(
+        Some(compute_probs_converted_read(
             read_reverse_orientation(read),
             read,
             qpos,
@@ -251,7 +271,7 @@ fn process_read(
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
-fn compute_probs_long_read(
+fn compute_probs_annotated_read(
     pos_to_probs: &HashMap<usize, LogProb>,
     qpos: u32,
 ) -> (LogProb, LogProb) {
@@ -274,7 +294,7 @@ fn compute_probs_long_read(
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
-pub fn compute_probs_short_read(
+pub fn compute_probs_converted_read(
     read_reverse: bool,
     record: &Rc<Record>,
     qpos: u32,
@@ -299,11 +319,11 @@ fn mutation_occurred(
     read_reverse: bool,
     record: &Rc<Record>,
     qpos: u32,
-    is_long_read: bool,
+    annotated_read: bool,
 ) -> bool {
     let (read_base, mutation_bases) = if read_reverse {
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        let mutation_bases = if is_long_read {
+        let mutation_bases = if annotated_read {
             vec![b'C', b'A', b'T']
         } else {
             vec![b'C', b'T']
@@ -311,7 +331,7 @@ fn mutation_occurred(
         (read_base, mutation_bases)
     } else {
         let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-        let mutation_bases = if is_long_read {
+        let mutation_bases = if annotated_read {
             vec![b'G', b'A', b'T']
         } else {
             vec![b'A', b'G']
@@ -437,6 +457,17 @@ impl ToVariantRepresentation for Methylation {
     }
 }
 
+/// Determines the orientation of a read based on its flags.  
+///
+/// For single-end reads: returns true if the read is reverse-complemented.  
+/// For paired-end reads: returns true if the read is from the reverse strand  
+/// (either first-in-pair and reverse, or second-in-pair and forward).  
+///  
+/// # Arguments  
+/// * `read` - The sequencing read to check  
+///  
+/// # Returns  
+/// * `true` if the read is from the reverse strand, `false` otherwise
 pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
     let read_paired = read.is_paired();
     let read_reverse = read.is_reverse();
