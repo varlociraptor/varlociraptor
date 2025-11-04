@@ -374,7 +374,7 @@ where
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = Evidence::SingleEndSequencingRead(AlignmentRecord::new(
-                    candidate.left.to_owned(),
+                    Rc::clone(&candidate.left),
                     buffer.get_read_specific_meth_probs(&candidate.left),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {

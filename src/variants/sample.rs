@@ -106,12 +106,12 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-        // If we are interested in methylation on PacBio or Nanopore data we need to compute the methylation probabilities
+        // If we are interested in methylation on PacBio or Nanopore data we need to extract the methylation probabilities
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 for rec in self.inner.iter() {
                     let rec_id = ByAddress(rec.clone());
-                    // Compute methylation probs out of MM and ML tag and save in methylation_probs
+                    // Extract methylation probs out of MM and ML tag and save in methylation_probs
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         let pos_to_probs = extract_mm_ml_5mc(rec).map(Rc::new);
 
