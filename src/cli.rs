@@ -337,7 +337,7 @@ pub enum PreprocessKind {
         #[serde(default)]
         output_raw_observations: Option<PathBuf>,
         #[structopt(
-            long = "read-type",
+            long = "methylation-read-type",
             possible_values = &MethylationReadtype::iter().map(|v| v.into()).collect_vec(),
             help = "Type of methylation information encoded in the reads. Use 'Converted' for reads treated with bisulfite or EMSeq. Use 'Annotated' for reads where methylation information is encoded in the MM and ML tags."
         )]
