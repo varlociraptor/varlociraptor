@@ -304,8 +304,11 @@ pub fn compute_probs_converted_read(
     } else {
         (b'G', b'A')
     };
-    let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
-    let base_qual = unsafe { *record.qual().get_unchecked(qpos as usize) };
+
+    let seq_bytes = record.seq().as_bytes();
+    let read_base = seq_bytes[qpos as usize];
+    let base_qual = record.qual()[qpos as usize];
+
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
     (prob_alt, prob_ref)
@@ -322,7 +325,7 @@ fn mutation_occurred(
     annotated_read: bool,
 ) -> bool {
     let (read_base, mutation_bases) = if read_reverse {
-        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        let read_base = record.seq().as_bytes()[qpos as usize];
         let mutation_bases = if annotated_read {
             vec![b'C', b'A', b'T']
         } else {
@@ -330,7 +333,7 @@ fn mutation_occurred(
         };
         (read_base, mutation_bases)
     } else {
-        let read_base = unsafe { record.seq().decoded_base_unchecked(qpos as usize) };
+        let read_base = record.seq().as_bytes()[qpos as usize];
         let mutation_bases = if annotated_read {
             vec![b'G', b'A', b'T']
         } else {
