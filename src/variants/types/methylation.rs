@@ -36,11 +36,12 @@ impl Methylation {
         }
     }
 
-    fn allele_support_per_read(
-        &self,
-        read: &AlignmentRecord,
-        is_long_read: bool,
-    ) -> Result<Option<AlleleSupport>> {
+    fn allele_support_per_read(&self, read: &AlignmentRecord) -> Result<Option<AlleleSupport>> {
+        let is_long_read = match self.readtype {
+            Readtype::Illumina => false,
+            Readtype::PacBio | Readtype::Nanopore => true,
+        };
+
         let mut position = self.locus().range().start;
         if read_reverse_orientation(read) {
             position += 1;
@@ -290,6 +291,10 @@ pub fn compute_probs_short_read(
     (prob_alt, prob_ref)
 }
 
+/// Computes if a mutation occurred at the given position in the read (If we want to check a cytosine for methylation, but the read does not have a C or T at that position it can't be methylated)
+///
+/// # Returns
+/// bool: True, if mutation occurred, else false
 fn mutation_occurred(
     read_reverse: bool,
     record: &Rc<Record>,
@@ -401,42 +406,22 @@ impl Variant for Methylation {
         _alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            Evidence::SingleEndSequencingRead(read) => match self.readtype {
-                Readtype::Illumina => Ok(self.allele_support_per_read(read, false)?),
-                Readtype::PacBio | Readtype::Nanopore => {
-                    Ok(self.allele_support_per_read(read, true)?)
-                }
-            },
-            Evidence::PairedEndSequencingRead { left, right } => match self.readtype {
-                Readtype::Illumina => {
-                    let left_support = self.allele_support_per_read(left, false)?;
-                    let right_support = self.allele_support_per_read(right, false)?;
+            Evidence::SingleEndSequencingRead(read) => Ok(self.allele_support_per_read(read)?),
 
-                    match (left_support, right_support) {
-                        (Some(mut left_support), Some(right_support)) => {
-                            left_support.merge(&right_support);
-                            Ok(Some(left_support))
-                        }
-                        (Some(left_support), None) => Ok(Some(left_support)),
-                        (None, Some(right_support)) => Ok(Some(right_support)),
-                        (None, None) => Ok(None),
-                    }
-                }
-                Readtype::PacBio | Readtype::Nanopore => {
-                    let left_support = self.allele_support_per_read(left, true)?;
-                    let right_support = self.allele_support_per_read(right, true)?;
+            Evidence::PairedEndSequencingRead { left, right } => {
+                let left_support = self.allele_support_per_read(left)?;
+                let right_support = self.allele_support_per_read(right)?;
 
-                    match (left_support, right_support) {
-                        (Some(mut left_support), Some(right_support)) => {
-                            left_support.merge(&right_support);
-                            Ok(Some(left_support))
-                        }
-                        (Some(left_support), None) => Ok(Some(left_support)),
-                        (None, Some(right_support)) => Ok(Some(right_support)),
-                        (None, None) => Ok(None),
+                match (left_support, right_support) {
+                    (Some(mut left_support), Some(right_support)) => {
+                        left_support.merge(&right_support);
+                        Ok(Some(left_support))
                     }
+                    (Some(left_support), None) => Ok(Some(left_support)),
+                    (None, Some(right_support)) => Ok(Some(right_support)),
+                    (None, None) => Ok(None),
                 }
-            },
+            }
         }
     }
 
