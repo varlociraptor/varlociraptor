@@ -106,15 +106,16 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-        // If we are interested in methylation on PacBio or Nanopore data we need to extract the methylation probabilities
+        // If we are interested in methylation on PacBio or Nanopore data we need to extract the methylation probabilities. Since the parsing of the MM and the ML tag can be slow we only do this once per read and store the results in a hashmap.
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 for rec in self.inner.iter() {
                     let rec_id = ByAddress(rec.clone());
-                    // Extract methylation probs out of MM and ML tag and save in methylation_probs
+                    // If the read has been processed in a previous fetch we skip it.
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
+                        // Extract methylation probs out of MM and ML tag and save in methylation_probs
                         let pos_to_probs = extract_mm_ml_5mc(rec).map(Rc::new);
-
+                        // If extraction failed we add the read to the failed reads set to avoid reprocessing it in future fetches.
                         if pos_to_probs.is_none() {
                             failed_reads.insert(rec_id);
                         } else {
@@ -127,6 +128,7 @@ impl RecordBuffer {
                     .iter()
                     .map(|rec| ByAddress(rec.clone()))
                     .collect();
+                // Clean up methylation_probs to only keep entries for reads that are still in the buffer.
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
                     methylation_probs_map.retain(|key, _value| buffer_ids.contains(key));
                 }
