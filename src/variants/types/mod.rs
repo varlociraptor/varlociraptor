@@ -357,7 +357,7 @@ where
                     continue;
                 }
                 let evidence = Evidence::PairedEndSequencingRead {
-                    // buffer.get_read_specific_meth_probs returns None if we do not deal with PacBio or Nanopore methylation
+                    // buffer.get_read_specific_meth_probs returns None if we do not deal with reads annotated with methylation information
                     left: AlignmentRecord::new(
                         Rc::clone(&candidate.left),
                         buffer.get_read_specific_meth_probs(&candidate.left),

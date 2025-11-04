@@ -38,8 +38,8 @@ impl Methylation {
 
     fn allele_support_per_read(&self, read: &AlignmentRecord) -> Result<Option<AlleleSupport>> {
         let annotated_read = match self.readtype {
-            Readtype::Illumina => false,
-            Readtype::PacBio | Readtype::Nanopore => true,
+            Readtype::Converted => false,
+            Readtype::Annotated => true,
         };
 
         let mut position = self.locus().range().start;
@@ -118,7 +118,7 @@ fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
 fn is_5mc_header(header: &str) -> bool {
     header.starts_with("C+m") || header.starts_with("C-m")
 }
-/// Computes the positions and probabilities of methylated bases in PacBio and Nanopore read data.
+/// Computes the positions and probabilities of methylated bases in reads annotated with MM and ML tags for 5mC methylation.
 /// Handles multiple MM blocks (e.g. A+a., C+h., etc.)
 ///
 /// # Returns
@@ -265,7 +265,7 @@ fn process_read(
     }
 }
 
-/// Computes the probability of methylation/no methylation of a given position in an PacBio/ Nanopore read. Takes mapping probability into account
+/// Computes the probability of methylation/no methylation of a given position in read annotated with methylation information. Takes mapping probability into account
 ///
 /// # Returns
 ///
@@ -288,7 +288,7 @@ fn compute_probs_annotated_read(
     (prob_alt, prob_ref)
 }
 
-/// Computes the probability of methylation/no methylation of a given position in an Illumina read. Takes mapping probability into account
+/// Computes the probability of methylation/no methylation of a given position in a read converted with bisulfite or EMSEQ. Takes mapping probability into account
 ///
 /// # Returns
 ///
@@ -409,9 +409,8 @@ impl Variant for Methylation {
         } {
             if match self.readtype {
                 // Some single PacBio reads don't have an MM:Z value and are therefore not legal
-                Readtype::Illumina => true,
-                Readtype::PacBio => mm_exists(evidence),
-                Readtype::Nanopore => mm_exists(evidence),
+                Readtype::Converted => true,
+                Readtype::Annotated => mm_exists(evidence),
             } {
                 Some(vec![0])
             } else {

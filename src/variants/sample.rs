@@ -106,7 +106,7 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
-        // If we are interested in methylation on PacBio or Nanopore data we need to extract the methylation probabilities. Since the parsing of the MM and the ML tag can be slow we only do this once per read and store the results in a hashmap.
+        // If methylation_probs is Some we process read with methylation information. We want to extract the methylation information. Since the parsing of the MM and the ML tag can be slow we only do this once per read and store the results in a hashmap.
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 for rec in self.inner.iter() {
@@ -345,10 +345,8 @@ impl Sample {
 )]
 // The Readtype enum is used to specify the type of sequencing. This is important for the type of methylation extraction.
 pub enum Readtype {
-    #[strum(serialize = "Nanopore")]
-    Nanopore,
-    #[strum(serialize = "Illumina")]
-    Illumina,
-    #[strum(serialize = "PacBio")]
-    PacBio,
+    #[strum(serialize = "Annotated")]
+    Annotated,
+    #[strum(serialize = "Converted")]
+    Converted,
 }

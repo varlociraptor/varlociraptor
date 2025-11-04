@@ -25,7 +25,7 @@ jobs:
         echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
     - name: Run Flamegraph
       run: |
-        cargo flamegraph --output tests/resources/flamegraph_profiling/flamegraph.svg -- preprocess variants tests/resources/flamegraph_profiling/ref.fa --candidates tests/resources/flamegraph_profiling/candidates.vcf --bam tests/resources/flamegraph_profiling/alignment.bam --read-type Nanopore > tests/resources/flamegraph_profiling/normal.bcf
+        cargo flamegraph --output tests/resources/flamegraph_profiling/flamegraph.svg -- preprocess variants tests/resources/flamegraph_profiling/ref.fa --candidates tests/resources/flamegraph_profiling/candidates.vcf --bam tests/resources/flamegraph_profiling/alignment.bam --read-type Annotated > tests/resources/flamegraph_profiling/normal.bcf
         
     - name: Upload result as artifact
       uses: actions/upload-artifact@v3

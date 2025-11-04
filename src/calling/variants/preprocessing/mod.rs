@@ -220,7 +220,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let methylation_mm_ml_tag = matches!(self.readtype, Readtype::PacBio | Readtype::Nanopore);
+        let methylation_mm_ml_tag = matches!(self.readtype, Readtype::Annotated);
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
