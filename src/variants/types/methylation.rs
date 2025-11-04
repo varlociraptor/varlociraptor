@@ -206,11 +206,6 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
             ml_index += methylated_bases.len();
         }
     }
-    let mut items: Vec<_> = pos_to_prob.iter().collect();
-
-    // Sort by position in descending order
-    items.sort_by(|a, b| b.0.cmp(a.0));
-    dbg!(&items);
     Some(pos_to_prob)
 }
 
