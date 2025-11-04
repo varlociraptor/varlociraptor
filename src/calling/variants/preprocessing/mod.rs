@@ -75,7 +75,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
-    methylation_readtype: MethylationReadtype,
+    methylation_readtype: Option<MethylationReadtype>,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
@@ -220,8 +220,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let methylation_mm_ml_tag =
-            matches!(self.methylation_readtype, MethylationReadtype::Annotated);
+        let methylation_mm_ml_tag = matches!(
+            self.methylation_readtype,
+            Some(MethylationReadtype::Annotated)
+        );
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -489,10 +491,14 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
             let methylation_readtype = self.methylation_readtype;
-            Ok(variants::types::Methylation::new(
-                locus,
-                methylation_readtype,
-            ))
+            if let Some(methylation_readtype) = methylation_readtype {
+                Ok(variants::types::Methylation::new(
+                    locus,
+                    methylation_readtype,
+                ))
+            } else {
+                panic!("Please specify the methylation read type with --methylation-read-type 'Converted' or 'Annotated' in order to process methylation variants.");
+            }
         };
 
         let parse_snv = |alt| -> Result<variants::types::Snv<R>> {

@@ -170,10 +170,6 @@ fn default_min_bam_refetch_distance() -> u64 {
     1
 }
 
-fn default_methylation_readtype() -> MethylationReadtype {
-    MethylationReadtype::Converted
-}
-
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -342,13 +338,10 @@ pub enum PreprocessKind {
         output_raw_observations: Option<PathBuf>,
         #[structopt(
             long = "read-type",
-            required = false,
-            default_value = "Converted",
             possible_values = &MethylationReadtype::iter().map(|v| v.into()).collect_vec(),
-            help = "Sequencing method to sequence the input data, important for chosing methylation method."
+            help = "Type of methylation information encoded in the reads. Use 'Converted' for reads treated with bisulfite or EMSeq. Use 'Annotated' for reads where methylation information is encoded in the MM and ML tags."
         )]
-        #[serde(default = "default_methylation_readtype")]
-        methylation_readtype: MethylationReadtype,
+        methylation_readtype: Option<MethylationReadtype>,
     },
 }
 
