@@ -163,12 +163,15 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
             None => continue,
         };
 
-        let meth_positions: Vec<usize> = positions_str
+        // Modified bases in the read
+        // The MM tag encodes positions as deltas from the previous position
+        let methylated_bases: Vec<usize> = positions_str
             .split(',')
             .filter_map(|s| s.parse::<usize>().ok())
             .collect();
 
         if is_5mc_header(header) {
+            // Positions of 'C' bases in the read
             let mut pos_read_base: Vec<usize> = read_seq
                 .iter()
                 .enumerate()
@@ -184,8 +187,10 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
             }
 
             let mut meth_pos = 0;
-            for position in meth_positions {
-                meth_pos += position;
+            for next_base in methylated_bases {
+                // Specific position of methylated base in the read
+                meth_pos += next_base;
+                // In a few cases, the MM tag might contain positions that exceed the read length
                 if meth_pos <= pos_read_base.len() {
                     let abs_pos = pos_read_base[meth_pos];
                     let prob_val = ml.get(ml_index).unwrap_or(0);
@@ -198,7 +203,7 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
             }
         } else {
             // Skip other modification types (no 5mC)
-            ml_index += meth_positions.len();
+            ml_index += methylated_bases.len();
         }
     }
     let mut items: Vec<_> = pos_to_prob.iter().collect();
