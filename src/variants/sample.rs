@@ -87,7 +87,7 @@ impl RecordBuffer {
     ) -> Option<Rc<HashMap<usize, LogProb>>> {
         self.methylation_probs.as_ref().and_then(|meth_probs| {
             meth_probs
-                .get(&ByAddress(rec.to_owned()))
+                .get(&ByAddress(Rc::clone(rec)))
                 .cloned()
                 .flatten()
         })
