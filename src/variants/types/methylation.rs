@@ -229,7 +229,7 @@ fn complement_base(base: u8) -> u8 {
 /// This function looks at a read at a given query position (`qpos`) and tries to
 /// determine how likely it is that the corresponding CpG site is methylated or
 /// unmethylated. Depending on whether the read already carries methylation
-/// annotations (`annotated_read`) in the form of MM and ML tags, the probabilities are either taken directly
+/// annotations in the form of MM and ML tags, the probabilities are either taken directly
 /// from the annotation (`meth_info`) or inferred from the observed bases in the
 /// read.
 ///
@@ -316,10 +316,14 @@ pub fn compute_probs_converted_read(
     (prob_alt, prob_ref)
 }
 
-/// Computes if a mutation occurred at the given position in the read (If we want to check a cytosine for methylation, but the read does not have a C or T at that position it can't be methylated)
+/// Checks whether a sequence mutation occurred at the query position.
+///
+/// For methylation calling, we expect specific bases at CpG sites:
+/// - **Converted reads** (bisulfite/EMSEQ): C/T on forward strand, G/A on reverse strand
+/// - **Annotated reads** (MM-tagged): C/G on their respective strands (T/A indicate mutation)
 ///
 /// # Returns
-/// bool: True, if mutation occurred, else false
+/// * `true` if an unexpected base is found (indicating mutation), `false` otherwise
 fn mutation_occurred(
     read_reverse: bool,
     record: &Rc<Record>,
