@@ -497,7 +497,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     methylation_readtype,
                 ))
             } else {
-                panic!("Please specify the methylation read type with --methylation-read-type <Converted|Annotated> in order to process methylation variants.");
+                panic!("Please specify the methylation read type with --methylation-read-type <converted|annotated> in order to process methylation variants.");
             }
         };
 
