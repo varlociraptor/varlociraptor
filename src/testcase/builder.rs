@@ -381,27 +381,16 @@ impl Testcase {
                     let mut rec = res?;
                     // update mapping position to interval
                     rec.set_pos(rec.pos() - ref_start as i64);
-                    let ref_start_mate = if rec.mtid() >= 0 {
+                    if rec.mtid() >= 0 {
                         let mtid_bytes = bam_writer.header().tid2name(rec.mtid() as u32);
 
                         if mtid_bytes == b"=" {
-                            ref_start
+                            rec.set_mpos(rec.mpos() - ref_start as i64);
                         } else if let Some(chrom_region) =
                             extended_chromosomal_regions.get(mtid_bytes)
                         {
-                            chrom_region.0
-                        } else {
-                            //TODO mate records not being on a candidate chromosome are being ignored by setting offset to 0
-                            0
+                            rec.set_mpos(rec.mpos() - chrom_region.0 as i64);
                         }
-                    } else {
-                        // mate is unmapped or invalid
-                        0
-                    };
-
-                    // set mate position only if it's valid
-                    if rec.mtid() >= 0 {
-                        rec.set_mpos(rec.mpos() - ref_start_mate as i64);
                     }
 
                     rec.set_tid(bam_writer.header().tid(&chrom).unwrap() as i32);
