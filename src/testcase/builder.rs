@@ -404,7 +404,6 @@ impl Testcase {
                         rec.set_mpos(rec.mpos() - ref_start_mate as i64);
                     }
 
-                    rec.set_mpos(rec.mpos() - ref_start_mate as i64);
                     rec.set_tid(bam_writer.header().tid(&chrom).unwrap() as i32);
                     if rec.remove_aux(b"RG").is_err() {
                         debug!("No RG tag to remove in BAM record.");
