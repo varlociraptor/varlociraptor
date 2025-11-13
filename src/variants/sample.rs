@@ -342,9 +342,8 @@ impl Sample {
     EnumIter,
     IntoStaticStr,
     VariantNames,
-)]
-// The MethylationReadtype enum is used to specify the type of sequencing. This is important for the type of methylation extraction.
 #[strum(serialize_all = "kebab_case")]
+#[serde(rename_all = "kebab-case")]
 pub enum MethylationReadtype {
     Annotated,
     Converted,
