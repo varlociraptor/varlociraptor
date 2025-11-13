@@ -27,7 +27,7 @@ pub fn find_candidates(
     let mut sequence_to_motif = Vec::new();
     for motif in &motifs {
         let expanded = expand_motif(*motif);
-        sequence_to_motif.extend(std::iter::repeat(motif).take(expanded.len()));
+        sequence_to_motif.extend(std::iter::repeat_n(motif, expanded.len()));
         sequences.extend(expanded);
     }
     let ac_motifs = AhoCorasick::new(&sequences)?;
