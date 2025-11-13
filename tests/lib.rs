@@ -425,6 +425,7 @@ fn control_meth_candidates(test: &str) -> Result<()> {
     cleanup_file(&output);
     varlociraptor::candidates::methylation::find_candidates(
         PathBuf::from(format!("{}/genome.fasta", basedir)),
+        vec![varlociraptor::candidates::methylation::MethylationMotif::CG],
         Some(PathBuf::from(output)),
     )
     .with_context(|| "error computing methylation candidates".to_string())?;

@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.8.2](https://github.com/varlociraptor/varlociraptor/compare/v8.8.1...v8.8.2) (2025-11-07)
+
+
+### Bug Fixes
+
+* ** #519 :** add color setting to subcommands that were missing. ([#520](https://github.com/varlociraptor/varlociraptor/issues/520)) ([b47752d](https://github.com/varlociraptor/varlociraptor/commit/b47752d1fd2f3231695e4ad471a474efe761e60b))
+* fix invalid mate in testcase generation ([#524](https://github.com/varlociraptor/varlociraptor/issues/524)) ([835cb6c](https://github.com/varlociraptor/varlociraptor/commit/835cb6c09df9f03e0556d0e490da415d578a6aeb))
+
 ## [8.8.1](https://github.com/varlociraptor/varlociraptor/compare/v8.8.0...v8.8.1) (2025-10-01)
 
 
