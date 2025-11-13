@@ -342,6 +342,7 @@ impl Sample {
     EnumIter,
     IntoStaticStr,
     VariantNames,
+)]
 #[strum(serialize_all = "kebab_case")]
 #[serde(rename_all = "kebab-case")]
 pub enum MethylationReadtype {
