@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.0](https://github.com/varlociraptor/varlociraptor/compare/v8.8.2...v8.9.0) (2025-11-13)
+
+
+### Features
+
+* add support for methylation calling ([#493](https://github.com/varlociraptor/varlociraptor/issues/493)) ([b4f3b28](https://github.com/varlociraptor/varlociraptor/commit/b4f3b280ddc39371b9bee4d8ac2c04708be8eb9b))
+* Allow methylation candidates motif search ([#522](https://github.com/varlociraptor/varlociraptor/issues/522)) ([56f2281](https://github.com/varlociraptor/varlociraptor/commit/56f22817595f8cd0775d380de623267c79c6bf8e))
+
 ## [8.8.2](https://github.com/varlociraptor/varlociraptor/compare/v8.8.1...v8.8.2) (2025-11-07)
 
 
