@@ -141,6 +141,7 @@ testcase!(test_giab_32, exact);
 testcase!(test_giab_33, exact);
 testcase!(test_giab_34, exact);
 testcase!(test_giab_35, exact);
+testcase!(test_mapq_meth, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
@@ -175,6 +176,11 @@ testcase!(test_alt_locus_bias_01, exact);
 testcase!(test_alt_locus_bias_02, exact);
 testcase!(test_uzuner_fn_mnv, exact);
 testcase!(test_uzuner_fp_mnv1, exact);
+
+testcase!(test_prinz_af_scan, exact);
+testcase!(test_prinz_call_meth_1, exact);
+testcase!(test_prinz_call_meth_2, exact);
+testcase!(test_prinz_pacbio_zero, exact);
 
 testcase!(test_imprecise_fusion, exact);
 testcase!(test_imprecise_fusion_absent, exact);

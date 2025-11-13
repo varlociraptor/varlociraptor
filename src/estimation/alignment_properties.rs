@@ -293,7 +293,8 @@ impl AlignmentProperties {
                 let skip = record.mapq() == 0
                     || record.is_duplicate()
                     || record.is_quality_check_failed()
-                    || record.is_unmapped();
+                    || record.is_unmapped()
+                    || record.seq().is_empty();
                 if skip {
                     n_records_skipped += 1;
                     continue;

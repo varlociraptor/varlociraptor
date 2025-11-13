@@ -18,7 +18,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    Evidence, Observable, ReadObservation, Strand,
+    AlignmentRecord, Evidence, Observable, ReadObservation, Strand,
 };
 use crate::variants::sample;
 
@@ -28,6 +28,7 @@ pub(crate) mod duplication;
 pub(crate) mod haplotype_block;
 pub(crate) mod insertion;
 pub(crate) mod inversion;
+pub(crate) mod methylation;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod replacement;
@@ -37,6 +38,7 @@ pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;
 pub(crate) use inversion::Inversion;
+pub(crate) use methylation::Methylation;
 pub(crate) use mnv::Mnv;
 pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
@@ -355,8 +357,15 @@ where
                     continue;
                 }
                 let evidence = Evidence::PairedEndSequencingRead {
-                    left: Rc::clone(&candidate.left),
-                    right: Rc::clone(right),
+                    // buffer.get_read_specific_meth_probs returns None if we do not deal with reads annotated with methylation information
+                    left: AlignmentRecord::new(
+                        Rc::clone(&candidate.left),
+                        buffer.get_read_specific_meth_probs(&candidate.left),
+                    ),
+                    right: AlignmentRecord::new(
+                        Rc::clone(right),
+                        buffer.get_read_specific_meth_probs(right),
+                    ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
@@ -364,7 +373,10 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = Evidence::SingleEndSequencingRead(Rc::clone(&candidate.left));
+                let evidence = Evidence::SingleEndSequencingRead(AlignmentRecord::new(
+                    Rc::clone(&candidate.left),
+                    buffer.get_read_specific_meth_probs(&candidate.left),
+                ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
@@ -425,7 +437,13 @@ impl std::fmt::Display for SingleLocus {
 }
 
 impl SingleLocus {
-    pub(crate) fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
+    pub(crate) fn overlap(
+        &self,
+        record: &bam::Record,
+        consider_clips: bool,
+        start_offset: u64,
+        end_offset: u64,
+    ) -> Overlap {
         let mut pos = record.pos() as u64;
         let cigar = record.cigar_cached().unwrap();
         let mut end_pos = record.cigar_cached().unwrap().end_pos() as u64;
@@ -436,15 +454,18 @@ impl SingleLocus {
             end_pos += cigar.trailing_softclips() as u64;
         }
 
-        if pos <= self.range().start {
-            if end_pos >= self.range().end {
+        let range_start = self.range().start + start_offset;
+        let range_end = self.range().end + end_offset;
+
+        if pos <= range_start {
+            if end_pos >= range_end {
                 return Overlap::Enclosing;
-            } else if end_pos > self.range().start {
+            } else if end_pos >= range_start {
                 return Overlap::Left;
             }
-        } else if end_pos >= self.range().end && pos < self.range().end {
+        } else if end_pos >= range_end && pos < range_end {
             return Overlap::Right;
-        } else if pos >= self.range().start && end_pos <= self.range().end {
+        } else if pos >= range_start && end_pos <= range_end {
             return Overlap::Enclosed;
         }
 

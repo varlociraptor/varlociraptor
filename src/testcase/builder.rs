@@ -264,6 +264,7 @@ impl Testcase {
             Variant::Insertion(ref seq) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
+            Variant::Methylation() => (pos.saturating_sub(100), pos + 2 + 100),
             Variant::Snv(_) => (pos.saturating_sub(100), pos + 1 + 100),
             Variant::Mnv(ref bases) => (pos.saturating_sub(100), pos + bases.len() as u64 + 100),
             Variant::Breakend { .. } => {

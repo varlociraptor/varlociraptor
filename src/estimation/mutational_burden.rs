@@ -368,6 +368,9 @@ pub(crate) enum Vartype {
     #[strum(serialize = "INS")]
     #[serde(rename = "INS")]
     Ins,
+    #[strum(serialize = "METH")]
+    #[serde(rename = "METH")]
+    Meth,
     #[strum(serialize = "INV")]
     #[serde(rename = "INV")]
     Inv,
@@ -437,6 +440,9 @@ pub(crate) enum Signature {
     #[strum(serialize = "DEL")]
     #[serde(rename = "DEL")]
     Del,
+    #[strum(serialize = "METH")]
+    #[serde(rename = "METH")]
+    Meth,
     #[strum(serialize = "INS")]
     #[serde(rename = "INS")]
     Ins,
@@ -486,6 +492,8 @@ pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
                 Signature::Dup
             } else if alt_allele == b"<BND>" {
                 Signature::Bnd
+            } else if alt_allele == b"<METH>" {
+                Signature::Meth
             } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
                 Signature::from_str(&format!(
                     "{}>{}",
@@ -520,6 +528,8 @@ pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
                 Vartype::Dup
             } else if alt_allele == b"<BND>" {
                 Vartype::Bnd
+            } else if alt_allele == b"<METH>" {
+                Vartype::Meth
             } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
                 Vartype::from_str(&format!(
                     "{}>{}",

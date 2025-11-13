@@ -1,0 +1,36 @@
+name: Profile with coz
+
+on:
+  push:
+    branches: [ "methylation-paired-end" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    
+    - uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+    - name: Install Flamegraph
+      run: |
+        cargo install flamegraph  
+        echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
+    - name: Run Flamegraph
+      run: |
+        cargo flamegraph --output tests/resources/flamegraph_profiling/flamegraph.svg -- preprocess variants tests/resources/flamegraph_profiling/ref.fa --candidates tests/resources/flamegraph_profiling/candidates.vcf --bam tests/resources/flamegraph_profiling/alignment.bam --read-type Annotated > tests/resources/flamegraph_profiling/normal.bcf
+        
+    - name: Upload result as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: flamegraph
+        path: tests/resources/flamegraph_profiling/
+        if-no-files-found: error
+        retention-days: 90
