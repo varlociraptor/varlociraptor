@@ -7,14 +7,8 @@ use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
-
-use anyhow::{bail, Context, Result};
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{LogProb, Prob};
-use itertools::Itertools;
-use structopt::StructOpt;
-use strum::IntoEnumIterator;
 
 use crate::calling;
 use crate::calling::variants::calling::{
@@ -22,10 +16,17 @@ use crate::calling::variants::calling::{
 };
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::candidates;
+use crate::candidates::methylation::MethylationMotif;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use anyhow::{bail, Context, Result};
+use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
+use bio::stats::{LogProb, Prob};
+use itertools::Itertools;
+use structopt::StructOpt;
+use strum::IntoEnumIterator;
 //use crate::estimation::sample_variants;
 //use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
@@ -122,7 +123,14 @@ pub enum Varlociraptor {
             help = "Input FASTA File"
         )]
         input: PathBuf,
-
+        #[structopt(
+            long = "motifs",
+            help = "Comma-separated list of methylation motifs to search for in the input chromosome. Supported motifs: CG, CHG, CHH, GATC.",
+            required = false,
+            use_delimiter = true
+        )]
+        #[serde(default = "default_methylation_motifs")]
+        motifs: Vec<MethylationMotif>,
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
@@ -152,6 +160,24 @@ impl Varlociraptor {
             panic!("bug: these are not preprocess options.");
         }
     }
+}
+
+impl FromStr for MethylationMotif {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "CG" => Ok(MethylationMotif::CG),
+            "CHG" => Ok(MethylationMotif::CHG),
+            "CHH" => Ok(MethylationMotif::CHH),
+            "GATC" => Ok(MethylationMotif::GATC),
+            _ => Err(format!("Invalid methylation motif: {}", s)),
+        }
+    }
+}
+
+fn default_methylation_motifs() -> Vec<MethylationMotif> {
+    vec![MethylationMotif::CG]
 }
 
 fn default_reference_buffer_size() -> usize {
@@ -1344,8 +1370,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
-        Varlociraptor::MethylationCandidates { input, output } => {
-            candidates::methylation::find_candidates(input, output)?;
+        Varlociraptor::MethylationCandidates {
+            input,
+            motifs,
+            output,
+        } => {
+            candidates::methylation::find_candidates(input, motifs, output)?;
         }
     }
     Ok(())
