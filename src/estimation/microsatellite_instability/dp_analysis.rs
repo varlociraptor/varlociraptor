@@ -193,6 +193,7 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
     prev_col[1] = p_unstable_0; // P(1 unstable) = first region unstable
 
     // Process remaining regions using recurrence relation
+    #[allow(clippy::needless_range_loop)]
     for k in 1..n {
         let p_unstable_k = region_probs[k].p_unstable;
         let p_stable_k = 1.0 - p_unstable_k;
@@ -523,7 +524,7 @@ pub(super) fn run_af_evolution_analysis(
     for sample in samples {
         info!("Results for sample: {}", sample);
         if let Some(sample_results) = all_results.get(sample) {
-            let mut afs: Vec<_> = af_thresholds.iter().copied().collect();
+            let mut afs: Vec<_> = af_thresholds.to_vec();
             afs.sort_by(|a, b| b.partial_cmp(a).unwrap());
             for af in afs {
                 if let Some(result) = sample_results.get(&af.to_string()) {

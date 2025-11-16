@@ -131,12 +131,7 @@
                 "y": {
                     "datum": 3.5
                 },
-                "x": {
-                    "value": 0
-                },
-                "x2": {
-                    "value": 1
-                }
+                "text": { "value": "MSI Threshold" }
             }
         }
     ]
