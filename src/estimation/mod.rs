@@ -6,5 +6,6 @@
 pub mod alignment_properties;
 pub mod contamination;
 pub mod effective_mutation_rate;
+pub mod microsatellite_instability;
 pub mod mutational_burden;
 pub mod sample_variants;
