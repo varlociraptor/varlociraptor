@@ -30,11 +30,14 @@ use crate::utils::stats::calculate_percentage_exact;
 
 /// Region probability for DP computation:
 ///
-/// Represents the probability that a microsatellite region is unstable,
-/// calculated from the combined probabilities of all variants in that region.
+/// Represents the probability that a microsatellite region is stable,
+/// calculated as the product of all variant absence probabilities.
+/// 
+/// p_stable = P(all variants absent) = Π(prob_absent)
+/// p_unstable = 1 - p_stable (computed in DP algorithm)
 #[derive(Debug, Clone)]
 struct RegionProbability {
-    p_unstable: f64,
+    p_stable: f64,
 }
 
 /// DP result for one k value:
@@ -139,8 +142,8 @@ pub(super) struct OutputRequirements {
 /// # Arguments
 ///
 /// * `region_probs` - Regions with instability probabilities where:
-///   - `p_unstable` = Probability region is unstable (has ≥1 present variant)
-///   - `p_stable` = 1 - `p_unstable` (all variants in region are absent)
+///   - `p_stable` = P(all variants absent) = Π(prob_absent)
+///   - `p_unstable` = 1 - `p_stable`
 ///
 /// # Returns
 ///
@@ -186,8 +189,8 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
     let mut prev_col = vec![0.0; n + 1];
 
     // Column 0: Initialize with first region probabilities
-    let p_unstable_0 = region_probs[0].p_unstable;
-    let p_stable_0 = 1.0 - p_unstable_0;
+    let p_stable_0 = region_probs[0].p_stable;
+    let p_unstable_0 = 1.0 - p_stable_0;
 
     prev_col[0] = p_stable_0; // P(0 unstable) = first region stable
     prev_col[1] = p_unstable_0; // P(1 unstable) = first region unstable
@@ -195,8 +198,8 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
     // Process remaining regions using recurrence relation
     #[allow(clippy::needless_range_loop)]
     for k in 1..n {
-        let p_unstable_k = region_probs[k].p_unstable;
-        let p_stable_k = 1.0 - p_unstable_k;
+        let p_stable_k = region_probs[k].p_stable;
+        let p_unstable_k = 1.0 - p_stable_k;
 
         let mut curr_col = vec![0.0; n + 1];
 
@@ -310,9 +313,8 @@ fn calculate_msi_metrics(
             // P(all variants absent) = Π(p_absent)
             let p_all_absent: f64 = region_variants.iter().map(|v| v.prob_absent).product();
 
-            // P(at least one variant present) = 1 - P(all absent)
             RegionProbability {
-                p_unstable: 1.0 - p_all_absent,
+                p_stable: p_all_absent,
             }
         })
         .collect();
@@ -593,7 +595,7 @@ mod tests {
 
     #[test]
     fn test_run_msi_dp_single_region() {
-        let probs = vec![RegionProbability { p_unstable: 0.3 }];
+        let probs = vec![RegionProbability { p_stable: 0.7 }];
         let dist = run_msi_dp(&probs);
 
         assert_eq!(dist.len(), 2);
@@ -604,8 +606,8 @@ mod tests {
     #[test]
     fn test_run_msi_dp_two_regions() {
         let probs = vec![
-            RegionProbability { p_unstable: 0.3 },
-            RegionProbability { p_unstable: 0.4 },
+            RegionProbability { p_stable: 0.7 },
+            RegionProbability { p_stable: 0.6 },
         ];
         let dist = run_msi_dp(&probs);
 
@@ -621,9 +623,9 @@ mod tests {
     #[test]
     fn test_run_msi_dp_distribution_sums_to_one() {
         let probs = vec![
-            RegionProbability { p_unstable: 0.2 },
-            RegionProbability { p_unstable: 0.5 },
-            RegionProbability { p_unstable: 0.8 },
+            RegionProbability { p_stable: 0.2 },
+            RegionProbability { p_stable: 0.5 },
+            RegionProbability { p_stable: 0.8 },
         ];
         let dist = run_msi_dp(&probs);
 
