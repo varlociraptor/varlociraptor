@@ -72,7 +72,6 @@ fn analyze_output_requirements(config: &MsiConfig) -> OutputRequirements {
         needs_pseudotime,
         needs_distribution,
     }
-
 }
 
 /* ================================================ */
@@ -80,7 +79,7 @@ fn analyze_output_requirements(config: &MsiConfig) -> OutputRequirements {
 /* ============ MAIN PIPELINE ===================== */
 /// Main Function to which CLI msi subcommand is dispatched to,
 /// it runs the main pipeline orchestration.
-/// 
+///
 /// This function coordinates the overall MSI estimation workflow by
 /// streaming intersection, performing DP analysis, and generating outputs.
 pub fn estimate_msi(config: MsiConfig) -> Result<()> {

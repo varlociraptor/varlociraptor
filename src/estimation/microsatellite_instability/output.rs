@@ -119,9 +119,9 @@ fn write_plot(data: Value, template: &str, path: &Path, threshold: f64) -> Resul
 ///
 /// # Example Output
 /// ```text
-/// sample	k	msi_score(threshold=3.5)	probability
-/// tumor	0	0.00	0.420000
-/// tumor	1	1.00	0.460000
+/// sample  k   msi_score(threshold=3.5)    probability
+/// tumor   0   0.00    0.420000
+/// tumor   1   1.00    0.460000
 /// ```
 /// Each row represents one value in the probability distribution P(K=k),
 /// where k is the number of unstable microsatellite regions.
@@ -245,9 +245,9 @@ pub(super) fn generate_distribution_plot_spec(
 /// # Example Output
 /// **With uncertainty data (needs_pseudotime = true):**
 /// ```text
-/// sample	af_threshold	msi_score(threshold=3.5)	k_map	regions_with_variants	msi_status	uncertainty_lower	uncertainty_upper	map_std_dev
-/// tumor	1.0	0.00	0	20	MSS	0.00	0.00	0.000000
-/// tumor	0.8	2.50	2	35	MSS	1.80	3.20	0.700000
+/// sample    af_threshold    msi_score(threshold=3.5)    k_map    regions_with_variants    msi_status    uncertainty_lower    uncertainty_upper    map_std_dev
+/// tumor     1.0             0.00                       0        20                       MSS          0.00                0.00                 0.000000
+/// tumor     0.8             2.50                       2        35                       MSS          1.80                3.20                 0.700000
 ///
 /// # Data Availability
 /// This function assumes uncertainty data exists because:
