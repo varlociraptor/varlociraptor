@@ -108,7 +108,17 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
         }
     }
 
-    // 2. Extracting the changed sequence
+    // 2. Making sure is a clean indel, ignoring complex indels
+    let ref_tail = ref_seq.len() - anchor_len;
+    let alt_tail = alt_seq.len() - anchor_len;
+
+    // Require a clean indel: one tail must be empty
+    // This rejects complex variants like AAT -> AAGAGAGAGA
+    if ref_tail != 0 && alt_tail != 0 {
+        return RepeatStatus::NA;
+    }
+
+    // 3. Extracting the changed sequence
     let changed_seq = if svlen > 0 {
         if anchor_len < alt_seq.len() {
             &alt_seq[anchor_len..]
@@ -126,7 +136,7 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
         return RepeatStatus::NA;
     }
 
-    // 3. Check if changed sequence is a perfect repeat of the motif
+    // 4. Check if changed sequence is a perfect repeat of the motif
     let motif_bytes: Vec<u8> = motif.bytes().map(|b| b.to_ascii_uppercase()).collect();
     let motif_len = motif_bytes.len();
 
