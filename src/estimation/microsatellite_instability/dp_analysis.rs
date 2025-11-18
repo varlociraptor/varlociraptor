@@ -11,11 +11,9 @@
 //! 4. Af Evolution Function: Generates
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::BufWriter;
 use std::sync::Mutex;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::info;
 use rayon::prelude::*;
 use rust_decimal::prelude::*;
@@ -544,32 +542,32 @@ pub(super) fn run_af_evolution_analysis(
         }
     }
 
-    debug_log_results(&all_results)?;
-
     Ok(all_results)
 }
 
 /* ================================================ */
 
-fn debug_log_results(results: &HashMap<String, HashMap<String, AfEvolutionResult>>) -> Result<()> {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let out_path = format!(
-        "{}/dev_sandbox/output/af_evolution_results.json",
-        manifest_dir
-    );
-    let file =
-        File::create(&out_path).context("Failed to create AF evolution debug output file")?;
-    let writer = BufWriter::new(file);
-    serde_json::to_writer_pretty(writer, results)
-        .context("Failed to write AF evolution results to JSON")?;
-    info!("  Debug: Wrote AF evolution results to {}", out_path);
-    Ok(())
-}
+// fn debug_log_results(results: &HashMap<String, HashMap<String, AfEvolutionResult>>) -> Result<()> {
+//     let manifest_dir = env!("CARGO_MANIFEST_DIR");
+//     let out_path = format!(
+//         "{}/dev_sandbox/output/af_evolution_results.json",
+//         manifest_dir
+//     );
+//     let file =
+//         File::create(&out_path).context("Failed to create AF evolution debug output file")?;
+//     let writer = BufWriter::new(file);
+//     serde_json::to_writer_pretty(writer, results)
+//         .context("Failed to write AF evolution results to JSON")?;
+//     info!("  Debug: Wrote AF evolution results to {}", out_path);
+//     Ok(())
+// }
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    
     // Helper to create test variants
     fn make_variant(prob: f64, afs: Vec<(&str, f64)>) -> Variant {
         let mut sample_afs = HashMap::new();

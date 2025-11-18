@@ -21,7 +21,7 @@ pub const MIN_MSI_THRESHOLD: f64 = 0.0;
 /* ================================================ */
 
 /* ======== CLI CONFIGURATION ===================== */
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct MsiConfig {
     pub microsatellite_bed: PathBuf,
     pub calls: PathBuf,

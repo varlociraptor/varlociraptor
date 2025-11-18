@@ -13,11 +13,6 @@ use bio::io::bed;
 use log::{debug, info};
 use rust_htslib::bcf::{self, header::HeaderView, Read};
 
-use serde::Serialize;
-use serde_json;
-use std::fs::File;
-use std::io::BufWriter;
-
 use crate::errors::Error;
 use crate::utils::bcf_utils::{
     get_chrom, get_prob_absent, get_sample_afs, get_svlen, is_breakend, is_indel,
@@ -28,19 +23,19 @@ use crate::utils::is_phred_scaled;
 use crate::utils::ms_bed::{parse_bed_record, BedRegion};
 
 /* ============ Data Structures =================== */
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq)]
 enum RepeatStatus {
     Perfect,
     NA,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub(super) struct Variant {
     pub(super) prob_absent: f64,
     pub(super) sample_afs: HashMap<String, f64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub(super) struct RegionSummary {
     pub(super) variants: Vec<Variant>,
 }
@@ -429,25 +424,18 @@ pub(super) fn intersect_streaming(
     stats.log_summary();
     info!(" Number of intersected regions: {}", results.len());
 
-    //debug
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let out_path = format!("{}/dev_sandbox/output/data.json", manifest_dir);
-    let file = File::create(out_path)?;
-    let writer = BufWriter::new(file);
-
-    serde_json::to_writer(writer, &results)?;
-    //debug end
-
     Ok((results, stats.valid_regions()))
 }
 
 /* ================================================ */
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
+
 
     #[test]
     fn test_is_perfect_repeat_simple_insertion() {
