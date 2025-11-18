@@ -243,7 +243,7 @@ pub(super) fn intersect_streaming(
     /* ========== Setup: Initialize readers and state ========== */
     let mut bed_reader = bed::Reader::from_file(bed_path).context("Failed to open BED file")?;
     let mut vcf = bcf::Reader::from_path(vcf_path).context("Failed to open VCF file")?;
-    let header = vcf.header().clone();
+    let header: HeaderView = vcf.header().clone();
 
     let is_phred = is_phred_scaled(&vcf);
     info!(
@@ -570,6 +570,7 @@ mod tests {
         ref_allele: &[u8],
         alt_alleles: Vec<&[u8]>,
         af_values: Option<Vec<f32>>,
+        use_phred: bool,
     ) -> (NamedTempFile, Vec<String>) {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path();
@@ -578,9 +579,15 @@ mod tests {
         header.push_record(br"##fileformat=VCFv4.2");
         header.push_record(br"##contig=<ID=chr1,length=1000000>");
         header.push_record(br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##);
-        header.push_record(
-            br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent">"##,
-        );
+
+        if use_phred {
+            header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent (PHRED)">"##);
+            header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact (PHRED)">"##);
+        } else {
+            header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent (linear)">"##);
+            header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact (linear)">"##);
+        }
+
         header.push_sample(b"sample1");
         header.push_sample(b"sample2");
         header.push_record(br##"##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">"##);
@@ -612,10 +619,23 @@ mod tests {
             .collect();
         rec.push_info_integer(b"SVLEN", &svlen_values).unwrap();
 
-        // Add PROB_ABSENT for each ALT
-        let prob_absent_values: Vec<f32> = vec![0.01; alt_alleles.len()];
+        let (prob_absent_values, prob_artifact_values) = if use_phred {
+            // For Phred: use values that convert to reasonable probabilities
+            // Phred 20 = 0.01 probability, Phred 10 = 0.1 probability
+            (vec![20.0; alt_alleles.len()], vec![10.0; alt_alleles.len()])
+        } else {
+            // For linear: use direct probabilities that sum appropriately
+            (vec![0.005; alt_alleles.len()], vec![0.005; alt_alleles.len()])
+        };
+
+        // // Add PROB_ABSENT for each ALT
+        // let prob_absent_values: Vec<f32> = vec![0.01; alt_alleles.len()];
         rec.push_info_float(b"PROB_ABSENT", &prob_absent_values)
             .unwrap();
+
+        // // Add PROB_ARTIFACT for each ALT
+        // let prob_artifact_values: Vec<f32> = vec![0.01; alt_alleles.len()];
+        rec.push_info_float(b"PROB_ARTIFACT", &prob_artifact_values).unwrap();
 
         // Add GT (0/1 for sample1, 1/1 for sample2)
         let genotypes_data = [
@@ -643,6 +663,7 @@ mod tests {
             vec![b"T"], // SNV
             // Some(vec![0.5]),
             Some(vec![0.5, 0.5]),
+            false,
         );
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
@@ -671,6 +692,7 @@ mod tests {
             b"ACAG",
             vec![b"ACAGCAG"], // Insertion
             Some(vec![0.5, 0.8]),
+            false,
         );
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
@@ -705,6 +727,7 @@ mod tests {
             b"A",
             vec![b"T", b"ATG"],             // SNV + Indel
             Some(vec![0.3, 0.3, 0.6, 0.6]), // 2 samples × 2 alts = 4 values
+            false,
         );
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
@@ -734,7 +757,7 @@ mod tests {
 
     #[test]
     fn test_analyze_variant_filters_symbolic() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"<DEL>"], None);
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"<DEL>"], None, false);
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = reader.header().clone();
@@ -809,7 +832,7 @@ mod tests {
 
     #[test]
     fn test_variant_overlaps_region_inside() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None);
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
 
@@ -826,7 +849,7 @@ mod tests {
 
     #[test]
     fn test_variant_overlaps_region_before() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None);
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
 
@@ -843,7 +866,7 @@ mod tests {
 
     #[test]
     fn test_variant_overlaps_region_at_start() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None);
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
 
@@ -860,7 +883,7 @@ mod tests {
 
     #[test]
     fn test_variant_overlaps_region_at_end() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None);
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
 
@@ -877,7 +900,7 @@ mod tests {
 
     #[test]
     fn test_variant_overlaps_region_after() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None);
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
 
@@ -899,6 +922,7 @@ mod tests {
             b"ACAG",
             vec![b"ACAGCAG"], // Perfect repeat insertion
             Some(vec![0.5, 0.8]),
+            false
         );
 
         // Create test BED
@@ -929,7 +953,7 @@ mod tests {
     #[test]
     fn test_intersect_streaming_no_overlap() {
         // Create test VCF at position 99
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"AT"], Some(vec![0.5, 0.8]));
+        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"AT"], Some(vec![0.5, 0.8]), false);
 
         // Create test BED far from variant
         let tmp_bed = NamedTempFile::new().unwrap();
