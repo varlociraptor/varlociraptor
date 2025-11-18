@@ -44,16 +44,15 @@ pub(crate) fn normalize_chrom(chrom: &str) -> String {
 /// # Example
 /// assert_eq!(chrom_rank_checked("chr1"), Some(1));
 pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
-    let s = normalize_chrom(chrom);
-    match s.parse::<u32>() {
-        Ok(n @ 1..=22) => Some(n),
-        Ok(_) => None,
-        Err(_) => match s.as_str() {
+    let normalized = normalize_chrom(chrom);
+    match normalized.parse::<u32>() {
+        Ok(n) if (1..=22).contains(&n) => Some(n),
+        _ => match normalized.as_str() {
             "X" => Some(23),
             "Y" => Some(24),
             "M" | "MT" => Some(25),
             _ => None,
-        },
+        }
     }
 }
 
@@ -83,22 +82,17 @@ pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
 /// Deletion: REF=ACAGT, ALT=AC : -3  
 /// assert_eq!(calculate_dynamic_svlen(b"ACAGT", b"AC"), -3);
 pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
-    let mut anchor_len = 0;
+    // Find anchor length (longest common prefix)
     let min_len = ref_seq.len().min(alt_seq.len());
+    let anchor_len = (0..min_len)
+        .take_while(|&i| ref_seq[i].eq_ignore_ascii_case(&alt_seq[i]))
+        .count();
 
-    for i in 0..min_len {
-        if ref_seq[i].eq_ignore_ascii_case(&alt_seq[i]) {
-            anchor_len += 1;
-        } else {
-            break;
-        }
-    }
-
-    if alt_seq.len() > ref_seq.len() {
-        (alt_seq.len() - anchor_len) as i32
-    } else {
-        -((ref_seq.len() - anchor_len) as i32)
-    }
+    // Calculate length difference after anchor
+    let ref_tail = ref_seq.len() - anchor_len;
+    let alt_tail = alt_seq.len() - anchor_len;
+    
+    alt_tail as i32 - ref_tail as i32
 }
 
 /// Classify MSI status based on score and threshold.
@@ -190,32 +184,71 @@ mod tests {
     /* ======= calculate_dynamic_svlen tests ========= */
 
     #[test]
-    fn test_calculate_dynamic_svlen_insertion() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAGCAG";
-        assert_eq!(calculate_dynamic_svlen(ref_seq, alt_seq), 3);
+    fn test_calculate_dynamic_svlen_insertions() {
+        assert_eq!(calculate_dynamic_svlen(b"ACAG", b"ACAGCAG"), 3);  // Simple insertion
+        assert_eq!(calculate_dynamic_svlen(b"AT", b"ATATAT"), 4);     // Multiple unit insertion
+        assert_eq!(calculate_dynamic_svlen(b"A", b"AT"), 1);          // Single base insertion        
+        assert_eq!(calculate_dynamic_svlen(b"", b"CAG"), 3);          // No anchor insertion
+        assert_eq!(calculate_dynamic_svlen(b"AAT", b"AACAG"), 2);     // (Special Case)
+    }
+
+
+    #[test]
+    fn test_calculate_dynamic_svlen_deletions() {
+        assert_eq!(calculate_dynamic_svlen(b"ACAGT", b"AC"), -3);  // Simple deletion      
+        assert_eq!(calculate_dynamic_svlen(b"ATCG", b"A"), -3);    // Complete deletion after anchor
+        assert_eq!(calculate_dynamic_svlen(b"AT", b"A"), -1);      // Single base deletion
+        assert_eq!(calculate_dynamic_svlen(b"AACAG", b"AAT"), -2); // (Special Case)
     }
 
     #[test]
-    fn test_calculate_dynamic_svlen_deletion() {
-        let ref_seq = b"ACAGT";
-        let alt_seq = b"AC";
-        assert_eq!(calculate_dynamic_svlen(ref_seq, alt_seq), -3);
+    fn test_calculate_dynamic_svlen_substitutions() {
+        assert_eq!(calculate_dynamic_svlen(b"A", b"T"), 0);       // SNV
+        assert_eq!(calculate_dynamic_svlen(b"ACG", b"TGC"), 0);   // MNV (multiple nucleotide variant)
+        assert_eq!(calculate_dynamic_svlen(b"ATCG", b"ATCG"), 0); // Same sequences
     }
 
     #[test]
     fn test_calculate_dynamic_svlen_case_insensitive() {
-        let ref_seq = b"acag";
-        let alt_seq = b"ACAGCAG";
-        assert_eq!(calculate_dynamic_svlen(ref_seq, alt_seq), 3);
+        assert_eq!(calculate_dynamic_svlen(b"acag", b"ACAGCAG"), 3);
+        assert_eq!(calculate_dynamic_svlen(b"ACAG", b"acagcag"), 3);
+        assert_eq!(calculate_dynamic_svlen(b"AcAgCaG", b"aCaG"), -3);
+    }
+
+    #[test]
+    fn test_calculate_dynamic_svlen_edge_cases() {
+        // Empty sequences
+        assert_eq!(calculate_dynamic_svlen(b"", b""), 0);
+        assert_eq!(calculate_dynamic_svlen(b"ATG", b""), -3);
+        assert_eq!(calculate_dynamic_svlen(b"", b"ATG"), 3);
+        
+        // No common anchor
+        assert_eq!(calculate_dynamic_svlen(b"AAA", b"TTT"), 0);
+        
+        // Very long sequences
+        let long_ref = b"A".repeat(1000);
+        let long_alt = b"A".repeat(1005);
+        assert_eq!(calculate_dynamic_svlen(&long_ref, &long_alt), 5);
     }
 
     /* ========= classify_msi_status tests =========== */
 
     #[test]
     fn test_classify_msi_status() {
-        assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High");
+        // Below threshold
+        assert_eq!(classify_msi_status(0.0, 3.5), "MSS");
         assert_eq!(classify_msi_status(2.0, 3.5), "MSS");
+        assert_eq!(classify_msi_status(3.49999, 3.5), "MSS");
+        assert_eq!(classify_msi_status(4.0, 5.0), "MSS");
+        
+        // At threshold (inclusive)
         assert_eq!(classify_msi_status(3.5, 3.5), "MSI-High");
+        assert_eq!(classify_msi_status(5.0, 5.0), "MSI-High");
+        
+        // Above threshold
+        assert_eq!(classify_msi_status(3.50001, 3.5), "MSI-High");
+        assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High");
+        assert_eq!(classify_msi_status(100.0, 3.5), "MSI-High");
+        assert_eq!(classify_msi_status(6.0, 5.0), "MSI-High");
     }
 }
