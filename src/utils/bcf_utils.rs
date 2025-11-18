@@ -138,8 +138,8 @@ pub(crate) fn get_prob_absent(
 
     if prob_artifact.is_nan() {
         return Err(Error::InvalidProbabilityValue {
-            field: "ART".to_string(),
-            value: prob_absent,
+            field: "PROB_ARTIFACT".to_string(),
+            value: prob_artifact,
             chrom: get_chrom(record, header)?,
             pos: record.pos(),
         }
