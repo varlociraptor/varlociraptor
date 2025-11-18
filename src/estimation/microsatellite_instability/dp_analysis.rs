@@ -30,7 +30,7 @@ use crate::utils::stats::calculate_percentage_exact;
 ///
 /// Represents the probability that a microsatellite region is stable,
 /// calculated as the product of all variant absence probabilities.
-/// 
+///
 /// p_stable = P(all variants absent) = Π(prob_absent)
 /// p_unstable = 1 - p_stable (computed in DP algorithm)
 #[derive(Debug, Clone)]
@@ -562,12 +562,10 @@ pub(super) fn run_af_evolution_analysis(
 //     Ok(())
 // }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    
     // Helper to create test variants
     fn make_variant(prob: f64, afs: Vec<(&str, f64)>) -> Variant {
         let mut sample_afs = HashMap::new();

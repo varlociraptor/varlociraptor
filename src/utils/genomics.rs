@@ -1,24 +1,23 @@
 //! genomics.rs
 //!
 //! Genomics utility functions.
-//! 
+//!
 //! This module provides utilities for:
 //! 1. Chromosome manipulation(chromosome normalization, chromosome to rank mapping);
 //! 2. Sequence analysis(Svlen calculation);
 //! 3. MSI status classification.
 
-
 /// Normalize chromosome names by removing "chr" prefix.
-/// 
+///
 /// Provides consistent chromosome naming across different reference formats.
 /// Both "chr1" and "1" normalize to "1" for uniform processing.
-/// 
+///
 /// # Arguments
 /// * `chrom` - Chromosome name with or without "chr" prefix
-/// 
+///
 /// # Returns
 /// Normalized chromosome name without "chr" prefix
-/// 
+///
 /// # Example
 /// assert_eq!(normalize_chrom("chr1"), "1");
 pub(crate) fn normalize_chrom(chrom: &str) -> String {
@@ -26,22 +25,22 @@ pub(crate) fn normalize_chrom(chrom: &str) -> String {
 }
 
 /// Convert chromosome name to sortable rank for natural ordering.
-/// 
+///
 /// Maps chromosome names to numeric ranks that preserve biological ordering:
 /// - Autosomes: 1-22 → ranks 1-22
 /// - Sex chromosomes: X → 23, Y → 24  
 /// - Mitochondrial: M/MT → 25
-/// 
+///
 /// Returns `None` for unrecognized chromosomes (e.g., scaffolds, decoys).
 /// Currently supports human chromosomes only; extend for other species as needed.
-/// 
+///
 /// # Arguments
 /// * `chrom` - Chromosome name (with or without "chr" prefix)
-/// 
+///
 /// # Returns
 /// * `Some(rank)` - Numeric rank for recognized chromosomes
 /// * `None` - For unrecognized chromosomes
-/// 
+///
 /// # Example
 /// assert_eq!(chrom_rank_checked("chr1"), Some(1));
 pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
@@ -59,25 +58,25 @@ pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
 }
 
 /// Calculate structural variant length (SVLEN) from reference and alternate sequences.
-/// 
+///
 /// Implements anchor-aware SVLEN calculation by identifying the common prefix
 /// between reference and alternate alleles (the "anchor"), then computing the
 /// difference in non-anchor sequence lengths.
-/// 
+///
 /// # Algorithm
 /// 1. Find longest common prefix (anchor) between REF and ALT
 /// 2. Calculate changed sequence lengths after anchor
 /// 3. Return: ALT_length - REF_length (after anchor)
-/// 
+///
 /// # Arguments
 /// * `ref_seq` - Reference allele sequence
 /// * `alt_seq` - Alternate allele sequence
-/// 
+///
 /// # Returns
 /// * Positive value - Insertion (ALT longer than REF)
 /// * Negative value - Deletion (REF longer than ALT)
 /// * Zero - Same length (likely SNV or MNV)
-/// 
+///
 /// # Examples
 /// Insertion: REF=ACAG, ALT=ACAGCAG : +3
 /// assert_eq!(calculate_dynamic_svlen(b"ACAG", b"ACAGCAG"), 3);
@@ -103,19 +102,19 @@ pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
 }
 
 /// Classify MSI status based on score and threshold.
-/// 
+///
 /// Binary classification of microsatellite instability status:
 /// - MSI-High: Score ≥ threshold
 /// - MSS (Microsatellite Stable): Score < threshold
-/// 
+///
 /// # Arguments
 /// * `msi_score` - Calculated MSI score (percentage)
 /// * `threshold` - Classification threshold (default 3.5%)
-/// 
+///
 /// # Returns
 /// * `"MSI-High"` - High microsatellite instability
 /// * `"MSS"` - Microsatellite stable
-/// 
+///
 /// # Examples
 /// assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High");
 pub fn classify_msi_status(msi_score: f64, threshold: f64) -> String {
@@ -162,7 +161,7 @@ mod tests {
         assert_eq!(chrom_rank_checked("chrX"), Some(23));
         assert_eq!(chrom_rank_checked("Y"), Some(24));
         assert_eq!(chrom_rank_checked("chrY"), Some(24));
-        
+
         // Mitochondrial
         assert_eq!(chrom_rank_checked("M"), Some(25));
         assert_eq!(chrom_rank_checked("MT"), Some(25));
@@ -176,12 +175,12 @@ mod tests {
         assert_eq!(chrom_rank_checked("0"), None);
         assert_eq!(chrom_rank_checked("23"), None);
         assert_eq!(chrom_rank_checked("chr23"), None);
-        
+
         // Scaffolds and decoys
         assert_eq!(chrom_rank_checked("GL000192.1"), None);
         assert_eq!(chrom_rank_checked("KI270442.1"), None);
         assert_eq!(chrom_rank_checked("chrUn_KI270442v1"), None);
-        
+
         // Other invalid inputs
         assert_eq!(chrom_rank_checked("random"), None);
         assert_eq!(chrom_rank_checked(""), None);

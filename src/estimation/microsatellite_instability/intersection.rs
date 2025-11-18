@@ -291,6 +291,7 @@ pub(super) fn intersect_streaming(
                     " Skipping VCF record with unsupported chromosome: {}",
                     chrom
                 );
+                variant_window.pop_front();
                 continue;
             }
             let chrom_rank = chrom_rank.unwrap();
@@ -321,6 +322,7 @@ pub(super) fn intersect_streaming(
                         " Skipping VCF record with unsupported chromosome: {}",
                         chrom
                     );
+                    variant_window.pop_back();
                     continue;
                 }
                 let chrom_rank = chrom_rank.unwrap();
@@ -368,7 +370,11 @@ pub(super) fn intersect_streaming(
         let mut region_summary: Option<RegionSummary> = None;
 
         for (record, chrom) in &variant_window {
-            if chrom != &region.chrom {
+            let Some(chrom_rank) = chrom_rank_checked(chrom) else {
+                continue;
+            };
+
+            if chrom_rank != region_rank {
                 continue;
             }
 
@@ -429,13 +435,11 @@ pub(super) fn intersect_streaming(
 
 /* ================================================ */
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
-
 
     #[test]
     fn test_is_perfect_repeat_simple_insertion() {
@@ -625,7 +629,10 @@ mod tests {
             (vec![20.0; alt_alleles.len()], vec![10.0; alt_alleles.len()])
         } else {
             // For linear: use direct probabilities that sum appropriately
-            (vec![0.005; alt_alleles.len()], vec![0.005; alt_alleles.len()])
+            (
+                vec![0.005; alt_alleles.len()],
+                vec![0.005; alt_alleles.len()],
+            )
         };
 
         // // Add PROB_ABSENT for each ALT
@@ -635,7 +642,8 @@ mod tests {
 
         // // Add PROB_ARTIFACT for each ALT
         // let prob_artifact_values: Vec<f32> = vec![0.01; alt_alleles.len()];
-        rec.push_info_float(b"PROB_ARTIFACT", &prob_artifact_values).unwrap();
+        rec.push_info_float(b"PROB_ARTIFACT", &prob_artifact_values)
+            .unwrap();
 
         // Add GT (0/1 for sample1, 1/1 for sample2)
         let genotypes_data = [
@@ -922,7 +930,7 @@ mod tests {
             b"ACAG",
             vec![b"ACAGCAG"], // Perfect repeat insertion
             Some(vec![0.5, 0.8]),
-            false
+            false,
         );
 
         // Create test BED
@@ -953,7 +961,8 @@ mod tests {
     #[test]
     fn test_intersect_streaming_no_overlap() {
         // Create test VCF at position 99
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"AT"], Some(vec![0.5, 0.8]), false);
+        let (tmp_vcf, _) =
+            create_test_vcf_with_alleles(b"A", vec![b"AT"], Some(vec![0.5, 0.8]), false);
 
         // Create test BED far from variant
         let tmp_bed = NamedTempFile::new().unwrap();
