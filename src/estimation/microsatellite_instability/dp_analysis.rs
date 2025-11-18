@@ -340,7 +340,7 @@ fn calculate_msi_metrics(
     let msi_status = classify_msi_status(msi_score_map, msi_high_threshold);
 
     // Step 5: Calculate uncertainty using exact Decimal arithmetic
-    let (uncertainty_lower, uncertainty_upper, map_std_dev) = if output_req.needs_pseudotime {
+    let (uncertainty_lower, uncertainty_upper, map_std_dev) = if output_req.needs_pseudotime && total_regions > 0 {
         let k_map_decimal = Decimal::from(k_map);
 
         // Calculate variance: Var(K) = Σ[(k - k_map)² × P(k)]
