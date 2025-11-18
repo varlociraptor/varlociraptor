@@ -1,27 +1,58 @@
 //! stats.rs
 //!
-//! Statistics utilities for precise calculations.
+//! Statistical utility functions for MSI analysis.
+//! 
+//! This module provides precise statistical calculations including:
+//! 1. PHRED score conversion
+//! 2. Exact percentage computation using decimal arithmetic.
+
 
 use bio::stats::{PHREDProb, Prob};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
 
 /// Convert PHRED-scaled probability to linear probability.
-/// Uses rust-bio's `PHREDProb` and `Prob` types for precise, idiomatic conversion.
+/// 
+/// PHRED scores encode error probabilities on a logarithmic scale where:
+/// - PHRED = -10 × log₁₀(P)
+/// - P = 10^(-PHRED/10)
+/// 
+/// Common PHRED values:
+/// - PHRED 0 = P(1.0) = 100% probability
+/// - PHRED 10 = P(0.1) = 10% probability
+/// 
+/// # Arguments
+/// * `phred` - PHRED-scaled probability score
+/// 
+/// # Returns
+/// Linear probability in range [0.0, 1.0]
+/// 
+/// # Examples:
+/// assert!((p0 - 1.0).abs() < 1e-6);
 pub(crate) fn phred_to_prob(phred: f64) -> f64 {
     *Prob::from(PHREDProb(phred))
 }
 
-/// Calculate percentage using exact decimal arithmetic
-///
-/// Prevents precision loss when converting large usize values to percentages.
-///
+/// Calculate percentage using exact decimal arithmetic.
+/// 
+/// Prevents floating-point precision loss when working with large integers
+/// or when exact decimal representation is required. Uses the `rust_decimal`
+/// crate for arbitrary precision decimal arithmetic.
+/// 
 /// # Arguments
-/// * `numerator` - (e.g., Count: number of unstable regions)
-/// * `denominator` - (e.g., Total: total regions)
-///
+/// * `numerator` - Count value (e.g., number of unstable regions)
+/// * `denominator` - Total value (e.g., total number of regions)
+/// 
 /// # Returns
-/// Percentage as f64 (0.0 to 100.0), or 0.0 if denominator is 0`
+/// * Percentage as f64 in range [0.0, 100.0]
+/// * Returns 0.0 if denominator is zero (avoiding division by zero)
+/// 
+/// # Precision
+/// Maintains exact precision for integers
+/// far exceeding f64's safe integer range of 2^53.
+/// 
+/// # Examples
+/// assert_eq!(calculate_percentage_exact(5, 100), 5.0);`
 pub fn calculate_percentage_exact(numerator: usize, denominator: usize) -> f64 {
     if denominator == 0 {
         return 0.0;
@@ -29,9 +60,7 @@ pub fn calculate_percentage_exact(numerator: usize, denominator: usize) -> f64 {
 
     let num = Decimal::from(numerator);
     let den = Decimal::from(denominator);
-
     let ratio = num / den;
-
     let percentage = ratio * Decimal::from(100);
 
     percentage.to_f64().unwrap_or(0.0)
