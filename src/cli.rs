@@ -581,10 +581,10 @@ pub enum EstimateKind {
         name = "microsatellite-instability",
         visible_alias = "msi",
         about = "Estimate Microsatellite Instability (MSI) from variant calls at microsatellite loci. \
-                 Takes a Varlociraptor-format VCF/BCF from STDIN and a BED file with microsatellite loci \
-                 in UCSC microsatellite schema format (without the bin column), and produces either the \
-                 MSI score distribution or MSI score evolution as Vega-Lite JSON output file(s) or their \
-                 TSV plot data file(s).",
+             Takes a BED file with microsatellite loci in UCSC microsatellite schema format \
+             (without the bin column) and a Varlociraptor-format VCF/BCF file, and produces \
+             either the MSI score distribution or MSI score evolution as Vega-Lite JSON output \
+             file(s) or their TSV plot data file(s).",
         usage = "varlociraptor estimate microsatellite-instability microsatellites.bed calls.vcf \
                  --threads 4 --msi-threshold 3.5 --plot-pseudotime msi-pseudotime.vl.json --data-pseudotime \
                  msi-pseudotime.tsv\n\n \
