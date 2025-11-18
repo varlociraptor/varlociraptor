@@ -340,56 +340,57 @@ fn calculate_msi_metrics(
     let msi_status = classify_msi_status(msi_score_map, msi_high_threshold);
 
     // Step 5: Calculate uncertainty using exact Decimal arithmetic
-    let (uncertainty_lower, uncertainty_upper, map_std_dev) = if output_req.needs_pseudotime && total_regions > 0 {
-        let k_map_decimal = Decimal::from(k_map);
+    let (uncertainty_lower, uncertainty_upper, map_std_dev) =
+        if output_req.needs_pseudotime && total_regions > 0 {
+            let k_map_decimal = Decimal::from(k_map);
 
-        // Calculate variance: Var(K) = Σ[(k - k_map)² × P(k)]
-        let variance_decimal: Decimal = distribution_raw
-            .iter()
-            .enumerate()
-            .map(|(k, &prob)| {
-                let k_decimal = Decimal::from(k);
-                let diff = k_decimal - k_map_decimal;
-                let diff_squared = diff * diff;
-                let prob_decimal = Decimal::from_f64_retain(prob).unwrap_or(Decimal::from(0));
-                diff_squared * prob_decimal
-            })
-            .sum();
+            // Calculate variance: Var(K) = Σ[(k - k_map)² × P(k)]
+            let variance_decimal: Decimal = distribution_raw
+                .iter()
+                .enumerate()
+                .map(|(k, &prob)| {
+                    let k_decimal = Decimal::from(k);
+                    let diff = k_decimal - k_map_decimal;
+                    let diff_squared = diff * diff;
+                    let prob_decimal = Decimal::from_f64_retain(prob).unwrap_or(Decimal::from(0));
+                    diff_squared * prob_decimal
+                })
+                .sum();
 
-        // Calculate standard deviation
-        let std_dev_decimal = variance_decimal.sqrt().unwrap_or(Decimal::from(0));
+            // Calculate standard deviation
+            let std_dev_decimal = variance_decimal.sqrt().unwrap_or(Decimal::from(0));
 
-        // Get confidence bounds
-        let total_decimal = Decimal::from(total_regions);
-        let hundred = Decimal::from(100);
-        let zero = Decimal::from(0);
+            // Get confidence bounds
+            let total_decimal = Decimal::from(total_regions);
+            let hundred = Decimal::from(100);
+            let zero = Decimal::from(0);
 
-        let lower_k_decimal = (k_map_decimal - std_dev_decimal).max(zero);
+            let lower_k_decimal = (k_map_decimal - std_dev_decimal).max(zero);
 
-        let upper_k_decimal = (k_map_decimal + std_dev_decimal).min(total_decimal);
+            let upper_k_decimal = (k_map_decimal + std_dev_decimal).min(total_decimal);
 
-        let lower_percentage_decimal = (lower_k_decimal / total_decimal) * hundred;
+            let lower_percentage_decimal = (lower_k_decimal / total_decimal) * hundred;
 
-        let upper_percentage_decimal = (upper_k_decimal / total_decimal) * hundred;
+            let upper_percentage_decimal = (upper_k_decimal / total_decimal) * hundred;
 
-        let lower = lower_percentage_decimal
-            .max(zero)
-            .min(hundred)
-            .to_f64()
-            .unwrap_or(0.0);
+            let lower = lower_percentage_decimal
+                .max(zero)
+                .min(hundred)
+                .to_f64()
+                .unwrap_or(0.0);
 
-        let upper = upper_percentage_decimal
-            .max(zero)
-            .min(hundred)
-            .to_f64()
-            .unwrap_or(0.0);
+            let upper = upper_percentage_decimal
+                .max(zero)
+                .min(hundred)
+                .to_f64()
+                .unwrap_or(0.0);
 
-        let std_dev_f64 = std_dev_decimal.to_f64().unwrap_or(0.0);
+            let std_dev_f64 = std_dev_decimal.to_f64().unwrap_or(0.0);
 
-        (Some(lower), Some(upper), Some(std_dev_f64))
-    } else {
-        (None, None, None)
-    };
+            (Some(lower), Some(upper), Some(std_dev_f64))
+        } else {
+            (None, None, None)
+        };
 
     // Step 6: Create full distribution (only if distribution output requested AND AF=0.0)
     let distribution = if output_req.needs_distribution && af_threshold == 0.0 {
