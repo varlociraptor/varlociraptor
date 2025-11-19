@@ -364,6 +364,8 @@ pub(crate) fn validate_vcf_file(
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;
+    use crate::utils::stats::TEST_EPSILON;
+
 
     #[test]
     fn test_is_reference_allele() {
