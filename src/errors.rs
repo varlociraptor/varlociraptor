@@ -8,23 +8,63 @@ use crate::estimation::microsatellite_instability as msi;
 
 #[derive(Error, Debug, PartialEq)]
 pub(crate) enum Error {
-    /* Generic Errors */
-    /* ======================== Filing Errors ======================== */
+    /* ======================= Generic Errors ======================== */
+    /* -------------------- File Validation -------------------------- */
+    /* 1. Bed File Errors */
     #[error("invalid BED file path (expected .bed extension): {path}")]
     InvalidBedFile { path: PathBuf },
+    #[error("BED file is empty (no microsatellite loci found)")]
+    BedFileEmpty,
+    #[error("invalid BED record at {chrom}:{pos}: {msg}")]
+    InvalidBedRecord {
+        chrom: String,
+        pos: i64,
+        msg: String,
+    },
+    #[error("Failed to read BED record at line {line}: {details}")]
+    BedRecordRead { line: usize, details: String },
+    /* 2. VCF/BCF File Errors */
     #[error(
         "invalid VCF/BCF file path (expected .vcf, .vcf.gz, .bcf, or .bcf.gz extension): {path}"
     )]
     InvalidVcfFile { path: PathBuf },
-    /* =============================================================== */
-    /* =================== Concurrency Errors ======================== */
+    #[error("VCF/BCF file contains no samples")]
+    VcfNoSamples,
+    #[error("VCF/BCF file is empty (no variant records)")]
+    VcfEmpty,
+    #[error("VCF/BCF record at {chrom}:{pos} is missing chromosome information")]
+    VcfRecordMissingChromosome { chrom: String, pos: i64 },
+    #[error("VCF/BCF record at position {pos} failed to resolve chromosome name for rid {rid}: {details}")]
+    VcfChromResolutionFailed { pos: i64, rid: u32, details: String },
+    #[error("failed to read VCF/BCF record: {details}")]
+    VcfRecordRead { details: String },
+    #[error(
+        "Invalid allele frequency {af} for sample '{sample}' at {chrom}:{pos} (must be 0.0-1.0)"
+    )]
+    InvalidAlleleFrequency {
+        sample: String,
+        af: f32,
+        chrom: String,
+        pos: i64,
+    },
+    #[error("Invalid probability value in field '{field}' at {chrom}:{pos} (value={value})")]
+    InvalidProbabilityValue {
+        field: String,
+        value: f32,
+        chrom: String,
+        pos: i64,
+    },
+    #[error("VCF/BCF file contains invalid sample exclusion(s): sample '{samples}' not found in VCF/BCF")]
+    InvalidSampleExclusion { samples: String },
+    #[error("VCF/BCF file contains no samples after excluding specified samples")]
+    NoSamplesAfterExclusion,
+    /* -------------------- Concurrency ------------------------------ */
     #[error(
         "invalid thread count: must be at least {}, got {count}",
         MIN_THREAD_COUNT
     )]
     InvalidThreadCount { count: usize },
-    /* =============================================================== */
-    /* ************** */
+    /* --------------------------------------------------------------- */
     #[error("formula refers to unknown sample {name}")]
     InvalidSampleName { name: String },
     #[error("contamination refers to unknown sample {name}; it is not defined in the scenario")]
@@ -102,8 +142,9 @@ pub(crate) enum Error {
     UnrealisticIsizeSd,
     #[error("given field for variant heterozygosity or variant somatic effective mutation rate has to have as many entries as ALT alleles in the record")]
     InvalidVariantPrior,
-    /* Estimation Errors */
-    /* =============== Estimation: MSI Errors ======================== */
+
+    /* ======================= MSI: Estimation Errors ================ */
+    /* -------------------- Configuration ---------------------------- */
     #[error(
         "invalid MSI threshold: must be > {} (default: {}), got {threshold}",
         msi::MIN_MSI_THRESHOLD,
@@ -112,54 +153,16 @@ pub(crate) enum Error {
     InvalidMsiThreshold { threshold: f64 },
     #[error("at least one output must be specified: use --plot-pseudotime, --plot-distribution, --data-pseudotime, or --data-distribution")]
     NoMsiOutputSpecified,
-    #[error("BED file is empty (no microsatellite loci found)")]
-    BedFileEmpty,
+    /* -------------------- BED File Errors -------------------------- */
     #[error(
         "invalid motif format in BED record: expected 'NxMOTIF' (e.g., '15xCAG'), got '{motif}'"
     )]
     InvalidMsiBedMotif { motif: String },
-    #[error("invalid BED record at {chrom}:{pos}: {msg}")]
-    InvalidBedRecord {
-        chrom: String,
-        pos: i64,
-        msg: String,
-    },
     #[error("BED record missing required name field (4th column) containing motif information")]
     BedRecordMissingMotifName,
-    #[error("VCF/BCF file contains no samples")]
-    VcfNoSamples,
-    #[error("VCF/BCF file contains invalid sample exclusion(s): sample '{samples}' not found in VCF/BCF")]
-    InvalidSampleExclusion { samples: String },
-    #[error("VCF/BCF file contains no samples after excluding specified samples")]
-    NoSamplesAfterExclusion,
-    #[error("VCF/BCF file is empty (no variant records)")]
-    VcfEmpty,
-    #[error("VCF/BCF record at {chrom}:{pos} is missing chromosome information")]
-    VcfRecordMissingChromosome { chrom: String, pos: i64 },
-    #[error("VCF/BCF record at position {pos} failed to resolve chromosome name for rid {rid}: {details}")]
-    VcfChromResolutionFailed { pos: i64, rid: u32, details: String },
-    #[error("failed to read VCF/BCF record: {details}")]
-    VcfRecordRead { details: String },
-    #[error(
-        "Invalid allele frequency {af} for sample '{sample}' at {chrom}:{pos} (must be 0.0-1.0)"
-    )]
-    InvalidAlleleFrequency {
-        sample: String,
-        af: f32,
-        chrom: String,
-        pos: i64,
-    },
-    #[error("Invalid probability value in field '{field}' at {chrom}:{pos} (value={value})")]
-    InvalidProbabilityValue {
-        field: String,
-        value: f32,
-        chrom: String,
-        pos: i64,
-    },
+    /* -------------------- Processing Errors ------------------------ */
     #[error("No chromosome match between BED and VCF files. Ensure chromosome naming is consistent (both with or without 'chr' prefix).")]
     NoChromosomeMatch,
-    #[error("Failed to read BED record at line {line}: {details}")]
-    BedRecordRead { line: usize, details: String },
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {
