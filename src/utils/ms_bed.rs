@@ -84,6 +84,17 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
         motif: name.to_string(),
     })?;
 
+    // Validate motif contains only unambiguous DNA bases
+    if !motif
+        .chars()
+        .all(|c| matches!(c, 'A' | 'C' | 'G' | 'T' | 'a' | 'c' | 'g' | 't'))
+    {
+        return Err(Error::InvalidMsiBedMotif {
+            motif: name.to_string(),
+        }
+        .into());
+    }
+
     match (repeat_count, motif.len()) {
         (0, _) => Err(Error::InvalidMsiBedMotif {
             motif: name.to_string(),
@@ -247,6 +258,15 @@ mod tests {
         assert!(parse_motif_from_name("0xCAG").is_err()); // Zero count
         assert!(parse_motif_from_name("5x").is_err()); // Empty motif
         assert!(parse_motif_from_name("fivexCAG").is_err()); // Non-numeric count
+    }
+
+    #[test]
+    fn test_parse_motif_invalid_chars() {
+        // Motifs with ambiguous or invalid DNA letters should fail
+        assert!(parse_motif_from_name("5xCAGN").is_err());
+        assert!(parse_motif_from_name("3xXYZ").is_err());
+        assert!(parse_motif_from_name("2xA-T").is_err());
+        assert!(parse_motif_from_name("4x123").is_err());
     }
 
     /* ========= parse_bed_record tests ============== */
