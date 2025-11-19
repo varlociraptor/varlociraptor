@@ -645,6 +645,12 @@ pub(crate) mod tests {
         header.push_record(br"##contig=<ID=chr1,length=1000000>");
         header.push_record(br"##contig=<ID=chr2,length=1000000>");
         header.push_record(br"##contig=<ID=chrX,length=1000000>");
+        header.push_record(br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##);
+        header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent (linear)">"##);
+        header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact (linear)">"##);
+        header.push_record(
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">"##,
+        );
         header.push_sample(b"sample1");
 
         let mut wtr = rust_htslib::bcf::Writer::from_path(
@@ -660,6 +666,10 @@ pub(crate) mod tests {
             rec.set_rid(Some(*rid));
             rec.set_pos(*pos);
             rec.set_alleles(&[b"A", b"AT"]).unwrap();
+            rec.push_info_integer(b"SVLEN", &[1]).unwrap();
+            rec.push_info_float(b"PROB_ABSENT", &[0.01]).unwrap();
+            rec.push_info_float(b"PROB_ARTIFACT", &[0.005]).unwrap();
+            rec.push_format_float(b"AF", &[0.5]).unwrap();
             wtr.write(&rec).unwrap();
         }
 
