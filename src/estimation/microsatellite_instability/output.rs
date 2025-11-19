@@ -16,9 +16,6 @@ use serde_json::{json, Value};
 
 use super::dp_analysis::AfEvolutionResult;
 
-/* =============== Constants =======================*/
-
-/* ================================================ */
 
 /* ============ Plotting Utils ==================== */
 
