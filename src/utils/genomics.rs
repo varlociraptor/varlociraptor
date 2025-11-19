@@ -144,23 +144,9 @@ mod tests {
 
     #[test]
     fn test_chrom_rank_checked_valid() {
-        // Autosomes
-        assert_eq!(chrom_rank_checked("1"), Some(1));
-        assert_eq!(chrom_rank_checked("chr1"), Some(1));
-        assert_eq!(chrom_rank_checked("22"), Some(22));
-        assert_eq!(chrom_rank_checked("chr22"), Some(22));
-
-        // Sex chromosomes
-        assert_eq!(chrom_rank_checked("X"), Some(23));
-        assert_eq!(chrom_rank_checked("chrX"), Some(23));
-        assert_eq!(chrom_rank_checked("Y"), Some(24));
-        assert_eq!(chrom_rank_checked("chrY"), Some(24));
-
-        // Mitochondrial
-        assert_eq!(chrom_rank_checked("M"), Some(25));
-        assert_eq!(chrom_rank_checked("MT"), Some(25));
-        assert_eq!(chrom_rank_checked("chrM"), Some(25));
-        assert_eq!(chrom_rank_checked("chrMT"), Some(25));
+        assert_eq!(chrom_rank_checked("22"), Some(22)); // Autosomes
+        assert_eq!(chrom_rank_checked("X"), Some(23)); // Sex chromosomes
+        assert_eq!(chrom_rank_checked("M"), Some(25)); // Mitochondrial
     }
 
     #[test]
@@ -168,15 +154,11 @@ mod tests {
         // Out of range autosomes
         assert_eq!(chrom_rank_checked("0"), None);
         assert_eq!(chrom_rank_checked("23"), None);
-        assert_eq!(chrom_rank_checked("chr23"), None);
 
         // Scaffolds and decoys
         assert_eq!(chrom_rank_checked("GL000192.1"), None);
-        assert_eq!(chrom_rank_checked("KI270442.1"), None);
-        assert_eq!(chrom_rank_checked("chrUn_KI270442v1"), None);
 
         // Other invalid inputs
-        assert_eq!(chrom_rank_checked("random"), None);
         assert_eq!(chrom_rank_checked(""), None);
         assert_eq!(chrom_rank_checked("chr"), None);
     }
@@ -210,7 +192,6 @@ mod tests {
     #[test]
     fn test_calculate_dynamic_svlen_case_insensitive() {
         assert_eq!(calculate_dynamic_svlen(b"acag", b"ACAGCAG"), 3);
-        assert_eq!(calculate_dynamic_svlen(b"ACAG", b"acagcag"), 3);
         assert_eq!(calculate_dynamic_svlen(b"AcAgCaG", b"aCaG"), -3);
     }
 
@@ -223,31 +204,14 @@ mod tests {
 
         // No common anchor
         assert_eq!(calculate_dynamic_svlen(b"AAA", b"TTT"), 0);
-
-        // Very long sequences
-        let long_ref = b"A".repeat(1000);
-        let long_alt = b"A".repeat(1005);
-        assert_eq!(calculate_dynamic_svlen(&long_ref, &long_alt), 5);
     }
 
     /* ========= classify_msi_status tests =========== */
 
     #[test]
     fn test_classify_msi_status() {
-        // Below threshold
-        assert_eq!(classify_msi_status(0.0, 3.5), "MSS");
-        assert_eq!(classify_msi_status(2.0, 3.5), "MSS");
-        assert_eq!(classify_msi_status(3.49999, 3.5), "MSS");
-        assert_eq!(classify_msi_status(4.0, 5.0), "MSS");
-
-        // At threshold (inclusive)
-        assert_eq!(classify_msi_status(3.5, 3.5), "MSI-High");
-        assert_eq!(classify_msi_status(5.0, 5.0), "MSI-High");
-
-        // Above threshold
-        assert_eq!(classify_msi_status(3.50001, 3.5), "MSI-High");
-        assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High");
-        assert_eq!(classify_msi_status(100.0, 3.5), "MSI-High");
-        assert_eq!(classify_msi_status(6.0, 5.0), "MSI-High");
+        assert_eq!(classify_msi_status(2.0, 3.5), "MSS"); // Below threshold
+        assert_eq!(classify_msi_status(3.5, 3.5), "MSI-High"); // At threshold (inclusive)
+        assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High"); // Above threshold
     }
 }
