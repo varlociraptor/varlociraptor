@@ -121,12 +121,7 @@ impl IntersectionStats {
 /// * `RepeatStatus::NA` - Does not match or fails validation
 ///
 /// # Example
-/// ```text
-/// REF:    ACAG
-/// ALT:    ACAGCAG
-/// Motif:  CAG
-/// Result: Perfect (inserted "CAG" = 1× motif)
-/// ```
+/// assert_eq!(is_perfect_repeat(b"ACAGCAG", 3, "CAG", b"ACAG"), RepeatStatus::Perfect);
 fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) -> RepeatStatus {
     // 0. Handling Edge Cases
     if ref_seq.is_empty() || alt_seq.is_empty() || ref_seq[0] != alt_seq[0] || svlen == 0 {
@@ -231,7 +226,7 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
 /// * `Err(...)` - Error occurred (invalid data, I/O error, etc.)
 ///
 /// # Example
-///
+/// assert!(analyze_variant(&record, &header, 0, &region, &samples_index_map, false).is_ok());
 fn analyze_variant(
     record: &bcf::Record,
     header: &HeaderView,
@@ -299,7 +294,7 @@ fn analyze_variant(
 /// # Note: Point-based overlap means we only consider the variant position,
 ///
 /// # Example
-///
+/// assert!(variant_overlaps_region(&record, &region));
 #[inline]
 fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion) -> bool {
     // Variant position (0-based)
@@ -335,7 +330,7 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion) -> bool {
 /// - Record parsing fails
 ///
 /// # Example
-///
+/// assert!(intersect_streaming(&bed_path, &vcf_path, &samples_index_map).is_ok());
 pub(super) fn intersect_streaming(
     bed_path: &PathBuf,
     vcf_path: &PathBuf,
