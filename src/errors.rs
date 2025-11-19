@@ -118,6 +118,12 @@ pub(crate) enum Error {
         "invalid motif format in BED record: expected 'NxMOTIF' (e.g., '15xCAG'), got '{motif}'"
     )]
     InvalidMsiBedMotif { motif: String },
+    #[error("invalid BED record at {chrom}:{pos}: {msg}")]
+    InvalidBedRecord {
+        chrom: String,
+        pos: i64,
+        msg: String,
+    },
     #[error("BED record missing required name field (4th column) containing motif information")]
     BedRecordMissingMotifName,
     #[error("VCF/BCF file contains no samples")]
