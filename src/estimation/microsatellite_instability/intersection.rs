@@ -1,9 +1,15 @@
 //! intersection.rs
 //!
-//! Streaming intersection and variant analysis
-//! Processes BED regions and VCF variants to identify perfect microsatellite repeats.
-//! Prepares variants for DP analysis by extracting probability data and filtering not
-//! required variants(probability missing, no af value in all samples, not a perfect repeat).
+//! Streaming intersection and variant analysis for MSI detection.
+//!
+//! This module provides:
+//! 1. Streaming intersection of BED regions with VCF variants
+//! 2. Perfect microsatellite repeat detection
+//! 3. Variant filtering and probability extraction
+//!
+//! The streaming approach processes BED regions sequentially while maintaining
+//! a sliding window of VCF variants, enabling memory-efficient analysis of
+//! large datasets.
 
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
@@ -23,40 +29,58 @@ use crate::utils::is_phred_scaled;
 use crate::utils::ms_bed::{parse_bed_record, BedRegion};
 
 /* ============ Data Structures =================== */
+
+/// Classification of indel repeat pattern relative to microsatellite motif.
 #[derive(Debug, Clone, PartialEq)]
 enum RepeatStatus {
+    /// Variant indel is a perfect tandem repeat of the motif.
     Perfect,
+    /// Variant indel does not match motif pattern or fails validation.
     NA,
 }
 
+/// Analyzed variant passing all filters for MSI analysis.
+///
+/// Contains probability and allele frequency data extracted
+/// from a VCF record that passed perfect repeat validation.
 #[derive(Debug, Clone)]
 pub(super) struct Variant {
+    /// Combined probability variant is absent (PROB_ABSENT + PROB_ARTIFACT)
     pub(super) prob_absent: f64,
+    /// Per-sample allele frequencies from FORMAT:AF
     pub(super) sample_afs: HashMap<String, f64>,
 }
 
+/// Summary of variants found within a single BED region.
 #[derive(Debug)]
 pub(super) struct RegionSummary {
+    /// Variants passing all filters at intersection step within this region
     pub(super) variants: Vec<Variant>,
 }
 
 impl RegionSummary {
+    /// Add a variant to the region summary.
     fn add_variant(&mut self, variant: Variant) {
         self.variants.push(variant);
     }
 }
 
+/// Statistics collected during intersection process.
 #[derive(Debug, Clone)]
 pub(super) struct IntersectionStats {
+    /// Total number of regions processed from BED file.
     pub total_regions: usize,
+    /// Number of regions skipped due to invalid motif length.
     pub skipped_invalid_motif: usize,
 }
 
 impl IntersectionStats {
+    /// Calculate number of valid regions processed.
     fn valid_regions(&self) -> usize {
         self.total_regions - self.skipped_invalid_motif
     }
 
+    /// Log a summary of intersection statistics.
     fn log_summary(&self) {
         info!("  Intersection complete:");
         info!("    Total regions in BED: {}", self.total_regions);
@@ -70,24 +94,39 @@ impl IntersectionStats {
         );
     }
 }
+
 /* ================================================ */
 
 /* ======== Variant Analysis Functions ============ */
-/// Check if a sequence is a perfect repeat of a motif
+
+/// Check if an indel is a perfect tandem repeat of a microsatellite motif.
 ///
-/// This function determines if an indel represents a perfect tandem repeat
-/// of the microsatellite motif by:
-/// 1. Finding the anchor (full matching prefix between REF and ALT)
-/// 2. Extracting the changed sequence (non-matching portion after anchor)
-/// 3. Checking if changed sequence is a perfect repeat of the motif
+/// Determines if the changed sequence (insertion or deletion) consists
+/// entirely of complete motif units.
 ///
-/// Example:
-///   REF:     ACAG        (anchor: ACAG, changed: none)
-///   ALT:     ACAGCAG     (anchor: ACAG, changed: CAG)
-///   Motif:   CAG
-///   Anchor:  ACAG (all 4 bases match)
-///   Changed: CAG (only the non-matching part)
-///   Result:  CAG = 1× CAG -> Perfect repeat!
+/// # Algorithm
+/// 1. Find anchor (common prefix between REF and ALT)
+/// 2. Extract changed sequence after anchor
+/// 3. Verify changed sequence length matches |SVLEN|
+/// 4. Check if changed sequence is exact motif repeats
+///
+/// # Arguments
+/// * `alt_seq` - Alternate allele sequence
+/// * `svlen` - Structural variant length (positive=insertion, negative=deletion)
+/// * `motif` - Microsatellite motif to match
+/// * `ref_seq` - Reference allele sequence
+///
+/// # Returns
+/// * `RepeatStatus::Perfect` - Changed sequence is exact motif repeats
+/// * `RepeatStatus::NA` - Does not match or fails validation
+///
+/// # Example
+/// ```text
+/// REF:    ACAG
+/// ALT:    ACAGCAG
+/// Motif:  CAG
+/// Result: Perfect (inserted "CAG" = 1× motif)
+/// ```
 fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) -> RepeatStatus {
     // 0. Handling Edge Cases
     if ref_seq.is_empty() || alt_seq.is_empty() || ref_seq[0] != alt_seq[0] || svlen == 0 {
@@ -146,14 +185,12 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
     // }
 
     if changed_seq.len() % motif_len != 0 {
-        // "Changed sequence length ({}) is not a multiple of motif length ({})"
         return RepeatStatus::NA;
     }
 
     for (i, &base) in changed_seq.iter().enumerate() {
         let expected_base = motif_bytes[i % motif_len];
         if base.to_ascii_uppercase() != expected_base {
-            // Not a perfect repeat: position {} has {} but expected {}
             return RepeatStatus::NA;
         }
     }
@@ -166,21 +203,35 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
 /// This function processes a single variant-allele pair to determine if it's
 /// relevant for MSI analysis. It performs the following steps:
 ///
+/// # Algorithm
 /// 1. **Filtering**: Skip variants that aren't relevant for MSI:
 ///    - SNVs (single nucleotide variants)
 ///    - Symbolic alleles (<DEL>, <INS>)
 ///    - Breakends (complex structural variants)
 ///    - Spanning deletions (*)
 ///    - Non-indel variants
-/// 2. **SVLEN Calculation**: Determine the length of insertion/deletion///
+/// 2. **SVLEN Calculation**: Determine the length of insertion/deletion
 /// 3. **Perfect Repeat Check**: Determine if indel is a perfect repeat
 /// 4. **Probability Extraction**: Get PROB_ABSENT from INFO field
 /// 5. **Allele Frequency Extraction**: Get per-sample AFs from FORMAT:AF
+/// 6. **Final Validation**: Ensure all required data is present for perfect repeats
+///    - If perfect repeat but missing data(prob_absent/sample_afs) : (skip variant)
+///
+/// # Arguments
+/// * `record` - BCF record representing the variant
+/// * `header` - BCF header for metadata access
+/// * `alt_idx` - Index of the alternate allele to analyze
+/// * `region` - BED region context for motif information
+/// * `samples_index_map` - Map of sample names to their indices in the VCF
+/// * `is_phred` - Whether probabilities are PHRED-scaled
 ///
 /// # Returns
 /// * `Ok(None)` - Variant should be skipped (SNV, symbolic, etc.)
 /// * `Ok(Some(VariantAnalysis))` - Valid indel with extracted data
 /// * `Err(...)` - Error occurred (invalid data, I/O error, etc.)
+///
+/// # Example
+///
 fn analyze_variant(
     record: &bcf::Record,
     header: &HeaderView,
@@ -219,7 +270,6 @@ fn analyze_variant(
                 get_chrom(record, header)?,
                 record.pos() + 1
             );
-            // reason: "Perfect repeat but missing required probability (PROB_ABSENT) or All sample Afs"
             return Ok(None);
         }
     } else {
@@ -231,11 +281,25 @@ fn analyze_variant(
         sample_afs,
     }))
 }
+
 /* ================================================ */
 
 /* ============ Streaming Intersection ============ */
+
 /// Check if a variant position is within a BED region
 /// Uses point-based overlap (variant position only)
+///
+/// # Arguments
+/// * `record` - BCF record representing the variant
+/// * `region` - BED region to check overlap against
+///
+/// # Returns
+/// * `true` if variant position is within region, else `false`
+///
+/// # Note: Point-based overlap means we only consider the variant position,
+///
+/// # Example
+///
 #[inline]
 fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion) -> bool {
     // Variant position (0-based)
@@ -244,7 +308,34 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion) -> bool {
     pos >= region.start && pos < region.end
 }
 
-/// Perform streaming intersection of BED regions with VCF variants
+/// Perform streaming intersection of BED regions with VCF variants.
+///
+/// Uses a sliding window approach to efficiently match variants to regions
+/// without loading entire files into memory.
+///
+/// # Algorithm
+/// 1. For each BED region (in genomic order):
+///    - Remove variants before this region from window
+///    - Load variants until past this region
+///    - Analyze overlapping variants for perfect repeats
+///
+/// # Arguments
+/// * `bed_path` - Path to BED file with microsatellite regions
+/// * `vcf_path` - Path to VCF/BCF file with variant calls
+/// * `samples_index_map` - Map of sample names to VCF indices
+///
+/// # Returns
+/// * `Vec<RegionSummary>` - Regions with valid variant
+/// * `usize` - Total number of valid BED regions processed
+///
+/// # Errors
+/// Returns error if:
+/// - Files cannot be opened
+/// - No chromosome overlap between BED and VCF
+/// - Record parsing fails
+///
+/// # Example
+///
 pub(super) fn intersect_streaming(
     bed_path: &PathBuf,
     vcf_path: &PathBuf,
@@ -448,241 +539,106 @@ pub(super) fn intersect_streaming(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::io::Write;
+
+    use rust_htslib::bcf::{self, Read};
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn test_is_perfect_repeat_simple_insertion() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAGCAG";
-        let motif = "CAG";
-        let svlen = 3;
+    use crate::utils::bcf_utils::tests::{
+        create_multi_chromosome_vcf, create_test_vcf, TestVcfConfig,
+    };
+    use crate::utils::stats::TEST_EPSILON;
 
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::Perfect);
+    /* ============ Bed Helper  ====================== */
+
+    fn create_multi_region_bed() -> NamedTempFile {
+        let tmp_bed = NamedTempFile::new().unwrap();
+        writeln!(tmp_bed.as_file(), "chr1\t97\t104\t7xT").unwrap(); // pos 100 inside [97, 104)
+        writeln!(tmp_bed.as_file(), "chr1\t197\t204\t7xT").unwrap(); // pos 200 inside [197, 204)
+        writeln!(tmp_bed.as_file(), "chr2\t147\t154\t7xT").unwrap(); // pos 150 inside [147, 154)
+        writeln!(tmp_bed.as_file(), "chrX\t172\t179\t7xT").unwrap(); // pos 175 inside [172, 179)
+        tmp_bed
+    }
+
+    /* ========== is_perfect_repeat tests ============ */
+
+    #[test]
+    fn test_is_perfect_repeat_insertion() {
+        assert_eq!(
+            is_perfect_repeat(b"ACAGCAG", 3, "CAG", b"ACAG"),
+            RepeatStatus::Perfect
+        );
+        assert_eq!(
+            is_perfect_repeat(b"ACAGCAGCAG", 6, "CAG", b"ACAG"),
+            RepeatStatus::Perfect
+        );
+        assert_eq!(
+            is_perfect_repeat(b"ATT", 1, "T", b"AT"),
+            RepeatStatus::Perfect
+        );
+        /* We are considering even low indels like in the last case. TODO: Check if discarding is better behaviour. */
     }
 
     #[test]
-    fn test_is_perfect_repeat_simple_deletion() {
-        let ref_seq = b"ACAGCAG";
-        let alt_seq = b"ACAG";
-        let motif = "CAG";
-        let svlen = -3;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::Perfect);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_multiple_units() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAGCAGCAG"; // 2 CAG units inserted
-        let motif = "CAG";
-        let svlen = 6;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::Perfect);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_not_perfect() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAGCAT"; // CAT, not CAG
-        let motif = "CAG";
-        let svlen = 3;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::NA);
+    fn test_is_perfect_repeat_deletion() {
+        assert_eq!(
+            is_perfect_repeat(b"ACAG", -3, "CAG", b"ACAGCAG"),
+            RepeatStatus::Perfect
+        );
     }
 
     #[test]
     fn test_is_perfect_repeat_case_insensitive() {
-        let ref_seq = b"acag";
-        let alt_seq = b"acagCAG"; // Mixed case
-        let motif = "cag";
-        let svlen = 3;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::Perfect);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_partial_motif() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAGCA"; // Only "CA" added, not full "CAG"
-        let motif = "CAG";
-        let svlen = 2;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::NA);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_dinucleotide() {
-        let ref_seq = b"ACA";
-        let alt_seq = b"ACACA"; // "CA" dinucleotide
-        let motif = "CA";
-        let svlen = 2;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::Perfect);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_mononucleotide() {
-        let ref_seq = b"AT";
-        let alt_seq = b"ATT"; // "T" mononucleotide
-        let motif = "T";
-        let svlen = 1;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::Perfect);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_svlen_zero() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAT"; // SNV, not indel
-        let motif = "CAG";
-        let svlen = 0;
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::NA);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_anchor_zero() {
-        let ref_seq = b"A";
-        let alt_seq = b"TCAG";
-        let motif = "TCAG";
-        let svlen = 4; // No Anchor match
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::NA);
-    }
-
-    #[test]
-    fn test_is_perfect_repeat_length_mismatch() {
-        let ref_seq = b"ACAG";
-        let alt_seq = b"ACAGCAG";
-        let motif = "CAG";
-        let svlen = 5; // Wrong! Should be 3
-
-        let status = is_perfect_repeat(alt_seq, svlen, motif, ref_seq);
-        assert_eq!(status, RepeatStatus::NA);
-    }
-
-    /// Helper to encode genotype alleles for VCF FORMAT:GT
-    fn encode_genotype_allele(allele_index: i32, phased: bool) -> i32 {
-        let phased_flag = if phased { 1 } else { 0 };
-        (allele_index + 1) * 2 | phased_flag
-    }
-
-    /// Create a test VCF file with configurable alleles
-    /// Returns (temp_file, sample_names)
-    fn create_test_vcf_with_alleles(
-        ref_allele: &[u8],
-        alt_alleles: Vec<&[u8]>,
-        af_values: Option<Vec<f32>>,
-        use_phred: bool,
-    ) -> (NamedTempFile, Vec<String>) {
-        let tmp = NamedTempFile::new().unwrap();
-        let path = tmp.path();
-
-        let mut header = rust_htslib::bcf::Header::new();
-        header.push_record(br"##fileformat=VCFv4.2");
-        header.push_record(br"##contig=<ID=chr1,length=1000000>");
-        header.push_record(br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##);
-
-        if use_phred {
-            header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent (PHRED)">"##);
-            header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact (PHRED)">"##);
-        } else {
-            header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent (linear)">"##);
-            header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact (linear)">"##);
-        }
-
-        header.push_sample(b"sample1");
-        header.push_sample(b"sample2");
-        header.push_record(br##"##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">"##);
-        header.push_record(
-            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">"##,
+        assert_eq!(
+            is_perfect_repeat(b"acagCAG", 3, "cag", b"acag"),
+            RepeatStatus::Perfect
         );
-
-        let mut wtr = rust_htslib::bcf::Writer::from_path(
-            path,
-            &header,
-            false,
-            rust_htslib::bcf::Format::Vcf,
-        )
-        .unwrap();
-
-        let mut rec = wtr.empty_record();
-        rec.set_rid(Some(0));
-        rec.set_pos(99);
-
-        // Build alleles array: [REF, ALT1, ALT2, ...]
-        let mut alleles_vec = vec![ref_allele];
-        alleles_vec.extend(alt_alleles.iter());
-        rec.set_alleles(&alleles_vec).unwrap();
-
-        // Add SVLEN for each ALT
-        let svlen_values: Vec<i32> = alt_alleles
-            .iter()
-            .map(|alt| (alt.len() as i32) - (ref_allele.len() as i32))
-            .collect();
-        rec.push_info_integer(b"SVLEN", &svlen_values).unwrap();
-
-        let (prob_absent_values, prob_artifact_values) = if use_phred {
-            // For Phred: use values that convert to reasonable probabilities
-            // Phred 20 = 0.01 probability, Phred 10 = 0.1 probability
-            (vec![20.0; alt_alleles.len()], vec![10.0; alt_alleles.len()])
-        } else {
-            // For linear: use direct probabilities that sum appropriately
-            (
-                vec![0.005; alt_alleles.len()],
-                vec![0.005; alt_alleles.len()],
-            )
-        };
-
-        // // Add PROB_ABSENT for each ALT
-        // let prob_absent_values: Vec<f32> = vec![0.01; alt_alleles.len()];
-        rec.push_info_float(b"PROB_ABSENT", &prob_absent_values)
-            .unwrap();
-
-        // // Add PROB_ARTIFACT for each ALT
-        // let prob_artifact_values: Vec<f32> = vec![0.01; alt_alleles.len()];
-        rec.push_info_float(b"PROB_ARTIFACT", &prob_artifact_values)
-            .unwrap();
-
-        // Add GT (0/1 for sample1, 1/1 for sample2)
-        let genotypes_data = [
-            encode_genotype_allele(0, false),
-            encode_genotype_allele(1, false),
-            encode_genotype_allele(1, false),
-            encode_genotype_allele(1, false),
-        ];
-        rec.push_format_integer(b"GT", &genotypes_data).unwrap();
-
-        // Add AF values if provided
-        if let Some(afs) = af_values {
-            rec.push_format_float(b"AF", &afs).unwrap();
-        }
-
-        wtr.write(&rec).unwrap();
-
-        (tmp, vec!["sample1".to_string(), "sample2".to_string()])
     }
+
+    #[test]
+    fn test_is_perfect_repeat_not_perfect() {
+        assert_eq!(
+            is_perfect_repeat(b"ACAGCAT", 3, "CAG", b"ACAG"),
+            RepeatStatus::NA
+        );
+        assert_eq!(
+            is_perfect_repeat(b"ACAGCA", 2, "CAG", b"ACAG"),
+            RepeatStatus::NA
+        );
+        assert_eq!(
+            is_perfect_repeat(b"AAAGAGAGAGA", 7, "GA", b"AAAT"),
+            RepeatStatus::NA
+        );
+        /* Last test: Special Case when tail remains in ref/alt apart from anchor.
+            Here we consider it NA as it's not a clean indel.
+        */
+    }
+
+    #[test]
+    fn test_is_perfect_repeat_edge_cases() {
+        assert_eq!(is_perfect_repeat(b"CAG", 3, "CAG", b""), RepeatStatus::NA);
+        assert_eq!(is_perfect_repeat(b"", 0, "CAG", b"CAG"), RepeatStatus::NA);
+        assert_eq!(
+            is_perfect_repeat(b"ACAT", 0, "CAG", b"ACAG"),
+            RepeatStatus::NA
+        );
+        assert_eq!(
+            is_perfect_repeat(b"TCAG", 3, "TCAG", b"A"),
+            RepeatStatus::NA
+        );
+    }
+
+    /* ========== analyze_variant tests ============== */
 
     #[test]
     fn test_analyze_variant_filters_snv() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(
-            b"A",
-            vec![b"T"], // SNV
-            // Some(vec![0.5]),
-            Some(vec![0.5, 0.5]),
-            false,
-        );
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            ref_allele: b"A",
+            alt_alleles: vec![b"T"],
+            af_values: Some(vec![0.5, 0.5]),
+            ..Default::default()
+        });
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = reader.header().clone();
@@ -700,18 +656,19 @@ mod tests {
 
         let result =
             analyze_variant(&record, &header, 0, &region, &samples_index_map, false).unwrap();
-
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_analyze_variant_analyzes_indel() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(
-            b"ACAG",
-            vec![b"ACAGCAG"], // Insertion
-            Some(vec![0.5, 0.8]),
-            false,
-        );
+    fn test_analyze_variant_perfect_indel() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            ref_allele: b"ACAG",
+            alt_alleles: vec![b"ACAGCAG"],
+            af_values: Some(vec![0.5, 0.8]),
+            prob_absent: Some(vec![0.01]),
+            prob_artifact: Some(vec![0.005]),
+            ..Default::default()
+        });
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = reader.header().clone();
@@ -733,20 +690,52 @@ mod tests {
 
         assert!(result.is_some());
         let variant = result.unwrap();
-        assert!((variant.prob_absent - 0.01).abs() < 1e-6);
+        assert!((variant.prob_absent - 0.015).abs() < TEST_EPSILON);
         assert_eq!(variant.sample_afs.len(), 2);
-        assert!((variant.sample_afs["sample1"] - 0.5).abs() < 1e-6);
-        assert!((variant.sample_afs["sample2"] - 0.8).abs() < 1e-6);
+        assert!((variant.sample_afs["sample1"] - 0.5).abs() < TEST_EPSILON);
+        assert!((variant.sample_afs["sample2"] - 0.8).abs() < TEST_EPSILON);
     }
 
     #[test]
-    fn test_analyze_variant_multi_allelic_site() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(
-            b"A",
-            vec![b"T", b"ATG"],             // SNV + Indel
-            Some(vec![0.3, 0.3, 0.6, 0.6]), // 2 samples × 2 alts = 4 values
-            false,
-        );
+    fn test_analyze_variant_phred_probabilities() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            ref_allele: b"ACAG",
+            alt_alleles: vec![b"ACAGCAG"],
+            af_values: Some(vec![0.5, 0.8]),
+            use_phred: true,
+            ..Default::default()
+        });
+
+        let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
+        let header = reader.header().clone();
+        let record = reader.records().next().unwrap().unwrap();
+
+        let region = BedRegion {
+            chrom: "chr1".to_string(),
+            start: 0,
+            end: 200,
+            motif: "CAG".to_string(),
+        };
+
+        let mut samples_index_map = HashMap::new();
+        samples_index_map.insert("sample1".to_string(), 0);
+
+        let result =
+            analyze_variant(&record, &header, 0, &region, &samples_index_map, true).unwrap();
+
+        assert!(result.is_some());
+        let variant = result.unwrap();
+        assert!((variant.prob_absent - 0.11).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_analyze_variant_multi_allelic() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            ref_allele: b"A",
+            alt_alleles: vec![b"T", b"ATG"],
+            af_values: Some(vec![0.3, 0.3, 0.6, 0.6]),
+            ..Default::default()
+        });
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = reader.header().clone();
@@ -762,20 +751,25 @@ mod tests {
         let mut samples_index_map = HashMap::new();
         samples_index_map.insert("sample1".to_string(), 0);
 
-        // alt_idx=0 (T, SNV) should be filtered
-        let result_snv =
-            analyze_variant(&record, &header, 0, &region, &samples_index_map, false).unwrap();
-        assert!(result_snv.is_none());
-
-        // alt_idx=1 (ATG, indel) should be analyzed
-        let result_indel =
-            analyze_variant(&record, &header, 1, &region, &samples_index_map, false).unwrap();
-        assert!(result_indel.is_some());
+        assert!(
+            analyze_variant(&record, &header, 0, &region, &samples_index_map, false)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            analyze_variant(&record, &header, 1, &region, &samples_index_map, false)
+                .unwrap()
+                .is_some()
+        );
     }
 
     #[test]
     fn test_analyze_variant_filters_symbolic() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"<DEL>"], None, false);
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            ref_allele: b"A",
+            alt_alleles: vec![b"<DEL>"],
+            ..Default::default()
+        });
 
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = reader.header().clone();
@@ -793,161 +787,133 @@ mod tests {
 
         let result =
             analyze_variant(&record, &header, 0, &region, &samples_index_map, false).unwrap();
-
         assert!(result.is_none());
     }
 
-    // #[test]
-    // fn test_analyze_variant_downgrades_perfect_without_prob() {
-    //     // Create VCF without PROB_ABSENT field
-    //     let tmp = NamedTempFile::new().unwrap();
-    //     let path = tmp.path();
-
-    //     let mut header = rust_htslib::bcf::Header::new();
-    //     header.push_record(br"##fileformat=VCFv4.2");
-    //     header.push_record(br"##contig=<ID=chr1,length=1000000>");
-    //     header.push_record(br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##);
-    //     // NO PROB_ABSENT field!
-    //     header.push_sample(b"sample1");
-    //     header.push_record(br##"##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">"##);
-    //     header.push_record(br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">"##);
-    //     header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent">"##);
-
-    //     let mut wtr = rust_htslib::bcf::Writer::from_path(
-    //         path, &header, false, rust_htslib::bcf::Format::Vcf
-    //     ).unwrap();
-
-    //     let mut rec = wtr.empty_record();
-    //     rec.set_rid(Some(0));
-    //     rec.set_pos(99);
-    //     rec.set_alleles(&[b"ACAG", b"ACAGCAG"]).unwrap();
-    //     rec.push_info_integer(b"SVLEN", &[3]).unwrap();
-    //     rec.push_format_float(b"AF", &[0.5]).unwrap();
-    //     wtr.write(&rec).unwrap();
-
-    //     let mut reader = bcf::Reader::from_path(path).unwrap();
-    //     let header_view = reader.header().clone();
-    //     let record = reader.records().next().unwrap().unwrap();
-
-    //     let region = BedRegion {
-    //         chrom: "chr1".to_string(),
-    //         start: 0,
-    //         end: 200,
-    //         motif: "CAG".to_string(),
-    //     };
-
-    //     let mut samples_index_map = HashMap::new();
-    //     samples_index_map.insert("sample1".to_string(), 0);
-
-    //     let result = analyze_variant(&record, &header_view, 0, &region, &samples_index_map, false).unwrap();
-
-    //     // Should still return Some, but downgraded to NA
-    //     assert!(result.is_some());
-    //     let analysis = result.unwrap();
-    //     assert!(matches!(analysis.repeat_status, RepeatStatus::NA));
-    //     assert!(analysis.prob_absent.is_none());
-    // }
-
     #[test]
-    fn test_variant_overlaps_region_inside() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
-        let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
+    fn test_analyze_variant_downgrades_without_prob() {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path();
+
+        let mut header = rust_htslib::bcf::Header::new();
+        header.push_record(br"##fileformat=VCFv4.2");
+        header.push_record(br"##contig=<ID=chr1,length=1000000>");
+        header.push_record(br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##);
+        // Headers defined but won't add values to the record for PROB_ABSENT and PROB_ARTIFACT
+        header.push_record(
+            br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent">"##,
+        );
+        header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact">"##);
+        header.push_sample(b"sample1");
+        header.push_record(
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">"##,
+        );
+
+        let mut wtr = rust_htslib::bcf::Writer::from_path(
+            path,
+            &header,
+            false,
+            rust_htslib::bcf::Format::Vcf,
+        )
+        .unwrap();
+
+        let mut rec = wtr.empty_record();
+        rec.set_rid(Some(0));
+        rec.set_pos(99);
+        rec.set_alleles(&[b"ACAG", b"ACAGCAG"]).unwrap();
+        rec.push_info_integer(b"SVLEN", &[3]).unwrap();
+        rec.push_format_float(b"AF", &[0.5]).unwrap();
+        wtr.write(&rec).unwrap();
+        drop(wtr);
+
+        let mut reader = bcf::Reader::from_path(path).unwrap();
+        let header_view = reader.header().clone();
         let record = reader.records().next().unwrap().unwrap();
 
         let region = BedRegion {
             chrom: "chr1".to_string(),
             start: 0,
             end: 200,
-            motif: "A".to_string(),
+            motif: "CAG".to_string(),
         };
 
-        // Variant at position 99, region [0, 200)
-        assert!(variant_overlaps_region(&record, &region));
+        let mut samples_index_map = HashMap::new();
+        samples_index_map.insert("sample1".to_string(), 0);
+
+        let result =
+            analyze_variant(&record, &header_view, 0, &region, &samples_index_map, false).unwrap();
+        assert!(result.is_none());
     }
 
+    /* ====== variant_overlaps_region tests ========== */
+
     #[test]
-    fn test_variant_overlaps_region_before() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
+    fn test_variant_overlaps_region() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig::default());
         let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
 
-        let region = BedRegion {
-            chrom: "chr1".to_string(),
-            start: 100, // Variant at 99, region starts at 100
-            end: 200,
-            motif: "A".to_string(),
-        };
+        // Inside
+        assert!(variant_overlaps_region(
+            &record,
+            &BedRegion {
+                chrom: "chr1".to_string(),
+                start: 0,
+                end: 200,
+                motif: "A".to_string(),
+            }
+        ));
 
-        // Variant at 99 < start 100
-        assert!(!variant_overlaps_region(&record, &region));
+        // At start (inclusive)
+        assert!(variant_overlaps_region(
+            &record,
+            &BedRegion {
+                chrom: "chr1".to_string(),
+                start: 99,
+                end: 200,
+                motif: "A".to_string(),
+            }
+        ));
+
+        // Before region
+        assert!(!variant_overlaps_region(
+            &record,
+            &BedRegion {
+                chrom: "chr1".to_string(),
+                start: 100,
+                end: 200,
+                motif: "A".to_string(),
+            }
+        ));
+
+        // At end (exclusive)
+        assert!(!variant_overlaps_region(
+            &record,
+            &BedRegion {
+                chrom: "chr1".to_string(),
+                start: 0,
+                end: 99,
+                motif: "A".to_string(),
+            }
+        ));
     }
 
-    #[test]
-    fn test_variant_overlaps_region_at_start() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
-        let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
-        let record = reader.records().next().unwrap().unwrap();
-
-        let region = BedRegion {
-            chrom: "chr1".to_string(),
-            start: 99, // Variant at 99, region starts at 99
-            end: 200,
-            motif: "A".to_string(),
-        };
-
-        // Variant at 99 >= start 99
-        assert!(variant_overlaps_region(&record, &region));
-    }
-
-    #[test]
-    fn test_variant_overlaps_region_at_end() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
-        let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
-        let record = reader.records().next().unwrap().unwrap();
-
-        let region = BedRegion {
-            chrom: "chr1".to_string(),
-            start: 0,
-            end: 99, // Variant at 99, region ends at 99 (exclusive)
-            motif: "A".to_string(),
-        };
-
-        // Variant at 99 >= end 99 (half-open interval)
-        assert!(!variant_overlaps_region(&record, &region));
-    }
-
-    #[test]
-    fn test_variant_overlaps_region_after() {
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(b"A", vec![b"T"], None, false);
-        let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
-        let record = reader.records().next().unwrap().unwrap();
-
-        let region = BedRegion {
-            chrom: "chr1".to_string(),
-            start: 0,
-            end: 50, // Variant at 99, region ends at 50
-            motif: "A".to_string(),
-        };
-
-        // Variant at 99 >= end 50
-        assert!(!variant_overlaps_region(&record, &region));
-    }
+    /* ========== intersect_streaming tests ========== */
 
     #[test]
     fn test_intersect_streaming_basic() {
-        // Create test VCF
-        let (tmp_vcf, _) = create_test_vcf_with_alleles(
-            b"ACAG",
-            vec![b"ACAGCAG"], // Perfect repeat insertion
-            Some(vec![0.5, 0.8]),
-            false,
-        );
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            ref_allele: b"ACAG",
+            alt_alleles: vec![b"ACAGCAG"],
+            af_values: Some(vec![0.5, 0.8]),
+            prob_absent: Some(vec![0.01]),
+            prob_artifact: Some(vec![0.005]),
+            ..Default::default()
+        });
 
-        // Create test BED
         let tmp_bed = NamedTempFile::new().unwrap();
-        writeln!(tmp_bed.as_file(), "chr1\t0\t200\t3xCAG").unwrap();
+        writeln!(tmp_bed.as_file(), "chr1\t96\t105\t3xCAG").unwrap();
 
-        // Run intersection
         let mut samples_index_map = HashMap::new();
         samples_index_map.insert("sample1".to_string(), 0);
         samples_index_map.insert("sample2".to_string(), 1);
@@ -959,24 +925,20 @@ mod tests {
         )
         .unwrap();
 
-        // Verify results
         assert_eq!(total_regions, 1);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].variants.len(), 1);
-        assert!(
-            results[0].variants[0].prob_absent >= 0.0 && results[0].variants[0].prob_absent <= 1.0
-        ); //TODO:
     }
 
     #[test]
     fn test_intersect_streaming_no_overlap() {
-        // Create test VCF at position 99
-        let (tmp_vcf, _) =
-            create_test_vcf_with_alleles(b"A", vec![b"AT"], Some(vec![0.5, 0.8]), false);
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            af_values: Some(vec![0.5, 0.8]),
+            ..Default::default()
+        });
 
-        // Create test BED far from variant
         let tmp_bed = NamedTempFile::new().unwrap();
-        writeln!(tmp_bed.as_file(), "chr1\t200\t300\t3xCAG").unwrap();
+        writeln!(tmp_bed.as_file(), "chr1\t200\t209\t3xCAG").unwrap();
 
         let mut samples_index_map = HashMap::new();
         samples_index_map.insert("sample1".to_string(), 0);
@@ -988,8 +950,30 @@ mod tests {
         )
         .unwrap();
 
-        // Verify no overlap
         assert_eq!(total_regions, 1);
         assert_eq!(results.len(), 0);
+    }
+
+    #[test]
+    fn test_intersect_streaming_multi_chromosome() {
+        let tmp_vcf = create_multi_chromosome_vcf();
+        let tmp_bed = create_multi_region_bed();
+
+        let mut samples_index_map = HashMap::new();
+        samples_index_map.insert("sample1".to_string(), 0);
+
+        let (results, total_regions) = intersect_streaming(
+            &tmp_bed.path().to_path_buf(),
+            &tmp_vcf.path().to_path_buf(),
+            &samples_index_map,
+        )
+        .unwrap();
+
+        assert_eq!(total_regions, 4);
+        assert!(results.len() == 4);
+        assert!(results[0].variants.len() == 1);
+        assert!(results[1].variants.len() == 1);
+        assert!(results[2].variants.len() == 1);
+        assert!(results[3].variants.len() == 1);
     }
 }
