@@ -52,7 +52,7 @@ pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
             "Y" => Some(24),
             "M" | "MT" => Some(25),
             _ => None,
-        }
+        },
     }
 }
 
@@ -91,7 +91,7 @@ pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
     // Calculate length difference after anchor
     let ref_tail = ref_seq.len() - anchor_len;
     let alt_tail = alt_seq.len() - anchor_len;
-    
+
     alt_tail as i32 - ref_tail as i32
 }
 
@@ -185,26 +185,25 @@ mod tests {
 
     #[test]
     fn test_calculate_dynamic_svlen_insertions() {
-        assert_eq!(calculate_dynamic_svlen(b"ACAG", b"ACAGCAG"), 3);  // Simple insertion
-        assert_eq!(calculate_dynamic_svlen(b"AT", b"ATATAT"), 4);     // Multiple unit insertion
-        assert_eq!(calculate_dynamic_svlen(b"A", b"AT"), 1);          // Single base insertion        
-        assert_eq!(calculate_dynamic_svlen(b"", b"CAG"), 3);          // No anchor insertion
-        assert_eq!(calculate_dynamic_svlen(b"AAT", b"AACAG"), 2);     // (Special Case)
+        assert_eq!(calculate_dynamic_svlen(b"ACAG", b"ACAGCAG"), 3); // Simple insertion
+        assert_eq!(calculate_dynamic_svlen(b"AT", b"ATATAT"), 4); // Multiple unit insertion
+        assert_eq!(calculate_dynamic_svlen(b"A", b"AT"), 1); // Single base insertion
+        assert_eq!(calculate_dynamic_svlen(b"", b"CAG"), 3); // No anchor insertion
+        assert_eq!(calculate_dynamic_svlen(b"AAT", b"AACAG"), 2); // (Special Case)
     }
-
 
     #[test]
     fn test_calculate_dynamic_svlen_deletions() {
-        assert_eq!(calculate_dynamic_svlen(b"ACAGT", b"AC"), -3);  // Simple deletion      
-        assert_eq!(calculate_dynamic_svlen(b"ATCG", b"A"), -3);    // Complete deletion after anchor
-        assert_eq!(calculate_dynamic_svlen(b"AT", b"A"), -1);      // Single base deletion
+        assert_eq!(calculate_dynamic_svlen(b"ACAGT", b"AC"), -3); // Simple deletion
+        assert_eq!(calculate_dynamic_svlen(b"ATCG", b"A"), -3); // Complete deletion after anchor
+        assert_eq!(calculate_dynamic_svlen(b"AT", b"A"), -1); // Single base deletion
         assert_eq!(calculate_dynamic_svlen(b"AACAG", b"AAT"), -2); // (Special Case)
     }
 
     #[test]
     fn test_calculate_dynamic_svlen_substitutions() {
-        assert_eq!(calculate_dynamic_svlen(b"A", b"T"), 0);       // SNV
-        assert_eq!(calculate_dynamic_svlen(b"ACG", b"TGC"), 0);   // MNV (multiple nucleotide variant)
+        assert_eq!(calculate_dynamic_svlen(b"A", b"T"), 0); // SNV
+        assert_eq!(calculate_dynamic_svlen(b"ACG", b"TGC"), 0); // MNV (multiple nucleotide variant)
         assert_eq!(calculate_dynamic_svlen(b"ATCG", b"ATCG"), 0); // Same sequences
     }
 
@@ -221,10 +220,10 @@ mod tests {
         assert_eq!(calculate_dynamic_svlen(b"", b""), 0);
         assert_eq!(calculate_dynamic_svlen(b"ATG", b""), -3);
         assert_eq!(calculate_dynamic_svlen(b"", b"ATG"), 3);
-        
+
         // No common anchor
         assert_eq!(calculate_dynamic_svlen(b"AAA", b"TTT"), 0);
-        
+
         // Very long sequences
         let long_ref = b"A".repeat(1000);
         let long_alt = b"A".repeat(1005);
@@ -240,11 +239,11 @@ mod tests {
         assert_eq!(classify_msi_status(2.0, 3.5), "MSS");
         assert_eq!(classify_msi_status(3.49999, 3.5), "MSS");
         assert_eq!(classify_msi_status(4.0, 5.0), "MSS");
-        
+
         // At threshold (inclusive)
         assert_eq!(classify_msi_status(3.5, 3.5), "MSI-High");
         assert_eq!(classify_msi_status(5.0, 5.0), "MSI-High");
-        
+
         // Above threshold
         assert_eq!(classify_msi_status(3.50001, 3.5), "MSI-High");
         assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High");
