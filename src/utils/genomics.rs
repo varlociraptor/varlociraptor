@@ -18,10 +18,18 @@
 /// # Returns
 /// Normalized chromosome name without "chr" prefix
 ///
+/// # Note
+/// Case-insensitive removal of "chr" prefix.
+/// Preserves original case for the rest of the name.
+///
 /// # Example
 /// assert_eq!(normalize_chrom("chr1"), "1");
 pub(crate) fn normalize_chrom(chrom: &str) -> String {
-    chrom.trim_start_matches("chr").to_string()
+    if chrom.len() >= 3 && chrom[..3].eq_ignore_ascii_case("chr") {
+        chrom[3..].to_string()
+    } else {
+        chrom.to_string()
+    }
 }
 
 /// Convert chromosome name to sortable rank for natural ordering.
@@ -41,16 +49,21 @@ pub(crate) fn normalize_chrom(chrom: &str) -> String {
 /// * `Some(rank)` - Numeric rank for recognized chromosomes
 /// * `None` - For unrecognized chromosomes
 ///
+/// # Note
+/// Currently supports only human chromosomes (1-22, X, Y, M/MT).
+/// Other species will return `None`. Extend with custom logic for other genomes.
+///
 /// # Example
 /// assert_eq!(chrom_rank_checked("chr1"), Some(1));
+/// assert_eq!(chrom_rank_checked("GL000192.1"), None);
 pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
     let normalized = normalize_chrom(chrom);
     match normalized.parse::<u32>() {
         Ok(n) if (1..=22).contains(&n) => Some(n),
         _ => match normalized.as_str() {
-            "X" => Some(23),
-            "Y" => Some(24),
-            "M" | "MT" => Some(25),
+            "X" | "x" => Some(23),
+            "Y" | "y" => Some(24),
+            "M" | "m" | "MT" | "Mt" | "mT" | "mt" => Some(25),
             _ => None,
         },
     }
@@ -75,6 +88,10 @@ pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
 /// * Positive value - Insertion (ALT longer than REF)
 /// * Negative value - Deletion (REF longer than ALT)
 /// * Zero - Same length (likely SNV or MNV)
+///
+/// # Note
+/// Anchor-aware: calculates length difference ignoring common prefix (anchor).
+/// Handles empty sequences (start or end of sequence) gracefully.
 ///
 /// # Examples
 /// Insertion: REF=ACAG, ALT=ACAGCAG : +3
@@ -132,6 +149,8 @@ mod tests {
         assert_eq!(normalize_chrom("chrX"), "X");
         assert_eq!(normalize_chrom("MT"), "MT");
         assert_eq!(normalize_chrom("chrMT"), "MT");
+        assert_eq!(normalize_chrom("Chr1"), "1");
+        assert_eq!(normalize_chrom("CHR2"), "2");
 
         /* Upstream should be aware of these: */
         assert_eq!(normalize_chrom("GL000192.1"), "GL000192.1");
@@ -147,6 +166,9 @@ mod tests {
         assert_eq!(chrom_rank_checked("22"), Some(22)); // Autosomes
         assert_eq!(chrom_rank_checked("X"), Some(23)); // Sex chromosomes
         assert_eq!(chrom_rank_checked("M"), Some(25)); // Mitochondrial
+
+        assert_eq!(chrom_rank_checked("chr1"), Some(1)); // With chr prefix
+        assert_eq!(chrom_rank_checked("chry"), Some(24)); // With chr prefix lowercase
     }
 
     #[test]
