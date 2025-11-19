@@ -487,7 +487,7 @@ pub(crate) fn validate_vcf_file(
 /* ================================================ */
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use rust_htslib::bcf::record::Numeric;
     use tempfile::NamedTempFile;
@@ -506,20 +506,20 @@ mod tests {
     /// A full genotype like "0/0" would be encoded as: [2, 2]
     ///
     /// Reference: https://samtools.github.io/hts-specs/BCFv2_qref.pdf
-    fn encode_genotype_allele(allele_index: i32, phased: bool) -> i32 {
+    pub(crate) fn encode_genotype_allele(allele_index: i32, phased: bool) -> i32 {
         let phased_flag = if phased { 1 } else { 0 };
         (allele_index + 1) * 2 | phased_flag
     }
 
     /// Configuration for test VCF creation
-    struct TestVcfConfig<'a> {
-        ref_allele: &'a [u8],
-        alt_alleles: Vec<&'a [u8]>,
-        af_values: Option<Vec<f32>>,
-        prob_absent: Option<Vec<f32>>,
-        prob_artifact: Option<Vec<f32>>,
-        num_samples: usize,
-        use_phred: bool,
+    pub(crate) struct TestVcfConfig<'a> {
+        pub ref_allele: &'a [u8],
+        pub alt_alleles: Vec<&'a [u8]>,
+        pub af_values: Option<Vec<f32>>,
+        pub prob_absent: Option<Vec<f32>>,
+        pub prob_artifact: Option<Vec<f32>>,
+        pub num_samples: usize,
+        pub use_phred: bool,
     }
 
     impl<'a> Default for TestVcfConfig<'a> {
@@ -536,7 +536,7 @@ mod tests {
         }
     }
 
-    fn create_test_vcf(config: TestVcfConfig) -> (NamedTempFile, Vec<String>) {
+    pub(crate) fn create_test_vcf(config: TestVcfConfig) -> (NamedTempFile, Vec<String>) {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path();
 
@@ -634,6 +634,36 @@ mod tests {
         wtr.write(&rec).unwrap();
 
         (tmp, sample_names)
+    }
+
+    pub(crate) fn create_multi_chromosome_vcf() -> NamedTempFile {
+        let tmp = NamedTempFile::new().unwrap();
+        let path = tmp.path();
+
+        let mut header = rust_htslib::bcf::Header::new();
+        header.push_record(br"##fileformat=VCFv4.2");
+        header.push_record(br"##contig=<ID=chr1,length=1000000>");
+        header.push_record(br"##contig=<ID=chr2,length=1000000>");
+        header.push_record(br"##contig=<ID=chrX,length=1000000>");
+        header.push_sample(b"sample1");
+
+        let mut wtr = rust_htslib::bcf::Writer::from_path(
+            path,
+            &header,
+            false,
+            rust_htslib::bcf::Format::Vcf,
+        )
+        .unwrap();
+
+        for (rid, pos) in &[(0, 100), (0, 200), (1, 150), (2, 175)] {
+            let mut rec = wtr.empty_record();
+            rec.set_rid(Some(*rid));
+            rec.set_pos(*pos);
+            rec.set_alleles(&[b"A", b"AT"]).unwrap();
+            wtr.write(&rec).unwrap();
+        }
+
+        tmp
     }
 
     /* ==== BCF Extraction Function(s) tests ========= */
