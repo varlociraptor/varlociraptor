@@ -177,7 +177,7 @@ pub(crate) fn validate_bed_file(bed_path: &PathBuf) -> Result<()> {
             let first_region = parse_bed_record(&record)?;
             info!("  - BED file validated successfully");
             info!(
-                "  - First region: ({} {}-{} {}x{}) ms-status={}",
+                "  - First region: ({} {}-{} {}x{}) valid-motif={}",
                 first_region.chrom,
                 first_region.start,
                 first_region.end,
