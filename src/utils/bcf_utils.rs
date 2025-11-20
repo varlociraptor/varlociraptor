@@ -347,14 +347,8 @@ pub(crate) fn is_indel(ref_allele: &[u8], alt_allele: &[u8]) -> bool {
 /// # Returns
 /// `true` if allele is symbolic, `false` otherwise
 ///
-/// Examples:
-/// - `<DEL>` - Deletion
-/// - `<INS>` - Insertion  
-/// - `<DUP>` - Duplication
-/// - `<INV>` - Inversion
-/// - `<CNV>` - Copy number variation
-/// - `<NON_REF>` - GVCF placeholder for "any other allele"
-/// assert!(is_symbolic(b"<DEL>"));
+/// Examples
+///  assert!(is_symbolic(b"<DEL>"));
 pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
     allele.len() >= 3 && allele.starts_with(b"<") && allele.ends_with(b">")
 }
