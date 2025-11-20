@@ -113,11 +113,13 @@ impl<'a> FilteredRegions<'a> {
 ///
 /// Determines which expensive computations are needed based on
 /// which output files the user requested.
-/// needs_pseudotime: For pseudotime data
-/// needs_distribution: For distribution data
+/// - needs_pseudotime: For pseudotime data
+/// - needs_distribution: For distribution data
 #[derive(Debug, Clone, Copy)]
 pub(super) struct OutputRequirements {
+    /// Whether to compute uncertainty bounds (std dev, lower/upper)
     pub needs_pseudotime: bool,
+    /// Whether to compute full probability distribution
     pub needs_distribution: bool,
 }
 
@@ -428,8 +430,6 @@ fn calculate_msi_metrics(
 
 /* ================================================ */
 
-/* ================================================ */
-
 /* == DP ANALYSIS CORE: RUN AF EVOLUTION ========== */
 
 /// Run AF evolution analysis across all samples and AF thresholds
@@ -548,24 +548,11 @@ pub(super) fn run_af_evolution_analysis(
 
 /* ================================================ */
 
-// fn debug_log_results(results: &HashMap<String, HashMap<String, AfEvolutionResult>>) -> Result<()> {
-//     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-//     let out_path = format!(
-//         "{}/dev_sandbox/output/af_evolution_results.json",
-//         manifest_dir
-//     );
-//     let file =
-//         File::create(&out_path).context("Failed to create AF evolution debug output file")?;
-//     let writer = BufWriter::new(file);
-//     serde_json::to_writer_pretty(writer, results)
-//         .context("Failed to write AF evolution results to JSON")?;
-//     info!("  Debug: Wrote AF evolution results to {}", out_path);
-//     Ok(())
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::utils::stats::TEST_EPSILON;
 
     // Helper to create test variants
     fn make_variant(prob: f64, afs: Vec<(&str, f64)>) -> Variant {
@@ -587,7 +574,7 @@ mod tests {
         let dist = run_msi_dp(&probs);
 
         assert_eq!(dist.len(), 1);
-        assert!((dist[0] - 1.0).abs() < 1e-10);
+        assert!((dist[0] - 1.0).abs() < TEST_EPSILON);
     }
 
     #[test]
@@ -596,8 +583,8 @@ mod tests {
         let dist = run_msi_dp(&probs);
 
         assert_eq!(dist.len(), 2);
-        assert!((dist[0] - 0.7).abs() < 1e-10); // P(0 unstable) = 0.7
-        assert!((dist[1] - 0.3).abs() < 1e-10); // P(1 unstable) = 0.3
+        assert!((dist[0] - 0.7).abs() < TEST_EPSILON); // P(0 unstable) = 0.7
+        assert!((dist[1] - 0.3).abs() < TEST_EPSILON); // P(1 unstable) = 0.3
     }
 
     #[test]
@@ -612,9 +599,9 @@ mod tests {
         // P(0) = 0.7 × 0.6 = 0.42
         // P(1) = 0.7 × 0.4 + 0.3 × 0.6 = 0.46
         // P(2) = 0.3 × 0.4 = 0.12
-        assert!((dist[0] - 0.42).abs() < 1e-10);
-        assert!((dist[1] - 0.46).abs() < 1e-10);
-        assert!((dist[2] - 0.12).abs() < 1e-10);
+        assert!((dist[0] - 0.42).abs() < TEST_EPSILON);
+        assert!((dist[1] - 0.46).abs() < TEST_EPSILON);
+        assert!((dist[2] - 0.12).abs() < TEST_EPSILON);
     }
 
     #[test]
@@ -627,7 +614,31 @@ mod tests {
         let dist = run_msi_dp(&probs);
 
         let sum: f64 = dist.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-10);
+        assert!((sum - 1.0).abs() < TEST_EPSILON);
+    }
+
+    #[test]
+    fn test_run_msi_dp_all_stable() {
+        let probs = vec![
+            RegionProbability { p_stable: 1.0 },
+            RegionProbability { p_stable: 1.0 },
+        ];
+        let dist = run_msi_dp(&probs);
+        assert!((dist[0] - 1.0).abs() < TEST_EPSILON);
+        assert!((dist[1] - 0.0).abs() < TEST_EPSILON);
+        assert!((dist[2] - 0.0).abs() < TEST_EPSILON);
+    }
+
+    #[test]
+    fn test_run_msi_dp_all_unstable() {
+        let probs = vec![
+            RegionProbability { p_stable: 0.0 },
+            RegionProbability { p_stable: 0.0 },
+        ];
+        let dist = run_msi_dp(&probs);
+        assert!((dist[0] - 0.0).abs() < TEST_EPSILON);
+        assert!((dist[1] - 0.0).abs() < TEST_EPSILON);
+        assert!((dist[2] - 1.0).abs() < TEST_EPSILON);
     }
 
     /* ============ FilteredRegions Tests ============ */
@@ -646,13 +657,13 @@ mod tests {
         // Region 0: variants[0..2]
         let r0 = filtered.get_region(0);
         assert_eq!(r0.len(), 2);
-        assert!((r0[0].prob_absent - 0.01).abs() < 1e-10);
-        assert!((r0[1].prob_absent - 0.02).abs() < 1e-10);
+        assert!((r0[0].prob_absent - 0.01).abs() < TEST_EPSILON);
+        assert!((r0[1].prob_absent - 0.02).abs() < TEST_EPSILON);
 
         // Region 1: variants[2..3]
         let r1 = filtered.get_region(1);
         assert_eq!(r1.len(), 1);
-        assert!((r1[0].prob_absent - 0.03).abs() < 1e-10);
+        assert!((r1[0].prob_absent - 0.03).abs() < TEST_EPSILON);
     }
 
     #[test]
@@ -666,6 +677,15 @@ mod tests {
 
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered.get_region(0).len(), 1);
+    }
+
+    #[test]
+    fn test_filtered_regions_empty() {
+        let filtered = FilteredRegions {
+            variants: vec![],
+            region_starts: vec![],
+        };
+        assert_eq!(filtered.len(), 0);
     }
 
     /* ============ AF Filtering Tests =============== */
@@ -685,8 +705,8 @@ mod tests {
         assert_eq!(filtered.len(), 1);
         let region_1 = filtered.get_region(0);
         assert_eq!(region_1.len(), 2); // V1 and V3
-        assert!((region_1[0].prob_absent - 0.01).abs() < 1e-10);
-        assert!((region_1[1].prob_absent - 0.03).abs() < 1e-10);
+        assert!((region_1[0].prob_absent - 0.01).abs() < TEST_EPSILON);
+        assert!((region_1[1].prob_absent - 0.03).abs() < TEST_EPSILON);
     }
 
     #[test]
@@ -720,5 +740,128 @@ mod tests {
         let region_1 = filtered.get_region(0);
         assert_eq!(region_1.len(), 1); // Only V2
         assert!((region_1[0].prob_absent - 0.02).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_filter_multiple_regions_some_empty() {
+        let regions = vec![
+            RegionSummary {
+                variants: vec![make_variant(0.01, vec![("sample1", 0.8)])],
+            },
+            RegionSummary {
+                variants: vec![make_variant(0.02, vec![("sample1", 0.3)])], // Filtered out
+            },
+            RegionSummary {
+                variants: vec![make_variant(0.03, vec![("sample1", 0.9)])],
+            },
+        ];
+
+        let filtered = filter_regions_by_af(&regions, "sample1", 0.5);
+        assert_eq!(filtered.len(), 2); // Only first and third
+    }
+
+    /* ======= calculate_msi_metrics tests =========== */
+
+    #[test]
+    fn test_calculate_msi_metrics_empty() {
+        let filtered = FilteredRegions {
+            variants: vec![],
+            region_starts: vec![],
+        };
+
+        let output_req = OutputRequirements {
+            needs_pseudotime: false,
+            needs_distribution: false,
+        };
+
+        let result =
+            calculate_msi_metrics(&filtered, 100, 3.5, 0.0, "sample1".to_string(), output_req);
+
+        assert_eq!(result.k_map, 0);
+        assert_eq!(result.msi_score_map, 0.0);
+        assert_eq!(result.msi_status, "MSS"); /* maybe this should be removed */
+    }
+
+    #[test]
+    fn test_calculate_msi_metrics_with_uncertainty() {
+        let v1 = make_variant(0.1, vec![("sample1", 0.8)]);
+        let v2 = make_variant(0.2, vec![("sample1", 0.9)]);
+
+        let filtered = FilteredRegions {
+            variants: vec![&v1, &v2],
+            region_starts: vec![0, 1],
+        };
+
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: false,
+        };
+
+        let result =
+            calculate_msi_metrics(&filtered, 100, 3.5, 0.5, "sample1".to_string(), output_req);
+
+        assert!(result.uncertainty_lower.is_some());
+        assert!(result.uncertainty_upper.is_some());
+        assert!(result.map_std_dev.is_some());
+        assert!(result.distribution.is_none());
+    }
+
+    #[test]
+    fn test_calculate_msi_metrics_distribution_only_at_af_zero() {
+        let v1 = make_variant(0.1, vec![("sample1", 0.8)]);
+
+        let filtered = FilteredRegions {
+            variants: vec![&v1],
+            region_starts: vec![0],
+        };
+
+        let output_req = OutputRequirements {
+            needs_pseudotime: false,
+            needs_distribution: true,
+        };
+
+        // AF=0.0 should include distribution
+        let result_af0 =
+            calculate_msi_metrics(&filtered, 100, 3.5, 0.0, "sample1".to_string(), output_req);
+        assert!(result_af0.distribution.is_some());
+
+        // AF=0.5 should NOT include distribution
+        let result_af5 =
+            calculate_msi_metrics(&filtered, 100, 3.5, 0.5, "sample1".to_string(), output_req);
+        assert!(result_af5.distribution.is_none());
+    }
+
+    /* ==== run_af_evolution_analysis tests ========== */
+
+    #[test]
+    fn test_run_af_evolution_analysis_basic() {
+        let regions = vec![RegionSummary {
+            variants: vec![make_variant(0.1, vec![("sample1", 0.5)])],
+        }];
+
+        let output_req = OutputRequirements {
+            needs_pseudotime: false,
+            needs_distribution: false,
+        };
+
+        let results = run_af_evolution_analysis(
+            &regions,
+            100,
+            &vec!["sample1".to_string()],
+            3.5,
+            &vec![0.0],
+            output_req,
+            Some(1),
+        )
+        .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert!(results.contains_key("sample1"));
+        assert!(results["sample1"].contains_key("0"));
+
+        let result = &results["sample1"]["0"];
+        assert_eq!(result.sample, "sample1");
+        assert_eq!(result.af_threshold, 0.0);
+        assert_eq!(result.regions_with_variants, 1);
     }
 }
