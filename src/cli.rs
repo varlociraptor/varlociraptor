@@ -51,6 +51,14 @@ pub const MIN_THREAD_COUNT: usize = 1;
 
 /* ========================= Generic Validators ======================= */
 
+/// Validate that the given path points to a BED file.
+/// It does so by checking the file extension.
+/// 
+/// # Arguments
+/// * `path` - Path to validate
+/// 
+/// Returns 
+/// `Ok(())` if the path points to a BED file, otherwise returns an error.
 fn validate_bed_file(path: &Path) -> Result<()> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("bed") => Ok(()),
@@ -60,6 +68,14 @@ fn validate_bed_file(path: &Path) -> Result<()> {
     }
 }
 
+/// Validate that the given path points to a VCF/BCF file.
+/// It does so by checking the file extensions.
+/// 
+/// Arguments
+/// * `path` - Path to validate
+///
+/// Returns
+/// `Ok(())` if the path points to a valid VCF/BCF file, otherwise returns an error.
 fn validate_vcf_file(path: &Path) -> Result<()> {
     let filename = match path.file_name().and_then(|name| name.to_str()) {
         Some(name) => name.to_lowercase(),
@@ -81,6 +97,13 @@ fn validate_vcf_file(path: &Path) -> Result<()> {
     }
 }
 
+/// Validate that the given thread count is at least MIN_THREAD_COUNT.
+/// 
+/// Arguments
+/// * `threads` - Optional thread count to validate
+/// 
+/// Returns
+/// `Ok(())` if the thread count is valid, otherwise returns an error.
 fn validate_thread_count(threads: Option<usize>) -> Result<()> {
     if let Some(count) = threads {
         if count < MIN_THREAD_COUNT {
@@ -1491,7 +1514,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 validate_vcf_file(&calls)?;
                 validate_thread_count(threads)?;
 
-                /* MSI-specific validations */
+                /* MSI or content specific validations */
                 ms_bed::validate_bed_file(&microsatellite_bed)?;
                 let samples_info = bcf_utils::validate_vcf_file(&calls, &samples_exclusion)?;
                 let config = msi::MsiConfig {
