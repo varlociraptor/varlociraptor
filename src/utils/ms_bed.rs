@@ -175,9 +175,9 @@ pub(crate) fn validate_bed_file(bed_path: &PathBuf) -> Result<()> {
         Some(Err(e)) => Err(e).context("Failed to read first BED record"),
         Some(Ok(record)) => {
             let first_region = parse_bed_record(&record)?;
-            info!("BED file validated successfully");
+            info!("  - BED file validated successfully");
             info!(
-                "    First region: ({} {}-{} {}x{}) ms-status={}",
+                "  - First region: ({} {}-{} {}x{}) ms-status={}",
                 first_region.chrom,
                 first_region.start,
                 first_region.end,

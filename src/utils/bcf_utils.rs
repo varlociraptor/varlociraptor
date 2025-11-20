@@ -454,8 +454,8 @@ pub(crate) fn validate_vcf_file(
         return Err(Error::NoSamplesAfterExclusion.into());
     }
 
-    info!("Samples to process: {}", remaining_samples.len());
-    info!("Sample names: {:?}", remaining_samples);
+    info!("  - Samples to process: {}", remaining_samples.len());
+    info!("  - Sample names: {:?}", remaining_samples);
 
     let header = vcf.header().clone();
 
@@ -472,11 +472,11 @@ pub(crate) fn validate_vcf_file(
         Some(Ok(record)) => {
             let chrom = get_chrom(&record, &header)?;
             let pos = record.pos();
-            info!("  First variant: {}:{}", chrom, pos + 1);
+            info!("  - First variant: {}:{}", chrom, pos + 1);
         }
     }
 
-    info!("VCF file format validated successfully");
+    info!("  - VCF file format validated successfully");
 
     Ok(SampleInfo {
         samples: remaining_samples,
