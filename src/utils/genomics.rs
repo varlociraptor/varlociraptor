@@ -77,8 +77,8 @@ pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
 ///
 /// # Algorithm
 /// 1. Find longest common prefix (anchor) between REF and ALT
-/// 2. Calculate changed sequence lengths after anchor
-/// 3. Return: ALT_length - REF_length (after anchor)
+/// 2. Calculate tail lengths after anchor for both sequences
+/// 3. Return: alt_tail - ref_tail = alt_len - ref_len
 ///
 /// # Arguments
 /// * `ref_seq` - Reference allele sequence
