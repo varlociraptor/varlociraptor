@@ -179,9 +179,9 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     )?;
     info!("  Results generated successfully.");
 
-    info!("**********************************************");
-    info!("Step 3(Final): Generating output(s)");
-    info!("**********************************************");
+    info!("----------------------------------------------");
+    info!("Step 4(Final): Generating output(s)");
+    info!("----------------------------------------------");
 
     if let Some(ref path) = &config.plot_distribution {
         output::generate_distribution_plot_spec(&results, path, config.msi_threshold)?;
