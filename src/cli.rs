@@ -603,12 +603,13 @@ pub enum EstimateKind {
     #[structopt(
         name = "microsatellite-instability",
         visible_alias = "msi",
-        about = "Estimate Microsatellite Instability (MSI) from variant calls at microsatellite loci. \
+        about = "Estimate microsatellite instability (MSI) [status: EXPERIMENTAL]",
+        long_about = "Estimate Microsatellite Instability (MSI) from variant calls at microsatellite loci. \
              Takes a BED file with microsatellite loci in UCSC microsatellite schema format \
              (without the bin column) and a Varlociraptor-format VCF/BCF file, and produces \
              either the MSI score distribution or MSI score evolution as Vega-Lite JSON output \
-             file(s) or their TSV plot data file(s).",
-        usage = "varlociraptor estimate microsatellite-instability microsatellites.bed calls.vcf \
+             file(s) or their TSV plot data file(s). [status: EXPERIMENTAL]",
+        usage = "varlociraptor estimate microsatellite-instability microsatelalites.bed calls.vcf \
                  --threads 4 --msi-threshold 3.5 --plot-pseudotime msi-pseudotime.vl.json --data-pseudotime \
                  msi-pseudotime.tsv\n\n \
                  varlociraptor estimate msi microsatellites.bed calls.bcf \
@@ -1503,11 +1504,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 data_pseudotime,
             } => {
                 info!("==============================================");
-                info!("Starting microsatellite instability estimation");
+                info!("MSI Estimation [EXPERIMENTAL]");
                 info!("==============================================");
-                info!("**********************************************");
+                info!("----------------------------------------------");
                 info!("Step 0: Validating Files and Cli Arguments");
-                info!("**********************************************");
+                info!("----------------------------------------------");
 
                 /* generic validations: file extensions & thread count */
                 validate_bed_file(&microsatellite_bed)?;
