@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use log::{info, warn};
+use log::{debug, info, warn};
 use rust_htslib::bcf::{self, header::HeaderView, record::Numeric, Read};
 
 use crate::errors::Error;
