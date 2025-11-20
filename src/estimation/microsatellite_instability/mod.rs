@@ -1,6 +1,15 @@
 //! mod.rs
 //!
-//! Microsatellite instability (MSI) estimation
+//! Microsatellite instability (MSI) estimation module.
+//!
+//! **Note: This feature is experimental.**
+//!
+//! This module provides:
+//! 1. MSI configuration and validation
+//! 2. Main pipeline orchestration
+//!     - Coordination of intersection(intersection module),
+//!     - Dynamic Programming analysis(dp_analysis module),
+//!     - Output generation(output module)
 
 mod dp_analysis;
 mod intersection;
@@ -21,13 +30,24 @@ pub const MIN_MSI_THRESHOLD: f64 = 0.0;
 /* ================================================ */
 
 /* ======== CLI CONFIGURATION ===================== */
+
+/// Configuration for MSI estimation pipeline.
+///
+/// Contains all parameters needed for the MSI analysis workflow,
+/// populated from CLI arguments(partially) and the file validation.
 #[derive(Debug)]
 pub(crate) struct MsiConfig {
+    /// Path to BED file(should be sorted) with microsatellite regions.
     pub microsatellite_bed: PathBuf,
+    /// Path to VCF/BCF file(should be sorted) with variant calls.
     pub calls: PathBuf,
+    /// Number of threads (None = use rayon default).
     pub threads: Option<usize>,
+    /// MSI-High classification threshold (percentage), deafault: 3.5.
     pub msi_threshold: f64,
+    /// Sample names to process from VCF/BCF (after excluding user exclusions).
     pub samples: Vec<String>,
+    /// Map of sample name to VCF header index (after excluding user exclusions).
     pub samples_index_map: HashMap<String, usize>,
     /// Allele frequency thresholds to consider for AF evolution analysis
     /// when generating pseudotime outputs. (default: [1.0,0.8,0.6,0.4,0.2,0.0])
@@ -36,13 +56,19 @@ pub(crate) struct MsiConfig {
     /// as the this field is hidden constant set at CLI level. So future changes to expose this field
     /// to users should include validation for this field.
     pub af_thresholds: Vec<f64>,
+    /// Output path for distribution plot (Vega-Lite JSON).
     pub plot_distribution: Option<PathBuf>,
+    /// Output path for pseudotime plot (Vega-Lite JSON).
     pub plot_pseudotime: Option<PathBuf>,
+    /// Output path for distribution data (TSV).
     pub data_distribution: Option<PathBuf>,
+    /// Output path for pseudotime data (TSV).
     pub data_pseudotime: Option<PathBuf>,
 }
 
 impl MsiConfig {
+    /// Validate the MSI configuration.
+    /// Checks for valid MSI threshold and at least one output specified.
     pub fn validate(&self) -> Result<()> {
         if self.msi_threshold <= MIN_MSI_THRESHOLD {
             return Err(Error::InvalidMsiThreshold {
@@ -65,10 +91,14 @@ impl MsiConfig {
 /* ================================================ */
 
 /* ============ MOD UTILITY ======================= */
-/// Determine what type of output requirements are required,
-/// so that af thresholds can be setc accordingly and metrics
-/// calculation can be optimized.
-/// Returns output_requirements
+
+/// Determine output requirements for computation optimization.
+///
+/// Analyzes which outputs are requested to determine:
+/// - Whether to compute uncertainty bounds (needs_pseudotime)
+/// - Whether to compute full probability distribution (needs_distribution)
+///
+/// This allows skipping expensive computations when not needed.
 fn analyze_output_requirements(config: &MsiConfig) -> OutputRequirements {
     let needs_distribution =
         config.data_distribution.is_some() || config.plot_distribution.is_some();
@@ -83,23 +113,33 @@ fn analyze_output_requirements(config: &MsiConfig) -> OutputRequirements {
 /* ================================================ */
 
 /* ============ MAIN PIPELINE ===================== */
-/// Main Function to which CLI msi subcommand is dispatched to,
-/// it runs the main pipeline orchestration.
+
+/// Main MSI estimation pipeline.
 ///
-/// This function coordinates the overall MSI estimation workflow by
-/// streaming intersection, performing DP analysis, and generating outputs.
+/// Orchestrates the complete MSI analysis workflow:
+/// 1. **Intersection**: Stream BED regions against VCF variants
+/// 2. **DP Analysis**: Compute probability distributions and MSI scores
+/// 3. **Output**: Generate plots and data files
+///
+/// # Arguments
+/// * `config` - Validated MSI configuration
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` on file I/O or processing errors
 pub fn estimate_msi(config: MsiConfig) -> Result<()> {
-    info!("**********************************************");
-    info!("Config Stats: Streaming Intersection");
-    info!("**********************************************");
+    info!("----------------------------------------------");
+    info!("Step 1: Config Stats");
+    info!("----------------------------------------------");
     info!(" BED file: {}", config.microsatellite_bed.display());
     info!(" VCF/BCF file: {}", config.calls.display());
     info!(" MSI threshold: {}", config.msi_threshold);
     info!(" Samples included: {:?}", config.samples);
 
-    info!("**********************************************");
-    info!("Step 1: Streaming Intersection");
-    info!("**********************************************");
+    info!("----------------------------------------------");
+    info!("Step 2: Streaming Intersection");
+    info!("----------------------------------------------");
+    info!("  Starting intersection of VCF/BCF and BED.");
 
     let (regions, total_regions) = intersection::intersect_streaming(
         &config.microsatellite_bed,
@@ -108,13 +148,14 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     )?;
 
     if total_regions == 0 {
-        info!(" Terminating due to 0 valid regions.");
+        info!("  Terminating due to 0 valid regions.");
         return Ok(());
     }
+    info!("  Intersection finished successfully.");
 
-    info!("**********************************************");
-    info!("Step 2: DP Analysis and Results Collection");
-    info!("**********************************************");
+    info!("----------------------------------------------");
+    info!("Step 3: DP Analysis and Results Collection");
+    info!("----------------------------------------------");
 
     // Determine computation requirements (single function)
     let output_requirements = analyze_output_requirements(&config);
@@ -125,7 +166,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     } else {
         &[0.0]
     };
-    info!(" AF Thresholds: {:?}", af_thresholds);
+    info!("  AF Thresholds: {:?}", af_thresholds);
 
     let results = dp_analysis::run_af_evolution_analysis(
         &regions,
@@ -136,7 +177,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
         output_requirements,
         config.threads,
     )?;
-    info!(" Results generated successfully.");
+    info!("  Results generated successfully.");
 
     info!("**********************************************");
     info!("Step 3(Final): Generating output(s)");
@@ -145,7 +186,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     if let Some(ref path) = &config.plot_distribution {
         output::generate_distribution_plot_spec(&results, path, config.msi_threshold)?;
         info!(
-            " Generated Data Distribution Plot(Vega-Lite Json): {}",
+            "  Generated Data Distribution Plot(Vega-Lite Json): {}",
             path.display()
         );
     }
@@ -153,19 +194,19 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     if let Some(ref path) = config.plot_pseudotime {
         output::generate_pseudotime_plot_spec(&results, path, config.msi_threshold)?;
         info!(
-            " Generated Pseudotime Plot(Vega-Lite Json): {}",
+            "  Generated Pseudotime Plot(Vega-Lite Json): {}",
             path.display()
         );
     }
 
     if let Some(ref path) = config.data_distribution {
         output::write_distribution_data(&results, path, config.msi_threshold)?;
-        info!(" Generated Distribution Data(TSV): {}", path.display());
+        info!("  Generated Distribution Data(TSV): {}", path.display());
     }
 
     if let Some(ref path) = config.data_pseudotime {
         output::write_pseudotime_data(&results, path, config.msi_threshold)?;
-        info!(" Generated Pseudotime Data(TSV): {}", path.display());
+        info!("  Generated Pseudotime Data(TSV): {}", path.display());
     }
 
     info!("==============================================");
@@ -174,4 +215,5 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
 
     Ok(())
 }
+
 /* ================================================ */
