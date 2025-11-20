@@ -357,7 +357,7 @@ pub(super) fn intersect_streaming(
     /* ======================================================== */
     /* ========== Main Loop: Process each BED region ========== */
     for (line_num, bed_result) in bed_reader.records().enumerate() {
-        let bed_record = bed_result.map_err(|e| Error::BedRecordRead {
+        let bed_record = bed_result.map_err(|e| Error::BedRecordReadFailed {
             line: line_num + 1,
             details: e.to_string(),
         })?;
@@ -437,7 +437,7 @@ pub(super) fn intersect_streaming(
             match vcf.read(&mut next_record) {
                 None => break, // EOF
                 Some(Err(e)) => {
-                    return Err(Error::VcfRecordRead {
+                    return Err(Error::VcfRecordReadFailed {
                         details: e.to_string(),
                     }
                     .into());
@@ -516,7 +516,7 @@ pub(super) fn intersect_streaming(
     /* ======================================================== */
     /* === Finalization: Validate and return results ========== */
     if !seen_any_chrom_overlap {
-        return Err(Error::NoChromosomeMatch.into());
+        return Err(Error::MsiVcfChromMismatch.into());
     }
 
     let stats = IntersectionStats {

@@ -1,3 +1,52 @@
+//! src/errors.rs
+//!
+//!  Error types for varlociraptor
+//!
+//! # Naming Convention
+//!
+//! All error variants should follow a consistent naming pattern:
+//! **`<Component><Action><ErrorType>`**
+//!
+//! Note: Please register new components, actions, and error types when adding errors,
+//! if they do not already exist, so that the naming convention remains consistent and
+//! unrepetitive.
+//!
+//! ## Components:
+//! - `Bed` - BED file operations (generic)
+//! - `Vcf` - VCF/BCF file operations (generic)
+//! - `Thread` - Threading and concurrency
+//! - `MsiBed` - MSI-specific BED operations
+//! - `MsiConfig` - MSI configuration
+//! - `MsiVcf` - MSI-specific VCF operations
+
+//!
+//! ## Actions(when applicable):
+//! - `File` - File-level operations
+//! - `Record` - Record-level operations
+//! - `Chrom` - Chromosome operations
+//! - `Samples` - Sample operations
+//! - `Sample` - Single sample operations
+//! - `Allele` - Allele operations
+//! - `Frequency` - Frequency calculations
+//! - `Probability` - Probability calculations
+//! - `Exclusion` - Sample exclusion operations
+//! - `Count` - Counting operations
+//! - `Threshold` - Threshold validation
+//! - `Motif` - Motif pattern operations (MSI)
+//! - `Output` - Output configuration (MSI)
+//!
+//! ## Error Types:
+//! - `Invalid` - Validation failure
+//! - `Missing` - Required data absent
+//! - `Empty` - No data found
+//! - `Failed` - Operation failure
+//! - `Mismatch` - Data inconsistency
+//!
+//! ## Examples:
+//! - `BedFileInvalid` - Invalid BED file path
+//! - `VcfRecordReadFailed` - Failed to read VCF record
+//! - `MsiConfigThresholdInvalid` - Invalid MSI threshold value
+
 use bio_types::genome::Locus;
 use std::path::PathBuf;
 
@@ -12,58 +61,58 @@ pub(crate) enum Error {
     /* -------------------- File Validation -------------------------- */
     /* 1. Bed File Errors */
     #[error("invalid BED file path (expected .bed extension): {path}")]
-    InvalidBedFile { path: PathBuf },
+    BedFileInvalid { path: PathBuf },
     #[error("BED file is empty (no microsatellite loci found)")]
     BedFileEmpty,
     #[error("invalid BED record at {chrom}:{pos}: {msg}")]
-    InvalidBedRecord {
+    BedRecordInvalid {
         chrom: String,
         pos: i64,
         msg: String,
     },
     #[error("Failed to read BED record at line {line}: {details}")]
-    BedRecordRead { line: usize, details: String },
+    BedRecordReadFailed { line: usize, details: String },
     /* 2. VCF/BCF File Errors */
     #[error(
         "invalid VCF/BCF file path (expected .vcf, .vcf.gz, .bcf, or .bcf.gz extension): {path}"
     )]
-    InvalidVcfFile { path: PathBuf },
+    VcfFileInvalid { path: PathBuf },
     #[error("VCF/BCF file contains no samples")]
-    VcfNoSamples,
+    VcfSamplesMissing,
     #[error("VCF/BCF file is empty (no variant records)")]
-    VcfEmpty,
+    VcfFileEmpty,
     #[error("VCF/BCF record at {chrom}:{pos} is missing chromosome information")]
-    VcfRecordMissingChromosome { chrom: String, pos: i64 },
+    VcfRecordChromMissing { chrom: String, pos: i64 },
     #[error("VCF/BCF record at position {pos} failed to resolve chromosome name for rid {rid}: {details}")]
-    VcfChromResolutionFailed { pos: i64, rid: u32, details: String },
+    VcfRecordChromResolveFailed { pos: i64, rid: u32, details: String },
     #[error("failed to read VCF/BCF record: {details}")]
-    VcfRecordRead { details: String },
+    VcfRecordReadFailed { details: String },
     #[error(
         "Invalid allele frequency {af} for sample '{sample}' at {chrom}:{pos} (must be 0.0-1.0)"
     )]
-    InvalidAlleleFrequency {
+    VcfAlleleFrequencyInvalid {
         sample: String,
         af: f32,
         chrom: String,
         pos: i64,
     },
     #[error("Invalid probability value in field '{field}' at {chrom}:{pos} (value={value})")]
-    InvalidProbabilityValue {
+    VcfProbabilityValueInvalid {
         field: String,
         value: f32,
         chrom: String,
         pos: i64,
     },
-    #[error("VCF/BCF file contains invalid sample exclusion(s): sample '{samples}' not found in VCF/BCF")]
-    InvalidSampleExclusion { samples: String },
+    #[error("VCF/BCF file does not contain the following excluded sample(s): {samples}")]
+    VcfSampleExclusionInvalid { samples: String },
     #[error("VCF/BCF file contains no samples after excluding specified samples")]
-    NoSamplesAfterExclusion,
+    VcfSamplesEmptyAfterExclusion,
     /* -------------------- Concurrency ------------------------------ */
     #[error(
         "invalid thread count: must be at least {}, got {count}",
         MIN_THREAD_COUNT
     )]
-    InvalidThreadCount { count: usize },
+    ThreadCountInvalid { count: usize },
     /* --------------------------------------------------------------- */
     #[error("formula refers to unknown sample {name}")]
     InvalidSampleName { name: String },
@@ -150,19 +199,19 @@ pub(crate) enum Error {
         msi::MIN_MSI_THRESHOLD,
         msi::DEFAULT_MSI_THRESHOLD
     )]
-    InvalidMsiThreshold { threshold: f64 },
+    MsiConfigThresholdInvalid { threshold: f64 },
     #[error("at least one output must be specified: use --plot-pseudotime, --plot-distribution, --data-pseudotime, or --data-distribution")]
-    NoMsiOutputSpecified,
+    MsiConfigOutputMissing,
     /* -------------------- BED File Errors -------------------------- */
     #[error(
         "invalid motif format in BED record: expected 'NxMOTIF' (e.g., '15xCAG'), got '{motif}'"
     )]
-    InvalidMsiBedMotif { motif: String },
+    MsiBedMotifInvalid { motif: String },
     #[error("BED record missing required name field (4th column) containing motif information")]
-    BedRecordMissingMotifName,
+    MsiBedMotifNameMissing,
     /* -------------------- Processing Errors ------------------------ */
     #[error("No chromosome match between BED and VCF files. Ensure chromosome naming is consistent (both with or without 'chr' prefix).")]
-    NoChromosomeMatch,
+    MsiVcfChromMismatch,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {

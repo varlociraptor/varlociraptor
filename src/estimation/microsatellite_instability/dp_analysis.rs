@@ -8,7 +8,7 @@
 //! 1. Core Dp Algorithm
 //! 2. Filtering Variants Per Region by Sample and AF
 //! 3. Calculating MSI Metrics
-//! 4. Af Evolution Function: Generates
+//! 4. Af Evolution Function: Generates results for all samples and AF thresholds based on user input.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -329,6 +329,7 @@ fn calculate_msi_metrics(
     };
 
     // Step 3: Find MAP (maximum a posteriori) estimate
+    // Note: partial_cmp is safe here because upstream validation ensures no NaN values.
     let k_map = distribution_raw
         .iter()
         .enumerate()
@@ -739,7 +740,7 @@ mod tests {
         assert_eq!(filtered.len(), 1);
         let region_1 = filtered.get_region(0);
         assert_eq!(region_1.len(), 1); // Only V2
-        assert!((region_1[0].prob_absent - 0.02).abs() < 1e-10);
+        assert!((region_1[0].prob_absent - 0.02).abs() < TEST_EPSILON);
     }
 
     #[test]

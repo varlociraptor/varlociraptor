@@ -73,16 +73,14 @@ pub(crate) fn extract_sample_names(vcf: &bcf::Reader) -> Vec<String> {
 /// # Example
 /// assert_eq!(get_chrom(&record, &header).unwrap(), "chr1");
 pub(crate) fn get_chrom(record: &bcf::Record, header: &HeaderView) -> Result<String> {
-    let rid = record
-        .rid()
-        .ok_or_else(|| Error::VcfRecordMissingChromosome {
-            chrom: "unknown".to_string(),
-            pos: record.pos(),
-        })?;
+    let rid = record.rid().ok_or_else(|| Error::VcfRecordChromMissing {
+        chrom: "unknown".to_string(),
+        pos: record.pos(),
+    })?;
 
     let chrom_bytes = header
         .rid2name(rid)
-        .map_err(|_| Error::VcfChromResolutionFailed {
+        .map_err(|_| Error::VcfRecordChromResolveFailed {
             pos: record.pos(),
             rid,
             details: "Failed to resolve chromosome name".to_string(),
@@ -177,7 +175,7 @@ pub(crate) fn get_prob_absent(
     }
 
     if prob_absent.is_nan() {
-        return Err(Error::InvalidProbabilityValue {
+        return Err(Error::VcfProbabilityValueInvalid {
             field: "PROB_ABSENT".to_string(),
             value: prob_absent,
             chrom: get_chrom(record, header)?,
@@ -187,7 +185,7 @@ pub(crate) fn get_prob_absent(
     }
 
     if prob_artifact.is_nan() {
-        return Err(Error::InvalidProbabilityValue {
+        return Err(Error::VcfProbabilityValueInvalid {
             field: "PROB_ARTIFACT".to_string(),
             value: prob_artifact,
             chrom: get_chrom(record, header)?,
@@ -211,7 +209,7 @@ pub(crate) fn get_prob_absent(
     let probability = probability_absent + probability_artifact;
 
     if !(0.0..=1.0).contains(&probability) {
-        return Err(Error::InvalidProbabilityValue {
+        return Err(Error::VcfProbabilityValueInvalid {
             field: "DERIVED PROBABILITY ABSENT: PROB_ABSENT + PROBABILITY_ARTIFACT".to_string(),
             value: probability as f32,
             chrom: get_chrom(record, header)?,
@@ -273,7 +271,7 @@ pub(crate) fn get_sample_afs(
         }
 
         if af.is_nan() || !(0.0..=1.0).contains(&af) {
-            return Err(Error::InvalidAlleleFrequency {
+            return Err(Error::VcfAlleleFrequencyInvalid {
                 sample: sample_name.clone(),
                 af,
                 chrom: get_chrom(record, header)?,
@@ -422,7 +420,7 @@ pub(crate) fn validate_vcf_file(
     let sample_names = extract_sample_names(&vcf);
 
     if sample_names.is_empty() {
-        return Err(Error::VcfNoSamples.into());
+        return Err(Error::VcfSamplesMissing.into());
     }
 
     let mut invalid_exclusions: Vec<String> = Vec::new();
@@ -434,7 +432,7 @@ pub(crate) fn validate_vcf_file(
     }
 
     if !invalid_exclusions.is_empty() {
-        return Err(Error::InvalidSampleExclusion {
+        return Err(Error::VcfSampleExclusionInvalid {
             samples: invalid_exclusions.join(", "),
         }
         .into());
@@ -451,7 +449,7 @@ pub(crate) fn validate_vcf_file(
     }
 
     if remaining_samples.is_empty() {
-        return Err(Error::NoSamplesAfterExclusion.into());
+        return Err(Error::VcfSamplesEmptyAfterExclusion.into());
     }
 
     info!("  - Samples to process: {}", remaining_samples.len());
@@ -461,10 +459,10 @@ pub(crate) fn validate_vcf_file(
 
     match vcf.records().next() {
         None => {
-            return Err(Error::VcfEmpty.into());
+            return Err(Error::VcfFileEmpty.into());
         }
         Some(Err(e)) => {
-            return Err(Error::VcfRecordRead {
+            return Err(Error::VcfRecordReadFailed {
                 details: e.to_string(),
             }
             .into());

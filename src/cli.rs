@@ -62,7 +62,7 @@ pub const MIN_THREAD_COUNT: usize = 1;
 fn validate_bed_file(path: &Path) -> Result<()> {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some(ext) if ext.eq_ignore_ascii_case("bed") => Ok(()),
-        _ => bail!(errors::Error::InvalidBedFile {
+        _ => bail!(errors::Error::BedFileInvalid {
             path: path.to_owned()
         }),
     }
@@ -79,7 +79,7 @@ fn validate_bed_file(path: &Path) -> Result<()> {
 fn validate_vcf_file(path: &Path) -> Result<()> {
     let filename = match path.file_name().and_then(|name| name.to_str()) {
         Some(name) => name.to_lowercase(),
-        None => bail!(errors::Error::InvalidVcfFile {
+        None => bail!(errors::Error::VcfFileInvalid {
             path: path.to_owned()
         }),
     };
@@ -91,7 +91,7 @@ fn validate_vcf_file(path: &Path) -> Result<()> {
     {
         Ok(())
     } else {
-        bail!(errors::Error::InvalidVcfFile {
+        bail!(errors::Error::VcfFileInvalid {
             path: path.to_owned()
         })
     }
@@ -107,7 +107,7 @@ fn validate_vcf_file(path: &Path) -> Result<()> {
 fn validate_thread_count(threads: Option<usize>) -> Result<()> {
     if let Some(count) = threads {
         if count < MIN_THREAD_COUNT {
-            bail!(errors::Error::InvalidThreadCount { count: (count) });
+            bail!(errors::Error::ThreadCountInvalid { count: (count) });
         }
     }
     Ok(())

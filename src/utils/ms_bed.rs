@@ -76,11 +76,11 @@ impl BedRegion {
 pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
     let (repeat_str, motif) = name
         .split_once('x')
-        .ok_or_else(|| Error::InvalidMsiBedMotif {
+        .ok_or_else(|| Error::MsiBedMotifInvalid {
             motif: name.to_string(),
         })?;
 
-    let repeat_count: usize = repeat_str.parse().map_err(|_| Error::InvalidMsiBedMotif {
+    let repeat_count: usize = repeat_str.parse().map_err(|_| Error::MsiBedMotifInvalid {
         motif: name.to_string(),
     })?;
 
@@ -89,18 +89,18 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
         .chars()
         .all(|c| matches!(c, 'A' | 'C' | 'G' | 'T' | 'a' | 'c' | 'g' | 't'))
     {
-        return Err(Error::InvalidMsiBedMotif {
+        return Err(Error::MsiBedMotifInvalid {
             motif: name.to_string(),
         }
         .into());
     }
 
     match (repeat_count, motif.len()) {
-        (0, _) => Err(Error::InvalidMsiBedMotif {
+        (0, _) => Err(Error::MsiBedMotifInvalid {
             motif: name.to_string(),
         }
         .into()),
-        (_, 0) => Err(Error::InvalidMsiBedMotif {
+        (_, 0) => Err(Error::MsiBedMotifInvalid {
             motif: name.to_string(), /* Note: If this is turned off in motif repeat check for msi module filtering should be turned on.*/
         }
         .into()),
@@ -130,7 +130,7 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
     let end = record.end();
 
     if start >= end {
-        return Err(Error::InvalidBedRecord {
+        return Err(Error::BedRecordInvalid {
             chrom: chrom.clone(),
             pos: start as i64,
             msg: "Invalid region coordinates: start >= end".to_string(),
@@ -138,7 +138,7 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
         .into());
     }
 
-    let name = record.name().ok_or(Error::BedRecordMissingMotifName)?;
+    let name = record.name().ok_or(Error::MsiBedMotifNameMissing)?;
     let motif = parse_motif_from_name(name)?;
 
     Ok(BedRegion {

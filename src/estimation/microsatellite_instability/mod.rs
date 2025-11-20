@@ -25,8 +25,19 @@ use crate::errors::Error;
 use dp_analysis::OutputRequirements;
 
 /* =============== CONSTANTS ====================== */
+
+/// Default MSI-High threshold (percentage).
+///
+/// Variants with MSI score >= this threshold are classified as MSI-High.
+/// This is the standard clinical cutoff used in MSI analysis.
 pub const DEFAULT_MSI_THRESHOLD: &str = "3.5";
+
+/// Minimum allowed MSI threshold (percentage).
+///
+/// MSI thresholds must be positive values. Zero or negative thresholds
+/// are not meaningful for MSI classification.
 pub const MIN_MSI_THRESHOLD: f64 = 0.0;
+
 /* ================================================ */
 
 /* ======== CLI CONFIGURATION ===================== */
@@ -71,7 +82,7 @@ impl MsiConfig {
     /// Checks for valid MSI threshold and at least one output specified.
     pub fn validate(&self) -> Result<()> {
         if self.msi_threshold <= MIN_MSI_THRESHOLD {
-            return Err(Error::InvalidMsiThreshold {
+            return Err(Error::MsiConfigThresholdInvalid {
                 threshold: self.msi_threshold,
             }
             .into());
@@ -82,7 +93,7 @@ impl MsiConfig {
             && self.data_distribution.is_none()
             && self.data_pseudotime.is_none()
         {
-            return Err(Error::NoMsiOutputSpecified.into());
+            return Err(Error::MsiConfigOutputMissing.into());
         }
 
         Ok(())
