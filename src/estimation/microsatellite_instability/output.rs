@@ -16,7 +16,6 @@ use serde_json::{json, Value};
 
 use super::dp_analysis::AfEvolutionResult;
 
-
 /* ============ Plotting Utils ==================== */
 
 /// Create empty plot with informative message
