@@ -29,6 +29,12 @@ pub(crate) struct MsiConfig {
     pub msi_threshold: f64,
     pub samples: Vec<String>,
     pub samples_index_map: HashMap<String, usize>,
+    /// Allele frequency thresholds to consider for AF evolution analysis
+    /// when generating pseudotime outputs. (default: [1.0,0.8,0.6,0.4,0.2,0.0])
+    /// If no pseudotime outputs are requested, this will be set to [0.0] to optimize computation.
+    /// Note: This field is populated during CLI parsing and currently not validated for non [0-1] values
+    /// as the this field is hidden constant set at CLI level. So future changes to expose this field
+    /// to users should include validation for this field.
     pub af_thresholds: Vec<f64>,
     pub plot_distribution: Option<PathBuf>,
     pub plot_pseudotime: Option<PathBuf>,
