@@ -1,10 +1,15 @@
 //! output.rs
 //!
-//! Output generation for MSI analysis:
-//! 1.  
-//! 2.
-//! 3.
-//! 4.
+//! Output generation for MSI analysis.
+//!
+//! This module provides functions to generate four types of outputs:
+//! 1. **Distribution data (TSV)**: Probability distribution P(K=k) at AF=0.0
+//! 2. **Distribution plot (Vega-Lite JSON)**: Scatter plot of distribution
+//! 3. **Pseudotime data (TSV)**: MSI score evolution across AF thresholds
+//! 4. **Pseudotime plot (Vega-Lite JSON)**: Line plot with uncertainty bands
+//!
+//! All outputs are generated from `AfEvolutionResult` data computed by
+//! the DP analysis module.
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -18,15 +23,18 @@ use super::dp_analysis::AfEvolutionResult;
 
 /* ============ Plotting Utils ==================== */
 
-/// Create empty plot with informative message
+/// Create empty plot with informative message.
 ///
 /// Uses embedded template from `templates/plots/msi_empty.json`.
 /// Replaces "PLACEHOLDER_MESSAGE" with actual message.
 ///
 /// # Arguments
-///
 /// * `path` - Output file path
 /// * `message` - Text to display (e.g., "No distribution data available")
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` if file creation or JSON parsing fails
 fn create_empty_plot(path: &Path, message: &str) -> Result<()> {
     let template = include_str!("../../../templates/plots/msi_empty.json");
 
@@ -45,7 +53,7 @@ fn create_empty_plot(path: &Path, message: &str) -> Result<()> {
     Ok(())
 }
 
-/// Load Vega-Lite template and inject data with threshold replacement
+/// Load Vega-Lite template and inject data with threshold replacement.
 ///
 /// # How It Works
 /// 1. Parse template JSON from embedded string
@@ -53,11 +61,22 @@ fn create_empty_plot(path: &Path, message: &str) -> Result<()> {
 /// 3. Replace all threshold `datum` values in layers (X and Y encodings)
 /// 4. Write pretty-printed JSON to file
 ///
+/// # Threshold Replacement
+/// Identifies threshold layers by:
+/// - Mark type "rule" (threshold line)
+/// - Mark type "text" with value "MSI Threshold" (label)
+///
+/// Updates both X and Y encodings where `datum` field exists.
+///
 /// # Arguments
 /// * `data` - Data array as serde_json::Value
-/// * `template` - Embedded template string (from include_str!)
+/// * `template` - Embedded template string
 /// * `path` - Output file path
 /// * `threshold` - MSI-High threshold (replaces all datum: 3.5)
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` if file creation, JSON parsing, or writing fails
 fn write_plot(data: Value, template: &str, path: &Path, threshold: f64) -> Result<()> {
     let mut spec = serde_json::from_str(template).context("Failed to parse plot template")?;
 
@@ -111,23 +130,40 @@ fn write_plot(data: Value, template: &str, path: &Path, threshold: f64) -> Resul
 
 /* === Output Functions Type 1: Distribution ====== */
 
-/// Write MSI probability distribution data to TSV file
+/// Write MSI probability distribution data to TSV file.
 ///
-/// # Example Output
+/// Outputs the complete probability distribution P(K=k) at AF=0.0 for each sample,
+/// where k is the number of unstable microsatellite regions.
+///
+/// # Output Format
+/// Tab-separated values with header:
 /// ```text
 /// sample  k   msi_score(threshold=3.5)    probability
 /// tumor   0   0.00    0.420000
 /// tumor   1   1.00    0.460000
+/// tumor   2   2.00    0.120000
 /// ```
-/// Each row represents one value in the probability distribution P(K=k),
-/// where k is the number of unstable microsatellite regions.
 ///
 /// # Data Availability
 /// This function only writes data if:
-/// - `output_req.needs_distribution = true` (set upstream)
+/// - `output_req.needs_distribution = true` (set upstream in DP analysis)
 /// - Results exist at AF=0.0 with distribution data
 ///
-/// If no distribution data exists, writes header-only file.
+/// If no distribution data exists for any sample, writes header-only file.
+///
+/// # Arguments
+/// * `results` - Nested HashMap: sample : AF threshold : MSI result
+/// * `path` - Output TSV file path
+/// * `msi_threshold` - MSI-High threshold for column header
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` if file creation or writing fails
+///
+/// # Example
+/// ```no_run
+/// write_distribution_data(&results, Path::new("dist.tsv"), 3.5)?;
+/// ```
 pub(super) fn write_distribution_data(
     results: &HashMap<String, HashMap<String, AfEvolutionResult>>,
     path: &Path,
@@ -167,28 +203,37 @@ pub(super) fn write_distribution_data(
     Ok(())
 }
 
-/// Generate Vega-Lite plot for MSI probability distribution
+/// Generate Vega-Lite plot specification for MSI probability distribution.
 ///
-/// Creates scatter plot showing probability distribution P(K=k) at AF=0.0,
-/// with vertical threshold line indicating MSI-High cutoff.
+/// Creates a scatter plot showing the probability distribution P(K=k) at AF=0.0,
+/// with a vertical threshold line indicating the MSI-High cutoff.
 ///
 /// Uses embedded template from `templates/plots/msi_distribution.json`.
 ///
 /// # Plot Features
-/// - **Scatter points**: MSI score vs posterior probability
+/// - **Scatter points**: MSI score (x-axis) vs posterior probability (y-axis)
 /// - **Vertical threshold line**: Red dashed line at MSI-High cutoff
-/// - **"MSI Threshold" label**: Text annotation at threshold
+/// - **"MSI Threshold" label**: Text annotation at threshold position
 /// - **Color by sample**: Automatic categorical colors for multiple samples
-/// - **Interactive tooltips**: Sample, MSI score, probability, k value
+/// - **Interactive tooltips**: Sample name, MSI score, probability, k value
 ///
 /// # Empty Case Handling
-/// If no distribution data exists for any sample, creates empty plot
-/// with message "No distribution data available".
+/// If no distribution data exists for any sample (no AF=0.0 results with
+/// distribution), creates an empty plot with message "No distribution data available".
 ///
 /// # Arguments
-/// * `results` - AF evolution results
-/// * `path` - Output JSON path (e.g., "msi_distribution.json")
-/// * `msi_threshold` - MSI-High threshold (for vertical line)
+/// * `results` - Nested HashMap: sample : AF threshold : MSI result
+/// * `path` - Output JSON file path (Vega-Lite specification)
+/// * `msi_threshold` - MSI-High threshold for vertical line position
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` if file creation, template parsing, or writing fails
+///
+/// # Example
+/// ```no_run
+/// generate_distribution_plot_spec(&results, Path::new("dist.vl.json"), 3.5)?;
+/// ```
 pub(super) fn generate_distribution_plot_spec(
     results: &HashMap<String, HashMap<String, AfEvolutionResult>>,
     path: &Path,
@@ -236,21 +281,37 @@ pub(super) fn generate_distribution_plot_spec(
 
 /* === Output Functions Type 2: Pseudotime ======== */
 
-/// Write MSI evolution trajectory data to TSV file
+/// Write MSI pseudotime evolution trajectory data to TSV file.
 ///
-/// # Example Output
+/// Outputs MSI scores and uncertainty bounds across AF thresholds for each sample,
+/// showing how MSI score evolves as variant detection threshold changes.
+///
+/// # Output Format
+/// Tab-separated values with header:
 /// **With uncertainty data (needs_pseudotime = true):**
-/// ```text
 /// sample    af_threshold    msi_score(threshold=3.5)    k_map    regions_with_variants    msi_status    uncertainty_lower    uncertainty_upper    map_std_dev
 /// tumor     1.0             0.00                       0        20                       MSS          0.00                0.00                 0.000000
 /// tumor     0.8             2.50                       2        35                       MSS          1.80                3.20                 0.700000
 ///
 /// # Data Availability
-/// This function assumes uncertainty data exists because:
-/// - Only called when `output_req.needs_pseudotime = true`
-/// - Upstream ensures uncertainty is computed
+/// Uncertainty columns (lower, upper, std_dev) are always included.
 ///
-/// Uncertainty columns are always included in output.
+/// This function assumes uncertainty may exist because it's called when
+/// `output_req.needs_pseudotime = true` (set upstream).
+///
+/// # Arguments
+/// * `results` - Nested HashMap: sample : AF threshold : MSI result
+/// * `path` - Output TSV file path
+/// * `msi_threshold` - MSI-High threshold for column header
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` if file creation or writing fails
+///
+/// # Example
+/// ```no_run
+/// write_pseudotime_data(&results, Path::new("pseudo.tsv"), 3.5)?;
+/// ```
 pub(super) fn write_pseudotime_data(
     results: &HashMap<String, HashMap<String, AfEvolutionResult>>,
     path: &Path,
@@ -321,30 +382,43 @@ pub(super) fn write_pseudotime_data(
     Ok(())
 }
 
-/// Generate Vega-Lite plot for MSI pseudotime evolution
+/// Generate Vega-Lite plot specification for MSI pseudotime evolution.
 ///
-/// Creates line plot with uncertainty band showing MSI score trajectory
-/// across AF thresholds, with horizontal threshold line.
+/// Creates a line plot with uncertainty band showing MSI score trajectory
+/// across AF thresholds, with a horizontal threshold line.
 ///
 /// Uses embedded template from `templates/plots/msi_pseudotime.json`.
 ///
 /// # Plot Features
 /// - **Area band**: Shaded uncertainty range (lower to upper bound)
-/// - **Line with points**: MSI score trajectory
+/// - **Line with points**: MSI score trajectory across AF thresholds
 /// - **Horizontal threshold line**: Red dashed line at MSI-High cutoff
-/// - **"MSI Threshold" label**: Text annotation at threshold
+/// - **Threshold label**: Text annotation at threshold position
 /// - **Color by sample**: Automatic categorical colors for multiple samples
-/// - **Reversed X-axis**: 1.0 on left → 0.0 on right (temporal flow)
-/// - **Interactive tooltips**: Sample, AF, MSI score, bounds
+/// - **Reversed X-axis**: 1.0 (left) to 0.0 (right), showing temporal flow
+/// - **Interactive tooltips**: Sample name, AF threshold, MSI score, bounds
+///
+/// # Uncertainty Handling
+/// If uncertainty bounds are missing for a data point, falls back to
+/// using MSI score for both lower and upper bounds (zero-width band).
 ///
 /// # Empty Case Handling
-/// If no pseudotime data exists for any sample, creates empty plot
+/// If no pseudotime data exists for any sample, creates an empty plot
 /// with message "No pseudotime data available".
 ///
 /// # Arguments
-/// * `results` - AF evolution results
-/// * `path` - Output JSON path (e.g., "msi_pseudotime.json")
-/// * `msi_threshold` - MSI-High threshold (for horizontal line)
+/// * `results` - Nested HashMap: sample : AF threshold : MSI result
+/// * `path` - Output JSON file path (Vega-Lite specification)
+/// * `msi_threshold` - MSI-High threshold for horizontal line position
+///
+/// # Returns
+/// * `Ok(())` on success
+/// * `Err` if file creation, template parsing, or writing fails
+///
+/// # Example
+/// ```ignore
+/// generate_pseudotime_plot_spec(&results, Path::new("pseudo.vl.json"), 3.5)?;
+/// ```
 pub(super) fn generate_pseudotime_plot_spec(
     results: &HashMap<String, HashMap<String, AfEvolutionResult>>,
     path: &Path,
