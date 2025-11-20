@@ -131,15 +131,15 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     info!("----------------------------------------------");
     info!("Step 1: Config Stats");
     info!("----------------------------------------------");
-    info!(" BED file: {}", config.microsatellite_bed.display());
-    info!(" VCF/BCF file: {}", config.calls.display());
-    info!(" MSI threshold: {}", config.msi_threshold);
-    info!(" Samples included: {:?}", config.samples);
+    info!("BED file: {}", config.microsatellite_bed.display());
+    info!("VCF/BCF file: {}", config.calls.display());
+    info!("MSI threshold: {}", config.msi_threshold);
+    info!("Samples included: {:?}", config.samples);
 
     info!("----------------------------------------------");
     info!("Step 2: Streaming Intersection");
     info!("----------------------------------------------");
-    info!("  Starting intersection of VCF/BCF and BED.");
+    info!("Starting intersection of VCF/BCF and BED.");
 
     let (regions, total_regions) = intersection::intersect_streaming(
         &config.microsatellite_bed,
@@ -148,10 +148,10 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     )?;
 
     if total_regions == 0 {
-        info!("  Terminating due to 0 valid regions.");
+        info!("Terminating due to 0 valid regions.");
         return Ok(());
     }
-    info!("  Intersection finished successfully.");
+    info!("Intersection finished successfully.");
 
     info!("----------------------------------------------");
     info!("Step 3: DP Analysis and Results Collection");
@@ -166,7 +166,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     } else {
         &[0.0]
     };
-    info!("  AF Thresholds: {:?}", af_thresholds);
+    info!("AF Thresholds: {:?}", af_thresholds);
 
     let results = dp_analysis::run_af_evolution_analysis(
         &regions,
@@ -177,7 +177,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
         output_requirements,
         config.threads,
     )?;
-    info!("  Results generated successfully.");
+    info!("Results generated successfully.");
 
     info!("----------------------------------------------");
     info!("Step 4(Final): Generating output(s)");
@@ -186,7 +186,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     if let Some(ref path) = &config.plot_distribution {
         output::generate_distribution_plot_spec(&results, path, config.msi_threshold)?;
         info!(
-            "  Generated Data Distribution Plot(Vega-Lite Json): {}",
+            "Generated Data Distribution Plot(Vega-Lite Json): {}",
             path.display()
         );
     }
@@ -194,19 +194,19 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     if let Some(ref path) = config.plot_pseudotime {
         output::generate_pseudotime_plot_spec(&results, path, config.msi_threshold)?;
         info!(
-            "  Generated Pseudotime Plot(Vega-Lite Json): {}",
+            "Generated Pseudotime Plot(Vega-Lite Json): {}",
             path.display()
         );
     }
 
     if let Some(ref path) = config.data_distribution {
         output::write_distribution_data(&results, path, config.msi_threshold)?;
-        info!("  Generated Distribution Data(TSV): {}", path.display());
+        info!("Generated Distribution Data(TSV): {}", path.display());
     }
 
     if let Some(ref path) = config.data_pseudotime {
         output::write_pseudotime_data(&results, path, config.msi_threshold)?;
-        info!("  Generated Pseudotime Data(TSV): {}", path.display());
+        info!("Generated Pseudotime Data(TSV): {}", path.display());
     }
 
     info!("==============================================");

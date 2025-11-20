@@ -82,14 +82,14 @@ impl IntersectionStats {
 
     /// Log a summary of intersection statistics.
     fn log_summary(&self) {
-        info!("  Intersection complete:");
-        info!("    Total regions in BED: {}", self.total_regions);
+        info!("Intersection complete:");
+        info!("    - Total regions in BED: {}", self.total_regions);
         info!(
             "    Valid regions (1-6 motif length): {}",
             self.valid_regions()
         );
         info!(
-            "    Skipped (invalid motif): {}",
+            "    - Skipped (invalid motif): {}",
             self.skipped_invalid_motif
         );
     }
@@ -343,7 +343,7 @@ pub(super) fn intersect_streaming(
 
     let is_phred = is_phred_scaled(&vcf);
     info!(
-        "  Probabilities in VCF/BCF are {} scaled",
+        "Probabilities in VCF/BCF are {} scaled",
         if is_phred { "PHRED" } else { "linear" }
     );
 
@@ -524,7 +524,7 @@ pub(super) fn intersect_streaming(
         skipped_invalid_motif: skipped_invalid_region,
     };
     stats.log_summary();
-    info!(" Number of intersected regions: {}", results.len());
+    info!("Number of intersected regions: {}", results.len());
 
     Ok((results, stats.valid_regions()))
 }
