@@ -197,7 +197,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     if let Some(ref path) = &config.plot_distribution {
         output::generate_distribution_plot_spec(&results, path, config.msi_threshold)?;
         info!(
-            "Generated Data Distribution Plot(Vega-Lite Json): {}",
+            "Data Distribution Plot(Vega-Lite Json): {}",
             path.display()
         );
     }
@@ -205,19 +205,19 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     if let Some(ref path) = config.plot_pseudotime {
         output::generate_pseudotime_plot_spec(&results, path, config.msi_threshold)?;
         info!(
-            "Generated Pseudotime Plot(Vega-Lite Json): {}",
+            "Pseudotime Plot(Vega-Lite Json): {}",
             path.display()
         );
     }
 
     if let Some(ref path) = config.data_distribution {
         output::write_distribution_data(&results, path, config.msi_threshold)?;
-        info!("Generated Distribution Data(TSV): {}", path.display());
+        info!("Distribution Data(TSV): {}", path.display());
     }
 
     if let Some(ref path) = config.data_pseudotime {
         output::write_pseudotime_data(&results, path, config.msi_threshold)?;
-        info!("Generated Pseudotime Data(TSV): {}", path.display());
+        info!("Pseudotime Data(TSV): {}", path.display());
     }
 
     info!("==============================================");

@@ -85,7 +85,7 @@ impl IntersectionStats {
         info!("Intersection complete:");
         info!("    - Total regions in BED: {}", self.total_regions);
         info!(
-            "    Valid regions (1-6 motif length): {}",
+            "    - Valid regions (1-6 motif length): {}",
             self.valid_regions()
         );
         info!(
