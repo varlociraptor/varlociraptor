@@ -7,13 +7,14 @@ use std::str;
 use std::sync::RwLock;
 
 use anyhow::{Context, Result};
-use bio::stats::{bayesian, LogProb, Prob};
+use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
 use progress_logger::ProgressLogger;
+use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::preprocessing::{
@@ -137,7 +138,9 @@ where
              to 0.5 each. This avoids calls caused by single supporting reads. \
              filtered-non-standard-alignments: non-standard alignments (i.e. \
              alignments with non-standard read orientation) have been removed from the \
-             pileup.\">",
+             pileup. \
+             missing-data: no alignments that properly cover the candidate variant in \
+             any considered sample.\">",
         );
 
         // register sample specific tags
@@ -253,6 +256,12 @@ where
               (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
               In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
               these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
+        );
+        header.push_record(
+            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">"
         );
         aux_info_collector.write_header_info(&mut header);
 
@@ -391,10 +400,10 @@ where
             }
 
             // obtain variant type
-            let variant_type = utils::collect_variants(records.first_not_none_mut()?, false, None)?
-                [0]
-            .variant()
-            .to_type();
+            let variant_type =
+                utils::collect_variants(records.first_not_none_mut()?, false, None, None, None)?[0]
+                    .variant()
+                    .to_type();
 
             let mut work_item =
                 self.preprocess_record(&mut records, i, &observations, &aux_info_collector)?;
@@ -425,6 +434,8 @@ where
                     _events,
                     contig,
                     variant_type,
+                    work_item.call.heterozygosity(),
+                    work_item.call.somatic_effective_mutation_rate(),
                     work_item.check_read_orientation_bias,
                     work_item.check_strand_bias,
                     work_item.check_read_position_bias,
@@ -459,6 +470,31 @@ where
 
             let _locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
 
+            // obtain variant specific priors
+            let get_prior = |key: &[u8]| -> Result<Option<LogProb>> {
+                match first_record.info(key).float() {
+                    // old format, not available handle for backwards compatibility
+                    Err(rust_htslib::errors::Error::BcfUndefinedTag { .. }) => Ok(None),
+                    // other error cases
+                    Err(e) => Err(e.into()),
+                    // info not passed
+                    Ok(None) => Ok(None),
+                    // info passed
+                    Ok(Some(values)) => {
+                        let value = values[0]; // all records output by preprocess are single allele
+                        if value.is_missing() {
+                            Ok(None)
+                        } else {
+                            Ok(Some(LogProb::from(PHREDProb(values[0] as f64))))
+                        }
+                    }
+                }
+            };
+
+            let variant_heterozygosity = get_prior(b"HETEROZYGOSITY")?;
+            let variant_somatic_effective_mutation_rate =
+                get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE")?;
+
             let mut call_builder = CallBuilder::default();
             call_builder
                 .chrom(chrom.to_owned())
@@ -471,6 +507,8 @@ where
                         Some(id)
                     }
                 })
+                .heterozygosity(variant_heterozygosity)
+                .somatic_effective_mutation_rate(variant_somatic_effective_mutation_rate)
                 .record(first_record)?;
             if let Some(ref aux_info_collector) = aux_info_collector {
                 call_builder.aux_info(aux_info_collector.collect(first_record)?);
@@ -601,6 +639,8 @@ where
         events: &mut Vec<model::Event>,
         contig: &str,
         variant_type: model::VariantType,
+        variant_heterozygosity: Option<LogProb>,
+        variant_somtatic_effective_mutation_rate: Option<LogProb>,
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
@@ -662,6 +702,15 @@ where
             model
                 .prior_mut()
                 .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
+
+            model
+                .prior_mut()
+                .set_variant_heterozygosity(variant_heterozygosity);
+            model
+                .prior_mut()
+                .set_variant_somatic_effective_mutation_rate(
+                    variant_somtatic_effective_mutation_rate,
+                );
             model.prior().check()?;
         }
 
@@ -947,7 +996,7 @@ impl CallProcessor for CallWriter {
 
     fn process_call(
         &mut self,
-        call: Call,
+        mut call: Call,
         _sample_names: &grammar::SampleInfo<String>,
     ) -> Result<()> {
         call.write_final_record(self.bcf_writer.as_mut().unwrap())

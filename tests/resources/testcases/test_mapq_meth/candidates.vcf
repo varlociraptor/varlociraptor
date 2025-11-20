@@ -1,0 +1,36 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=SVLEN,Number=.,Type=Integer,Description="Difference in length between REF and ALT alleles">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of structural variant (inclusive, 1-based).">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=EVENT,Number=1,Type=String,Description="ID of event associated to breakend">
+##INFO=<ID=MATEID,Number=.,Type=String,Description="ID of mate breakends">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=CIPOS,Number=2,Type=Integer,Description="Confidence interval around POS for imprecise variants">
+##INFO=<ID=CIEND,Number=2,Type=Integer,Description="Confidence interval around END for imprecise variants">
+##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description="PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)">
+##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description="PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)">
+##contig=<ID=21,length=46709983>
+##INFO=<ID=FRAGMENT_ID,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_MAPPING,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_ALT,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_REF,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_MISSED_ALLELE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_SAMPLE_ALT,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_DOUBLE_OVERLAP,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_HIT_BASE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=STRAND,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=READ_ORIENTATION,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=READ_POSITION,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=SOFTCLIPPED,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=ALT_INDEL_OPERATIONS,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PAIRED,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=PROB_HOMOPOLYMER_VARIANT_OBSERVABLE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=HOMOPOLYMER_INDEL_LEN,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=IS_MAX_MAPQ,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=ALT_LOCUS,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##INFO=<ID=THIRD_ALLELE_EVIDENCE,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##varlociraptor_observation_format_version=15
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+21	373	.	CG	<METH>	.	.	FRAGMENT_ID=14,0,0,0,0,0,0,0,0,0,0;PROB_MAPPING=14,0,0,0,1,0,46825,46803,1,0,50685,46887,1,0,50685,46887,1,0,27286,47619,1,0,50685,46887,1,0,46825,46803,1,0,17470,46853,1,0,46825,46803,1,0,17470,46853,1,0,14000,46931,1,0,50685,46887,1,0,27286,47619,1,0,17470,46853,1,0,27286,47619;PROB_REF=14,0,0,0,1,0,15657,47569,0,0,52431,1,0,58487,49433,0,0,52431,0,0,52431,0,0,52431,1,0,15657,47569,0,0,52431,1,0,15657,47569,1,0,58487,49433,1,0,42495,47964,0,0,52431,0,0,52431,0,0,52431;PROB_ALT=14,0,0,0,0,0,52431,1,0,15657,47569,1,0,15657,47441,1,0,15657,47569,1,0,15657,47569,1,0,15657,47569,0,0,52431,1,0,15657,47569,0,0,52431,1,0,15657,47441,0,0,52254,1,0,15657,47569,1,0,15657,47569,1,0,15657,47569;PROB_MISSED_ALLELE=14,0,0,0,1,0,35904,48945,1,0,35904,48945,1,0,31440,48945,1,0,35904,48945,1,0,35904,48945,1,0,35904,48945,1,0,35904,48945,1,0,35904,48945,1,0,35904,48945,1,0,31440,48945,1,0,20157,48946,1,0,35904,48945,1,0,35904,48945,1,0,35904,48945;PROB_SAMPLE_ALT=14,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0;PROB_DOUBLE_OVERLAP=14,0,0,0,1,0,0,0,1,0,0,0,0,0,64512,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,64512,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0;STRAND=14,0,0,0,2,0,2,0,1,0,2,0,2,0,2,0,2,0,2,0,2,0,1,0,2,0,2,0,2,0,2,0;READ_ORIENTATION=14,0,0,0,8,0,0,0,0,0,1,0,8,0,8,0,8,0,8,0,8,0,0,0,8,0,0,0,8,0,8,0;SOFTCLIPPED=513,0,0,0,0,3584,0,0,0,0;PAIRED=513,0,0,0,65280,3647,0,0,0,0;READ_POSITION=14,0,0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0;PROB_HIT_BASE=14,0,0,0,1,0,32246,49322,1,0,48081,49334,1,0,48081,49334,1,0,48081,49334,1,0,5997,49334,1,0,37451,49320,1,0,61717,49328,1,0,58961,49320,1,0,61717,49328,1,0,48081,49334,1,0,25275,49331,1,0,48081,49334,1,0,59597,49327,1,0,59597,49327;IS_MAX_MAPQ=513,0,0,0,0,3584,0,0,0,0;ALT_LOCUS=14,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0;THIRD_ALLELE_EVIDENCE=14,0,0,0,0,0,0,0,0,0,0

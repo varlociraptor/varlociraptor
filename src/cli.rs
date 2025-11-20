@@ -7,14 +7,8 @@ use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
-
-use anyhow::{bail, Context, Result};
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{LogProb, Prob};
-use itertools::Itertools;
-use structopt::StructOpt;
-use strum::IntoEnumIterator;
 
 use crate::calling;
 use crate::calling::variants::calling::{
@@ -22,10 +16,17 @@ use crate::calling::variants::calling::{
 };
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 use crate::candidates;
+use crate::candidates::methylation::MethylationMotif;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use anyhow::{bail, Context, Result};
+use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
+use bio::stats::{LogProb, Prob};
+use itertools::Itertools;
+use structopt::StructOpt;
+use strum::IntoEnumIterator;
 //use crate::estimation::sample_variants;
 //use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
@@ -38,7 +39,8 @@ use crate::variants::evidence::realignment;
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
-use crate::variants::sample::estimate_alignment_properties;
+use crate::variants::sample::{estimate_alignment_properties, MethylationReadtype};
+
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -111,7 +113,8 @@ pub enum Varlociraptor {
     #[structopt(
         name = "methylation-candidates",
         about = "Generate BCF with methylation candidates",
-        usage = "varlociraptor methylation-candidates input.fasta output.bcf"
+        usage = "varlociraptor methylation-candidates input.fasta output.bcf",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     MethylationCandidates {
         #[structopt(
@@ -121,7 +124,14 @@ pub enum Varlociraptor {
             help = "Input FASTA File"
         )]
         input: PathBuf,
-
+        #[structopt(
+            long = "motifs",
+            help = "Comma-separated list of methylation motifs to search for in the input chromosome. Supported motifs: CG, CHG, CHH, GATC.",
+            required = false,
+            use_delimiter = true
+        )]
+        #[serde(default = "default_methylation_motifs")]
+        motifs: Vec<MethylationMotif>,
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
@@ -151,6 +161,24 @@ impl Varlociraptor {
             panic!("bug: these are not preprocess options.");
         }
     }
+}
+
+impl FromStr for MethylationMotif {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "CG" => Ok(MethylationMotif::CG),
+            "CHG" => Ok(MethylationMotif::CHG),
+            "CHH" => Ok(MethylationMotif::CHH),
+            "GATC" => Ok(MethylationMotif::GATC),
+            _ => Err(format!("Invalid methylation motif: {}", s)),
+        }
+    }
+}
+
+fn default_methylation_motifs() -> Vec<MethylationMotif> {
+    vec![MethylationMotif::CG]
 }
 
 fn default_reference_buffer_size() -> usize {
@@ -185,7 +213,7 @@ pub enum PreprocessKind {
     Variants {
         #[structopt(
             parse(from_os_str),
-            help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
+            help = "FASTA file with reference genome. Has to be indexed with (e.g. with samtools faidx)."
         )]
         reference: PathBuf,
         #[structopt(
@@ -198,9 +226,19 @@ pub enum PreprocessKind {
         #[structopt(
             long,
             required = true,
-            help = "BAM file with aligned reads from a single sample."
+            help = "BAM file with aligned reads from a single sample. BAM file must be indexed (e.g. with samtools index)."
         )]
         bam: PathBuf,
+        #[structopt(
+            long,
+            help = "Name of INFO field containing an expected heterozygosity per variant allele (can be e.g. a population allele frequency). Field needs to have as many entries as ALT alleles per VCF/BCF record."
+        )]
+        variant_heterozygosity_field: Option<String>,
+        #[structopt(
+            long,
+            help = "Name of INFO field containing an expected somatic effective mutation rate per variant allele (can be e.g. a poplulation scale prevalence of a known cancer variant from a database). Field needs to have as many entries as ALT alleles per VCF/BCF record."
+        )]
+        variant_somatic_effective_mutation_rate_field: Option<String>,
         #[structopt(
             long,
             help = "Report fragment IDs in output BCF. This information can be used for phasing."
@@ -325,6 +363,12 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         output_raw_observations: Option<PathBuf>,
+        #[structopt(
+            long = "methylation-read-type",
+            possible_values = &MethylationReadtype::iter().map(|v| v.into()).collect_vec(),
+            help = "Type of methylation information encoded in the reads. Use 'converted' for reads treated with bisulfite or EMSeq. Use 'annotated' for reads where methylation information is encoded in the MM and ML tags."
+        )]
+        methylation_readtype: Option<MethylationReadtype>,
     },
 }
 
@@ -379,7 +423,7 @@ pub enum EstimateKind {
     #[structopt(
         name = "alignment-properties",
         about = "Estimate properties like insert size, maximum softclip length, and the PCR homopolymer error model.",
-        usage = "varlociraptor estimate alignment-properties reference.fasta --bam sample.bam > sample.alignment-properties.json",
+        usage = "varlociraptor estimate alignment-properties reference.fasta --bams sample.bam > sample.alignment-properties.json",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     AlignmentProperties {
@@ -410,7 +454,8 @@ pub enum EstimateKind {
         Uses a uniform prior distribution by default. Optionally, e.g. a pathologist's estimate can be provided, \
         such that the calculated posterior distribution can be sharpened by the model with the given prior \
         knowledge. For now, it is always advisable to check the visual output generated by --output-plot.",
-        usage = "varlociraptor estimate contamination --sample sample-a.bcf --contaminant sample-b.bcf --output-plot contamination-qc-plot.vl.json > contamination.tsv"
+        usage = "varlociraptor estimate contamination --sample sample-a.bcf --contaminant sample-b.bcf --output-plot contamination-qc-plot.vl.json > contamination.tsv",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Contamination {
         #[structopt(long = "sample", help = "Presumably contaminated sample.")]
@@ -450,8 +495,10 @@ pub enum EstimateKind {
         about = "Estimate mutational burden. Takes Varlociraptor calls (must be annotated \
                  with e.g. VEP but using ANN instead of CSQ) from STDIN, prints mutational burden estimate in Vega-lite JSON format to STDOUT. \
                  It can be converted to an image via vega-lite-cli (see conda package).",
-        usage = "varlociraptor estimate mutational-burden --coding-genome-size 3e7 --events SOMATIC_TUMOR \
-                 --sample tumor < calls.bcf | vg2svg > tmb.svg",
+        usage = "varlociraptor estimate mutational-burden --mode curve --coding-genome-size 3e7 --events SOMATIC_TUMOR \
+                 --sample tumor < calls.bcf | vg2svg > tmb.svg\n    \
+                 varlociraptor estimate mutational-burden --mode table --coding-genome-size 3e7 --events SOMATIC_TUMOR \
+                 --sample tumor < calls.bcf > tmb.tsv",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     MutationalBurden {
@@ -469,11 +516,11 @@ pub enum EstimateKind {
         )]
         coding_genome_size: f64,
         #[structopt(
-            long = "plot-mode",
-            possible_values = &estimation::mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
-            help = "How to plot (as stratified curve, histogram or multi-sample barplot)."
+            long = "mode",
+            possible_values = &estimation::mutational_burden::Mode::iter().map(|v| v.into()).collect_vec(),
+            help = "How to output to STDOUT (as stratified curve, histogram, or multi-sample barplot, or TSV table)."
         )]
-        mode: estimation::mutational_burden::PlotMode,
+        mode: estimation::mutational_burden::Mode,
         #[structopt(
             long = "vaf-cutoff",
             default_value = "0.2",
@@ -560,9 +607,7 @@ pub enum CallKind {
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
-                    CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
-                    variant at the locus, counting from 1. If IDX is not specified, the first \
-                    variant will be chosen. Alternatively, for single variant VCFs, you can \
+                    CHROM:POS. Alternatively, for single variant VCFs, you can \
                     specify 'all'."
         )]
         testcase_locus: Option<String>,
@@ -746,6 +791,16 @@ pub enum FilterMethod {
             The former behavior is much more intuitive than loosing such variants entirely."
         )]
         mode: ControlFDRMode,
+        #[structopt(
+            long,
+            help = "Whether smart mode shall retain artifact calls \
+            instead of taking the sum of artifact probability and \
+            absent probability for \
+            determining whether a variant shall be filtered. Setting this causes \
+            variants that are marked as artifacts to be kept.
+            "
+        )]
+        smart_retain_artifacts: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
@@ -814,6 +869,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     log_mode,
                     output_raw_observations,
+                    methylation_readtype,
+                    variant_heterozygosity_field,
+                    variant_somatic_effective_mutation_rate_field,
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
@@ -824,6 +882,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             ).into()
                         );
                     };
+
+                    let variant_heterozygosity_field = variant_heterozygosity_field.map(Vec::from);
+                    let variant_somatic_effective_mutation_rate_field =
+                        variant_somatic_effective_mutation_rate_field.map(Vec::from);
 
                     let mut reference_buffer = Arc::new(
                         reference::Buffer::from_path(&reference, reference_buffer_size)
@@ -875,6 +937,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .methylation_readtype(methylation_readtype)
+                                    .variant_heterozygosity_field(variant_heterozygosity_field)
+                                    .variant_somatic_effective_mutation_rate_field(
+                                        variant_somatic_effective_mutation_rate_field,
+                                    )
                                     .build();
                             processor.process()?;
                         }
@@ -903,6 +970,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         reference_buffer,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .methylation_readtype(methylation_readtype)
+                                    .variant_heterozygosity_field(variant_heterozygosity_field)
+                                    .variant_somatic_effective_mutation_rate_field(
+                                        variant_somatic_effective_mutation_rate_field,
+                                    )
                                     .build();
                             processor.process()?;
                         }
@@ -931,6 +1003,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         realignment_window,
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
+                                    .methylation_readtype(methylation_readtype)
+                                    .variant_heterozygosity_field(variant_heterozygosity_field)
+                                    .variant_somatic_effective_mutation_rate_field(
+                                        variant_somatic_effective_mutation_rate_field,
+                                    )
                                     .build();
                             processor.process()?;
                         }
@@ -1153,6 +1230,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 vartype,
                 minlen,
                 maxlen,
+                smart_retain_artifacts,
             } => {
                 let events = events
                     .iter()
@@ -1179,6 +1257,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     LogProb::from(Prob::checked(fdr)?),
                     local,
                     smart,
+                    smart_retain_artifacts,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
@@ -1302,8 +1381,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
-        Varlociraptor::MethylationCandidates { input, output } => {
-            candidates::methylation::find_candidates(input, output)?;
+        Varlociraptor::MethylationCandidates {
+            input,
+            motifs,
+            output,
+        } => {
+            candidates::methylation::find_candidates(input, motifs, output)?;
         }
     }
     Ok(())

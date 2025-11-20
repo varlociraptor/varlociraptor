@@ -37,6 +37,7 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
+use crate::variants::sample::MethylationReadtype;
 use crate::variants::sample::Sample;
 use crate::variants::sample::SampleBuilder;
 use crate::variants::types::haplotype_block::HaplotypeBlock;
@@ -74,6 +75,9 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     report_fragment_ids: bool,
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
+    methylation_readtype: Option<MethylationReadtype>,
+    variant_heterozygosity_field: Option<Vec<u8>>,
+    variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -111,6 +115,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         );
         header.push_record(
             b"##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END for imprecise variants\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">"
         );
 
         // register sequences
@@ -196,6 +206,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             progress_logger,
             self.log_each_record,
             aux_info_collector,
+            self.variant_heterozygosity_field.clone(),
+            self.variant_somatic_effective_mutation_rate_field.clone(),
         );
 
         let mut bam_reader =
@@ -208,6 +220,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
+        let methylation_mm_ml_tag = matches!(
+            self.methylation_readtype,
+            Some(MethylationReadtype::Annotated)
+        );
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -217,6 +233,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
+                methylation_mm_ml_tag,
             )
             .build()
             .unwrap();
@@ -265,13 +282,22 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     fn process_variant(&self, variants: Variants, sample: &mut Sample) -> Result<Vec<Call>> {
         let call_builder = |chrom, start, id| {
             let mut builder = CallBuilder::default();
-            builder.chrom(chrom).pos(start).id({
-                if id == b"." {
-                    None
-                } else {
-                    Some(id)
-                }
-            });
+            builder
+                .chrom(chrom)
+                .pos(start)
+                .id({
+                    if id == b"." {
+                        None
+                    } else {
+                        Some(id)
+                    }
+                })
+                .heterozygosity(variants.variant_of_interest().heterozygosity())
+                .somatic_effective_mutation_rate(
+                    variants
+                        .variant_of_interest()
+                        .somatic_effective_mutation_rate(),
+                );
             builder
         };
 
@@ -279,6 +305,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             VariantInfo {
                 variant,
                 haplotype: None,
+                ..
             } => {
                 let mut call = call_builder(
                     variants.locus().contig().as_bytes().to_owned(),
@@ -461,6 +488,19 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })
         };
 
+        let parse_meth = || -> Result<variants::types::Methylation> {
+            let locus = variants.locus().clone();
+            let methylation_readtype = self.methylation_readtype;
+            if let Some(methylation_readtype) = methylation_readtype {
+                Ok(variants::types::Methylation::new(
+                    locus,
+                    methylation_readtype,
+                ))
+            } else {
+                panic!("Please specify the methylation read type with --methylation-read-type <converted|annotated> in order to process methylation variants.");
+            }
+        };
+
         let parse_snv = |alt| -> Result<variants::types::Snv<R>> {
             let locus = variants.locus().clone();
             Ok(variants::types::Snv::new(
@@ -551,6 +591,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             })
             .map(|variant_info| -> Result<Box<dyn Realignable>> {
                 Ok(match variant_info.variant() {
+                    model::Variant::Methylation() => unreachable!(),
                     model::Variant::Snv(alt) => Box::new(parse_snv(*alt)?),
                     model::Variant::Mnv(alt) => Box::new(parse_mnv(alt)?),
                     model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
@@ -678,6 +719,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             haplotype_blocks.get(haplotype).unwrap().lock().unwrap();
 
                         match variant {
+                            model::Variant::Methylation() => unreachable!(),
                             model::Variant::Snv(alt) => {
                                 haplotype_block.push_variant(Box::new(parse_snv(*alt)?))
                             }
@@ -756,6 +798,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     model::Variant::Breakend { .. } => unimplemented!(
                         "bug: breakends without haplotype events should be ignored for now"
                     ),
+                    model::Variant::Methylation() => {
+                        sample.extract_observations(&parse_meth()?, &Vec::new())?
+                    }
                 }
             },
         ))

@@ -3,10 +3,9 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp::Ordering;
 use std::convert::TryFrom;
 use std::fmt::{self, Debug};
-use std::ops::{Deref, Range, RangeInclusive};
+use std::ops::{Range, RangeInclusive};
 use std::str;
 
 use anyhow::{bail, Result};
@@ -85,65 +84,6 @@ pub(crate) fn AlleleFreq(af: f64) -> AlleleFreq {
 //     }
 // }
 
-/// An allele frequency range
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct ContinuousAlleleFreqs {
-    inner: Range<AlleleFreq>,
-    pub(crate) left_exclusive: bool,
-    pub(crate) right_exclusive: bool,
-    /// offset to add when calculating the smallest observable value for a left-exclusive 0.0 bound
-    zero_offset: NotNan<f64>,
-}
-
-impl ContinuousAlleleFreqs {
-    pub(crate) fn absent() -> Self {
-        Self::singleton(0.0)
-    }
-
-    pub(crate) fn singleton(value: f64) -> Self {
-        ContinuousAlleleFreqs {
-            inner: AlleleFreq(value)..AlleleFreq(value),
-            left_exclusive: false,
-            right_exclusive: false,
-            zero_offset: NotNan::from(1.0_f64),
-        }
-    }
-
-    // TODO maybe use this where appropriate
-    // pub(crate) fn is_singleton(&self) -> bool {
-    //     self.start == self.end
-    // }
-}
-
-impl Default for ContinuousAlleleFreqs {
-    fn default() -> Self {
-        Self::absent()
-    }
-}
-
-impl Ord for ContinuousAlleleFreqs {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.inner.start.cmp(&other.start) {
-            Ordering::Equal => self.inner.end.cmp(&other.end),
-            ord => ord,
-        }
-    }
-}
-
-impl PartialOrd for ContinuousAlleleFreqs {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Deref for ContinuousAlleleFreqs {
-    type Target = Range<AlleleFreq>;
-
-    fn deref(&self) -> &Range<AlleleFreq> {
-        &self.inner
-    }
-}
-
 #[derive(Hash, Debug, Eq, PartialEq, Clone)]
 pub enum HaplotypeIdentifier {
     Event(Vec<u8>),
@@ -207,6 +147,8 @@ pub enum VariantType {
     Insertion(Option<Range<u64>>),
     #[strum(serialize = "DEL")]
     Deletion(Option<Range<u64>>),
+    #[strum(serialize = "METH")]
+    Methylation,
     #[strum(serialize = "SNV")]
     Snv,
     #[strum(serialize = "MNV")]
@@ -306,6 +248,7 @@ impl<'a> TryFrom<&'a bcf::Record> for VariantPrecision {
 pub(crate) enum Variant {
     Deletion(u64),
     Insertion(Vec<u8>),
+    Methylation(),
     Snv(u8),
     Mnv(Vec<u8>),
     Breakend {
@@ -331,6 +274,7 @@ impl fmt::Display for Variant {
             String::from_utf8_lossy(allele).into_owned()
         };
         match self {
+            Variant::Methylation() => write!(f, "meth"),
             Variant::Snv(alt) => write!(f, "snv_{}", fmt_allele(&[*alt])),
             Variant::Deletion(len) => write!(f, "del_{}", len),
             Variant::Insertion(seq) => write!(f, "ins_{}", fmt_allele(seq)),
@@ -379,6 +323,7 @@ impl Variant {
             (&Variant::Insertion(_), &VariantType::Insertion(Some(ref range))) => {
                 self.len() >= range.start && self.len() < range.end
             }
+            (&Variant::Methylation(), &VariantType::Methylation) => true,
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
             (&Variant::Snv(_), &VariantType::Snv) => true,
@@ -396,6 +341,7 @@ impl Variant {
         match self {
             Variant::Deletion(_) => VariantType::Deletion(None),
             Variant::Insertion(_) => VariantType::Insertion(None),
+            Variant::Methylation() => VariantType::Methylation,
             Variant::Snv(_) => VariantType::Snv,
             Variant::Mnv(_) => VariantType::Mnv,
             Variant::Breakend { .. } => VariantType::Breakend,
@@ -410,6 +356,7 @@ impl Variant {
         match *self {
             Variant::Deletion(l) => l,
             Variant::Insertion(ref s) => s.len() as u64,
+            Variant::Methylation() => 1,
             Variant::Snv(_) => 1,
             Variant::Mnv(ref alt) => alt.len() as u64,
             Variant::Breakend { .. } => 1,

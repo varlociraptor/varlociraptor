@@ -162,7 +162,7 @@ impl<R: Realigner> Variant for Deletion<R> {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if !self.locus.overlap(read, true).is_none() {
+                if !self.locus.overlap(read, true, 0, 0).is_none() {
                     Some(vec![0])
                 } else {
                     None
@@ -178,15 +178,15 @@ impl<R: Realigner> Variant for Deletion<R> {
                     // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
                     // in particular for large deletions.
                     if encloses_centerpoint
-                        && (!self.locus.overlap(left, true).is_none()
-                            || !self.locus.overlap(right, true).is_none())
+                        && (!self.locus.overlap(left, true, 0, 0).is_none()
+                            || !self.locus.overlap(right, true, 0, 0).is_none())
                     {
                         Some(vec![0])
                     } else {
                         None
                     }
-                } else if !self.locus.overlap(left, true).is_none()
-                    || !self.locus.overlap(right, true).is_none()
+                } else if !self.locus.overlap(left, true, 0, 0).is_none()
+                    || !self.locus.overlap(right, true, 0, 0).is_none()
                 {
                     Some(vec![0])
                 } else {
@@ -253,7 +253,6 @@ impl<R: Realigner> Variant for Deletion<R> {
                 if alignment_properties.insert_size.is_some() {
                     let isize_support =
                         self.allele_support_isize(left, right, alignment_properties, self.len())?;
-
                     support.merge(&isize_support);
                 }
 

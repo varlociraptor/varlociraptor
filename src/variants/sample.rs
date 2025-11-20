@@ -3,42 +3,74 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
+use super::evidence::observations::read_observation::major_alt_locus;
+use super::evidence::realignment::Realignable;
+use crate::estimation::alignment_properties;
+use crate::reference;
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::{
+    major_read_position, Observable, ReadObservation,
+};
+use crate::variants::types::methylation::extract_mm_ml_5mc;
+use crate::variants::types::Loci;
+use crate::variants::types::Variant;
+use anyhow::Result;
+use bio::stats::LogProb;
+use bio_types::{genome, genome::AbstractInterval};
+use by_address::ByAddress;
+use derive_builder::Builder;
+use rand::distributions;
+use rand::distributions::Distribution;
+use rand::{rngs::StdRng, SeedableRng};
+use rust_htslib::bam::{self, Record};
+use std::collections::{HashMap, HashSet};
 use std::f64;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
 
-use anyhow::Result;
-use bio_types::{genome, genome::AbstractInterval};
-use derive_builder::Builder;
-use rand::distributions;
-use rand::distributions::Distribution;
-use rand::{rngs::StdRng, SeedableRng};
-use rust_htslib::bam;
+type MethylationPosToProbs = HashMap<usize, LogProb>;
+type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<Rc<MethylationPosToProbs>>>;
 
-use crate::estimation::alignment_properties;
-use crate::reference;
-use crate::variants::evidence::observations::read_observation::{
-    major_read_position, Observable, ReadObservation,
-};
-use crate::variants::types::Variant;
-
-use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
-use super::evidence::observations::read_observation::major_alt_locus;
-use super::evidence::realignment::Realignable;
-use super::types::Loci;
-use crate::variants::evidence::observations::pileup::Pileup;
-
-#[derive(new, Getters, Debug)]
+#[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
     #[getset(get = "pub")]
     single_read_window: u64,
     #[getset(get = "pub")]
     read_pair_window: u64,
+    #[getset(get = "pub")]
+    // Hashmap containing as a key the read and as a value a hashmap with the position of methylation and the probability of methylation
+    methylation_probs: Option<MethylationOfRead>,
+    #[getset(get = "pub")]
+    failed_reads: Option<HashSet<ByAddress<Rc<Record>>>>,
 }
 
 impl RecordBuffer {
+    pub(crate) fn new(
+        inner: bam::RecordBuffer,
+        single_read_window: u64,
+        read_pair_window: u64,
+        methylation_mm_ml_tag: bool,
+    ) -> Self {
+        RecordBuffer {
+            inner,
+            single_read_window,
+            read_pair_window,
+            methylation_probs: if methylation_mm_ml_tag {
+                Some(HashMap::new())
+            } else {
+                None
+            },
+            failed_reads: if methylation_mm_ml_tag {
+                Some(HashSet::new())
+            } else {
+                None
+            },
+        }
+    }
+
     pub(crate) fn window(&self, read_pair_mode: bool, left: bool) -> u64 {
         if read_pair_mode {
             self.read_pair_window
@@ -47,6 +79,18 @@ impl RecordBuffer {
         } else {
             0
         }
+    }
+
+    pub(crate) fn get_read_specific_meth_probs(
+        &self,
+        rec: &Rc<Record>,
+    ) -> Option<Rc<HashMap<usize, LogProb>>> {
+        self.methylation_probs.as_ref().and_then(|meth_probs| {
+            meth_probs
+                .get(&ByAddress(Rc::clone(rec)))
+                .cloned()
+                .flatten()
+        })
     }
 
     pub(crate) fn fetch(
@@ -62,6 +106,34 @@ impl RecordBuffer {
                 .saturating_sub(self.window(read_pair_mode, true)),
             interval.range().end + self.window(read_pair_mode, false),
         )?;
+        // If methylation_probs is Some we process read with methylation information. We want to extract the methylation information. Since the parsing of the MM and the ML tag can be slow we only do this once per read and store the results in a hashmap.
+        if let Some(methylation_probs) = &mut self.methylation_probs {
+            if let Some(failed_reads) = &mut self.failed_reads {
+                for rec in self.inner.iter() {
+                    let rec_id = ByAddress(Rc::clone(rec));
+                    // If the read has been processed in a previous fetch we skip it.
+                    if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
+                        // Extract methylation probs out of MM and ML tag and save in methylation_probs
+                        let pos_to_probs = extract_mm_ml_5mc(rec).map(Rc::new);
+                        // If extraction failed we add the read to the failed reads set to avoid reprocessing it in future fetches.
+                        if pos_to_probs.is_none() {
+                            failed_reads.insert(rec_id);
+                        } else {
+                            methylation_probs.insert(rec_id, pos_to_probs);
+                        }
+                    }
+                }
+                let buffer_ids: HashSet<_> = self
+                    .inner
+                    .iter()
+                    .map(|rec| ByAddress(Rc::clone(rec)))
+                    .collect();
+                // Clean up methylation_probs to only keep entries for reads that are still in the buffer.
+                if let Some(methylation_probs_map) = &mut self.methylation_probs {
+                    methylation_probs_map.retain(|key, _value| buffer_ids.contains(key));
+                }
+            }
+        }
 
         Ok(())
     }
@@ -179,6 +251,7 @@ impl SampleBuilder {
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
+        methylation_mm_ml_tag: bool,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -200,6 +273,7 @@ impl SampleBuilder {
                 record_buffer,
                 single_read_window,
                 read_pair_window,
+                methylation_mm_ml_tag,
             ))
     }
 }
@@ -236,7 +310,6 @@ impl Sample {
         } else {
             None
         };
-
         let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
@@ -256,4 +329,23 @@ impl Sample {
         }
         Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
     }
+}
+
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    VariantNames,
+)]
+#[strum(serialize_all = "kebab_case")]
+#[serde(rename_all = "kebab-case")]
+pub enum MethylationReadtype {
+    Annotated,
+    Converted,
 }

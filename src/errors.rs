@@ -15,10 +15,6 @@ pub(crate) enum Error {
     InvalidInheritanceSampleName { name: String },
     #[error("observation files must be provided as samplename=path")]
     InvalidObservationsSpec,
-    #[error(
-        "invalid variant index given, must be not higher than the number of variants at the locus"
-    )]
-    InvalidIndex,
     #[error("invalid locus for --testcase-locus. Use CHROM:POS syntax")]
     InvalidLocus,
     #[error("no candidate variant at the given locus")]
@@ -84,6 +80,8 @@ pub(crate) enum Error {
     InvalidFDRControlEvents,
     #[error("unrealistic insert size distribution: the standard deviation is 0.0, consider sampling more reads for estimating alignment properties")]
     UnrealisticIsizeSd,
+    #[error("given field for variant heterozygosity or variant somatic effective mutation rate has to have as many entries as ALT alleles in the record")]
+    InvalidVariantPrior,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {

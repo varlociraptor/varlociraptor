@@ -54,23 +54,35 @@ lazy_static! {
 pub(crate) enum Hint {
     AdjustedSingletonEvidence,
     FilteredNonStandardAlignments,
+    MissingData,
 }
 
-#[derive(Default, Clone, Debug, Builder, Getters)]
-#[getset(get = "pub(crate)")]
+#[derive(Default, Clone, Debug, Builder, Getters, CopyGetters)]
 pub(crate) struct Call {
+    #[getset(get = "pub(crate)")]
     chrom: Vec<u8>,
+    #[getset(get = "pub(crate)")]
     pos: u64,
     #[builder(default = "None")]
+    #[getset(get = "pub(crate)")]
     id: Option<Vec<u8>>,
     #[builder(default = "None")]
+    #[getset(get = "pub(crate)")]
     mateid: Option<Vec<u8>>,
+    #[builder(default = "None")]
+    #[getset(get_copy = "pub(crate)")]
+    heterozygosity: Option<LogProb>,
+    #[builder(default = "None")]
+    #[getset(get_copy = "pub(crate)")]
+    somatic_effective_mutation_rate: Option<LogProb>,
     #[builder(default)]
+    #[getset(get = "pub(crate)")]
     aux_info: AuxInfo,
     #[builder(default)]
     hints: HashSet<Hint>,
     //aux_fields: HashSet<Vec<u8>>,
     #[builder(default)]
+    #[getset(get = "pub(crate)")]
     variant: Option<Variant>,
 }
 
@@ -117,6 +129,19 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+        if let Some(heterozygosity) = self.heterozygosity {
+            record.push_info_float(
+                b"HETEROZYGOSITY",
+                &[*PHREDProb::from(heterozygosity) as f32],
+            )?;
+        }
+        if let Some(somatic_effective_mutation_rate) = self.somatic_effective_mutation_rate {
+            record.push_info_float(
+                b"SOMATIC_EFFECTIVE_MUTATION_RATE",
+                &[*PHREDProb::from(somatic_effective_mutation_rate) as f32],
+            )?;
+        }
+
         self.write_record_aux_info(variant, &mut record)?;
 
         self.aux_info.write(&mut record, &OMIT_AUX_INFO)?;
@@ -150,7 +175,7 @@ impl Call {
         Ok(())
     }
 
-    pub(crate) fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
+    pub(crate) fn write_final_record(&mut self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
 
         let variant = self.variant.as_ref().unwrap();
@@ -195,11 +220,6 @@ impl Call {
             event_probs.push((event, *prob));
         }
         event_probs.sort_unstable_by_key(|(_, prob)| OrderedFloat(-prob.0));
-
-        let no_obs = variant
-            .sample_info
-            .iter()
-            .all(|sample_info| sample_info.is_none());
 
         for (i, sample_info) in variant.sample_info.iter().enumerate() {
             if let Some(ref sample_info) = sample_info {
@@ -400,6 +420,16 @@ impl Call {
         if let Some(ref mateid) = self.mateid {
             record.push_info_string(b"MATEID", &[mateid])?;
         }
+
+        let is_missing_data = variant
+            .sample_info
+            .iter()
+            .all(|sample| sample.as_ref().is_none_or(|info| info.pileup.is_empty()));
+
+        if is_missing_data {
+            self.hints.insert(Hint::MissingData);
+        }
+
         if !self.hints.is_empty() {
             let hints: Vec<&[u8]> = self
                 .hints
@@ -415,13 +445,6 @@ impl Call {
         record.set_qual(f32::missing());
 
         // set event probabilities
-        // determine whether marginal probability is zero (prob becomes NaN)
-        // this is a missing data case, which we want to present accordingly
-        let is_missing_data = variant
-            .sample_info
-            .iter()
-            .all(|sample| sample.as_ref().map_or(true, |info| info.pileup.is_empty()));
-
         let mut push_prob =
             |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &[prob]);
         if is_missing_data {
@@ -443,7 +466,7 @@ impl Call {
         }
 
         // set sample info
-        if !no_obs {
+        if !is_missing_data {
             let dp = obs_counts.values().cloned().collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
@@ -535,7 +558,7 @@ impl Call {
                 .collect_vec();
             record.push_format_string(b"AFD", &vaf_densities)?;
         } else {
-            record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
+            record.push_format_integer(b"DP", &vec![0; variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"SAOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SROBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
@@ -632,6 +655,9 @@ impl VariantBuilder {
                     .svlen(Some(svlen))
                     .svtype(Some(b"INS".to_vec()))
             }
+            model::Variant::Methylation() => self
+                .ref_allele(b"CG".to_ascii_uppercase())
+                .alt_allele(b"<METH>".to_ascii_uppercase()),
             model::Variant::Snv(base) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele([*base].to_ascii_uppercase()),

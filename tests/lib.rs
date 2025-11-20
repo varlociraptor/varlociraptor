@@ -141,6 +141,7 @@ testcase!(test_giab_32, exact);
 testcase!(test_giab_33, exact);
 testcase!(test_giab_34, exact);
 testcase!(test_giab_35, exact);
+testcase!(test_mapq_meth, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
@@ -178,6 +179,10 @@ testcase!(test_uzuner_fp_mnv1, exact);
 
 testcase!(test_prinz_conversion, exact);
 testcase!(test_prinz_no_conversion, exact);
+testcase!(test_prinz_af_scan, exact);
+testcase!(test_prinz_call_meth_1, exact);
+testcase!(test_prinz_call_meth_2, exact);
+testcase!(test_prinz_pacbio_zero, exact);
 
 testcase!(test_imprecise_fusion, exact);
 testcase!(test_imprecise_fusion_absent, exact);
@@ -189,6 +194,7 @@ testcase!(test_uzuner_fp_snv_on_ins, exact);
 testcase!(test_false_negative_indel_call, exact);
 testcase!(test_hiv_vaf_higher_than_expected, exact);
 testcase!(test_uzuner_only_N, exact);
+testcase!(test_moelder_floatisnan, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
@@ -206,6 +212,7 @@ fn control_fdr(
     alpha: f64,
     local: bool,
     smart: bool,
+    smart_retain_artifacts: bool,
     vartype: Option<&varlociraptor::variants::model::VariantType>,
 ) {
     let basedir = basedir(test);
@@ -225,6 +232,7 @@ fn control_fdr(
         LogProb::from(Prob(alpha)),
         local,
         smart,
+        smart_retain_artifacts,
     )
     .unwrap();
 }
@@ -259,6 +267,7 @@ fn test_fdr_control1() {
         0.05,
         false,
         false,
+        false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -272,6 +281,7 @@ fn test_fdr_control2() {
         "test_fdr_ev_2",
         &["SOMATIC"],
         0.05,
+        false,
         false,
         false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
@@ -290,6 +300,7 @@ fn test_fdr_control3() {
         0.001,
         false,
         false,
+        false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -303,6 +314,7 @@ fn test_fdr_control4() {
         "test_fdr_ev_4",
         &["SOMATIC_TUMOR"],
         0.05,
+        false,
         false,
         false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
@@ -320,6 +332,7 @@ fn test_fdr_control_local1() {
         0.05,
         true,
         false,
+        false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -334,6 +347,7 @@ fn test_fdr_control_local2() {
         &["SOMATIC"],
         0.25,
         true,
+        false,
         false,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
@@ -350,6 +364,23 @@ fn test_fdr_control_local2_smart() {
         0.08,
         true,
         true,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
+    assert_call_number("test_fdr_local2_smart", 1);
+}
+
+#[test]
+fn test_fdr_control_local2_smart_retain_artifacts() {
+    control_fdr(
+        "test_fdr_local2_smart",
+        &["SOMATIC"],
+        0.08,
+        true,
+        true,
+        true,
         Some(&varlociraptor::variants::model::VariantType::Deletion(
             Some(1..30),
         )),
@@ -364,6 +395,7 @@ fn test_fdr_control_local3() {
         &["GERMLINE", "SOMATIC_TUMOR_LOW"],
         0.05,
         true,
+        false,
         false,
         None,
     );
@@ -395,6 +427,7 @@ fn control_meth_candidates(test: &str) -> Result<()> {
     cleanup_file(&output);
     varlociraptor::candidates::methylation::find_candidates(
         PathBuf::from(format!("{}/genome.fasta", basedir)),
+        vec![varlociraptor::candidates::methylation::MethylationMotif::CG],
         Some(PathBuf::from(output)),
     )
     .with_context(|| "error computing methylation candidates".to_string())?;
