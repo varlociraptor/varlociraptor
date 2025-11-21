@@ -161,7 +161,7 @@ fn write_plot(data: Value, template: &str, path: &Path, threshold: f64) -> Resul
 /// * `Err` if file creation or writing fails
 ///
 /// # Example
-/// ```no_run
+/// ```ignore
 /// write_distribution_data(&results, Path::new("dist.tsv"), 3.5)?;
 /// ```
 pub(super) fn write_distribution_data(
@@ -231,7 +231,7 @@ pub(super) fn write_distribution_data(
 /// * `Err` if file creation, template parsing, or writing fails
 ///
 /// # Example
-/// ```no_run
+/// ```ignore
 /// generate_distribution_plot_spec(&results, Path::new("dist.vl.json"), 3.5)?;
 /// ```
 pub(super) fn generate_distribution_plot_spec(
@@ -309,7 +309,7 @@ pub(super) fn generate_distribution_plot_spec(
 /// * `Err` if file creation or writing fails
 ///
 /// # Example
-/// ```no_run
+/// ```ignore
 /// write_pseudotime_data(&results, Path::new("pseudo.tsv"), 3.5)?;
 /// ```
 pub(super) fn write_pseudotime_data(
