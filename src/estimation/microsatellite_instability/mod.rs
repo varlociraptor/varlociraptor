@@ -54,7 +54,7 @@ pub(crate) struct MsiConfig {
     pub calls: PathBuf,
     /// Number of threads (None = use rayon default).
     pub threads: Option<usize>,
-    /// MSI-High classification threshold (percentage), deafault: 3.5.
+    /// MSI-High classification threshold (percentage), default: 3.5.
     pub msi_threshold: f64,
     /// Sample names to process from VCF/BCF (after excluding user exclusions).
     pub samples: Vec<String>,

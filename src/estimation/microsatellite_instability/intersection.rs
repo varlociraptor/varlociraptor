@@ -70,14 +70,14 @@ impl RegionSummary {
 pub(super) struct IntersectionStats {
     /// Total number of regions processed from BED file.
     pub total_regions: usize,
-    /// Number of regions skipped due to invalid motif length.
-    pub skipped_invalid_motif: usize,
+    /// Number of regions skipped due to invalid motif or when chromosome none.
+    pub skipped_invalid_regions: usize,
 }
 
 impl IntersectionStats {
     /// Calculate number of valid regions processed.
     fn valid_regions(&self) -> usize {
-        self.total_regions - self.skipped_invalid_motif
+        self.total_regions - self.skipped_invalid_regions
     }
 
     /// Log a summary of intersection statistics.
@@ -89,8 +89,8 @@ impl IntersectionStats {
             self.valid_regions()
         );
         info!(
-            "    - Skipped (invalid motif): {}",
-            self.skipped_invalid_motif
+            "    - Skipped (invalid regions): {}",
+            self.skipped_invalid_regions
         );
     }
 }
@@ -350,7 +350,7 @@ pub(super) fn intersect_streaming(
     // Results & Stats
     let mut results = Vec::new();
     let mut total_regions = 0;
-    let mut skipped_invalid_region = 0;
+    let mut skipped_invalid_regions = 0;
     let mut variant_window: VecDeque<(bcf::Record, String)> = VecDeque::new();
     let mut seen_any_chrom_overlap = false;
 
@@ -367,7 +367,7 @@ pub(super) fn intersect_streaming(
         total_regions += 1;
 
         if !region.is_valid_motif() || region_rank.is_none() {
-            skipped_invalid_region += 1;
+            skipped_invalid_regions += 1;
             debug!(
                 " Skipping region {} with invalid motif length {} or chromosome: {}",
                 region.region_id(),
@@ -521,7 +521,7 @@ pub(super) fn intersect_streaming(
 
     let stats = IntersectionStats {
         total_regions,
-        skipped_invalid_motif: skipped_invalid_region,
+        skipped_invalid_regions,
     };
     stats.log_summary();
     info!("Number of intersected regions: {}", results.len());

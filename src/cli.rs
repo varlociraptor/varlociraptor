@@ -609,7 +609,7 @@ pub enum EstimateKind {
              (without the bin column) and a Varlociraptor-format VCF/BCF file, and produces \
              either the MSI score distribution or MSI score evolution as Vega-Lite JSON output \
              file(s) or their TSV plot data file(s). [status: EXPERIMENTAL]",
-        usage = "varlociraptor estimate microsatellite-instability microsatelalites.bed calls.vcf \
+        usage = "varlociraptor estimate microsatellite-instability microsatellites.bed calls.vcf \
                  --threads 4 --msi-threshold 3.5 --plot-pseudotime msi-pseudotime.vl.json --data-pseudotime \
                  msi-pseudotime.tsv\n\n \
                  varlociraptor estimate msi microsatellites.bed calls.bcf \
