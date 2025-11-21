@@ -57,6 +57,10 @@ pub(super) struct DpResult {
 pub(super) struct AfEvolutionResult {
     pub sample: String,
     pub af_threshold: f64,
+    // Core MSI metrics k_map, msi_score_map, regions_with_variants, msi_status
+    // (always computed, minimal cost)
+    // This is for experimental purposes, for easy debugging and validation.
+    // These should be serialized and changed to Optional when experiments finished.
     pub k_map: usize,
     pub msi_score_map: f64,
     pub regions_with_variants: usize,
@@ -465,28 +469,36 @@ pub(super) fn run_af_evolution_analysis(
     output_req: OutputRequirements,
     num_threads: Option<usize>,
 ) -> Result<HashMap<String, HashMap<String, AfEvolutionResult>>> {
-    info!("==============================================");
-    info!("Running AF evolution analysis");
-    info!("==============================================");
-    info!("  Samples: {:?}", samples);
-    info!("  AF thresholds: {:?}", af_thresholds);
-    info!("  MSI-High threshold: {}%", msi_high_threshold);
-    info!("  Total regions (BED): {}", total_regions);
-    info!("  Regions with variants: {}", regions.len());
-    info!("  Output requirements:");
+    info!("Samples: {:?}", samples);
+    info!("AF thresholds: {:?}", af_thresholds);
+    info!("MSI-High threshold: {}%", msi_high_threshold);
+    info!("Total regions (BED): {}", total_regions);
+    info!("Regions with variants: {}", regions.len());
+    info!("Output requirements:");
     info!("    - Uncertainty metrics: {}", output_req.needs_pseudotime);
     info!("    - Full distribution: {}", output_req.needs_distribution);
 
     if let Some(threads) = num_threads {
-        info!("  Using {} threads (CLI specified)", threads);
-
-        rayon::ThreadPoolBuilder::new()
+        // Note: In CLI usage, build_global() should always succeed on first call.
+        // Error handling included for future library usage or testing scenarios.
+        match rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build_global()
-            .ok();
+        {
+            Ok(_) => {
+                info!("Using {} threads (CLI specified)", threads);
+            }
+            Err(_) => {
+                let actual_threads = rayon::current_num_threads();
+                info!(
+                    "Using {} threads (global pool already configured, requested {} ignored)",
+                    actual_threads, threads
+                );
+            }
+        }
     } else {
         let threads = rayon::current_num_threads();
-        info!("  Using {} threads (rayon default)", threads);
+        info!("Using {} threads (rayon default)", threads);
     }
 
     // Create all (sample, AF) work items for parallel processing
@@ -495,7 +507,7 @@ pub(super) fn run_af_evolution_analysis(
         .flat_map(|sample| af_thresholds.iter().map(move |&af| (sample.clone(), af)))
         .collect();
 
-    info!("  Total parallel tasks: {}", work_items.len());
+    info!("Total parallel tasks: {}", work_items.len());
 
     let results = Mutex::new(HashMap::new());
 
@@ -770,6 +782,10 @@ mod tests {
             region_starts: vec![],
         };
 
+        /* In theory should never come to this 
+            still keeping the test for safety and future
+            flexibility.
+        */
         let output_req = OutputRequirements {
             needs_pseudotime: false,
             needs_distribution: false,
@@ -780,7 +796,7 @@ mod tests {
 
         assert_eq!(result.k_map, 0);
         assert_eq!(result.msi_score_map, 0.0);
-        assert_eq!(result.msi_status, "MSS"); /* maybe this should be removed */
+        assert_eq!(result.msi_status, "MSS");
     }
 
     #[test]
@@ -800,7 +816,15 @@ mod tests {
 
         let result =
             calculate_msi_metrics(&filtered, 100, 3.5, 0.5, "sample1".to_string(), output_req);
-
+        let lower = result.uncertainty_lower.unwrap();
+        let upper = result.uncertainty_upper.unwrap();
+        let std_dev: f64 = result.map_std_dev.unwrap();
+    
+        assert!(result.distribution.is_none());
+        assert!(lower <= result.msi_score_map);
+        assert!(result.msi_score_map <= upper);
+        assert!(std_dev >= 0.0);
+        assert_eq!(result.k_map, 2);
         assert!(result.uncertainty_lower.is_some());
         assert!(result.uncertainty_upper.is_some());
         assert!(result.map_std_dev.is_some());
@@ -825,6 +849,13 @@ mod tests {
         let result_af0 =
             calculate_msi_metrics(&filtered, 100, 3.5, 0.0, "sample1".to_string(), output_req);
         assert!(result_af0.distribution.is_some());
+        let dist = result_af0.distribution.unwrap();
+        assert_eq!(dist.len(), 2);
+        let prob_sum: f64 = dist.iter().map(|d| d.probability).sum();
+        assert!((prob_sum - 1.0).abs() < TEST_EPSILON);
+        assert_eq!(dist[0].k, 0);
+        assert_eq!(dist[1].k, 1);
+        
 
         // AF=0.5 should NOT include distribution
         let result_af5 =
@@ -842,7 +873,7 @@ mod tests {
 
         let output_req = OutputRequirements {
             needs_pseudotime: false,
-            needs_distribution: false,
+            needs_distribution: true,
         };
 
         let results = run_af_evolution_analysis(
@@ -856,13 +887,82 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(results.len(), 1);
-        assert!(results.contains_key("sample1"));
-        assert!(results["sample1"].contains_key("0"));
-
         let result = &results["sample1"]["0"];
-        assert_eq!(result.sample, "sample1");
-        assert_eq!(result.af_threshold, 0.0);
         assert_eq!(result.regions_with_variants, 1);
+        assert_eq!(result.k_map, 1);
+        assert!((result.msi_score_map - 1.0).abs() < TEST_EPSILON);
+        assert_eq!(result.msi_status, "MSS");
+        assert!(result.uncertainty_lower.is_none());
+        assert!(result.uncertainty_upper.is_none());
+        assert!(result.map_std_dev.is_none());
+        assert!(result.distribution.is_some());
+        let dist = result.distribution.clone().unwrap();
+        assert_eq!(dist.len(), 2);
+        let prob_sum: f64 = dist.iter().map(|d| d.probability).sum();
+        assert!((prob_sum - 1.0).abs() < TEST_EPSILON);
+        assert!(dist[1].probability > dist[0].probability);
+    }
+
+    #[test]
+    fn test_run_af_evolution_analysis_multiple_af_thresholds() {
+        let regions = vec![
+            RegionSummary {
+                variants: vec![make_variant(0.1, vec![("sample1", 0.9)])],
+            },
+            RegionSummary {
+                variants: vec![make_variant(0.05, vec![("sample1", 0.5)])],
+            },
+        ];
+
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: false,
+        };
+
+        let results = run_af_evolution_analysis(
+            &regions,
+            100,
+            &vec!["sample1".to_string()],
+            3.5,
+            &vec![0.0, 0.5, 1.0],
+            output_req,
+            Some(1),
+        )
+        .unwrap();
+
+        // Should have results for all 3 AF thresholds
+        assert_eq!(results.len(), 1, "Should have results for 1 sample");
+        assert_eq!(results["sample1"].len(), 3, "Should have 3 AF thresholds");
+
+        // AF=1.0: no variants pass (0.9 < 1.0, 0.5 < 1.0)
+        let af_1_0 = &results["sample1"]["1"];
+        assert_eq!(af_1_0.regions_with_variants, 0, "No regions should pass AF=1.0 threshold");
+        assert_eq!(af_1_0.k_map, 0, "k_map should be 0 with no regions");
+        assert_eq!(af_1_0.msi_score_map, 0.0, "MSI score should be 0%");
+        assert_eq!(af_1_0.msi_status, "MSS", "Status should be MSS");
+        assert!(af_1_0.uncertainty_lower.is_some(), "Uncertainty should exist with pseudotime=true");
+
+        // AF=0.5: both variants pass (0.9 ≥ 0.5, 0.5 ≥ 0.5)
+        let af_0_5 = &results["sample1"]["0.5"];
+        assert_eq!(af_0_5.regions_with_variants, 2, "Both regions should pass AF=0.5 threshold");
+        assert_eq!(af_0_5.k_map, 2, "k_map should be 2 with high instability");
+        assert!((af_0_5.msi_score_map - 2.0).abs() < TEST_EPSILON, "MSI score should be 2.0%, got {}", af_0_5.msi_score_map);
+        assert_eq!(af_0_5.msi_status, "MSS", "2% < 3.5% : MSS");
+        assert!(af_0_5.uncertainty_lower.is_some());
+        assert!(af_0_5.uncertainty_upper.is_some());
+
+        // AF=0.0: both variants pass (all pass)
+        let af_0_0 = &results["sample1"]["0"];
+        assert_eq!(af_0_0.regions_with_variants, 2, "Both regions should pass AF=0.0 threshold");
+        assert_eq!(af_0_0.k_map, 2);
+        assert!((af_0_0.msi_score_map - 2.0).abs() < TEST_EPSILON);
+        assert!(af_0_0.uncertainty_lower.is_some());
+
+        // Verify no distribution (needs_distribution=false)
+        assert!(af_1_0.distribution.is_none());
+        assert!(af_0_5.distribution.is_none());
+        assert!(af_0_0.distribution.is_none());
+
+        assert_eq!(af_0_5.msi_score_map, af_0_0.msi_score_map, "MSI scores should match when same regions pass");
     }
 }
