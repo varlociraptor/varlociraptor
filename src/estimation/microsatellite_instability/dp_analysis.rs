@@ -323,7 +323,6 @@ fn calculate_msi_metrics(
         })
         .collect();
 
-
     // Step 2: Run DP to get probability distribution
     let distribution_raw = if !region_probs.is_empty() {
         run_msi_dp(&region_probs)
@@ -332,7 +331,7 @@ fn calculate_msi_metrics(
     };
 
     // Step 3: Compute k_map, msi_score_map, regions_with_variants, msi_status ONLY if pseudotime needed
-    let (k_map, msi_score_map, msi_status, regions_with_variants) = 
+    let (k_map, msi_score_map, msi_status, regions_with_variants) =
         if output_req.needs_pseudotime && total_regions > 0 {
             // Note: partial_cmp is safe here because upstream validation ensures no NaN values.
             let k_map = distribution_raw
@@ -346,8 +345,13 @@ fn calculate_msi_metrics(
             let msi_score_map = calculate_percentage_exact(k_map, total_regions);
             let msi_status = classify_msi_status(msi_score_map, msi_high_threshold);
 
-            (Some(k_map), Some(msi_score_map), Some(msi_status), Some(regions_with_variants))
-        } else { 
+            (
+                Some(k_map),
+                Some(msi_score_map),
+                Some(msi_status),
+                Some(regions_with_variants),
+            )
+        } else {
             (None, None, None, None)
         };
 
@@ -757,7 +761,7 @@ mod tests {
             region_starts: vec![],
         };
 
-        /* In theory should never come to this 
+        /* In theory should never come to this
             still keeping the test for safety and future
             flexibility.
         */
@@ -795,7 +799,7 @@ mod tests {
         let lower = result.uncertainty_lower.unwrap();
         let upper = result.uncertainty_upper.unwrap();
         let std_dev: f64 = result.map_std_dev.unwrap();
-    
+
         assert!(result.distribution.is_none());
         assert!(lower <= result.msi_score_map.unwrap());
         assert!(result.msi_score_map.unwrap() <= upper);
@@ -831,7 +835,6 @@ mod tests {
         assert!((prob_sum - 1.0).abs() < TEST_EPSILON);
         assert_eq!(dist[0].k, 0);
         assert_eq!(dist[1].k, 1);
-        
 
         // AF=0.5 should NOT include distribution
         let result_af5 =
@@ -872,7 +875,7 @@ mod tests {
         assert!(result.uncertainty_lower.is_none());
         assert!(result.uncertainty_upper.is_none());
         assert!(result.map_std_dev.is_none());
-        
+
         // Distribution SHOULD exist (needs_distribution: true AND af=0.0)
         assert!(result.distribution.is_some());
         let dist = result.distribution.as_ref().unwrap();
@@ -916,24 +919,55 @@ mod tests {
 
         // AF=1.0: no variants pass (0.9 < 1.0, 0.5 < 1.0)
         let af_1_0 = &results["sample1"]["1"];
-        assert_eq!(af_1_0.regions_with_variants.unwrap(), 0, "No regions should pass AF=1.0 threshold");
-        assert_eq!(af_1_0.k_map.unwrap(), 0, "k_map should be 0 with no regions");
+        assert_eq!(
+            af_1_0.regions_with_variants.unwrap(),
+            0,
+            "No regions should pass AF=1.0 threshold"
+        );
+        assert_eq!(
+            af_1_0.k_map.unwrap(),
+            0,
+            "k_map should be 0 with no regions"
+        );
         assert_eq!(af_1_0.msi_score_map.unwrap(), 0.0, "MSI score should be 0%");
-        assert_eq!(af_1_0.msi_status.as_deref(), Some("MSS"), "Status should be MSS");
-        assert!(af_1_0.uncertainty_lower.is_some(), "Uncertainty should exist with pseudotime=true");
+        assert_eq!(
+            af_1_0.msi_status.as_deref(),
+            Some("MSS"),
+            "Status should be MSS"
+        );
+        assert!(
+            af_1_0.uncertainty_lower.is_some(),
+            "Uncertainty should exist with pseudotime=true"
+        );
 
         // AF=0.5: both variants pass (0.9 ≥ 0.5, 0.5 ≥ 0.5)
         let af_0_5 = &results["sample1"]["0.5"];
-        assert_eq!(af_0_5.regions_with_variants.unwrap(), 2, "Both regions should pass AF=0.5 threshold");
-        assert_eq!(af_0_5.k_map.unwrap(), 2, "k_map should be 2 with high instability");
-        assert!((af_0_5.msi_score_map.unwrap() - 2.0).abs() < TEST_EPSILON, "MSI score should be 2.0%, got {}", af_0_5.msi_score_map.unwrap());
+        assert_eq!(
+            af_0_5.regions_with_variants.unwrap(),
+            2,
+            "Both regions should pass AF=0.5 threshold"
+        );
+        assert_eq!(
+            af_0_5.k_map.unwrap(),
+            2,
+            "k_map should be 2 with high instability"
+        );
+        assert!(
+            (af_0_5.msi_score_map.unwrap() - 2.0).abs() < TEST_EPSILON,
+            "MSI score should be 2.0%, got {}",
+            af_0_5.msi_score_map.unwrap()
+        );
         assert_eq!(af_0_5.msi_status.as_deref(), Some("MSS"), "2% < 3.5% : MSS");
         assert!(af_0_5.uncertainty_lower.is_some());
         assert!(af_0_5.uncertainty_upper.is_some());
 
         // AF=0.0: both variants pass (all pass)
         let af_0_0 = &results["sample1"]["0"];
-        assert_eq!(af_0_0.regions_with_variants.unwrap(), 2, "Both regions should pass AF=0.0 threshold");
+        assert_eq!(
+            af_0_0.regions_with_variants.unwrap(),
+            2,
+            "Both regions should pass AF=0.0 threshold"
+        );
         assert_eq!(af_0_0.k_map.unwrap(), 2);
         assert!((af_0_0.msi_score_map.unwrap() - 2.0).abs() < TEST_EPSILON);
         assert!(af_0_0.uncertainty_lower.is_some());
@@ -943,6 +977,9 @@ mod tests {
         assert!(af_0_5.distribution.is_none());
         assert!(af_0_0.distribution.is_none());
 
-        assert_eq!(af_0_5.msi_score_map, af_0_0.msi_score_map, "MSI scores should match when same regions pass");
+        assert_eq!(
+            af_0_5.msi_score_map, af_0_0.msi_score_map,
+            "MSI scores should match when same regions pass"
+        );
     }
 }
