@@ -57,15 +57,15 @@ pub(super) struct DpResult {
 pub(super) struct AfEvolutionResult {
     pub sample: String,
     pub af_threshold: f64,
-    // Core MSI metrics k_map, msi_score_map, regions_with_variants, msi_status
-    // (always computed, minimal cost)
-    // This is for experimental purposes, for easy debugging and validation.
-    // These should be serialized and changed to Optional when experiments finished.
-    pub k_map: usize,
-    pub msi_score_map: f64,
-    pub regions_with_variants: usize,
-    pub msi_status: String,
     // Only computed if pseudotime output requested:
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub k_map: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub msi_score_map: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub regions_with_variants: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub msi_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncertainty_lower: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -323,7 +323,6 @@ fn calculate_msi_metrics(
         })
         .collect();
 
-    let regions_with_variants = region_probs.len();
 
     // Step 2: Run DP to get probability distribution
     let distribution_raw = if !region_probs.is_empty() {
@@ -332,24 +331,30 @@ fn calculate_msi_metrics(
         vec![1.0] // No regions → P(0 unstable) = 1.0
     };
 
-    // Step 3: Find MAP (maximum a posteriori) estimate
-    // Note: partial_cmp is safe here because upstream validation ensures no NaN values.
-    let k_map = distribution_raw
-        .iter()
-        .enumerate()
-        .rev() // Reverse to get LAST maximum (solves the problem of equal probabilities)
-        .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-        .map(|(k, _)| k)
-        .unwrap_or(0);
+    // Step 3: Compute k_map, msi_score_map, regions_with_variants, msi_status ONLY if pseudotime needed
+    let (k_map, msi_score_map, msi_status, regions_with_variants) = 
+        if output_req.needs_pseudotime && total_regions > 0 {
+            // Note: partial_cmp is safe here because upstream validation ensures no NaN values.
+            let k_map = distribution_raw
+                .iter()
+                .enumerate()
+                .rev() // Reverse to get LAST maximum (solves the problem of equal probabilities)
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+                .map(|(k, _)| k)
+                .unwrap_or(0);
+            let regions_with_variants = region_probs.len();
+            let msi_score_map = calculate_percentage_exact(k_map, total_regions);
+            let msi_status = classify_msi_status(msi_score_map, msi_high_threshold);
 
-    // Step 4: Calculate MSI score using exact decimal arithmetic and determine MSI Status based on that.
-    let msi_score_map = calculate_percentage_exact(k_map, total_regions);
-    let msi_status = classify_msi_status(msi_score_map, msi_high_threshold);
+            (Some(k_map), Some(msi_score_map), Some(msi_status), Some(regions_with_variants))
+        } else { 
+            (None, None, None, None)
+        };
 
-    // Step 5: Calculate uncertainty using exact Decimal arithmetic
+    // Step 4: Calculate uncertainty using exact Decimal arithmetic
     let (uncertainty_lower, uncertainty_upper, map_std_dev) =
         if output_req.needs_pseudotime && total_regions > 0 {
-            let k_map_decimal = Decimal::from(k_map);
+            let k_map_decimal = Decimal::from(k_map.unwrap());
 
             // Calculate variance: Var(K) = Σ[(k - k_map)² × P(k)]
             let variance_decimal: Decimal = distribution_raw
@@ -373,25 +378,19 @@ fn calculate_msi_metrics(
             let zero = Decimal::from(0);
 
             let lower_k_decimal = (k_map_decimal - std_dev_decimal).max(zero);
-
             let upper_k_decimal = (k_map_decimal + std_dev_decimal).min(total_decimal);
-
             let lower_percentage_decimal = (lower_k_decimal / total_decimal) * hundred;
-
             let upper_percentage_decimal = (upper_k_decimal / total_decimal) * hundred;
-
             let lower = lower_percentage_decimal
                 .max(zero)
                 .min(hundred)
                 .to_f64()
                 .unwrap_or(0.0);
-
             let upper = upper_percentage_decimal
                 .max(zero)
                 .min(hundred)
                 .to_f64()
                 .unwrap_or(0.0);
-
             let std_dev_f64 = std_dev_decimal.to_f64().unwrap_or(0.0);
 
             (Some(lower), Some(upper), Some(std_dev_f64))
@@ -399,7 +398,7 @@ fn calculate_msi_metrics(
             (None, None, None)
         };
 
-    // Step 6: Create full distribution (only if distribution output requested AND AF=0.0)
+    // Step 5: Create full distribution (only if distribution output requested AND AF=0.0)
     let distribution = if output_req.needs_distribution && af_threshold == 0.0 {
         Some(
             distribution_raw
@@ -531,30 +530,6 @@ pub(super) fn run_af_evolution_analysis(
     });
 
     let all_results = results.into_inner().unwrap();
-
-    info!("==============================================");
-    info!("AF evolution analysis complete");
-    info!("==============================================");
-    for sample in samples {
-        info!("Results for sample: {}", sample);
-        if let Some(sample_results) = all_results.get(sample) {
-            let mut afs: Vec<_> = af_thresholds.to_vec();
-            afs.sort_by(|a, b| b.partial_cmp(a).unwrap());
-            for af in afs {
-                if let Some(result) = sample_results.get(&af.to_string()) {
-                    info!(
-                        "  AF={:.1}: MSI={:.2}%, k={}/{}, regions={}, status={}",
-                        af,
-                        result.msi_score_map,
-                        result.k_map,
-                        total_regions,
-                        result.regions_with_variants,
-                        result.msi_status
-                    );
-                }
-            }
-        }
-    }
 
     Ok(all_results)
 }
@@ -794,9 +769,10 @@ mod tests {
         let result =
             calculate_msi_metrics(&filtered, 100, 3.5, 0.0, "sample1".to_string(), output_req);
 
-        assert_eq!(result.k_map, 0);
-        assert_eq!(result.msi_score_map, 0.0);
-        assert_eq!(result.msi_status, "MSS");
+        assert!(result.k_map.is_none());
+        assert!(result.msi_score_map.is_none());
+        assert!(result.regions_with_variants.is_none());
+        assert!(result.msi_status.is_none());
     }
 
     #[test]
@@ -821,10 +797,10 @@ mod tests {
         let std_dev: f64 = result.map_std_dev.unwrap();
     
         assert!(result.distribution.is_none());
-        assert!(lower <= result.msi_score_map);
-        assert!(result.msi_score_map <= upper);
+        assert!(lower <= result.msi_score_map.unwrap());
+        assert!(result.msi_score_map.unwrap() <= upper);
         assert!(std_dev >= 0.0);
-        assert_eq!(result.k_map, 2);
+        assert_eq!(result.k_map.unwrap(), 2);
         assert!(result.uncertainty_lower.is_some());
         assert!(result.uncertainty_upper.is_some());
         assert!(result.map_std_dev.is_some());
@@ -888,18 +864,22 @@ mod tests {
         .unwrap();
 
         let result = &results["sample1"]["0"];
-        assert_eq!(result.regions_with_variants, 1);
-        assert_eq!(result.k_map, 1);
-        assert!((result.msi_score_map - 1.0).abs() < TEST_EPSILON);
-        assert_eq!(result.msi_status, "MSS");
+
+        assert!(result.k_map.is_none());
+        assert!(result.msi_score_map.is_none());
+        assert!(result.regions_with_variants.is_none());
+        assert!(result.msi_status.is_none());
         assert!(result.uncertainty_lower.is_none());
         assert!(result.uncertainty_upper.is_none());
         assert!(result.map_std_dev.is_none());
+        
+        // Distribution SHOULD exist (needs_distribution: true AND af=0.0)
         assert!(result.distribution.is_some());
-        let dist = result.distribution.clone().unwrap();
+        let dist = result.distribution.as_ref().unwrap();
         assert_eq!(dist.len(), 2);
         let prob_sum: f64 = dist.iter().map(|d| d.probability).sum();
         assert!((prob_sum - 1.0).abs() < TEST_EPSILON);
+        // With prob_absent=0.1, expect P(k=1) > P(k=0)
         assert!(dist[1].probability > dist[0].probability);
     }
 
@@ -936,26 +916,26 @@ mod tests {
 
         // AF=1.0: no variants pass (0.9 < 1.0, 0.5 < 1.0)
         let af_1_0 = &results["sample1"]["1"];
-        assert_eq!(af_1_0.regions_with_variants, 0, "No regions should pass AF=1.0 threshold");
-        assert_eq!(af_1_0.k_map, 0, "k_map should be 0 with no regions");
-        assert_eq!(af_1_0.msi_score_map, 0.0, "MSI score should be 0%");
-        assert_eq!(af_1_0.msi_status, "MSS", "Status should be MSS");
+        assert_eq!(af_1_0.regions_with_variants.unwrap(), 0, "No regions should pass AF=1.0 threshold");
+        assert_eq!(af_1_0.k_map.unwrap(), 0, "k_map should be 0 with no regions");
+        assert_eq!(af_1_0.msi_score_map.unwrap(), 0.0, "MSI score should be 0%");
+        assert_eq!(af_1_0.msi_status.as_deref(), Some("MSS"), "Status should be MSS");
         assert!(af_1_0.uncertainty_lower.is_some(), "Uncertainty should exist with pseudotime=true");
 
         // AF=0.5: both variants pass (0.9 ≥ 0.5, 0.5 ≥ 0.5)
         let af_0_5 = &results["sample1"]["0.5"];
-        assert_eq!(af_0_5.regions_with_variants, 2, "Both regions should pass AF=0.5 threshold");
-        assert_eq!(af_0_5.k_map, 2, "k_map should be 2 with high instability");
-        assert!((af_0_5.msi_score_map - 2.0).abs() < TEST_EPSILON, "MSI score should be 2.0%, got {}", af_0_5.msi_score_map);
-        assert_eq!(af_0_5.msi_status, "MSS", "2% < 3.5% : MSS");
+        assert_eq!(af_0_5.regions_with_variants.unwrap(), 2, "Both regions should pass AF=0.5 threshold");
+        assert_eq!(af_0_5.k_map.unwrap(), 2, "k_map should be 2 with high instability");
+        assert!((af_0_5.msi_score_map.unwrap() - 2.0).abs() < TEST_EPSILON, "MSI score should be 2.0%, got {}", af_0_5.msi_score_map.unwrap());
+        assert_eq!(af_0_5.msi_status.as_deref(), Some("MSS"), "2% < 3.5% : MSS");
         assert!(af_0_5.uncertainty_lower.is_some());
         assert!(af_0_5.uncertainty_upper.is_some());
 
         // AF=0.0: both variants pass (all pass)
         let af_0_0 = &results["sample1"]["0"];
-        assert_eq!(af_0_0.regions_with_variants, 2, "Both regions should pass AF=0.0 threshold");
-        assert_eq!(af_0_0.k_map, 2);
-        assert!((af_0_0.msi_score_map - 2.0).abs() < TEST_EPSILON);
+        assert_eq!(af_0_0.regions_with_variants.unwrap(), 2, "Both regions should pass AF=0.0 threshold");
+        assert_eq!(af_0_0.k_map.unwrap(), 2);
+        assert!((af_0_0.msi_score_map.unwrap() - 2.0).abs() < TEST_EPSILON);
         assert!(af_0_0.uncertainty_lower.is_some());
 
         // Verify no distribution (needs_distribution=false)

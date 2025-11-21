@@ -367,10 +367,10 @@ pub(super) fn write_pseudotime_data(
                 "{}\t{:.1}\t{:.2}\t{}\t{}\t{}\t{}\t{}\t{}",
                 sample,
                 af_f64,
-                result.msi_score_map,
-                result.k_map,
-                result.regions_with_variants,
-                result.msi_status,
+                result.msi_score_map.unwrap(),
+                result.k_map.unwrap(),
+                result.regions_with_variants.unwrap(),
+                result.msi_status.as_ref().unwrap(),
                 lower,
                 upper,
                 std_dev
@@ -445,12 +445,13 @@ pub(super) fn generate_pseudotime_plot_spec(
                 None => continue,
             };
 
+            let msi_score = result.msi_score_map.unwrap();
             data.push(json!({
                 "sample": sample,
                 "af_threshold": af_f64,
                 "msi_score": result.msi_score_map,
-                "lower_bound": result.uncertainty_lower.unwrap_or(result.msi_score_map),
-                "upper_bound": result.uncertainty_upper.unwrap_or(result.msi_score_map),
+                "lower_bound": result.uncertainty_lower.unwrap_or(msi_score),
+                "upper_bound": result.uncertainty_upper.unwrap_or(msi_score),
             }));
         }
     }
