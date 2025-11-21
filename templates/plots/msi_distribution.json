@@ -57,7 +57,6 @@
                 "dx": 5,
                 "dy": -10,
                 "fontSize": 11,
-                "fontWeight": "bold",
                 "color": "#d62728"
             },
             "encoding": {
