@@ -177,7 +177,6 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
     } else {
         &[0.0]
     };
-    info!("AF Thresholds: {:?}", af_thresholds);
 
     let results = dp_analysis::run_af_evolution_analysis(
         &regions,
