@@ -255,10 +255,11 @@ fn analyze_variant(
 
     let svlen = get_svlen(record, alt_idx, ref_allele, alt_allele)?;
     let repeat_status = is_perfect_repeat(alt_allele, svlen, &region.motif, ref_allele);
-    let prob_absent = get_prob_absent(record, header, alt_idx, is_phred)?;
-    let sample_afs = get_sample_afs(record, header, samples_index_map, alt_idx)?;
 
     if repeat_status == RepeatStatus::Perfect {
+        let prob_absent = get_prob_absent(record, header, alt_idx, is_phred)?;
+        let sample_afs = get_sample_afs(record, header, samples_index_map, alt_idx)?;
+        
         if prob_absent.is_none() || sample_afs.is_empty() {
             debug!(
                 "Perfect repeat at {}:{} missing required probability or all_afs - downgrading to NA",
@@ -267,14 +268,14 @@ fn analyze_variant(
             );
             return Ok(None);
         }
-    } else {
-        return Ok(None);
-    }
 
-    Ok(Some(Variant {
-        prob_absent: prob_absent.unwrap(),
-        sample_afs,
-    }))
+        Ok(Some(Variant {
+            prob_absent: prob_absent.unwrap(),
+            sample_afs,
+        }))
+    } else {
+        Ok(None)
+    }
 }
 
 /* ================================================ */
