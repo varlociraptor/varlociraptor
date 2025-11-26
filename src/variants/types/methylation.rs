@@ -194,13 +194,20 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
             for next_base in methylated_bases {
                 // Specific position of methylated base in the read
                 meth_pos += next_base;
-                // In a few cases, the MM tag might contain positions that exceed the read length
-                if meth_pos <= pos_read_base.len() {
+                // In a few cases, the MM tag might contain positions that exceed the read length. This happens for supplementary alignments.
+                if meth_pos < pos_read_base.len() {
                     let abs_pos = pos_read_base[meth_pos];
                     let prob_val = ml.get(ml_index).unwrap_or(0);
                     let prob = LogProb::from(Prob((f64::from(prob_val) + 0.5) / 256.0));
 
                     pos_to_prob.insert(abs_pos, prob);
+                } else {
+                    warn!(
+                        "The record {:?} on position {:?} is not considered because the MM tag contains positions that exceed the read length",
+                        String::from_utf8_lossy(read.qname()),
+                        read.pos()
+                    );
+                    return None;
                 }
                 ml_index += 1;
                 meth_pos += 1; // Move to the next position
