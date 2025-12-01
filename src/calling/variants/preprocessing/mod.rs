@@ -78,6 +78,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     methylation_readtype: Option<MethylationReadtype>,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
+    threads: usize,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -238,10 +239,23 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .build()
             .unwrap();
 
-        while let Some(variants) = variant_buffer.next()? {
-            let calls = self.process_variant(variants, &mut sample)?;
-            for call in calls {
-                call.write_preprocessed_record(&mut bcf_writer)?;
+        let mut calls_buffer = vec![None; self.threads];
+        loop {
+            let mut variants_buffer = variant_buffer.take(self.threads).collect_vec();
+            if variants_buffer.len() == 0 {
+                break;
+            }
+            rayon::scope(|s| {
+                for (i, variants) in variants_buffer.into_iter().enumerate() {
+                    let calls = self.process_variant(variants, &mut sample)?;
+                    calls_buffer[i] = Some(calls);
+                }
+            });
+            for calls in &mut calls_buffer {
+                for call in calls {
+                    call.write_preprocessed_record(&mut bcf_writer)?;
+                }
+                *calls = None;
             }
         }
 
