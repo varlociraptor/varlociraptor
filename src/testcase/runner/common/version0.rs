@@ -7,6 +7,7 @@ use yaml_rust::Yaml;
 use crate::cli::{PreprocessKind, Varlociraptor};
 use crate::testcase::runner::common::Mode;
 use crate::testcase::runner::common::Testcase;
+use crate::variants::sample::MethylationReadtype;
 
 #[derive(Debug)]
 pub struct TestcaseVersion0 {
@@ -88,6 +89,7 @@ impl Testcase for TestcaseVersion0 {
                         reference,
                         realignment_window: indel_window as u64,
                         max_depth,
+                        methylation_readtype: Some(MethylationReadtype::Annotated),
                         // The rest will be overwritten.
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),

@@ -2,6 +2,70 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.1](https://github.com/varlociraptor/varlociraptor/compare/v8.9.0...v8.9.1) (2025-11-26)
+
+
+### Bug Fixes
+
+* index out of bounds for supplementary annotated alignments ([#528](https://github.com/varlociraptor/varlociraptor/issues/528)) ([08e844a](https://github.com/varlociraptor/varlociraptor/commit/08e844a31ec677b1449946cbaf7f7719f638ed8a))
+
+## [8.9.0](https://github.com/varlociraptor/varlociraptor/compare/v8.8.2...v8.9.0) (2025-11-13)
+
+
+### Features
+
+* add support for methylation calling ([#493](https://github.com/varlociraptor/varlociraptor/issues/493)) ([b4f3b28](https://github.com/varlociraptor/varlociraptor/commit/b4f3b280ddc39371b9bee4d8ac2c04708be8eb9b))
+* Allow methylation candidates motif search ([#522](https://github.com/varlociraptor/varlociraptor/issues/522)) ([56f2281](https://github.com/varlociraptor/varlociraptor/commit/56f22817595f8cd0775d380de623267c79c6bf8e))
+
+## [8.8.2](https://github.com/varlociraptor/varlociraptor/compare/v8.8.1...v8.8.2) (2025-11-07)
+
+
+### Bug Fixes
+
+* ** #519 :** add color setting to subcommands that were missing. ([#520](https://github.com/varlociraptor/varlociraptor/issues/520)) ([b47752d](https://github.com/varlociraptor/varlociraptor/commit/b47752d1fd2f3231695e4ad471a474efe761e60b))
+* fix invalid mate in testcase generation ([#524](https://github.com/varlociraptor/varlociraptor/issues/524)) ([835cb6c](https://github.com/varlociraptor/varlociraptor/commit/835cb6c09df9f03e0556d0e490da415d578a6aeb))
+
+## [8.8.1](https://github.com/varlociraptor/varlociraptor/compare/v8.8.0...v8.8.1) (2025-10-01)
+
+
+### Bug Fixes
+
+* output DP=0 in case of missing data ([#516](https://github.com/varlociraptor/varlociraptor/issues/516)) ([99f88e9](https://github.com/varlociraptor/varlociraptor/commit/99f88e9a64c6344c8b8f3d6fdaf786aa5e9cc747))
+
+## [8.8.0](https://github.com/varlociraptor/varlociraptor/compare/v8.7.4...v8.8.0) (2025-09-30)
+
+
+### Features
+
+* allow outputting mutational burden as TSV table ([#514](https://github.com/varlociraptor/varlociraptor/issues/514)) ([83e79b9](https://github.com/varlociraptor/varlociraptor/commit/83e79b9b616aaf2f3f4f1112cd0d4f194e6352a4))
+
+## [8.7.4](https://github.com/varlociraptor/varlociraptor/compare/v8.7.3...v8.7.4) (2025-09-02)
+
+
+### Bug Fixes
+
+* improved CLI help messages ([fb9a608](https://github.com/varlociraptor/varlociraptor/commit/fb9a60858d6d4abfc41462f213e30ad39a59c042))
+
+
+### Performance Improvements
+
+* restrict formula evaluation recursion by allowed values according to log2fc operands ([#513](https://github.com/varlociraptor/varlociraptor/issues/513)) ([3dc3074](https://github.com/varlociraptor/varlociraptor/commit/3dc3074b5146aaf8d866cd33a678e26d156a329e))
+
+## [8.7.3](https://github.com/varlociraptor/varlociraptor/compare/v8.7.2...v8.7.3) (2025-05-23)
+
+
+### Bug Fixes
+
+* consider leading hardclips when calculating read position ([#510](https://github.com/varlociraptor/varlociraptor/issues/510)) ([0185daf](https://github.com/varlociraptor/varlociraptor/commit/0185daf9d7feb9e83686e8bfd36d8188f3edc0ca))
+* fix bug in read position bias estimation leading to erroneous zero probabilities in case of reads of length 1 (leading to a FloatIsNaN error during calling) ([#508](https://github.com/varlociraptor/varlociraptor/issues/508)) ([aa1471a](https://github.com/varlociraptor/varlociraptor/commit/aa1471ae07654d55146d029e12792d784eb47a4b))
+
+## [8.7.2](https://github.com/varlociraptor/varlociraptor/compare/v8.7.1...v8.7.2) (2025-05-15)
+
+
+### Bug Fixes
+
+* fixed handling of read position information when merging read pairs ([#505](https://github.com/varlociraptor/varlociraptor/issues/505)) ([44aefa9](https://github.com/varlociraptor/varlociraptor/commit/44aefa90c4798fdd26609de7884bbfe5e4408b19))
+
 ## [8.7.1](https://github.com/varlociraptor/varlociraptor/compare/v8.7.0...v8.7.1) (2025-03-05)
 
 

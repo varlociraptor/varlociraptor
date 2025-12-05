@@ -15,10 +15,6 @@ pub(crate) enum Error {
     InvalidInheritanceSampleName { name: String },
     #[error("observation files must be provided as samplename=path")]
     InvalidObservationsSpec,
-    #[error(
-        "invalid variant index given, must be not higher than the number of variants at the locus"
-    )]
-    InvalidIndex,
     #[error("invalid locus for --testcase-locus. Use CHROM:POS syntax")]
     InvalidLocus,
     #[error("no candidate variant at the given locus")]

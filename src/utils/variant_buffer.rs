@@ -55,7 +55,7 @@ impl VariantBuffer {
         }
     }
 
-    pub(crate) fn next(&mut self) -> Result<Option<Variants>> {
+    pub(crate) fn next(&mut self) -> Result<Option<Variants<'_>>> {
         if self.skips.total_count() > 0 && self.skips.total_count() % 100 == 0 {
             self.display_skips();
         }

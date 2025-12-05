@@ -8,7 +8,7 @@ expected:
 samples:
   tumor:
     path: 'tumor.bam'
-    properties: '{"insert_size":{"mean":188.0,"sd":48.033087310066676},"max_del_cigar_len":10,"max_ins_cigar_len":9,"frac_max_softclip":0.7920792079207921}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":188.0,"sd":48.033087310066676},"max_del_cigar_len":10,"max_ins_cigar_len":9,"frac_max_softclip":0.7920792079207921}'
   
 
 # candidate variant
