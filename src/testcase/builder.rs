@@ -26,8 +26,7 @@ use crate::variants::sample;
 use crate::{cli, reference};
 
 lazy_static! {
-    static ref TESTCASE_RE: Regex =
-        Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)(:(?P<idx>\d+))?$").unwrap();
+    static ref TESTCASE_RE: Regex = Regex::new(r"^(?P<chrom>[^:]+):(?P<pos>\d+)$").unwrap();
 }
 
 lazy_static! {
@@ -67,8 +66,6 @@ pub struct Testcase {
     chrom_name: Option<Vec<u8>>,
     #[builder(private)]
     pos: Option<u64>,
-    #[builder(private)]
-    idx: usize,
     #[builder(private)]
     reference_buffer: reference::Buffer,
     candidates: PathBuf,
@@ -112,7 +109,7 @@ impl TestcaseBuilder {
 
     pub(crate) fn locus(self, locus: &str) -> Result<Self> {
         if locus == "all" {
-            Ok(self.chrom_name(None).pos(None).idx(0))
+            Ok(self.chrom_name(None).pos(None))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
             let chrom_name = captures
                 .name("chrom")
@@ -122,14 +119,8 @@ impl TestcaseBuilder {
                 .to_owned();
             let mut pos: u64 = captures.name("pos").unwrap().as_str().parse()?;
             pos -= 1;
-            let idx = if let Some(m) = captures.name("idx") {
-                let idx: usize = m.as_str().parse()?;
-                idx - 1
-            } else {
-                0
-            };
 
-            Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
+            Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)))
         } else {
             Err(errors::Error::InvalidLocus.into())
         }
@@ -273,6 +264,7 @@ impl Testcase {
             Variant::Insertion(ref seq) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
+            Variant::Methylation() => (pos.saturating_sub(100), pos + 2 + 100),
             Variant::Snv(_) => (pos.saturating_sub(100), pos + 1 + 100),
             Variant::Mnv(ref bases) => (pos.saturating_sub(100), pos + bases.len() as u64 + 100),
             Variant::Breakend { .. } => {
@@ -390,16 +382,18 @@ impl Testcase {
                     let mut rec = res?;
                     // update mapping position to interval
                     rec.set_pos(rec.pos() - ref_start as i64);
-                    let mtid = bam_writer.header().tid2name(rec.mtid() as u32);
-                    let ref_start_mate = if mtid == b"=" {
-                        ref_start
-                    } else if let Some(chrom_region) = extended_chromosomal_regions.get(mtid) {
-                        chrom_region.0
-                    } else {
-                        //TODO mate records not being on a candidate chromosome are being ignored by setting offset to 0
-                        0
-                    };
-                    rec.set_mpos(rec.mpos() - ref_start_mate as i64);
+                    if rec.mtid() >= 0 {
+                        let mtid_bytes = bam_writer.header().tid2name(rec.mtid() as u32);
+
+                        if mtid_bytes == b"=" {
+                            rec.set_mpos(rec.mpos() - ref_start as i64);
+                        } else if let Some(chrom_region) =
+                            extended_chromosomal_regions.get(mtid_bytes)
+                        {
+                            rec.set_mpos(rec.mpos() - chrom_region.0 as i64);
+                        }
+                    }
+
                     rec.set_tid(bam_writer.header().tid(&chrom).unwrap() as i32);
                     if rec.remove_aux(b"RG").is_err() {
                         debug!("No RG tag to remove in BAM record.");
