@@ -253,7 +253,7 @@ fn breakends_from_bcf(
     Ok(breakends)
 }
 
-fn breakends_to_interval_borders(
+fn breakends_to_borders(
     candidates: Vec<CnvCandidate>,
     // In the first step we do not want to apply all probs to the borders since we do not autoinclude all candidates over this border.
     // In the second step we do want to apply all probs to the borders since we want to compute the final intervals for specific combinations of candidates
@@ -314,15 +314,99 @@ fn breakends_to_interval_borders(
 
 fn compute_overlapping_intervals(candidates: &[CnvCandidate]) -> HashSet<BreakendInterval> {
     let mut common_intervals = HashSet::new();
+    dbg!(&candidates);
     for k in 1..=candidates.len() {
         for combo in candidates.iter().combinations(k) {
             let combo_owned: Vec<CnvCandidate> = combo.into_iter().cloned().collect();
-            let interval_borders = breakends_to_interval_borders(combo_owned, true);
-            let new_intervals = interval_borders_to_intervals_with_probs(interval_borders);
+            let interval_borders = breakends_to_borders(combo_owned, true);
+            let new_intervals = borders_to_intervals(interval_borders, false);
             common_intervals.extend(new_intervals);
         }
     }
     common_intervals
+}
+
+fn borders_to_intervals(
+    borders: BTreeMap<Locus, BorderInfo>,
+    find_overlapping_intervals: bool,
+) -> HashSet<BreakendInterval> {
+    let mut cnv_intervals: HashSet<BreakendInterval> = HashSet::new();
+    let mut current_candidates = Vec::new();
+    let mut last_pos: Option<Locus> = None;
+    let mut interval_cov = 0;
+    let mut interval_info_probs: BTreeMap<String, f64> = BTreeMap::new();
+    let mut border_afs: Vec<f64> = Vec::new();
+    for (locus, border_info) in &borders {
+        // If we have a previous position and the coverage is not zero, create an interval
+        if interval_cov == 0 {
+            last_pos = None;
+        }
+        interval_cov += border_info.delta;
+
+        if let Some(prev) = &last_pos {
+            if prev.contig() == locus.contig() && prev.pos() < locus.pos() {
+                if !find_overlapping_intervals {
+                    cnv_intervals.insert(BreakendInterval {
+                        interval: Interval::new(
+                            prev.contig().to_owned(),
+                            Range {
+                                start: prev.pos() + 1,
+                                end: locus.pos(),
+                            },
+                        ),
+                        info_probs: interval_info_probs.clone(),
+                        involved_afs: border_afs.clone(),
+                    });
+                } else {
+                    // Apply probability adjustments
+                    if interval_cov == 0 {
+                        cnv_intervals.extend(compute_overlapping_intervals(&current_candidates));
+                        current_candidates.clear();
+
+                        // TODO: Compute common intervals
+                    } else {
+                        current_candidates.extend(border_info.breakends.clone());
+                    }
+                }
+            } else {
+                current_candidates.extend(border_info.breakends.clone());
+            }
+        }
+        if !find_overlapping_intervals {
+            // Update current_info_probs by adding the start probabilities and
+            // subtracting the end probabilities at this border
+            for (k, v) in &border_info.info_probs_borders.clone().unwrap() {
+                interval_info_probs
+                    .entry(k.clone())
+                    .and_modify(|prob| {
+                        // If any of the intervals contributing to this border has probability zero, the resulting interval has probability zero
+                        *prob = if v.count_prob_zero > 0 {
+                            0.0
+                        } else {
+                            let delta = v.prob_interval_start - v.prob_interval_end;
+                            let delta = if delta.is_finite() { delta } else { 0.0 };
+
+                            *prob + delta
+                        };
+                    })
+                    .or_insert_with(|| {
+                        if v.count_prob_zero > 0 {
+                            0.0
+                        } else {
+                            v.prob_interval_start - v.prob_interval_end
+                        }
+                    });
+            }
+            border_afs.extend(border_info.afs_start.clone().unwrap_or_else(Vec::new));
+
+            let to_remove = border_info.afs_end.clone().unwrap_or_else(Vec::new);
+            border_afs.retain(|x| !to_remove.contains(x));
+        }
+
+        last_pos = Some(locus.clone());
+    }
+    dbg!("###########################33");
+    cnv_intervals
 }
 
 fn interval_borders_to_intervals_with_probs(
@@ -385,7 +469,7 @@ fn interval_borders_to_intervals_with_probs(
     cnv_intervals
 }
 
-fn borders_to_intervals(borders: BTreeMap<Locus, BorderInfo>) -> HashSet<BreakendInterval> {
+fn borders_to_intervals_old(borders: BTreeMap<Locus, BorderInfo>) -> HashSet<BreakendInterval> {
     let mut cnv_intervals: HashSet<BreakendInterval> = HashSet::new();
     let mut current_candidates = Vec::new();
     let mut last_pos: Option<Locus> = None;
@@ -441,8 +525,8 @@ pub fn find_candidates(breakends_bcf: PathBuf, outbcf: Option<PathBuf>) -> Resul
     let breakends = breakends_from_bcf(&mut bcf_reader, &header_orig, &prob_keys)?;
 
     // Convert breakends into interval borders, then intervals
-    let interval_borders = breakends_to_interval_borders(breakends, false);
-    let intervals: HashSet<BreakendInterval> = borders_to_intervals(interval_borders);
+    let interval_borders = breakends_to_borders(breakends, false);
+    let intervals: HashSet<BreakendInterval> = borders_to_intervals(interval_borders, true);
 
     // Create new header and write CNV records
     let header_new = create_header_from_existing(&header_orig)?;
