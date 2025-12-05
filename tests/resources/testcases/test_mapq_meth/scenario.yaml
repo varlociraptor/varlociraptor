@@ -1,0 +1,10 @@
+samples:
+  normal:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+
+events:
+  low:
+    "normal:]0.0,0.05]"
+  high:
+    "normal:]0.05,1.0]"

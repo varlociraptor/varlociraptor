@@ -1,0 +1,26 @@
+# The read in the bam has led to NaN in the model. Caused by a bug in the read position bias.
+
+expected:
+  allelefreqs:
+    - tumor == 0.0
+
+# necessary bam files
+samples:
+  tumor:
+    path: 'single_awkward_read.bam'
+    properties: '{"insert_size":null,"max_del_cigar_len":57,"max_ins_cigar_len":56,"frac_max_softclip":0.9918032786885246,"max_read_len":131,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.855980903811265,"prob_deletion_artifact":-10.94299739831799,"prob_insertion_extend_artifact":-1.071316940722758,"prob_deletion_extend_artifact":-0.5756201098012023},"hop_params":{"prob_seq_homopolymer":[-7.998323862239611,-8.48386654005841,-8.731521410283978,-7.828403461219407],"prob_ref_homopolymer":[-8.647173142952704,-9.176124040844368,-9.799750853576539,-8.347436363678634],"prob_seq_extend_homopolymer":[-7.998323862239611,-8.48386654005841,-8.731521410283978,-7.828403461219407],"prob_ref_extend_homopolymer":[-8.647173142952704,-9.176124040844368,-9.799750853576539,-8.347436363678634]},"wildtype_homopolymer_error_model":{"28":2.0381254463494727e-7,"42":1.3587502975663152e-7,"22":1.0870002380530522e-6,"12":8.152501785397891e-7,"-4":5.231188645630313e-6,"-1":2.7175005951326304e-7,"23":1.3587502975663152e-7,"-3":9.511252082964206e-7,"17":1.698437871957894e-6,"20":4.0762508926989453e-7,"34":6.793751487831576e-8,"39":6.793751487831576e-8,"16":4.755626041482103e-7,"7":4.687688526603787e-6,"4":6.5220014283183125e-6,"6":2.513688050497683e-6,"26":1.3587502975663152e-7,"14":5.435001190265261e-7,"13":7.473126636614733e-7,"0":0.9998032529569124,"18":3.396875743915788e-7,"1":0.00017174603761238225,"2":0.000014810378243472835,"25":2.0381254463494727e-7,"35":8.152501785397891e-7,"19":8.152501785397891e-7,"9":4.076250892698946e-6,"-17":5.435001190265261e-7,"30":6.793751487831576e-8,"-7":6.793751487831576e-8,"21":6.793751487831576e-8,"10":2.513688050497683e-6,"-2":1.1549377529313679e-6,"11":6.793751487831576e-7,"3":4.687688526603787e-6,"24":4.0762508926989453e-7,"31":6.793751487831576e-8,"29":1.698437871957894e-6,"15":1.5625628422012624e-6,"8":1.1549377529313679e-6,"32":1.3587502975663152e-7,"5":5.163251130751997e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"/media/HDD/workspace/alignments_workflow/results/TMB_V3_alignment_properties.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":30000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: scenario.yaml
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'

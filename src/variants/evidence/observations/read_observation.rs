@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use std::char;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::rc::Rc;
@@ -700,12 +701,41 @@ pub(crate) trait Observable: Variant {
     }
 }
 
+#[derive(Getters, Clone, Debug, Derefable)]
+pub struct AlignmentRecord {
+    #[getset(get = "pub")]
+    #[deref]
+    record: Rc<bam::Record>,
+    #[getset(get = "pub")]
+    prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+}
+
+impl AlignmentRecord {
+    pub(crate) fn new(
+        record: Rc<bam::Record>,
+        prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+    ) -> Self {
+        AlignmentRecord {
+            record,
+            prob_methylation,
+        }
+    }
+}
+
+impl PartialEq for AlignmentRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.record == other.record
+    }
+}
+
+impl Eq for AlignmentRecord {}
+
 #[derive(Clone, Eq, Debug)]
 pub(crate) enum Evidence {
-    SingleEndSequencingRead(Rc<bam::Record>),
+    SingleEndSequencingRead(AlignmentRecord),
     PairedEndSequencingRead {
-        left: Rc<bam::Record>,
-        right: Rc<bam::Record>,
+        left: AlignmentRecord,
+        right: AlignmentRecord,
     },
 }
 
@@ -815,14 +845,12 @@ impl Hash for Evidence {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) enum EvidenceIdentifier {
     Bytes(Vec<u8>),
-    Integer(u32),
 }
 
 impl std::fmt::Display for EvidenceIdentifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EvidenceIdentifier::Bytes(id) => write!(f, "{}", str::from_utf8(id).unwrap()),
-            EvidenceIdentifier::Integer(id) => write!(f, "{}", id),
         }
     }
 }
@@ -831,7 +859,6 @@ impl Hash for EvidenceIdentifier {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             EvidenceIdentifier::Bytes(id) => id.hash(state),
-            EvidenceIdentifier::Integer(id) => id.hash(state),
         }
     }
 }

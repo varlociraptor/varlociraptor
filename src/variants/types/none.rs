@@ -37,7 +37,7 @@ impl None {
     }
 
     fn allele_support_per_read(&self, read: &bam::Record) -> Result<Option<AlleleSupport>> {
-        if self.locus().overlap(read, false) != Overlap::Enclosing {
+        if self.locus().overlap(read, false, 0, 0) != Overlap::Enclosing {
             return Ok(None);
         }
 
@@ -98,16 +98,16 @@ impl Variant for None {
     ) -> Option<Vec<usize>> {
         match evidence {
             Evidence::SingleEndSequencingRead(read) => {
-                if let Overlap::Enclosing = self.locus().overlap(read, false) {
+                if let Overlap::Enclosing = self.locus().overlap(read, false, 0, 0) {
                     Some(vec![0])
                 } else {
                     None
                 }
             }
             Evidence::PairedEndSequencingRead { left, right } => {
-                if let Overlap::Enclosing = self.locus().overlap(left, false) {
+                if let Overlap::Enclosing = self.locus().overlap(left, false, 0, 0) {
                     Some(vec![0])
-                } else if let Overlap::Enclosing = self.locus().overlap(right, false) {
+                } else if let Overlap::Enclosing = self.locus().overlap(right, false, 0, 0) {
                     Some(vec![0])
                 } else {
                     None

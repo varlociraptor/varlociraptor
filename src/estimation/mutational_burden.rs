@@ -83,17 +83,18 @@ struct RecordSig {
     VariantNames,
 )]
 #[strum(serialize_all = "kebab_case")]
-pub enum PlotMode {
+pub enum Mode {
     Hist,
     Curve,
     Multibar,
+    Table,
 }
 
 pub(crate) fn collect_estimates(
     mutational_events: &[String],
     sample_names: &[String],
     coding_genome_size: u64,
-    mode: PlotMode,
+    mode: Mode,
     cutoff: f64,
 ) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
@@ -111,7 +112,7 @@ pub(crate) fn collect_estimates(
 
     let mut mb = BTreeMap::new();
     'records: loop {
-        let mut rec = bcf.empty_record();
+        let mut rec: bcf::Record = bcf.empty_record();
         match bcf.read(&mut rec) {
             None => break,
             Some(res) => res?,
@@ -213,7 +214,7 @@ pub(crate) fn collect_estimates(
     let min_vafs = linspace(0.0, 1.0, 100).map(AlleleFreq);
 
     match mode {
-        PlotMode::Multibar => {
+        Mode::Multibar => {
             let mut plot_data = Vec::new();
             let mut max_mb = 0.0;
             // calculate mutational burden (mb) function (expected number of variants per minimum allele frequency)
@@ -244,7 +245,7 @@ pub(crate) fn collect_estimates(
                 max_mb,
             )
         }
-        PlotMode::Hist => {
+        Mode::Hist => {
             let mut plot_data = Vec::new();
             // perform binning for histogram
             let mut max_mbs = Vec::new();
@@ -282,7 +283,7 @@ pub(crate) fn collect_estimates(
                 max_mb,
             )
         }
-        PlotMode::Curve => {
+        Mode::Curve => {
             let mut plot_data = Vec::new();
             let mut max_mbs = Vec::new();
             let mut cutpoint_mbs = Vec::new();
@@ -320,6 +321,29 @@ pub(crate) fn collect_estimates(
                 max_mb,
             )
         }
+        Mode::Table => {
+            let mut writer = csv::WriterBuilder::new()
+                .delimiter(b'\t')
+                .from_writer(std::io::stdout());
+            // calculate mutational burden (mb) function (expected number of variants per minimum allele frequency)
+            for min_vaf in min_vafs {
+                let groups = mb
+                    .range(min_vaf..)
+                    .flat_map(|(_, records)| records)
+                    .map(|record| (record.vartype, record.prob))
+                    .into_group_map();
+
+                for (vartype, probs) in groups {
+                    let mb = calc_mb(&probs);
+                    writer.serialize(MBStrat {
+                        min_vaf: *min_vaf,
+                        mb,
+                        vartype,
+                    })?;
+                }
+            }
+            Ok(())
+        }
     }
 }
 
@@ -344,6 +368,9 @@ pub(crate) enum Vartype {
     #[strum(serialize = "INS")]
     #[serde(rename = "INS")]
     Ins,
+    #[strum(serialize = "METH")]
+    #[serde(rename = "METH")]
+    Meth,
     #[strum(serialize = "INV")]
     #[serde(rename = "INV")]
     Inv,
@@ -413,6 +440,9 @@ pub(crate) enum Signature {
     #[strum(serialize = "DEL")]
     #[serde(rename = "DEL")]
     Del,
+    #[strum(serialize = "METH")]
+    #[serde(rename = "METH")]
+    Meth,
     #[strum(serialize = "INS")]
     #[serde(rename = "INS")]
     Ins,
@@ -462,6 +492,8 @@ pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
                 Signature::Dup
             } else if alt_allele == b"<BND>" {
                 Signature::Bnd
+            } else if alt_allele == b"<METH>" {
+                Signature::Meth
             } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
                 Signature::from_str(&format!(
                     "{}>{}",
@@ -496,6 +528,8 @@ pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
                 Vartype::Dup
             } else if alt_allele == b"<BND>" {
                 Vartype::Bnd
+            } else if alt_allele == b"<METH>" {
+                Vartype::Meth
             } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
                 Vartype::from_str(&format!(
                     "{}>{}",
