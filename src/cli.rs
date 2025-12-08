@@ -961,6 +961,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .alignment_properties(alignment_properties)
                                     .max_depth(max_depth)
                                     .inbam(bam)
+                                    .threads(threads)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
                                     .haplotype_feature_index(HaplotypeFeatureIndex::new(
@@ -994,6 +995,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .alignment_properties(alignment_properties)
                                     .max_depth(max_depth)
                                     .inbam(bam)
+                                    .threads(threads)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
                                     .haplotype_feature_index(HaplotypeFeatureIndex::new(

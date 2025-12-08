@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::ops::RangeInclusive;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::str;
 
 use anyhow::Result;
@@ -596,7 +596,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    pileup: Option<Rc<Pileup>>,
+    pileup: Option<Arc<Pileup>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     sample_info: Vec<Option<SampleInfo>>,
@@ -700,7 +700,7 @@ impl VariantBuilder {
 pub(crate) struct SampleInfo {
     #[getset(get_copy = "pub(crate)")]
     allelefreq_estimate: AlleleFreq,
-    pileup: Rc<Pileup>,
+    pileup: Arc<Pileup>,
     artifacts: Artifacts,
     #[getset(get = "pub(crate)")]
     vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,

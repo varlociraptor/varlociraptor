@@ -5,7 +5,7 @@ use rust_htslib::bcf::{self, Read};
 use std::sync::Arc;
 use vec_map::VecMap;
 
-use crate::{errors, utils, variants::types::Variant};
+use crate::{errors, utils};
 
 use super::{
     aux_info::{AuxInfo, AuxInfoCollector},
