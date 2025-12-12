@@ -1,0 +1,31 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    # - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_ABSENT >= 2.6 && PROB_ABSENT <= 2.7
+    
+# necessary bam files
+samples:
+  emseq:
+    path: 'emseq.bam'
+    properties: '{"insert_size":{"mean":298.32294935006723,"sd":68.43850185498819},"max_del_cigar_len":45,"max_ins_cigar_len":31,"frac_max_softclip":0.5562913907284768,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.649493207984526,"prob_deletion_artifact":-8.111554275447823,"prob_insertion_extend_artifact":-0.38791121940006823,"prob_deletion_extend_artifact":-0.5627057617858854},"hop_params":{"prob_seq_homopolymer":[-6.5647509045320165,-7.95759219477471,-7.9616131263152115,-6.089163166068255],"prob_ref_homopolymer":[-6.76764645326352,-9.256935381788708,-9.31591499569361,-6.6333458975974695],"prob_seq_extend_homopolymer":[-6.5647509045320165,-7.95759219477471,-7.9616131263152115,-6.089163166068255],"prob_ref_extend_homopolymer":[-6.76764645326352,-9.256935381788708,-9.31591499569361,-6.6333458975974695]},"wildtype_homopolymer_error_model":{"4":0.000033044044319715735,"10":0.000015304610000710447,"7":0.00004591383000213134,"16":2.782656363765536e-6,"-12":8.6958011367673e-8,"19":1.4782861932504408e-6,"-1":0.000025739571364831206,"39":4.34790056838365e-7,"12":0.00001078279340959145,"38":3.47832045470692e-7,"11":9.30450721634101e-6,"18":9.56538125044403e-7,"36":8.6958011367673e-8,"42":8.6958011367673e-8,"5":0.00004269638358152744,"24":9.56538125044403e-7,"6":0.00004278334159289511,"0":0.9984333644672,"-7":6.95664090941384e-7,"-18":8.6958011367673e-8,"-4":4.434858579751323e-6,"-5":2.086992272824152e-6,"-2":0.00005913144773001764,"17":3.6522364774422656e-6,"20":1.3043701705150949e-6,"13":8.956675170870318e-6,"25":7.82622102309057e-7,"2":0.00018087266364475983,"1":0.0009992345086259303,"41":8.6958011367673e-8,"-8":2.60874034103019e-7,"23":1.73916022735346e-7,"-9":3.47832045470692e-7,"21":9.56538125044403e-7,"26":1.73916022735346e-7,"14":9.739297273179376e-6,"3":0.00005834882562770858,"-6":7.82622102309057e-7,"-3":0.000015913316080284157,"22":1.130454147779749e-6,"9":0.000023304747046536362,"37":2.60874034103019e-7,"40":1.73916022735346e-7,"15":5.2174806820603795e-6,"8":0.00003078313602415624},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'

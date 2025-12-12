@@ -2690,6 +2690,7 @@ name = "varlociraptor"
 version = "8.9.0"
 dependencies = [
  "GSL",
+ "aho-corasick",
  "anyhow",
  "approx",
  "askama",
