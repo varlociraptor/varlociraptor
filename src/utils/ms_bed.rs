@@ -120,7 +120,9 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
 ///
 /// # Returns
 /// * `Ok(BedRegion)` - Parsed region with motif
-/// * `Err` - Invalid coordinates or missing/invalid name
+/// * `Err`
+///     - Invalid coordinates or missing/invalid name
+///     - Empty chromosome field
 ///
 /// # Example
 /// assert!(parse_bed_record(&record).is_ok());
@@ -128,6 +130,15 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
     let chrom = record.chrom().to_string();
     let start = record.start();
     let end = record.end();
+
+    if chrom.is_empty() {
+        return Err(Error::BedRecordInvalid {
+            chrom: "(empty)".to_string(),
+            pos: start as i64,
+            msg: "Chromosome field is empty".to_string(),
+        }
+        .into());
+    }
 
     if start >= end {
         return Err(Error::BedRecordInvalid {
@@ -309,6 +320,11 @@ mod tests {
         assert!(parse_bed_record(&record).is_err());
     }
 
+    #[test]
+    fn test_parse_bed_record_empty_chrom() {
+        let record = bed_record_from_str("\t100\t200");
+        assert!(parse_bed_record(&record).is_err());
+    }
     /* ===== validate_bed_file tests ================= */
 
     #[test]

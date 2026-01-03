@@ -24,7 +24,6 @@ use crate::utils::bcf_utils::{
     get_chrom, get_prob_absent, get_sample_afs, get_svlen, is_breakend, is_indel,
     is_reference_allele, is_spanning_deletion, is_symbolic,
 };
-use crate::utils::genomics::chrom_rank_checked;
 use crate::utils::is_phred_scaled;
 use crate::utils::ms_bed::{parse_bed_record, BedRegion};
 
@@ -306,8 +305,17 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion) -> bool {
 
 /// Perform streaming intersection of BED regions with VCF variants.
 ///
-/// Uses a sliding window approach to efficiently match variants to regions
+/// Uses a sliding window approach with **lexicographic chromosome ordering**,
 /// without loading entire files into memory.
+/// Both BED and VCF must be sorted identically using lexicographic sort.
+///
+/// **Sorting requirement(use bedtools for lexicographic sort):**
+/// - BED: `bedtools sort -i regions.bed > sorted.bed`
+/// - VCF: `bedtools sort -header -i calls.vcf > calls_sorted.vcf`
+///
+/// **Chromosome ordering:** Uses string comparison (lexicographic), NOT numeric.
+/// Example order: `chr1, chr10, chr11, chr2, chr20, chr22, chr3, ...`
+/// This matches Rust's default string sort and bedtools sort behavior.
 ///
 /// # Algorithm
 /// 1. For each BED region (in genomic order):
@@ -363,39 +371,25 @@ pub(super) fn intersect_streaming(
             details: e.to_string(),
         })?;
         let region = parse_bed_record(&bed_record)?;
-        let region_rank = chrom_rank_checked(&region.chrom);
 
         total_regions += 1;
 
-        if !region.is_valid_motif() || region_rank.is_none() {
+        if !region.is_valid_motif() {
             skipped_invalid_regions += 1;
             debug!(
-                " Skipping region {} with invalid motif length {} or chromosome: {}",
+                " Skipping region {} with invalid motif length {}",
                 region.region_id(),
                 region.motif_length(),
-                region.chrom
             );
             continue;
         }
-        let region_rank = region_rank.unwrap();
 
         /* ------------------------------------------------------------- */
         /* - 1. Window management: Remove variants before this region -- */
         while let Some((record, chrom)) = variant_window.front() {
-            let chrom_rank = chrom_rank_checked(chrom);
-            if chrom_rank.is_none() {
-                debug!(
-                    " Skipping VCF record with unsupported chromosome: {}",
-                    chrom
-                );
+            if chrom < &region.chrom {
                 variant_window.pop_front();
-                continue;
-            }
-            let chrom_rank = chrom_rank.unwrap();
-
-            if chrom_rank < region_rank {
-                variant_window.pop_front();
-            } else if chrom_rank == region_rank {
+            } else if chrom == &region.chrom {
                 let pos = record.pos() as u64;
                 if pos < region.start {
                     variant_window.pop_front();
@@ -413,20 +407,9 @@ pub(super) fn intersect_streaming(
         /* -2. Window management: Load variants until we pass region --- */
         loop {
             if let Some((record, chrom)) = variant_window.back() {
-                let chrom_rank = chrom_rank_checked(chrom);
-                if chrom_rank.is_none() {
-                    debug!(
-                        " Skipping VCF record with unsupported chromosome: {}",
-                        chrom
-                    );
-                    variant_window.pop_back();
-                    continue;
-                }
-                let chrom_rank = chrom_rank.unwrap();
-
-                if chrom_rank > region_rank {
+                if chrom > &region.chrom {
                     break;
-                } else if chrom_rank == region_rank {
+                } else if chrom == &region.chrom {
                     let pos = record.pos() as u64;
                     if pos >= region.end {
                         break;
@@ -467,11 +450,7 @@ pub(super) fn intersect_streaming(
         let mut region_summary: Option<RegionSummary> = None;
 
         for (record, chrom) in &variant_window {
-            let Some(chrom_rank) = chrom_rank_checked(chrom) else {
-                continue;
-            };
-
-            if chrom_rank != region_rank {
+            if chrom != &region.chrom {
                 continue;
             }
 

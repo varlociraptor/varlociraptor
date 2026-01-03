@@ -7,67 +7,69 @@
 //! 2. Sequence analysis(Svlen calculation);
 //! 3. MSI status classification.
 
-/// Normalize chromosome names by removing "chr" prefix.
-///
-/// Provides consistent chromosome naming across different reference formats.
-/// Both "chr1" and "1" normalize to "1" for uniform processing.
-///
-/// # Arguments
-/// * `chrom` - Chromosome name with or without "chr" prefix
-///
-/// # Returns
-/// Normalized chromosome name without "chr" prefix
-///
-/// # Note
-/// Case-insensitive removal of "chr" prefix.
-/// Preserves original case for the rest of the name.
-///
-/// # Example
-/// assert_eq!(normalize_chrom("chr1"), "1");
-pub(crate) fn normalize_chrom(chrom: &str) -> String {
-    if chrom.len() >= 3 && chrom[..3].eq_ignore_ascii_case("chr") {
-        chrom[3..].to_string()
-    } else {
-        chrom.to_string()
-    }
-}
+// @TODO: Remove commented-out function after final review.
+// /// Normalize chromosome names by removing "chr" prefix.
+// ///
+// /// Provides consistent chromosome naming across different reference formats.
+// /// Both "chr1" and "1" normalize to "1" for uniform processing.
+// ///
+// /// # Arguments
+// /// * `chrom` - Chromosome name with or without "chr" prefix
+// ///
+// /// # Returns
+// /// Normalized chromosome name without "chr" prefix
+// ///
+// /// # Note
+// /// Case-insensitive removal of "chr" prefix.
+// /// Preserves original case for the rest of the name.
+// ///
+// /// # Example
+// /// assert_eq!(normalize_chrom("chr1"), "1");
+// pub(crate) fn normalize_chrom(chrom: &str) -> String {
+//     if chrom.len() >= 3 && chrom[..3].eq_ignore_ascii_case("chr") {
+//         chrom[3..].to_string()
+//     } else {
+//         chrom.to_string()
+//     }
+// }
 
-/// Convert chromosome name to sortable rank for natural ordering.
-///
-/// Maps chromosome names to numeric ranks that preserve biological ordering:
-/// - Autosomes: 1-22 → ranks 1-22
-/// - Sex chromosomes: X → 23, Y → 24  
-/// - Mitochondrial: M/MT → 25
-///
-/// Returns `None` for unrecognized chromosomes (e.g., scaffolds, decoys).
-/// Currently supports human chromosomes only; extend for other species as needed.
-///
-/// # Arguments
-/// * `chrom` - Chromosome name (with or without "chr" prefix)
-///
-/// # Returns
-/// * `Some(rank)` - Numeric rank for recognized chromosomes
-/// * `None` - For unrecognized chromosomes
-///
-/// # Note
-/// Currently supports only human chromosomes (1-22, X, Y, M/MT).
-/// Other species will return `None`. Extend with custom logic for other genomes.
-///
-/// # Example
-/// assert_eq!(chrom_rank_checked("chr1"), Some(1));
-/// assert_eq!(chrom_rank_checked("GL000192.1"), None);
-pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
-    let normalized = normalize_chrom(chrom);
-    match normalized.parse::<u32>() {
-        Ok(n) if (1..=22).contains(&n) => Some(n),
-        _ => match normalized.as_str() {
-            "X" | "x" => Some(23),
-            "Y" | "y" => Some(24),
-            "M" | "m" | "MT" | "Mt" | "mT" | "mt" => Some(25),
-            _ => None,
-        },
-    }
-}
+// @TODO: Remove commented-out function after final review.
+// /// Convert chromosome name to sortable rank for natural ordering.
+// ///
+// /// Maps chromosome names to numeric ranks that preserve biological ordering:
+// /// - Autosomes: 1-22 → ranks 1-22
+// /// - Sex chromosomes: X → 23, Y → 24
+// /// - Mitochondrial: M/MT → 25
+// ///
+// /// Returns `None` for unrecognized chromosomes (e.g., scaffolds, decoys).
+// /// Currently supports human chromosomes only; extend for other species as needed.
+// ///
+// /// # Arguments
+// /// * `chrom` - Chromosome name (with or without "chr" prefix)
+// ///
+// /// # Returns
+// /// * `Some(rank)` - Numeric rank for recognized chromosomes
+// /// * `None` - For unrecognized chromosomes
+// ///
+// /// # Note
+// /// Currently supports only human chromosomes (1-22, X, Y, M/MT).
+// /// Other species will return `None`. Extend with custom logic for other genomes.
+// ///
+// /// # Example
+// /// assert_eq!(chrom_rank_checked("chr1"), Some(1));
+// /// assert_eq!(chrom_rank_checked("GL000192.1"), None);
+// pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
+//     let normalized = normalize_chrom(chrom);
+//     match normalized.parse::<u32>() {
+//         Ok(n) if (1..=22).contains(&n) => Some(n),
+//         _ => match normalized.as_str() {
+//             "X" | "x" => Some(23),
+//             "Y" | "y" => Some(24),
+//             "M" | "m" | "MT" | "Mt" | "mT" | "mt" => Some(25),
+//             _ => None,
+//         },
+//     }
+// }
 
 /// Calculate structural variant length (SVLEN) from reference and alternate sequences.
 ///
