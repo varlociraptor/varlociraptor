@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.1](https://github.com/varlociraptor/varlociraptor/compare/v8.9.0...v8.9.1) (2025-11-26)
+
+
+### Bug Fixes
+
+* index out of bounds for supplementary annotated alignments ([#528](https://github.com/varlociraptor/varlociraptor/issues/528)) ([08e844a](https://github.com/varlociraptor/varlociraptor/commit/08e844a31ec677b1449946cbaf7f7719f638ed8a))
+
 ## [8.9.0](https://github.com/varlociraptor/varlociraptor/compare/v8.8.2...v8.9.0) (2025-11-13)
 
 
