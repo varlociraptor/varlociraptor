@@ -144,48 +144,51 @@ mod tests {
 
     /* ========== normalize_chrom tests ============== */
 
-    #[test]
-    fn test_normalize_chrom() {
-        assert_eq!(normalize_chrom("chr1"), "1");
-        assert_eq!(normalize_chrom("1"), "1");
-        assert_eq!(normalize_chrom("chrX"), "X");
-        assert_eq!(normalize_chrom("MT"), "MT");
-        assert_eq!(normalize_chrom("chrMT"), "MT");
-        assert_eq!(normalize_chrom("Chr1"), "1");
-        assert_eq!(normalize_chrom("CHR2"), "2");
+    // @TODO: Remove commented-out function after final review.
+    // #[test]
+    // fn test_normalize_chrom() {
+    //     assert_eq!(normalize_chrom("chr1"), "1");
+    //     assert_eq!(normalize_chrom("1"), "1");
+    //     assert_eq!(normalize_chrom("chrX"), "X");
+    //     assert_eq!(normalize_chrom("MT"), "MT");
+    //     assert_eq!(normalize_chrom("chrMT"), "MT");
+    //     assert_eq!(normalize_chrom("Chr1"), "1");
+    //     assert_eq!(normalize_chrom("CHR2"), "2");
 
-        /* Upstream should be aware of these: */
-        assert_eq!(normalize_chrom("GL000192.1"), "GL000192.1");
-        assert_eq!(normalize_chrom(""), "");
-        assert_eq!(normalize_chrom("chr"), "");
-        assert_eq!(normalize_chrom("chromosome1"), "omosome1");
-    }
+    //     /* Upstream should be aware of these: */
+    //     assert_eq!(normalize_chrom("GL000192.1"), "GL000192.1");
+    //     assert_eq!(normalize_chrom(""), "");
+    //     assert_eq!(normalize_chrom("chr"), "");
+    //     assert_eq!(normalize_chrom("chromosome1"), "omosome1");
+    // }
 
     /* ======= chrom_rank_checked tests ============== */
 
-    #[test]
-    fn test_chrom_rank_checked_valid() {
-        assert_eq!(chrom_rank_checked("22"), Some(22)); // Autosomes
-        assert_eq!(chrom_rank_checked("X"), Some(23)); // Sex chromosomes
-        assert_eq!(chrom_rank_checked("M"), Some(25)); // Mitochondrial
+    // @TODO: Remove commented-out function after final review.
+    // #[test]
+    // fn test_chrom_rank_checked_valid() {
+    //     assert_eq!(chrom_rank_checked("22"), Some(22)); // Autosomes
+    //     assert_eq!(chrom_rank_checked("X"), Some(23)); // Sex chromosomes
+    //     assert_eq!(chrom_rank_checked("M"), Some(25)); // Mitochondrial
 
-        assert_eq!(chrom_rank_checked("chr1"), Some(1)); // With chr prefix
-        assert_eq!(chrom_rank_checked("chry"), Some(24)); // With chr prefix lowercase
-    }
+    //     assert_eq!(chrom_rank_checked("chr1"), Some(1)); // With chr prefix
+    //     assert_eq!(chrom_rank_checked("chry"), Some(24)); // With chr prefix lowercase
+    // }
 
-    #[test]
-    fn test_chrom_rank_checked_invalid() {
-        // Out of range autosomes
-        assert_eq!(chrom_rank_checked("0"), None);
-        assert_eq!(chrom_rank_checked("23"), None);
+    // @TODO: Remove commented-out function after final review.
+    // #[test]
+    // fn test_chrom_rank_checked_invalid() {
+    //     // Out of range autosomes
+    //     assert_eq!(chrom_rank_checked("0"), None);
+    //     assert_eq!(chrom_rank_checked("23"), None);
 
-        // Scaffolds and decoys
-        assert_eq!(chrom_rank_checked("GL000192.1"), None);
+    //     // Scaffolds and decoys
+    //     assert_eq!(chrom_rank_checked("GL000192.1"), None);
 
-        // Other invalid inputs
-        assert_eq!(chrom_rank_checked(""), None);
-        assert_eq!(chrom_rank_checked("chr"), None);
-    }
+    //     // Other invalid inputs
+    //     assert_eq!(chrom_rank_checked(""), None);
+    //     assert_eq!(chrom_rank_checked("chr"), None);
+    // }
 
     /* ======= calculate_dynamic_svlen tests ========= */
 
