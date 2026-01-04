@@ -3,7 +3,7 @@
 //! Genomics utility functions.
 //!
 //! This module provides utilities for:
-//! 1. Sequence analysis(Svlen calculation);
+//! 1. Sequence analysis (Svlen calculation);
 //! 2. MSI status classification.
 
 /// Calculate structural variant length (SVLEN) from reference and alternate sequences.
