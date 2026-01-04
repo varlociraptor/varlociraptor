@@ -24,7 +24,6 @@ use crate::utils::bcf_utils::{
     get_chrom, get_prob_absent, get_sample_afs, get_svlen, is_breakend, is_indel,
     is_reference_allele, is_spanning_deletion, is_symbolic,
 };
-use crate::utils::is_phred_scaled;
 use crate::utils::ms_bed::{parse_bed_record, BedRegion};
 
 /* ============ Data Structures =================== */
@@ -327,6 +326,7 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion) -> bool {
 /// * `bed_path` - Path to BED file with microsatellite regions
 /// * `vcf_path` - Path to VCF/BCF file with variant calls
 /// * `samples_index_map` - Map of sample names to VCF indices
+/// * `is_phred` - Whether probabilities in VCF are PHRED-scaled
 ///
 /// # Returns
 /// * `Vec<RegionSummary>` - Regions with valid variant
@@ -344,17 +344,12 @@ pub(super) fn intersect_streaming(
     bed_path: &PathBuf,
     vcf_path: &PathBuf,
     samples_index_map: &HashMap<String, usize>,
+    is_phred: bool,
 ) -> Result<(Vec<RegionSummary>, usize)> {
     /* ========== Setup: Initialize readers and state ========== */
     let mut bed_reader = bed::Reader::from_file(bed_path).context("Failed to open BED file")?;
     let mut vcf = bcf::Reader::from_path(vcf_path).context("Failed to open VCF file")?;
     let header: HeaderView = vcf.header().clone();
-
-    let is_phred = is_phred_scaled(&vcf);
-    info!(
-        "Probabilities in VCF/BCF are {} scaled",
-        if is_phred { "PHRED" } else { "linear" }
-    );
 
     // Results & Stats
     let mut results = Vec::new();
@@ -897,6 +892,7 @@ mod tests {
             &tmp_bed.path().to_path_buf(),
             &tmp_vcf.path().to_path_buf(),
             &samples_index_map,
+            false,
         )
         .unwrap();
 
@@ -922,6 +918,7 @@ mod tests {
             &tmp_bed.path().to_path_buf(),
             &tmp_vcf.path().to_path_buf(),
             &samples_index_map,
+            false,
         )
         .unwrap();
 
@@ -941,6 +938,7 @@ mod tests {
             &tmp_bed.path().to_path_buf(),
             &tmp_vcf.path().to_path_buf(),
             &samples_index_map,
+            false,
         )
         .unwrap();
 

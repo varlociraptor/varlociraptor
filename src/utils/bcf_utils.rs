@@ -19,6 +19,7 @@ use rust_htslib::bcf::{self, record::Numeric, Read};
 
 use crate::errors::Error;
 use crate::utils::genomics::calculate_dynamic_svlen;
+use crate::utils::is_phred_scaled;
 use crate::utils::stats::phred_to_prob;
 
 /* ============ Data Structures =================== */
@@ -473,31 +474,43 @@ pub(crate) fn validate_required_vcf_fields_msi(header: &HeaderView) -> Result<()
 ///
 /// Performs validation checks:
 /// 1. File can be opened
-/// 2. Contains at least one sample
-/// 3. Excluded samples exist in file
-/// 4. At least one sample remains after exclusion
-/// 5. Contains at least one variant record
+/// 2. Contains required fields for MSI analysis
+/// 3. Contains at least one sample
+/// 4. Excluded samples exist in file
+/// 5. At least one sample remains after exclusion
+/// 6. Contains at least one variant record
 ///
 /// # Arguments
 /// * `vcf_path` - Path to VCF/BCF file
 /// * `samples_exclusion` - Sample names to exclude from processing
 ///
 /// # Returns
-/// `SampleInfo` with remaining samples and their indices
+/// * `Ok((SampleInfo, bool))` - Sample info and whether probabilities are PHRED-scaled
+/// * `Err` - Validation failed
 ///
 /// # Example
 /// assert!(validate_vcf_file(&vcf_path, &vec!["sample1".to_string()]).is_ok());
 pub(crate) fn validate_vcf_file(
     vcf_path: &PathBuf,
     samples_exclusion: &[String],
-) -> Result<SampleInfo> {
+) -> Result<(SampleInfo, bool)> {
     info!("Validating VCF file format: {}", vcf_path.display());
 
     let mut vcf = bcf::Reader::from_path(vcf_path).context("Failed to open VCF/BCF file")?;
     let header = vcf.header().clone();
 
+    // Validate required fields for MSI analysis
     validate_required_vcf_fields_msi(&header)?;
+    info!("  - Required header fields validated: PROB_ABSENT, PROB_ARTIFACT, AF");
 
+    // Check if probabilities are PHRED-scaled
+    let is_phred = is_phred_scaled(&vcf);
+    info!(
+        "  - Probabilities are {} scaled",
+        if is_phred { "PHRED" } else { "linear" }
+    );
+
+    // Extract sample names
     let sample_names = extract_sample_names(&vcf);
 
     if sample_names.is_empty() {
@@ -536,6 +549,7 @@ pub(crate) fn validate_vcf_file(
     info!("  - Samples to process: {}", remaining_samples.len());
     info!("  - Sample names: {:?}", remaining_samples);
 
+    // Check for at least one variant record
     match vcf.records().next() {
         None => {
             return Err(Error::VcfFileEmpty.into());
@@ -555,10 +569,13 @@ pub(crate) fn validate_vcf_file(
 
     info!("  - VCF file format validated successfully");
 
-    Ok(SampleInfo {
-        samples: remaining_samples,
-        samples_index_map,
-    })
+    Ok((
+        SampleInfo {
+            samples: remaining_samples,
+            samples_index_map,
+        },
+        is_phred,
+    ))
 }
 
 /* ================================================ */
@@ -975,15 +992,18 @@ pub(crate) mod tests {
         });
 
         // Test with no exclusions
-        let samples_info = validate_vcf_file(&tmp_vcf.path().to_path_buf(), &[]).unwrap();
+        let (samples_info, is_phred) =
+            validate_vcf_file(&tmp_vcf.path().to_path_buf(), &[]).unwrap();
         assert_eq!(samples_info.samples.len(), 2);
         assert_eq!(samples_info.samples_index_map["sample1"], 0);
         assert_eq!(samples_info.samples_index_map["sample2"], 1);
+        assert!(!is_phred);
 
         // Test with one exclusion
-        let samples_info =
+        let (samples_info, is_phred) =
             validate_vcf_file(&tmp_vcf.path().to_path_buf(), &["sample1".to_string()]).unwrap();
         assert_eq!(samples_info.samples, vec!["sample2".to_string()]);
+        assert!(!is_phred);
 
         // Test exclusion of non-existent sample
         let err = validate_vcf_file(
@@ -992,5 +1012,20 @@ pub(crate) mod tests {
         )
         .unwrap_err();
         assert!(format!("{err:?}").contains("invalid_sample"));
+    }
+
+    #[test]
+    fn test_validate_vcf_file_detects_phred_probabilities() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            af_values: Some(vec![0.45, 0.98]),
+            use_phred: true,
+            ..Default::default()
+        });
+
+        let (sample_info, is_phred) =
+            validate_vcf_file(&tmp_vcf.path().to_path_buf(), &[]).unwrap();
+
+        assert_eq!(sample_info.samples.len(), 2);
+        assert!(is_phred, "Should detect PHRED-scaled probabilities");
     }
 }

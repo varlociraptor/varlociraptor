@@ -1517,7 +1517,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                 /* MSI or content specific validations */
                 ms_bed::validate_bed_file(&microsatellite_bed)?;
-                let samples_info = bcf_utils::validate_vcf_file(&calls, &samples_exclusion)?;
+                let (samples_info, is_phred) =
+                    bcf_utils::validate_vcf_file(&calls, &samples_exclusion)?;
                 let config = msi::MsiConfig {
                     microsatellite_bed,
                     calls,
@@ -1525,6 +1526,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     msi_threshold,
                     samples: samples_info.samples,
                     samples_index_map: samples_info.samples_index_map,
+                    is_phred,
                     af_thresholds,
                     plot_distribution,
                     plot_pseudotime,

@@ -60,6 +60,8 @@ pub(crate) struct MsiConfig {
     pub samples: Vec<String>,
     /// Map of sample name to VCF header index (after excluding user exclusions).
     pub samples_index_map: HashMap<String, usize>,
+    /// Whether the probabilities in the VCF are PHRED-scaled.
+    pub is_phred: bool,
     /// Allele frequency thresholds to consider for AF evolution analysis
     /// when generating pseudotime outputs. (default: [1.0,0.8,0.6,0.4,0.2,0.0])
     /// If no pseudotime outputs are requested, this will be set to [0.0] to optimize computation.
@@ -156,6 +158,7 @@ pub fn estimate_msi(config: MsiConfig) -> Result<()> {
         &config.microsatellite_bed,
         &config.calls,
         &config.samples_index_map,
+        config.is_phred,
     )?;
 
     if total_regions == 0 {
