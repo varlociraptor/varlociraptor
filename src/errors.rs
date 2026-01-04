@@ -70,7 +70,7 @@ pub(crate) enum Error {
         pos: i64,
         msg: String,
     },
-    #[error("Failed to read BED record at line {line}: {details}")]
+    #[error("failed to read BED record at line {line}: {details}")]
     BedRecordReadFailed { line: usize, details: String },
     /* 2. VCF/BCF File Errors */
     #[error(
