@@ -222,7 +222,7 @@ pub(crate) enum Error {
     #[error("BED record missing required name field (4th column) containing motif information")]
     MsiBedMotifNameMissing,
     /* -------------------- Processing Errors ------------------------ */
-    #[error("No chromosome match between BED and VCF files.")]
+    #[error("No chromosome match between BED and VCF files. Verify chromosome naming is consistent (e.g., 'chr1' vs '1')")]
     MsiVcfChromMismatch,
 }
 
