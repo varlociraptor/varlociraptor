@@ -6,14 +6,16 @@
 //! 1. Sample information extraction
 //! 2. Record field extraction (chromosome, SVLEN, probabilities, allele frequencies)
 //! 3. Allele type classification (indel, symbolic, breakend, reference, spanning deletion)
-//! 4. VCF file validation
+//! 4. VCF/BCF fields validation
+//! 5. VCF file validation
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
-use rust_htslib::bcf::{self, header::HeaderView, record::Numeric, Read};
+use rust_htslib::bcf::header::{HeaderView, TagLength, TagType};
+use rust_htslib::bcf::{self, record::Numeric, Read};
 
 use crate::errors::Error;
 use crate::utils::genomics::calculate_dynamic_svlen;
@@ -385,6 +387,88 @@ pub(crate) fn is_spanning_deletion(allele: &[u8]) -> bool {
 
 /* ========= BCF Validation Functions ============= */
 
+/// Validate a single VCF header field has correct type and number.
+///
+/// # Arguments
+/// * `field_result` - Result from `header.info_type()` or `header.format_type()`
+/// * `location` - "INFO" or "FORMAT" (for error messages)
+/// * `field_name` - Name of the field being validated
+/// * `expected_type` - Expected TagType (e.g., `TagType::Float`)
+/// * `expected_length` - Expected TagLength (e.g., `TagLength::AltAlleles`)
+///
+/// # Returns
+/// * `Ok(())` if field exists with correct type and number
+/// * `Err` if field missing or has wrong type/number
+fn validate_vcf_header_field(
+    field_result: std::result::Result<(TagType, TagLength), rust_htslib::errors::Error>,
+    location: &str,
+    field_name: &str,
+    expected_type: TagType,
+    expected_length: TagLength,
+) -> Result<()> {
+    match field_result {
+        Ok((actual_type, actual_length)) => {
+            if actual_type != expected_type || actual_length != expected_length {
+                Err(Error::VcfHeaderFieldTypeInvalid {
+                    location: location.to_string(),
+                    field: field_name.to_string(),
+                    expected: format!("Type={:?}, Number={:?}", expected_type, expected_length),
+                    found: format!("Type={:?}, Number={:?}", actual_type, actual_length),
+                }
+                .into())
+            } else {
+                Ok(())
+            }
+        }
+        Err(_) => Err(Error::VcfHeaderFieldMissing {
+            field: field_name.to_string(),
+            location: location.to_string(),
+        }
+        .into()),
+    }
+}
+
+/// Validate VCF header contains required fields for MSI analysis.
+///
+/// Validates that mandatory INFO and FORMAT fields exist with correct types:
+/// - INFO:PROB_ABSENT (Type=Float, Number=A)
+/// - INFO:PROB_ARTIFACT (Type=Float, Number=A)
+/// - FORMAT:AF (Type=Float, Number=A)
+///
+/// # Arguments
+/// * `header` - VCF header to validate
+///
+/// # Returns
+/// * `Ok(())` if all required fields present with correct types
+/// * `Err` if any field is missing or has incorrect type
+pub(crate) fn validate_required_vcf_fields_msi(header: &HeaderView) -> Result<()> {
+    validate_vcf_header_field(
+        header.info_type(b"PROB_ABSENT"),
+        "INFO",
+        "PROB_ABSENT",
+        TagType::Float,
+        TagLength::AltAlleles,
+    )?;
+
+    validate_vcf_header_field(
+        header.info_type(b"PROB_ARTIFACT"),
+        "INFO",
+        "PROB_ARTIFACT",
+        TagType::Float,
+        TagLength::AltAlleles,
+    )?;
+
+    validate_vcf_header_field(
+        header.format_type(b"AF"),
+        "FORMAT",
+        "AF",
+        TagType::Float,
+        TagLength::AltAlleles,
+    )?;
+
+    Ok(())
+}
+
 /// Validate VCF file and extract sample information.
 ///
 /// Performs validation checks:
@@ -410,6 +494,9 @@ pub(crate) fn validate_vcf_file(
     info!("Validating VCF file format: {}", vcf_path.display());
 
     let mut vcf = bcf::Reader::from_path(vcf_path).context("Failed to open VCF/BCF file")?;
+    let header = vcf.header().clone();
+
+    validate_required_vcf_fields_msi(&header)?;
 
     let sample_names = extract_sample_names(&vcf);
 
@@ -448,8 +535,6 @@ pub(crate) fn validate_vcf_file(
 
     info!("  - Samples to process: {}", remaining_samples.len());
     info!("  - Sample names: {:?}", remaining_samples);
-
-    let header = vcf.header().clone();
 
     match vcf.records().next() {
         None => {
@@ -668,6 +753,23 @@ pub(crate) mod tests {
         tmp
     }
 
+    fn create_header_view(header_lines: &[&[u8]]) -> HeaderView {
+        let mut header = bcf::Header::new();
+        header.push_record(br"##fileformat=VCFv4.2");
+        header.push_record(br"##contig=<ID=chr1,length=1000000>");
+
+        for line in header_lines {
+            header.push_record(line);
+        }
+
+        let tmp = NamedTempFile::new().unwrap();
+        let writer = bcf::Writer::from_path(tmp.path(), &header, false, bcf::Format::Vcf).unwrap();
+        drop(writer);
+
+        let reader = bcf::Reader::from_path(tmp.path()).unwrap();
+        reader.header().clone()
+    }
+
     /* ==== BCF Extraction Function(s) tests ========= */
 
     #[test]
@@ -826,6 +928,44 @@ pub(crate) mod tests {
     }
 
     /* ======== validate_vcf_file tests ============== */
+
+    #[test]
+    fn test_validate_required_vcf_fields_all_valid() {
+        let header = create_header_view(&[
+            br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Test">"##,
+            br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Test">"##,
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##,
+        ]);
+
+        assert!(validate_required_vcf_fields_msi(&header).is_ok());
+    }
+
+    #[test]
+    fn test_validate_required_vcf_fields_missing_field() {
+        let header = create_header_view(&[
+            br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Test">"##,
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##,
+        ]);
+
+        let result = validate_required_vcf_fields_msi(&header);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("PROB_ABSENT") && err_msg.contains("missing"));
+    }
+
+    #[test]
+    fn test_validate_required_vcf_fields_wrong_type() {
+        let header = create_header_view(&[
+            br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Integer,Description="Test">"##,
+            br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Test">"##,
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##,
+        ]);
+
+        let result = validate_required_vcf_fields_msi(&header);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("incorrect type"));
+    }
 
     #[test]
     fn test_validate_vcf_file() {

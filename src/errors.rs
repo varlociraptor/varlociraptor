@@ -107,6 +107,18 @@ pub(crate) enum Error {
     VcfSampleExclusionInvalid { samples: String },
     #[error("VCF/BCF file contains no samples after excluding specified samples")]
     VcfSamplesEmptyAfterExclusion,
+    #[error("VCF/BCF header missing or malformed required {location} field: {field}")]
+    VcfHeaderFieldMissing {
+        field: String,
+        location: String, // e.g "INFO" or "FORMAT"
+    },
+    #[error("VCF/BCF header field {location}:{field} has incorrect type (expected {expected}, found {found})")]
+    VcfHeaderFieldTypeInvalid {
+        location: String, // e.g "INFO" or "FORMAT"
+        field: String,
+        expected: String,
+        found: String,
+    },
     /* -------------------- Concurrency ------------------------------ */
     #[error(
         "invalid thread count: must be at least {}, got {count}",
