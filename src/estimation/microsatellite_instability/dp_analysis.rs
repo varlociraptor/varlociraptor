@@ -343,7 +343,7 @@ fn calculate_msi_metrics(
                 .unwrap_or(0);
             let regions_with_variants = region_probs.len();
             let msi_score_map = calculate_percentage_exact(k_map, total_regions);
-            let msi_status = classify_msi_status(msi_score_map, msi_high_threshold);
+            let msi_status = classify_msi_status(msi_score_map, msi_high_threshold).to_string();
 
             (
                 Some(k_map),

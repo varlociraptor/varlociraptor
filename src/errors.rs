@@ -81,8 +81,8 @@ pub(crate) enum Error {
     VcfSamplesMissing,
     #[error("VCF/BCF file is empty (no variant records)")]
     VcfFileEmpty,
-    #[error("VCF/BCF record at {chrom}:{pos} is missing chromosome information")]
-    VcfRecordChromMissing { chrom: String, pos: i64 },
+    #[error("VCF/BCF record at position {pos} is missing chromosome reference (RID)")]
+    VcfRecordChromMissing { pos: i64 },
     #[error("VCF/BCF record at position {pos} failed to resolve chromosome name for rid {rid}: {details}")]
     VcfRecordChromResolveFailed { pos: i64, rid: u32, details: String },
     #[error("failed to read VCF/BCF record: {details}")]
