@@ -3,73 +3,8 @@
 //! Genomics utility functions.
 //!
 //! This module provides utilities for:
-//! 1. Chromosome manipulation(chromosome normalization, chromosome to rank mapping);
-//! 2. Sequence analysis(Svlen calculation);
-//! 3. MSI status classification.
-
-// @TODO: Remove commented-out function after final review.
-// /// Normalize chromosome names by removing "chr" prefix.
-// ///
-// /// Provides consistent chromosome naming across different reference formats.
-// /// Both "chr1" and "1" normalize to "1" for uniform processing.
-// ///
-// /// # Arguments
-// /// * `chrom` - Chromosome name with or without "chr" prefix
-// ///
-// /// # Returns
-// /// Normalized chromosome name without "chr" prefix
-// ///
-// /// # Note
-// /// Case-insensitive removal of "chr" prefix.
-// /// Preserves original case for the rest of the name.
-// ///
-// /// # Example
-// /// assert_eq!(normalize_chrom("chr1"), "1");
-// pub(crate) fn normalize_chrom(chrom: &str) -> String {
-//     if chrom.len() >= 3 && chrom[..3].eq_ignore_ascii_case("chr") {
-//         chrom[3..].to_string()
-//     } else {
-//         chrom.to_string()
-//     }
-// }
-
-// @TODO: Remove commented-out function after final review.
-// /// Convert chromosome name to sortable rank for natural ordering.
-// ///
-// /// Maps chromosome names to numeric ranks that preserve biological ordering:
-// /// - Autosomes: 1-22 → ranks 1-22
-// /// - Sex chromosomes: X → 23, Y → 24
-// /// - Mitochondrial: M/MT → 25
-// ///
-// /// Returns `None` for unrecognized chromosomes (e.g., scaffolds, decoys).
-// /// Currently supports human chromosomes only; extend for other species as needed.
-// ///
-// /// # Arguments
-// /// * `chrom` - Chromosome name (with or without "chr" prefix)
-// ///
-// /// # Returns
-// /// * `Some(rank)` - Numeric rank for recognized chromosomes
-// /// * `None` - For unrecognized chromosomes
-// ///
-// /// # Note
-// /// Currently supports only human chromosomes (1-22, X, Y, M/MT).
-// /// Other species will return `None`. Extend with custom logic for other genomes.
-// ///
-// /// # Example
-// /// assert_eq!(chrom_rank_checked("chr1"), Some(1));
-// /// assert_eq!(chrom_rank_checked("GL000192.1"), None);
-// pub(crate) fn chrom_rank_checked(chrom: &str) -> Option<u32> {
-//     let normalized = normalize_chrom(chrom);
-//     match normalized.parse::<u32>() {
-//         Ok(n) if (1..=22).contains(&n) => Some(n),
-//         _ => match normalized.as_str() {
-//             "X" | "x" => Some(23),
-//             "Y" | "y" => Some(24),
-//             "M" | "m" | "MT" | "Mt" | "mT" | "mt" => Some(25),
-//             _ => None,
-//         },
-//     }
-// }
+//! 1. Sequence analysis(Svlen calculation);
+//! 2. MSI status classification.
 
 /// Calculate structural variant length (SVLEN) from reference and alternate sequences.
 ///
@@ -141,54 +76,6 @@ pub fn classify_msi_status(msi_score: f64, threshold: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /* ========== normalize_chrom tests ============== */
-
-    // @TODO: Remove commented-out function after final review.
-    // #[test]
-    // fn test_normalize_chrom() {
-    //     assert_eq!(normalize_chrom("chr1"), "1");
-    //     assert_eq!(normalize_chrom("1"), "1");
-    //     assert_eq!(normalize_chrom("chrX"), "X");
-    //     assert_eq!(normalize_chrom("MT"), "MT");
-    //     assert_eq!(normalize_chrom("chrMT"), "MT");
-    //     assert_eq!(normalize_chrom("Chr1"), "1");
-    //     assert_eq!(normalize_chrom("CHR2"), "2");
-
-    //     /* Upstream should be aware of these: */
-    //     assert_eq!(normalize_chrom("GL000192.1"), "GL000192.1");
-    //     assert_eq!(normalize_chrom(""), "");
-    //     assert_eq!(normalize_chrom("chr"), "");
-    //     assert_eq!(normalize_chrom("chromosome1"), "omosome1");
-    // }
-
-    /* ======= chrom_rank_checked tests ============== */
-
-    // @TODO: Remove commented-out function after final review.
-    // #[test]
-    // fn test_chrom_rank_checked_valid() {
-    //     assert_eq!(chrom_rank_checked("22"), Some(22)); // Autosomes
-    //     assert_eq!(chrom_rank_checked("X"), Some(23)); // Sex chromosomes
-    //     assert_eq!(chrom_rank_checked("M"), Some(25)); // Mitochondrial
-
-    //     assert_eq!(chrom_rank_checked("chr1"), Some(1)); // With chr prefix
-    //     assert_eq!(chrom_rank_checked("chry"), Some(24)); // With chr prefix lowercase
-    // }
-
-    // @TODO: Remove commented-out function after final review.
-    // #[test]
-    // fn test_chrom_rank_checked_invalid() {
-    //     // Out of range autosomes
-    //     assert_eq!(chrom_rank_checked("0"), None);
-    //     assert_eq!(chrom_rank_checked("23"), None);
-
-    //     // Scaffolds and decoys
-    //     assert_eq!(chrom_rank_checked("GL000192.1"), None);
-
-    //     // Other invalid inputs
-    //     assert_eq!(chrom_rank_checked(""), None);
-    //     assert_eq!(chrom_rank_checked("chr"), None);
-    // }
 
     /* ======= calculate_dynamic_svlen tests ========= */
 
