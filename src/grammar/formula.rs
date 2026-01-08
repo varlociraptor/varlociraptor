@@ -454,17 +454,16 @@ impl Formula {
 
     fn sort(&mut self) {
         match self {
-            Formula::Conjunction { operands } => {
+            Formula::Conjunction { operands } | Formula::Disjunction { operands } => {
                 for operand in operands.iter_mut() {
                     operand.sort();
                 }
-                operands.sort()
-            }
-            Formula::Disjunction { operands } => {
-                for operand in operands.iter_mut() {
-                    operand.sort();
-                }
-                operands.sort()
+
+                operands.sort();
+                operands.sort_by_key(|f| match f {
+                    Formula::Terminal(FormulaTerminal::Log2FoldChange { .. }) => 0,
+                    _ => 1,
+                });
             }
             _ => (),
         }
