@@ -481,7 +481,6 @@ impl Formula {
             .simplify();
         simplified.strip_false();
         simplified.sort();
-        dbg!(simplified.clone());
         Ok(simplified.to_normalized_formula())
     }
 
