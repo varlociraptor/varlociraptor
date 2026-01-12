@@ -1,7 +1,0 @@
-samples:
-  emseq:
-    universe: "[0.0,1.0]"
-    conversion: C>T
-
-events:
-  present: "emseq:]0.0,1.0]"

@@ -388,7 +388,7 @@ impl GenericPosterior {
                         } else if n_obs < 5 {
                             // METHOD: Not enough observations to expect a unimodal density.
                             // Use 11 grid points.
-                            // TODO: Is there a reaseon 0 is included even if its excluded in the interval for n_obs < 10?
+                            // TODO: Is there a reaseon 0 is included even if its excluded in the interval of the scenario for n_obs < 10?
                             LogProb::ln_simpsons_integrate_exp(
                                 |_, vaf| density(AlleleFreq(vaf)),
                                 *min_vaf,
