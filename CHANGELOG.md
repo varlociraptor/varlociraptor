@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.2](https://github.com/varlociraptor/varlociraptor/compare/v8.9.1...v8.9.2) (2026-01-12)
+
+
+### Bug Fixes
+
+* ensure that log2fc constraints come first in any conjunction or disjunction ([#532](https://github.com/varlociraptor/varlociraptor/issues/532)) ([6b0bfb0](https://github.com/varlociraptor/varlociraptor/commit/6b0bfb09d179feb5fbcaf59f4bff37e70a5e6763))
+
 ## [8.9.1](https://github.com/varlociraptor/varlociraptor/compare/v8.9.0...v8.9.1) (2025-11-26)
 
 
