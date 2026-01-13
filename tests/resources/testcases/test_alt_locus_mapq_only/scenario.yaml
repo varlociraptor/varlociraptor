@@ -1,0 +1,40 @@
+species:
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+samples:
+  tumor_pre:
+    sex: female
+    resolution: 0.01
+    somatic-effective-mutation-rate: 4e-7
+    contamination:
+      by: normal
+      fraction: 0.15000000000000002
+  tumor_post:
+    sex: female
+    resolution: 0.01
+    somatic-effective-mutation-rate: 4e-7
+    contamination:
+      by: normal
+      fraction: 0.19999999999999996
+  normal:
+    sex: female
+    resolution: 0.1
+    somatic-effective-mutation-rate: 1e-10
+events:
+  germline: normal:0.5 | normal:1.0
+  somatic_normal: normal:]0.0,0.5[
+  somatic_tumor_post_increased: normal:0.0 & (tumor_pre:]0.0,1.0] | tumor_post:]0.0,1.0])
+    & l2fc(tumor_post, tumor_pre) > 0.0
+  somatic_tumor_post_decreased: normal:0.0 & (tumor_pre:]0.0,1.0] | tumor_post:]0.0,1.0])
+    & l2fc(tumor_post, tumor_pre) < 0.0
+  somatic_tumor_equal: normal:0.0 & (tumor_pre:]0.0,1.0] | tumor_post:]0.0,1.0]) &
+    l2fc(tumor_post, tumor_pre) == 0.0
