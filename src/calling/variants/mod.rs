@@ -264,7 +264,7 @@ impl Call {
                     i,
                     match sample_info.artifacts.alt_locus_bias() {
                         AltLocusBias::None => b'.',
-                        AltLocusBias::Some => b'*',
+                        AltLocusBias::Some { .. } => b'*',
                     },
                 );
 
