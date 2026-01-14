@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.3](https://github.com/varlociraptor/varlociraptor/compare/v8.9.2...v8.9.3) (2026-01-14)
+
+
+### Bug Fixes
+
+* in case no alt mappings are provided by the aligner, still detect systematic association of bad MAPQ with the ALT allele ([#534](https://github.com/varlociraptor/varlociraptor/issues/534)) ([3e3a829](https://github.com/varlociraptor/varlociraptor/commit/3e3a829954611983624bfd06a58e05303ab952a7))
+
 ## [8.9.2](https://github.com/varlociraptor/varlociraptor/compare/v8.9.1...v8.9.2) (2026-01-12)
 
 
