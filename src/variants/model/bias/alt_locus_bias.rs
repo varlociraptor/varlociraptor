@@ -11,13 +11,15 @@ use crate::variants::model::bias::Bias;
 pub(crate) enum AltLocusBias {
     #[default]
     None,
-    Some { has_alt_loci: bool },
+    Some {
+        has_alt_loci: bool,
+    },
 }
 
 impl AltLocusBias {
     fn get_counts<F>(pileups: &[Pileup], filterfunc: F) -> (usize, usize)
     where
-        F: Fn(&ReadObservation<ReadPosition, AltLocus>) -> bool
+        F: Fn(&ReadObservation<ReadPosition, AltLocus>) -> bool,
     {
         let n: usize = pileups
             .iter()
@@ -52,7 +54,8 @@ impl AltLocusBias {
                     .filter(|obs| obs.alt_locus != AltLocus::None)
                     .count()
             })
-            .sum::<usize>() > 0
+            .sum::<usize>()
+            > 0
     }
 }
 
@@ -68,7 +71,6 @@ impl Bias for AltLocusBias {
                     AltLocus::Major => LogProb::ln_one(),
                 }
             } else {
-                dbg!(observation.is_max_mapq);
                 if observation.is_max_mapq {
                     LogProb::ln_zero()
                 } else {
@@ -93,11 +95,10 @@ impl Bias for AltLocusBias {
                     AltLocus::Major => LogProb::ln_zero(),
                 }
             } else {
-                if observation.is_max_mapq {
-                    LogProb::ln_one()
-                } else {
-                    LogProb::ln_zero()
-                }
+                // METHOD: above logic only applies for a concrete ALT locus.
+                // In case we can only rely on MAPQ we should be a bit more conservative,
+                // allowing basically anything to occur.
+                *PROB_05
             }
         } else {
             // AltLocus::None
@@ -116,7 +117,8 @@ impl Bias for AltLocusBias {
     fn learn_parameters(&mut self, pileups: &[Pileup]) {
         if let AltLocusBias::Some {
             ref mut has_alt_loci,
-        } = self {
+        } = self
+        {
             *has_alt_loci = Self::has_alt_loci(pileups);
         }
     }
@@ -128,16 +130,18 @@ impl Bias for AltLocusBias {
             return true;
         }
 
-        let (n_alt, non_max_mapq_alt) = Self::get_counts(pileups, |obs| obs.is_strong_alt_support());
-        let (n_ref, non_max_mapq_ref) = Self::get_counts(pileups, |obs| obs.is_strong_ref_support());
+        let (n_alt, non_max_mapq_alt) =
+            Self::get_counts(pileups, |obs| obs.is_strong_alt_support());
+        let (n_ref, non_max_mapq_ref) =
+            Self::get_counts(pileups, |obs| obs.is_strong_ref_support());
 
-        n_alt > 0 && non_max_mapq_alt as f64 > (n_alt as f64 * 0.01) && (n_alt - non_max_mapq_alt) < 10 && (
-            (
-                Self::has_alt_loci(pileups)
-            ) ||
-            (
-                n_ref > 0 && non_max_mapq_ref as f64 > (n_ref as f64 * 0.01) && (n_ref - non_max_mapq_ref) < 10
-            )
-        )
+        let enough_alt_locus_obs = n_alt > 0
+            && non_max_mapq_alt as f64 > (n_alt as f64 * 0.01)
+            && (n_alt - non_max_mapq_alt) < 10;
+        let enough_max_mapq_in_ref =
+            n_ref > 0 && ((non_max_mapq_ref as f64) < (n_ref as f64 * 0.9));
+        let has_alt_loci = Self::has_alt_loci(pileups);
+
+        enough_alt_locus_obs && (has_alt_loci || enough_max_mapq_in_ref)
     }
 }

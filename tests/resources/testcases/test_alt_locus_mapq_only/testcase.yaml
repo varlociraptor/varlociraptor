@@ -1,11 +1,7 @@
+# A variant where all the ALT reads have low MAPQ while it is mixed for the REF reads. It should be recognized as an artifact.
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_ARTIFACT < 0.5
 
 # necessary bam files
 samples:
@@ -21,7 +17,7 @@ samples:
     path: 'tumor_post.bam'
     properties: '{"insert_size":{"mean":340.36856437449546,"sd":133.86068241596524},"max_del_cigar_len":108,"max_ins_cigar_len":66,"frac_max_softclip":0.9933774834437086,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-8.908928094577004,"prob_deletion_artifact":-9.094644179657312,"prob_insertion_extend_artifact":-0.19380222739548608,"prob_deletion_extend_artifact":-0.22241392697599813},"hop_params":{"prob_seq_homopolymer":[-7.073568836268281,-7.748035585226698,-7.660596152468547,-7.147365775675909],"prob_ref_homopolymer":[-6.885240510862599,-8.335487671416054,-8.473801548928428,-6.653724976664019],"prob_seq_extend_homopolymer":[-7.073568836268281,-7.748035585226698,-7.660596152468547,-7.147365775675909],"prob_ref_extend_homopolymer":[-6.885240510862599,-8.335487671416054,-8.473801548928428,-6.653724976664019]},"wildtype_homopolymer_error_model":{"5":0.00001409400840935274,"29":2.276724435356981e-6,"15":0.00001532271683478349,"-15":3.613848310090446e-8,"13":5.059387634126625e-6,"-9":3.613848310090446e-8,"14":5.384633982034765e-6,"1":0.00028773460244940134,"23":4.3366179721085354e-7,"27":6.39651150886009e-6,"28":6.143542127153759e-7,"6":0.000014961332003774448,"-2":3.107909546677784e-6,"16":7.2999735863827014e-6,"0":0.9994294456288029,"7":0.000010696990997867721,"11":0.00002034596598580921,"-1":7.336112069483606e-6,"19":0.000012359361220509326,"24":9.034620775226116e-7,"-4":1.8069241550452232e-7,"3":0.000014057869926251836,"8":5.926711228548332e-6,"34":2.02375505365065e-6,"-5":7.227696620180892e-8,"-3":2.02375505365065e-6,"12":0.000015864794081297058,"22":8.673235944217071e-7,"-10":6.0351266778510455e-6,"9":9.504421055537874e-6,"20":6.143542127153759e-7,"4":0.000010805406447170434,"21":4.4811719045121535e-6,"-7":3.613848310090446e-8,"10":0.000027790493504595533,"18":1.0841544930271338e-7,"-8":5.059387634126625e-7,"2":0.000068843810307223,"17":3.0717710635768795e-6},"initial":false}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/823384/5099378.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
-  
+
 
 # candidate variant
 candidate: 'candidates.vcf'
