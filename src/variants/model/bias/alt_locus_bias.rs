@@ -27,7 +27,7 @@ impl AltLocusBias {
                 pileup
                     .read_observations()
                     .iter()
-                    .filter(|obs| filterfunc(*obs))
+                    .filter(|obs| filterfunc(obs))
                     .count()
             })
             .sum();
@@ -37,7 +37,7 @@ impl AltLocusBias {
                 pileup
                     .read_observations()
                     .iter()
-                    .filter(|obs| !obs.is_max_mapq && filterfunc(*obs))
+                    .filter(|obs| !obs.is_max_mapq && filterfunc(obs))
                     .count()
             })
             .sum();
@@ -70,12 +70,10 @@ impl Bias for AltLocusBias {
                     AltLocus::Some | AltLocus::None => LogProb::ln_zero(),
                     AltLocus::Major => LogProb::ln_one(),
                 }
+            } else if observation.is_max_mapq {
+                LogProb::ln_zero()
             } else {
-                if observation.is_max_mapq {
-                    LogProb::ln_zero()
-                } else {
-                    LogProb::ln_one()
-                }
+                LogProb::ln_one()
             }
         } else {
             // AltLocus::None
@@ -136,7 +134,7 @@ impl Bias for AltLocusBias {
             Self::get_counts(pileups, |obs| obs.is_strong_ref_support());
 
         let enough_alt_locus_obs = n_alt > 0
-            && non_max_mapq_alt as f64 > (n_alt as f64 * 0.01)
+            && non_max_mapq_alt as f64 > (n_alt as f64 * 0.1)
             && (n_alt - non_max_mapq_alt) < 10;
         let enough_max_mapq_in_ref =
             n_ref > 0 && ((non_max_mapq_ref as f64) < (n_ref as f64 * 0.9));
