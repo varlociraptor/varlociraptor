@@ -22,6 +22,8 @@ use crate::utils::genomics::calculate_dynamic_svlen;
 use crate::utils::is_phred_scaled;
 use crate::utils::stats::phred_to_prob;
 
+const EPSILON: f64 = 1e-6;
+
 /* ============ Data Structures =================== */
 
 /// Sample information extracted from VCF header.
@@ -78,12 +80,12 @@ pub(crate) fn extract_sample_names(vcf: &bcf::Reader) -> Vec<String> {
 pub(crate) fn get_chrom(record: &bcf::Record, header: &HeaderView) -> Result<String> {
     let rid = record
         .rid()
-        .ok_or_else(|| Error::VcfRecordChromMissing { pos: record.pos() })?;
+        .ok_or_else(|| Error::VcfRecordChromMissing { pos: record.pos() + 1 })?;
 
     let chrom_bytes = header
         .rid2name(rid)
         .map_err(|_| Error::VcfRecordChromResolveFailed {
-            pos: record.pos(),
+            pos: record.pos() + 1,
             rid,
             details: "Failed to resolve chromosome name".to_string(),
         })?;
@@ -181,7 +183,7 @@ pub(crate) fn get_prob_absent(
             field: "PROB_ABSENT".to_string(),
             value: prob_absent,
             chrom: get_chrom(record, header)?,
-            pos: record.pos(),
+            pos: record.pos() + 1,
         }
         .into());
     }
@@ -191,7 +193,7 @@ pub(crate) fn get_prob_absent(
             field: "PROB_ARTIFACT".to_string(),
             value: prob_artifact,
             chrom: get_chrom(record, header)?,
-            pos: record.pos(),
+            pos: record.pos() + 1,
         }
         .into());
     }
@@ -210,15 +212,17 @@ pub(crate) fn get_prob_absent(
 
     let probability = probability_absent + probability_artifact;
 
-    if !(0.0..=1.0).contains(&probability) {
+    if probability < -EPSILON || probability > 1.0 + EPSILON {
         return Err(Error::VcfProbabilityValueInvalid {
             field: "DERIVED PROBABILITY ABSENT: PROB_ABSENT + PROBABILITY_ARTIFACT".to_string(),
             value: probability as f32,
             chrom: get_chrom(record, header)?,
-            pos: record.pos(),
+            pos: record.pos() + 1,
         }
         .into());
     }
+
+    let probability = probability.max(0.0).min(1.0);
 
     Ok(Some(probability))
 }
@@ -277,7 +281,7 @@ pub(crate) fn get_sample_afs(
                 sample: sample_name.clone(),
                 af,
                 chrom: get_chrom(record, header)?,
-                pos: record.pos(),
+                pos: record.pos() + 1,
             }
             .into());
         }

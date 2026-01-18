@@ -428,7 +428,7 @@ pub(super) fn intersect_streaming(
                     if pos < 0 {
                         debug!(
                             " Skipping malformed VCF record with invalid position: {}:{}",
-                            chrom, pos
+                            chrom, pos + 1
                         );
                         continue;
                     }
