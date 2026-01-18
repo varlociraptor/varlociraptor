@@ -530,7 +530,7 @@ pub(super) fn run_af_evolution_analysis(
         results
             .entry(sample.clone())
             .or_insert_with(HashMap::new)
-            .insert(af_threshold.to_string(), result);
+            .insert(format!("{:.2}", af_threshold), result);
     });
 
     let all_results = results.into_inner().unwrap();

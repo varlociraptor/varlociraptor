@@ -364,7 +364,7 @@ pub(super) fn write_pseudotime_data(
 
             writeln!(
                 writer,
-                "{}\t{:.1}\t{:.2}\t{}\t{}\t{}\t{}\t{}\t{}",
+                "{}\t{:.2}\t{:.2}\t{}\t{}\t{}\t{}\t{}\t{}",
                 sample,
                 af_f64,
                 result.msi_score_map.unwrap(),
