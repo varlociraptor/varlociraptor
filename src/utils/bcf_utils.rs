@@ -212,7 +212,8 @@ pub(crate) fn get_prob_absent(
 
     let probability = probability_absent + probability_artifact;
 
-    if probability < -EPSILON || probability > 1.0 + EPSILON {
+    let valid_range = -EPSILON..=1.0 + EPSILON;
+    if !valid_range.contains(&probability) {
         return Err(Error::VcfProbabilityValueInvalid {
             field: "DERIVED PROBABILITY ABSENT: PROB_ABSENT + PROBABILITY_ARTIFACT".to_string(),
             value: probability as f32,
@@ -222,7 +223,7 @@ pub(crate) fn get_prob_absent(
         .into());
     }
 
-    let probability = probability.max(0.0).min(1.0);
+    let probability = probability.clamp(0.0, 1.0);
 
     Ok(Some(probability))
 }
