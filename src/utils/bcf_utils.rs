@@ -78,9 +78,9 @@ pub(crate) fn extract_sample_names(vcf: &bcf::Reader) -> Vec<String> {
 /// # Example
 /// assert_eq!(get_chrom(&record, &header).unwrap(), "chr1");
 pub(crate) fn get_chrom(record: &bcf::Record, header: &HeaderView) -> Result<String> {
-    let rid = record
-        .rid()
-        .ok_or_else(|| Error::VcfRecordChromMissing { pos: record.pos() + 1 })?;
+    let rid = record.rid().ok_or_else(|| Error::VcfRecordChromMissing {
+        pos: record.pos() + 1,
+    })?;
 
     let chrom_bytes = header
         .rid2name(rid)
