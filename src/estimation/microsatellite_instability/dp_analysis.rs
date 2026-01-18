@@ -866,7 +866,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = &results["sample1"]["0"];
+        let result = &results["sample1"]["0.00"];
 
         assert!(result.k_map.is_none());
         assert!(result.msi_score_map.is_none());
@@ -918,7 +918,7 @@ mod tests {
         assert_eq!(results["sample1"].len(), 3, "Should have 3 AF thresholds");
 
         // AF=1.0: no variants pass (0.9 < 1.0, 0.5 < 1.0)
-        let af_1_0 = &results["sample1"]["1"];
+        let af_1_0 = &results["sample1"]["1.00"];
         assert_eq!(
             af_1_0.regions_with_variants.unwrap(),
             0,
@@ -941,7 +941,7 @@ mod tests {
         );
 
         // AF=0.5: both variants pass (0.9 ≥ 0.5, 0.5 ≥ 0.5)
-        let af_0_5 = &results["sample1"]["0.5"];
+        let af_0_5 = &results["sample1"]["0.50"];
         assert_eq!(
             af_0_5.regions_with_variants.unwrap(),
             2,
@@ -962,7 +962,7 @@ mod tests {
         assert!(af_0_5.uncertainty_upper.is_some());
 
         // AF=0.0: both variants pass (all pass)
-        let af_0_0 = &results["sample1"]["0"];
+        let af_0_0 = &results["sample1"]["0.00"];
         assert_eq!(
             af_0_0.regions_with_variants.unwrap(),
             2,
