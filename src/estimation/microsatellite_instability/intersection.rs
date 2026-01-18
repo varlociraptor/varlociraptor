@@ -122,7 +122,11 @@ impl IntersectionStats {
 /// assert_eq!(is_perfect_repeat(b"ACAGCAG", 3, "CAG", b"ACAG"), RepeatStatus::Perfect);
 fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) -> RepeatStatus {
     // 0. Handling Edge Cases
-    if ref_seq.is_empty() || alt_seq.is_empty() || ref_seq[0] != alt_seq[0] || svlen == 0 {
+    if ref_seq.is_empty()
+        || alt_seq.is_empty()
+        || !ref_seq[0].eq_ignore_ascii_case(&alt_seq[0])
+        || svlen == 0
+    {
         return RepeatStatus::NA;
     }
 
@@ -563,6 +567,14 @@ mod tests {
     fn test_is_perfect_repeat_case_insensitive() {
         assert_eq!(
             is_perfect_repeat(b"acagCAG", 3, "cag", b"acag"),
+            RepeatStatus::Perfect
+        );
+    }
+
+    #[test]
+    fn test_is_perfect_repeat_case_insensitive_first_byte() {
+        assert_eq!(
+            is_perfect_repeat(b"AcagCAG", 3, "cag", b"acag"),
             RepeatStatus::Perfect
         );
     }
