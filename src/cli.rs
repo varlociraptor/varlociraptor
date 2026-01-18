@@ -651,7 +651,7 @@ pub enum EstimateKind {
         #[structopt(
             long = "af-thresholds",
             hidden = true,
-            default_value = "1.0,0.8,0.6,0.4,0.2,0.0",
+            default_value = "1.0,0.8,0.6,0.4,0.2,0.1,0.05,0.02,0.0",
             use_delimiter = true,
             help = "Allele frequency thresholds for MSI evolution analysis (internal)"
         )]
