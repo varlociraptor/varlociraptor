@@ -215,7 +215,7 @@ pub(crate) fn get_prob_absent(
     let valid_range = -EPSILON..=1.0 + EPSILON;
     if !valid_range.contains(&probability) {
         return Err(Error::VcfProbabilityValueInvalid {
-            field: "DERIVED PROBABILITY ABSENT: PROB_ABSENT + PROBABILITY_ARTIFACT".to_string(),
+            field: "DERIVED PROBABILITY ABSENT: PROB_ABSENT + PROB_ARTIFACT".to_string(),
             value: probability as f32,
             chrom: get_chrom(record, header)?,
             pos: record.pos() + 1,
