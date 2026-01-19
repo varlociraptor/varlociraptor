@@ -1,10 +1,131 @@
+//! src/errors.rs
+//!
+//!  Error types for varlociraptor
+//!
+//! # Naming Convention
+//!
+//! All error variants should follow a consistent naming pattern:
+//! **`<Component><Action><ErrorType>`**
+//!
+//! Note: Please register new components, actions, and error types when adding errors,
+//! if they do not already exist, so that the naming convention remains consistent and
+//! unrepetitive.
+//!
+//! ## Components:
+//! - `Bed` - BED file operations (generic)
+//! - `Vcf` - VCF/BCF file operations (generic)
+//! - `Thread` - Threading and concurrency
+//! - `MsiBed` - MSI-specific BED operations
+//! - `MsiConfig` - MSI configuration
+//! - `MsiVcf` - MSI-specific VCF operations
+
+//!
+//! ## Actions(when applicable):
+//! - `File` - File-level operations
+//! - `Record` - Record-level operations
+//! - `Chrom` - Chromosome operations
+//! - `Samples` - Sample operations
+//! - `Sample` - Single sample operations
+//! - `Allele` - Allele operations
+//! - `Frequency` - Frequency calculations
+//! - `Probability` - Probability calculations
+//! - `Exclusion` - Sample exclusion operations
+//! - `Count` - Counting operations
+//! - `Threshold` - Threshold validation
+//! - `Motif` - Motif pattern operations (MSI)
+//! - `Output` - Output configuration (MSI)
+//!
+//! ## Error Types:
+//! - `Invalid` - Validation failure
+//! - `Missing` - Required data absent
+//! - `Empty` - No data found
+//! - `Failed` - Operation failure
+//! - `Mismatch` - Data inconsistency
+//!
+//! ## Examples:
+//! - `BedFileInvalid` - Invalid BED file path
+//! - `VcfRecordReadFailed` - Failed to read VCF record
+//! - `MsiConfigThresholdInvalid` - Invalid MSI threshold value
+
 use bio_types::genome::Locus;
 use std::path::PathBuf;
 
 use thiserror::Error;
 
+use crate::cli::MIN_THREAD_COUNT;
+use crate::estimation::microsatellite_instability as msi;
+
 #[derive(Error, Debug, PartialEq)]
 pub(crate) enum Error {
+    /* ======================= Generic Errors ======================== */
+    /* -------------------- File Validation -------------------------- */
+    /* 1. Bed File Errors */
+    #[error("invalid BED file path (expected .bed extension): {path}")]
+    BedFileInvalid { path: PathBuf },
+    #[error("BED file is empty (no microsatellite loci found)")]
+    BedFileEmpty,
+    #[error("invalid BED record at {chrom}:{pos}: {msg}")]
+    BedRecordInvalid {
+        chrom: String,
+        pos: i64,
+        msg: String,
+    },
+    #[error("failed to read BED record at line {line}: {details}")]
+    BedRecordReadFailed { line: usize, details: String },
+    /* 2. VCF/BCF File Errors */
+    #[error(
+        "invalid VCF/BCF file path (expected .vcf, .vcf.gz, .bcf, or .bcf.gz extension): {path}"
+    )]
+    VcfFileInvalid { path: PathBuf },
+    #[error("VCF/BCF file contains no samples")]
+    VcfSamplesMissing,
+    #[error("VCF/BCF file is empty (no variant records)")]
+    VcfFileEmpty,
+    #[error("VCF/BCF record at position {pos} is missing chromosome reference (RID)")]
+    VcfRecordChromMissing { pos: i64 },
+    #[error("VCF/BCF record at position {pos} failed to resolve chromosome name for rid {rid}: {details}")]
+    VcfRecordChromResolveFailed { pos: i64, rid: u32, details: String },
+    #[error("failed to read VCF/BCF record: {details}")]
+    VcfRecordReadFailed { details: String },
+    #[error(
+        "Invalid allele frequency {af} for sample '{sample}' at {chrom}:{pos} (must be 0.0-1.0)"
+    )]
+    VcfAlleleFrequencyInvalid {
+        sample: String,
+        af: f32,
+        chrom: String,
+        pos: i64,
+    },
+    #[error("Invalid probability value in field '{field}' at {chrom}:{pos} (value={value})")]
+    VcfProbabilityValueInvalid {
+        field: String,
+        value: f32,
+        chrom: String,
+        pos: i64,
+    },
+    #[error("VCF/BCF file does not contain the following excluded sample(s): {samples}")]
+    VcfSampleExclusionInvalid { samples: String },
+    #[error("VCF/BCF file contains no samples after excluding specified samples")]
+    VcfSamplesEmptyAfterExclusion,
+    #[error("VCF/BCF header missing or malformed required {location} field: {field}")]
+    VcfHeaderFieldMissing {
+        field: String,
+        location: String, // e.g "INFO" or "FORMAT"
+    },
+    #[error("VCF/BCF header field {location}:{field} has incorrect type (expected {expected}, found {found})")]
+    VcfHeaderFieldTypeInvalid {
+        location: String, // e.g "INFO" or "FORMAT"
+        field: String,
+        expected: String,
+        found: String,
+    },
+    /* -------------------- Concurrency ------------------------------ */
+    #[error(
+        "invalid thread count: must be at least {}, got {count}",
+        MIN_THREAD_COUNT
+    )]
+    ThreadCountInvalid { count: usize },
+    /* --------------------------------------------------------------- */
     #[error("formula refers to unknown sample {name}")]
     InvalidSampleName { name: String },
     #[error("contamination refers to unknown sample {name}; it is not defined in the scenario")]
@@ -82,6 +203,27 @@ pub(crate) enum Error {
     UnrealisticIsizeSd,
     #[error("given field for variant heterozygosity or variant somatic effective mutation rate has to have as many entries as ALT alleles in the record")]
     InvalidVariantPrior,
+
+    /* ======================= MSI: Estimation Errors ================ */
+    /* -------------------- Configuration ---------------------------- */
+    #[error(
+        "invalid MSI threshold: must be > {} (default: {}), got {threshold}",
+        msi::MIN_MSI_THRESHOLD,
+        msi::DEFAULT_MSI_THRESHOLD
+    )]
+    MsiConfigThresholdInvalid { threshold: f64 },
+    #[error("at least one output must be specified: use --plot-pseudotime, --plot-distribution, --data-pseudotime, or --data-distribution")]
+    MsiConfigOutputMissing,
+    /* -------------------- BED File Errors -------------------------- */
+    #[error(
+        "invalid motif format in BED record: expected 'NxMOTIF' (e.g., '15xCAG'), got '{motif}'"
+    )]
+    MsiBedMotifInvalid { motif: String },
+    #[error("BED record missing required name field (4th column) containing motif information")]
+    MsiBedMotifNameMissing,
+    /* -------------------- Processing Errors ------------------------ */
+    #[error("No chromosome match between BED and VCF files. Verify chromosome naming is consistent (e.g., 'chr1' vs '1')")]
+    MsiVcfChromMismatch,
 }
 
 pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {
