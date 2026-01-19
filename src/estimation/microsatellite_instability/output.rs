@@ -179,7 +179,7 @@ pub(super) fn write_distribution_data(
     )?;
 
     for (sample, af_results) in results {
-        let af_zero_result = match af_results.get("0") {
+        let af_zero_result = match af_results.get("0.00") {
             Some(result) => result,
             None => continue,
         };
@@ -242,7 +242,7 @@ pub(super) fn generate_distribution_plot_spec(
     let mut data = Vec::new();
 
     for (sample, af_results) in results {
-        let af_zero_result = match af_results.get("0") {
+        let af_zero_result = match af_results.get("0.00") {
             Some(result) => result,
             None => continue,
         };
