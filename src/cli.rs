@@ -231,6 +231,12 @@ pub enum PreprocessKind {
         bam: PathBuf,
         #[structopt(
             long,
+            default_value = "1",
+            help = "Number of threads to use for parallel processing."
+        )]
+        threads: usize,
+        #[structopt(
+            long,
             help = "Name of INFO field containing an expected heterozygosity per variant allele (can be e.g. a population allele frequency). Field needs to have as many entries as ALT alleles per VCF/BCF record."
         )]
         variant_heterozygosity_field: Option<String>,
@@ -855,6 +861,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     reference,
                     candidates,
                     bam,
+                    threads,
                     report_fragment_ids,
                     atomic_candidate_variants,
                     omit_mapq_adjustment,
@@ -877,7 +884,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     if realignment_window > (128 / 2) {
                         return Err(
                             structopt::clap::Error::with_description(
-                                "Command-line option --indel-window requires a value <= 64 with the current implementation.", 
+                                "Command-line option --indel-window requires a value <= 64 with the current implementation.",
                                 structopt::clap::ErrorKind::ValueValidation
                             ).into()
                         );
@@ -942,6 +949,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .threads(threads)
                                     .build();
                             processor.process()?;
                         }
@@ -953,6 +961,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .alignment_properties(alignment_properties)
                                     .max_depth(max_depth)
                                     .inbam(bam)
+                                    .threads(threads)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
                                     .haplotype_feature_index(HaplotypeFeatureIndex::new(
@@ -986,6 +995,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .alignment_properties(alignment_properties)
                                     .max_depth(max_depth)
                                     .inbam(bam)
+                                    .threads(threads)
                                     .min_bam_refetch_distance(min_bam_refetch_distance)
                                     .reference_buffer(Arc::clone(&reference_buffer))
                                     .haplotype_feature_index(HaplotypeFeatureIndex::new(

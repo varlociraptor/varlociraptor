@@ -93,6 +93,7 @@ impl Testcase for TestcaseVersion0 {
                         // The rest will be overwritten.
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),
+                        threads: 1,
                         report_fragment_ids: true,
                         omit_mapq_adjustment: false,
                         candidates: self.candidates(),
