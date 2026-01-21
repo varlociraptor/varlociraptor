@@ -135,6 +135,23 @@ pub enum Varlociraptor {
         #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
         output: Option<PathBuf>,
     },
+    #[structopt(
+        name = "cnv-candidates",
+        about = "Generate BCF with cnv candidates",
+        usage = "varlociraptor cnv-candidates input.breakends (gridss output) output.bcf"
+    )]
+    CNVCandidates {
+        #[structopt(
+            name = "input",
+            parse(from_os_str),
+            required = true,
+            help = "Input breakends File"
+        )]
+        input: PathBuf,
+
+        #[structopt(name = "output", parse(from_os_str), help = "Output BCF File")]
+        output: Option<PathBuf>,
+    },
 }
 
 pub struct PreprocessInput {
@@ -442,6 +459,14 @@ pub enum EstimateKind {
             the samples only have comparably reads (e.g. in case of panel sequencing)."
         )]
         bams: Vec<PathBuf>,
+
+        #[structopt(
+            long,
+            help = "BCF file listing known copy number variants (CNVs). \
+            Typically generated via the GRIDSS tool and the `varlociraptor cnv-candidates` subcommand. \
+            This is essential for estimating baseline coverage in non-CNV regions."
+        )]
+        cnv_bcf: Option<PathBuf>,
 
         #[structopt(long, help = "Number of records to sample from the BAM file")]
         num_records: Option<usize>,
@@ -1321,11 +1346,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             EstimateKind::AlignmentProperties {
                 reference,
                 bams,
+                cnv_bcf,
                 num_records,
             } => {
                 let mut reference_buffer = reference::Buffer::from_path(&reference, 1)?;
                 let alignment_properties = estimate_alignment_properties(
                     &bams,
+                    cnv_bcf,
                     false,
                     &mut reference_buffer,
                     num_records,
@@ -1388,6 +1415,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
         } => {
             candidates::methylation::find_candidates(input, motifs, output)?;
         }
+        Varlociraptor::CNVCandidates { input, output } => {
+            candidates::cnv::find_candidates(input, output)?;
+        }
     }
     Ok(())
 }
@@ -1404,6 +1434,12 @@ pub(crate) fn est_or_load_alignment_properties(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(&[bam_file], omit_insert_size, reference_buffer, num_records)
+        estimate_alignment_properties(
+            &[bam_file],
+            None,
+            omit_insert_size,
+            reference_buffer,
+            num_records,
+        )
     }
 }
