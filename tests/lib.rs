@@ -198,6 +198,7 @@ testcase!(test_false_negative_indel_call, exact);
 testcase!(test_hiv_vaf_higher_than_expected, exact);
 testcase!(test_uzuner_only_N, exact);
 testcase!(test_moelder_floatisnan, exact);
+testcase!(test_alt_locus_mapq_only, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

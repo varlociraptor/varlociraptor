@@ -296,5 +296,6 @@ impl Artifacts {
         self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
         self.read_position_bias.learn_parameters(pileups);
+        self.alt_locus_bias.learn_parameters(pileups);
     }
 }
