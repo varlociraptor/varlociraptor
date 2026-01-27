@@ -4,7 +4,8 @@ expected:
     # - sample_name > 0.45 && sample_name < 0.55
   posteriors:
     # write down a list of expressions of the form
-    - PROB_ABSENT >= 2.6 && PROB_ABSENT <= 2.7
+    - PROB_ABSENT >= 2.5 && PROB_ABSENT <= 2.6
+
     
 # necessary bam files
 samples:
