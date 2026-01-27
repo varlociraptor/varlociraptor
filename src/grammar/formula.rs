@@ -458,16 +458,91 @@ impl Formula {
                 for operand in operands.iter_mut() {
                     operand.sort();
                 }
+
                 operands.sort();
+                operands.sort_by(|a, b| {
+                    let key = |f: &Formula| match f {
+                        Formula::Terminal(FormulaTerminal::Log2FoldChange { sample_a, .. }) => {
+                            (0, sample_a.clone())
+                        }
+                        Formula::Terminal(FormulaTerminal::Atom { sample, .. }) => {
+                            (1, sample.clone())
+                        }
+                        _ => (2, String::new()),
+                    };
 
-                operands.sort_by_key(|f| match f {
-                    Formula::Terminal(FormulaTerminal::Log2FoldChange { .. }) => 0,
-
-                    _ => 1,
+                    key(a).cmp(&key(b))
                 });
             }
-            _ => (),
+            _ => {}
         }
+    }
+
+    fn compute_included_samples(&self, included: &mut HashSet<String>) {
+        match self {
+            Formula::Conjunction { operands } | Formula::Disjunction { operands } => {
+                for operand in operands {
+                    operand.compute_included_samples(included);
+                }
+            }
+
+            Formula::Terminal(FormulaTerminal::Atom { sample, .. }) => {
+                included.insert(sample.clone());
+            }
+
+            _ => {}
+        }
+    }
+
+    /// Add missing samples to the formula based on the given scenario.
+    pub fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) -> Result<()> {
+        // If the formula is false we do not need to add anything since it will always evaluate to false
+        if matches!(self, Formula::Terminal(FormulaTerminal::False)) {
+            return Ok(());
+        }
+
+        // Collect all samples already present
+        let mut included_samples = HashSet::new();
+        self.compute_included_samples(&mut included_samples);
+
+        // Add missing samples
+        for (name, sample) in scenario.samples() {
+            if !included_samples.contains(name) {
+                included_samples.insert(name.clone());
+                // Collect all possible VAFs for this sample on the given contig
+                let mut operands: Vec<Formula> = sample
+                    .contig_universe(contig, scenario.species())?
+                    .iter()
+                    .map(|vafs| {
+                        Formula::Terminal(FormulaTerminal::Atom {
+                            sample: name.clone(),
+                            vafs: vafs.clone(),
+                        })
+                    })
+                    .collect();
+                // If there is only one possible VAF, just use that one, otherwise make a disjunction
+                let new_sample_term = match operands.len() {
+                    0 => unreachable!("contig_universe must not be empty"),
+                    1 => operands.pop().unwrap(),
+                    _ => Formula::Disjunction { operands },
+                };
+                // Add the missing sample term as a conjunction to the existing formula
+                match self {
+                    Formula::Conjunction { operands } => {
+                        operands.push(new_sample_term);
+                    }
+                    _ => {
+                        let existing =
+                            std::mem::replace(self, Formula::Conjunction { operands: vec![] });
+
+                        *self = Formula::Conjunction {
+                            operands: vec![existing, new_sample_term],
+                        };
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
@@ -480,7 +555,12 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
+        // println!("Before adding {}", &simplified);
+        simplified.add_missing_samples(scenario, contig);
+        // println!("Before sorting: {}", &simplified);
         simplified.sort();
+        println!("Final normalized formula: {} \n", &simplified);
+        // println!("\n\n");
         Ok(simplified.to_normalized_formula())
     }
 
