@@ -181,9 +181,9 @@ testcase!(test_prinz_af_scan, exact);
 testcase!(test_prinz_call_meth_1, exact);
 testcase!(test_prinz_call_meth_2, exact);
 testcase!(test_prinz_pacbio_zero, exact);
-testcase!(test_prinz_ceta_one_sample_emseq, exact);
-testcase!(test_prinz_ceta_one_sample_untreated, exact);
-testcase!(test_prinz_ceta_two_samples, exact);
+testcase!(test_prinz_sort_one_sample_untreated, exact);
+testcase!(test_prinz_sort_one_sample_emseq, exact);
+testcase!(test_prinz_sort_two_samples, exact);
 
 testcase!(test_imprecise_fusion, exact);
 testcase!(test_imprecise_fusion_absent, exact);
