@@ -31,6 +31,12 @@ pub(crate) struct Contamination {
     pub(crate) fraction: f64,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct Conversion {
+    pub(crate) from: u8,
+    pub(crate) to: u8,
+}
+
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
     pub(crate) name: String,

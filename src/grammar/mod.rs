@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
@@ -19,7 +20,7 @@ pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniv
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
-use serde::{de, Deserializer};
+use serde::{de, Deserialize, Deserializer};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -33,6 +34,17 @@ impl<T> SampleInfo<T> {
     pub(crate) fn map<U, F: Fn(&T) -> U>(&self, f: F) -> SampleInfo<U> {
         SampleInfo {
             inner: self.inner.iter().map(f).collect(),
+        }
+    }
+
+    pub(crate) fn zip<'a, U>(&'a self, other: &'a SampleInfo<U>) -> SampleInfo<(&'a T, &'a U)> {
+        assert_eq!(
+            self.inner.len(),
+            other.inner.len(),
+            "SampleInfo instances must have the same length"
+        );
+        SampleInfo {
+            inner: self.inner.iter().zip(other.inner.iter()).collect(),
         }
     }
 
@@ -474,6 +486,8 @@ pub(crate) struct Sample {
     /// optional contamination
     #[get = "pub(crate)"]
     contamination: Option<Contamination>,
+    #[get = "pub(crate)"]
+    conversion: Option<Conversion>,
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
     #[get = "pub(crate)"]
@@ -621,6 +635,66 @@ pub(crate) struct Contamination {
     by: String,
     /// fraction of contamination
     fraction: f64,
+}
+
+#[derive(Getters)]
+#[get = "pub(crate)"]
+pub(crate) struct Conversion {
+    /// mutation start
+    from: u8,
+    /// mutation end
+    to: u8,
+}
+
+impl FromStr for Conversion {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let is_nucleotide = |c: char| matches!(c.to_ascii_uppercase(), 'A' | 'T' | 'G' | 'C' | 'N');
+
+        let (left, right) = s
+            .split_once('>')
+            .ok_or_else(|| format!("Expected format 'X>Y' but got '{}'", s))?;
+
+        if left.len() != 1 || right.len() != 1 {
+            return Err(format!(
+                "Expected single ASCII characters before and after '>' in '{}'",
+                s
+            ));
+        }
+
+        let from = left.chars().next().unwrap();
+        let to = right.chars().next().unwrap();
+
+        if !from.is_ascii() || !to.is_ascii() {
+            return Err(format!(
+                "Non-ASCII characters are not supported in conversion string '{}'",
+                s
+            ));
+        }
+
+        if !is_nucleotide(from) || !is_nucleotide(to) {
+            return Err(format!(
+                "Invalid nucleotides in conversion string '{}'. Expected A,T,G,C,N.",
+                s
+            ));
+        }
+
+        Ok(Conversion {
+            from: from as u8,
+            to: to as u8,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Conversion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(
