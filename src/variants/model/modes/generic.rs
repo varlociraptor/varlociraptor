@@ -349,11 +349,9 @@ impl GenericPosterior {
 
                         if vafs.is_empty() {
                             // METHOD: empty interval, integral must be zero.
-                            // println!("{:?}", LogProb::ln_zero());
                             return LogProb::ln_zero();
                         }
                         if is_clear_ref && (*vafs.start > 0.0) {
-                            dbg!("0.2");
                             // METHOD: shortcut for the case that all obs support the reference but the vaf
                             // range in this event is > 0. Then, we don't need to recurse further and can
                             // immediately stop, returning a probability of zero.
@@ -361,13 +359,10 @@ impl GenericPosterior {
                         }
 
                         if vafs.is_singleton() {
-                            dbg!(&vafs);
-                            dbg!("0.3");
                             // METHOD: interval represents a single value, no need
                             // to integrate.
                             let vaf = vafs.start;
                             push_base_event(vaf, likelihood_operands, true);
-                            // println!("{:?}", subdensity(likelihood_operands));
                             return subdensity(likelihood_operands);
                         }
 
@@ -391,7 +386,6 @@ impl GenericPosterior {
                                 3,
                             )
                         } else if n_obs < 5 {
-                            dbg!("2");
                             // METHOD: Not enough observations to expect a unimodal density.
                             // Use 11 grid points.
                             // TODO: Is there a reaseon 0 is included even if its excluded in the interval of the scenario for n_obs < 10?
@@ -402,7 +396,6 @@ impl GenericPosterior {
                                 11,
                             )
                         } else {
-                            dbg!("3");
                             // METHOD: enough data and large enough interval, use adaptive integration
                             // at the desired resolution.
                             adaptive_integration::ln_integrate_exp(
@@ -577,7 +570,6 @@ impl Likelihood<Cache> for GenericLikelihood {
 
                                 likelihood_model.compute(&ev, pileup, sample_cache)
                             };
-
                             LogProb::ln_simpsons_integrate_exp(
                                 density,
                                 0.0,
@@ -588,7 +580,6 @@ impl Likelihood<Cache> for GenericLikelihood {
                         _ => likelihood_model.compute(&contaminated_event, pileup, sample_cache),
                     }
                 }
-
                 SampleModel::Normal {
                     ref likelihood_model,
                     conversion,
@@ -600,7 +591,6 @@ impl Likelihood<Cache> for GenericLikelihood {
                     let CacheEntry::SingleSample(ref mut sample_cache) = cache_entry else {
                         unreachable!();
                     };
-
                     match (conversion, &data.snv) {
                         (Some(conversion), Some(snv))
                             if snv.refbase == conversion.from && snv.altbase == conversion.to =>
@@ -611,7 +601,6 @@ impl Likelihood<Cache> for GenericLikelihood {
 
                                 likelihood_model.compute(&ev, pileup, sample_cache)
                             };
-
                             LogProb::ln_simpsons_integrate_exp(
                                 density,
                                 0.0,
@@ -623,10 +612,8 @@ impl Likelihood<Cache> for GenericLikelihood {
                     }
                 }
             };
-
             p += lp;
         }
-
         p
     }
 }
