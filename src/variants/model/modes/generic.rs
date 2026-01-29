@@ -349,9 +349,11 @@ impl GenericPosterior {
 
                         if vafs.is_empty() {
                             // METHOD: empty interval, integral must be zero.
+                            // println!("{:?}", LogProb::ln_zero());
                             return LogProb::ln_zero();
                         }
                         if is_clear_ref && (*vafs.start > 0.0) {
+                            dbg!("0.2");
                             // METHOD: shortcut for the case that all obs support the reference but the vaf
                             // range in this event is > 0. Then, we don't need to recurse further and can
                             // immediately stop, returning a probability of zero.
@@ -359,10 +361,13 @@ impl GenericPosterior {
                         }
 
                         if vafs.is_singleton() {
+                            dbg!(&vafs);
+                            dbg!("0.3");
                             // METHOD: interval represents a single value, no need
                             // to integrate.
                             let vaf = vafs.start;
                             push_base_event(vaf, likelihood_operands, true);
+                            // println!("{:?}", subdensity(likelihood_operands));
                             return subdensity(likelihood_operands);
                         }
 
@@ -386,6 +391,7 @@ impl GenericPosterior {
                                 3,
                             )
                         } else if n_obs < 5 {
+                            dbg!("2");
                             // METHOD: Not enough observations to expect a unimodal density.
                             // Use 11 grid points.
                             // TODO: Is there a reaseon 0 is included even if its excluded in the interval of the scenario for n_obs < 10?
@@ -396,6 +402,7 @@ impl GenericPosterior {
                                 11,
                             )
                         } else {
+                            dbg!("3");
                             // METHOD: enough data and large enough interval, use adaptive integration
                             // at the desired resolution.
                             adaptive_integration::ln_integrate_exp(
@@ -543,89 +550,83 @@ impl Likelihood<Cache> for GenericLikelihood {
             .zip(data.pileups.iter())
             .zip(self.sample_models.iter())
         {
-            p += match sample_model {
+            let lp = match sample_model {
                 SampleModel::Contaminated {
                     ref likelihood_model,
                     by,
                     conversion,
                 } => {
-                    if let CacheEntry::ContaminatedSample(ref mut cache) =
-                        cache.entry(sample).or_insert_with(|| CacheEntry::new(true))
-                    {
-                        let contaminated_event = &likelihood::ContaminatedSampleEvent {
-                            primary: event.clone(),
-                            secondary: operands.events[by].clone(),
-                        };
-                        // If we deal with a conversion on a SNV, we need to adjust the allele frequency accordingly.
-                        if let Some(conversion) = conversion {
-                            if let Some(snv) = &data.snv {
-                                if snv.refbase == conversion.from && snv.altbase == conversion.to {
-                                    let density = |_, conversion_rate| {
-                                        let mut event_var_or_conversion =
-                                            contaminated_event.clone();
-                                        // TODO: Frage Johannes: Soll ich auf primary aufrechnen?
-                                        event_var_or_conversion.primary.allele_freq +=
-                                            conversion_rate;
-                                        likelihood_model.compute(
-                                            &event_var_or_conversion,
-                                            pileup,
-                                            cache,
-                                        )
-                                    };
-                                    return LogProb::ln_simpsons_integrate_exp(
-                                        density,
-                                        0.0,
-                                        1.0 - contaminated_event.primary.allele_freq.into_inner(),
-                                        11,
-                                    );
-                                }
-                            }
-                        }
-                        // Else, just compute the likelihood normally.
-                        likelihood_model.compute(contaminated_event, pileup, cache)
-                    } else {
+                    let cache_entry = cache.entry(sample).or_insert_with(|| CacheEntry::new(true));
+
+                    let CacheEntry::ContaminatedSample(ref mut sample_cache) = cache_entry else {
                         unreachable!();
+                    };
+
+                    let contaminated_event = likelihood::ContaminatedSampleEvent {
+                        primary: event.clone(),
+                        secondary: operands.events[*by].clone(),
+                    };
+
+                    match (conversion, &data.snv) {
+                        (Some(conversion), Some(snv))
+                            if snv.refbase == conversion.from && snv.altbase == conversion.to =>
+                        {
+                            let density = |_, conversion_rate| {
+                                let mut ev = contaminated_event.clone();
+                                ev.primary.allele_freq += conversion_rate;
+
+                                likelihood_model.compute(&ev, pileup, sample_cache)
+                            };
+
+                            LogProb::ln_simpsons_integrate_exp(
+                                density,
+                                0.0,
+                                1.0 - contaminated_event.primary.allele_freq.into_inner(),
+                                11,
+                            )
+                        }
+                        _ => likelihood_model.compute(&contaminated_event, pileup, sample_cache),
                     }
                 }
+
                 SampleModel::Normal {
                     ref likelihood_model,
                     conversion,
                 } => {
-                    if let CacheEntry::SingleSample(ref mut cache) = cache
+                    let cache_entry = cache
                         .entry(sample)
-                        .or_insert_with(|| CacheEntry::new(false))
-                    {
-                        // If we deal with a conversion on a SNV, we need to adjust the allele frequency accordingly.
-                        if let Some(conversion) = conversion {
-                            if let Some(snv) = &data.snv {
-                                if snv.refbase == conversion.from && snv.altbase == conversion.to {
-                                    let density = |_, conversion_rate| {
-                                        let mut event_var_or_conversion = event.clone();
-                                        event_var_or_conversion.allele_freq += conversion_rate;
+                        .or_insert_with(|| CacheEntry::new(false));
 
-                                        likelihood_model.compute(
-                                            &event_var_or_conversion,
-                                            pileup,
-                                            cache,
-                                        )
-                                    };
-                                    return LogProb::ln_simpsons_integrate_exp(
-                                        density,
-                                        0.0,
-                                        1.0 - event.allele_freq.into_inner(),
-                                        11,
-                                    );
-                                }
-                            }
-                        }
-                        // Else, just compute the likelihood normally.
-                        likelihood_model.compute(event, pileup, cache)
-                    } else {
+                    let CacheEntry::SingleSample(ref mut sample_cache) = cache_entry else {
                         unreachable!();
+                    };
+
+                    match (conversion, &data.snv) {
+                        (Some(conversion), Some(snv))
+                            if snv.refbase == conversion.from && snv.altbase == conversion.to =>
+                        {
+                            let density = |_, conversion_rate| {
+                                let mut ev = event.clone();
+                                ev.allele_freq += conversion_rate;
+
+                                likelihood_model.compute(&ev, pileup, sample_cache)
+                            };
+
+                            LogProb::ln_simpsons_integrate_exp(
+                                density,
+                                0.0,
+                                1.0 - event.allele_freq.into_inner(),
+                                11,
+                            )
+                        }
+                        _ => likelihood_model.compute(event, pileup, sample_cache),
                     }
                 }
-            }
+            };
+
+            p += lp;
         }
+
         p
     }
 }
