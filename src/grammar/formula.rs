@@ -495,10 +495,10 @@ impl Formula {
     }
 
     /// Add missing samples to the formula based on the given scenario.
-    pub fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) -> Result<()> {
+    pub fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) {
         // If the formula is false we do not need to add anything since it will always evaluate to false
         if matches!(self, Formula::Terminal(FormulaTerminal::False)) {
-            return Ok(());
+            return;
         }
 
         // Collect all samples already present
@@ -511,7 +511,8 @@ impl Formula {
                 included_samples.insert(name.clone());
                 // Collect all possible VAFs for this sample on the given contig
                 let mut operands: Vec<Formula> = sample
-                    .contig_universe(contig, scenario.species())?
+                    .contig_universe(contig, scenario.species())
+                    .unwrap()
                     .iter()
                     .map(|vafs| {
                         Formula::Terminal(FormulaTerminal::Atom {
@@ -542,7 +543,6 @@ impl Formula {
                 }
             }
         }
-        Ok(())
     }
 
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
@@ -555,12 +555,8 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
-        // println!("Before adding {}", &simplified);
         simplified.add_missing_samples(scenario, contig);
-        // println!("Before sorting: {}", &simplified);
         simplified.sort();
-        println!("Final normalized formula: {} \n", &simplified);
-        // println!("\n\n");
         Ok(simplified.to_normalized_formula())
     }
 
@@ -1251,7 +1247,16 @@ impl VAFRange {
 
     pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
         let min_vaf = if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
-            self.start
+            if self.left_exclusive {
+                let start = *self.start + f64::EPSILON;
+                if start >= *self.end {
+                    self.start
+                } else {
+                    AlleleFreq(start)
+                }
+            } else {
+                self.start
+            }
         } else {
             let obs_count = Self::expected_observation_count(self.start, n_obs);
             let adjust_allelefreq = |obs_count: f64| AlleleFreq(obs_count.ceil() / n_obs as f64);
@@ -1287,7 +1292,16 @@ impl VAFRange {
             "bug: observable_max may not be called if end=0.0."
         );
         if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
-            self.end
+            if self.right_exclusive {
+                let end = *self.end - f64::EPSILON;
+                if end <= *self.start {
+                    self.end
+                } else {
+                    AlleleFreq(end)
+                }
+            } else {
+                self.end
+            }
         } else {
             let mut obs_count = Self::expected_observation_count(self.end, n_obs);
             if self.right_exclusive && obs_count % 1.0 == 0.0 {
