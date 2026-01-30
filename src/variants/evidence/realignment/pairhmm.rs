@@ -416,7 +416,7 @@ impl<'a> bio::stats::pairhmm::Emission for ReadVsAlleleEmission<'a> {
     }
 }
 
-#[derive(Getters, CopyGetters)]
+#[derive(Getters, CopyGetters, Debug)]
 pub(crate) struct ReadEmission<'a> {
     #[getset(get = "pub(crate)")]
     pub(crate) read_seq: bam::record::Seq<'a>,
