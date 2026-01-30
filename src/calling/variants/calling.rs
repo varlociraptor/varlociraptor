@@ -177,8 +177,9 @@ where
               The second letter denotes an extended Kass Raftery score: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal). \
-              D denotes the edit distance to the ALT allele in case it is higher than what could be expected from sequencing errors \
-              (in that case, Varlociraptor derives a third allele from the read sequence and considers that as an alternative \
+              D denotes the edit distance to the ALT allele \
+              (if it is higher than expected from the sequencing error rates, \
+              Varlociraptor derives a third allele from the read sequence and considers that as an alternative \
               to the alt allele, instead of the reference allele), \
               T being the type of alignment, encoded \
               as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus \

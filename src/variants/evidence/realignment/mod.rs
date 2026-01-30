@@ -391,16 +391,18 @@ pub(crate) trait Realigner {
                 }
             }
 
-            // METHOD: Calculate relative edit dist of alt allele compared to ref allele.
-            // This is to normalize away edits that are in both alleles and only get what
-            // comes in addition in the alt allele.
-            let per_region_alt_edit_dist = if alt_hit.dist() >= ref_hit.dist() {
+            let per_region_alt_edit_dist = if let Some(edit_dist) = alt_hit.edit_distance() {
+                // METHOD: edits within the actual alt allele change.
+                edit_dist
+            } else if alt_hit.dist() >= ref_hit.dist() {
+                // METHOD: Calculate relative edit dist of alt allele compared to ref allele.
+                // This is to normalize away edits that are in both alleles and only get what
+                // comes in addition in the alt allele.
+                // This is the fallback in case the alignment moves the edit outside of
+                // the alt allele locus.
                 EditDistance((alt_hit.dist() - ref_hit.dist()) as u32)
             } else {
-                // METHOD: if the alt allele region has a better distance than the reference,
-                // there still might be edits within the actual alt allele change.
-                // We try to capture them here as a fallback.
-                alt_hit.edit_distance().unwrap_or(EditDistance(0))
+                EditDistance(0)
             };
             if let Some(ref mut alt_edit_dist) = alt_edit_dist {
                 alt_edit_dist.update(&per_region_alt_edit_dist);
