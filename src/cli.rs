@@ -439,7 +439,7 @@ pub enum EstimateKind {
             help = "BAM files with aligned reads from a single sample or a set of \
             samples that have been sequenced and prepared in exactly the same way. \
             Use multiple BAM files in order to increase estimation robustness in case \
-            the samples only have comparably reads (e.g. in case of panel sequencing)."
+            the samples only have comparably few reads (e.g. in case of panel sequencing)."
         )]
         bams: Vec<PathBuf>,
 
@@ -877,7 +877,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     if realignment_window > (128 / 2) {
                         return Err(
                             structopt::clap::Error::with_description(
-                                "Command-line option --indel-window requires a value <= 64 with the current implementation.", 
+                                "Command-line option --indel-window requires a value <= 64 with the current implementation.",
                                 structopt::clap::ErrorKind::ValueValidation
                             ).into()
                         );
@@ -979,6 +979,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             processor.process()?;
                         }
                         "exact" => {
+                            if Prob::from(gap_params.prob_deletion_extend_artifact) > Prob(0.3)
+                                || Prob::from(gap_params.prob_insertion_extend_artifact) > Prob(0.3)
+                            {
+                                warn!(
+                                    "Unexpectedly high prob_deletion_extend_artifact or \
+                                    prob_insertion_extend_artifact in alignment properties (>30%). \
+                                    Consider estimating alignment properties with multiple samples \
+                                    in case you have only few reads."
+                                );
+                            }
                             let mut processor =
                                 calling::variants::preprocessing::ObservationProcessor::builder()
                                     .report_fragment_ids(report_fragment_ids)

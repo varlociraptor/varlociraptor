@@ -226,7 +226,6 @@ pub(crate) trait Realigner {
         let mut prob_ref_all = LogProb::ln_one();
         let mut prob_alt_all = LogProb::ln_one();
         let mut alt_edit_dist: Option<EditDistance> = None;
-        let mut is_third_allele = false;
 
         let ref_seq = self.ref_buffer().seq(record.contig())?;
         let read_seq: bam::record::Seq<'a> = record.seq();
@@ -284,7 +283,7 @@ pub(crate) trait Realigner {
             }
 
             // ref allele (or one of the alt variants)
-            let (mut prob_ref, _, _) = self.prob_allele(
+            let (mut prob_ref, ref_hit, _) = self.prob_allele(
                 &mut ref_emissions,
                 &mut edit_dist_calc,
                 alignment_properties,
@@ -342,7 +341,6 @@ pub(crate) trait Realigner {
                         self.calculate_prob_allele(&third_allele_hit, &mut read_inferred_allele);
                     if prob_read_inferred > prob_ref {
                         prob_ref = prob_read_inferred;
-                        is_third_allele = true;
                     }
                 }
             }
@@ -393,12 +391,23 @@ pub(crate) trait Realigner {
                 }
             }
 
-            if let Some(ref mut alt_edit_dist) = alt_edit_dist {
-                if let Some(ref hit_dist) = alt_hit.edit_distance() {
-                    alt_edit_dist.update(hit_dist);
-                }
+            let per_region_alt_edit_dist = if let Some(edit_dist) = alt_hit.edit_distance() {
+                // METHOD: edits within the actual alt allele change.
+                edit_dist
+            } else if alt_hit.dist() >= ref_hit.dist() {
+                // METHOD: Calculate relative edit dist of alt allele compared to ref allele.
+                // This is to normalize away edits that are in both alleles and only get what
+                // comes in addition in the alt allele.
+                // This is the fallback in case the alignment moves the edit outside of
+                // the alt allele locus.
+                EditDistance((alt_hit.dist() - ref_hit.dist()) as u32)
             } else {
-                alt_edit_dist = alt_hit.edit_distance();
+                EditDistance(0)
+            };
+            if let Some(ref mut alt_edit_dist) = alt_edit_dist {
+                alt_edit_dist.update(&per_region_alt_edit_dist);
+            } else {
+                alt_edit_dist = Some(per_region_alt_edit_dist);
             }
 
             // METHOD: probabilities of independent regions are combined here.
@@ -417,7 +426,7 @@ pub(crate) trait Realigner {
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
-            .third_allele_evidence(if is_third_allele { alt_edit_dist } else { None })
+            .third_allele_evidence(alt_edit_dist)
             .build()
             .unwrap())
     }
