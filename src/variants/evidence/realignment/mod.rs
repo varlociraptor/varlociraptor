@@ -426,7 +426,7 @@ pub(crate) trait Realigner {
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
-            .third_allele_evidence(if prob_alt_all > prob_ref_all { alt_edit_dist } else { None })
+            .third_allele_evidence(if prob_alt_all >= prob_ref_all { alt_edit_dist } else { None })
             .build()
             .unwrap())
     }
