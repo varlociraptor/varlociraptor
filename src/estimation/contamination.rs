@@ -17,13 +17,11 @@ use serde_json::json;
 
 use crate::{
     calling::variants::{
-        calling::{call_generic, CallProcessor, Caller, CandidateFilter, WorkItem},
-        Call,
+        Call, calling::{CallProcessor, Caller, CandidateFilter, WorkItem, call_generic}
     },
     grammar,
-    utils::aux_info::AuxInfoCollector,
-    utils::PathMap,
-    variants::model::AlleleFreq,
+    utils::{PathMap, aux_info::AuxInfoCollector},
+    variants::model::{self, AlleleFreq},
 };
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -371,7 +369,7 @@ impl ContaminationEstimator {
 }
 
 impl CallProcessor for ContaminationEstimator {
-    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+    fn setup<Pr: bayesian::model::Prior + model::prior::PriorWithUniverse, CF: CandidateFilter>(
         &mut self,
         _caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>> {

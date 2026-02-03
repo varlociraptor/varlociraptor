@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 use std::sync::RwLock;
+use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
@@ -16,6 +17,7 @@ use itertools::{Itertools, MinMaxResult};
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
+use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::{
     read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
@@ -27,7 +29,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils::aux_info::AuxInfoCollector;
-use crate::utils::{self, PathMap};
+use crate::utils::{self, PathMap, interpolate_prob};
 use crate::variants::evidence::observations::pileup::Pileup;
 
 use crate::variants::model::modes::generic::LikelihoodOperands;
@@ -54,7 +56,7 @@ use crate::variants::evidence::observations::read_observation::adjust_singleton_
 #[builder(pattern = "owned")]
 pub(crate) struct Caller<Pr, CP, CF>
 where
-    Pr: bayesian::model::Prior,
+    Pr: bayesian::model::Prior + model::prior::PriorWithUniverse,
     CP: CallProcessor,
     CF: CandidateFilter,
 {
@@ -82,7 +84,7 @@ where
 
 impl<Pr, CP, CF> Caller<Pr, CP, CF>
 where
-    Pr: bayesian::model::Prior,
+    Pr: bayesian::model::Prior + model::prior::PriorWithUniverse,
     CP: CallProcessor,
     CF: CandidateFilter,
 {
@@ -289,6 +291,7 @@ where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
         + model::prior::UpdatablePrior
         + model::prior::CheckablePrior
+        + model::prior::PriorWithUniverse
         + Clone
         + Default,
     CP: CallProcessor,
@@ -811,6 +814,7 @@ where
                 is_artifact,
                 data,
                 best_event,
+                model,
             ));
         } else {
             unreachable!();
@@ -848,6 +852,7 @@ where
         is_artifact: bool,
         data: model::modes::generic::Data,
         best_event: &Event,
+        model: &Model<Pr>,
     ) -> Vec<Option<SampleInfo>> {
         for (map_estimates, _) in model_instance.event_posteriors() {
             if map_estimates
@@ -888,42 +893,95 @@ where
                         }
                     };
 
-                    // METHOD: Collect VAF dist for sample by looking at all alternative VAFs with the same VAFs for the other samples as the MAP.
                     sample_builder.vaf_dist(if !estimate.is_artifact() {
-                        Some(
-                            model_instance
-                                .event_posteriors()
-                                .filter_map(|(estimate, prob)| {
-                                    if !best_event.contains(estimate, Some(sample)) {
-                                        // estimate must be compatible with best event
-                                        return None;
+                        let key = |events: &VecMap<model::likelihood::Event>| {
+                            events.iter().filter_map(|(other_sample, event)| {
+                                if other_sample != sample {
+                                    Some(event.allele_freq)
+                                } else {
+                                    None
+                                }
+                            }).collect_vec()
+                        };
+
+                        // collect all events grouped by the other sample VAFs
+                        let mut grouped_event_densities = HashMap::new();
+                        for (estimate, prob) in model_instance.event_posteriors() {
+                            let event = estimate.events().get(sample).unwrap();
+                            if !event.is_artifact() {
+                                let entry = grouped_event_densities.entry(key(estimate.events())).or_insert_with(BTreeMap::new);
+                                entry.insert(event.allele_freq, prob);
+                            }
+                        }
+
+                        // METHOD: obtain primary event densities
+                        let mut aggregated_event_densities = grouped_event_densities.remove(&key(map_estimates.events())).expect("bug: MAP event not found in grouped event densities");
+
+                        // METHOD: add missing events from non-MAP distributions
+                        for vaf_spectrum in model.prior().universe(sample).iter() {
+                            match vaf_spectrum {
+                                // METHOD: sum up probabilities of all discrete events, potentially adding new events to the MAP
+                                grammar::formula::VAFSpectrum::Set(vafs) => {
+                                    for vaf in vafs {
+                                        let aggregated_prob = aggregated_event_densities.entry(*vaf).or_insert(LogProb::ln_zero());
+                                        for densities in grouped_event_densities.values() {
+                                            if let Some(prob) = densities.get(vaf) {
+                                                *aggregated_prob = aggregated_prob.ln_add_exp(*prob);
+                                            }
+
+                                        }
                                     }
-                                    let event = estimate.events().get(sample).unwrap();
-                                    let others_equal_map = || {
-                                        map_estimates.events().iter().all(
-                                            |(other_sample, map_event)| {
-                                                if other_sample != sample {
-                                                    // check if other event is the same as the map event
-                                                    let other_event = estimate
-                                                        .events()
-                                                        .get(other_sample)
-                                                        .unwrap();
-                                                    other_event == map_event
-                                                } else {
-                                                    // don't do that for our current sample
-                                                    true
-                                                }
-                                            },
-                                        )
+                                }
+                                grammar::formula::VAFSpectrum::Range(range) => {
+                                    let add_prob = |densities: &BTreeMap<AlleleFreq, LogProb>, vaf: AlleleFreq, aggregated_prob: &mut LogProb| {
+                                        let prob = if let Some(prob) = densities.get(&vaf) {
+                                            *prob
+                                        } else {
+                                            // METHOD: event group does not have the exact VAF, hence interpolate
+                                            // TODO: handle case where the bounds are not both present!!!
+                                            let (lower_vaf, lower_prob) = densities.range(..vaf).last().expect("bug: no lower bound for MAP VAF in non-MAP densities");
+                                            let (upper_vaf, upper_prob) = densities.range(vaf..).next().expect("bug: no upper bound for MAP VAF in non-MAP densities");
+                                            interpolate_prob(**lower_vaf, **upper_vaf, *lower_prob, *upper_prob, *vaf)
+                                        };
+                                        *aggregated_prob = aggregated_prob.ln_add_exp(prob);
                                     };
-                                    if !event.is_artifact() && others_equal_map() {
-                                        Some((event.allele_freq, prob))
-                                    } else {
-                                        None
+
+                                    // case 1: the MAP already contains a VAF within this range
+                                    let mut is_in_map_estimate = false;
+                                    for (vaf, aggregated_prob) in aggregated_event_densities.iter_mut() {
+                                        if !range.contains(*vaf) {
+                                            continue;
+                                        }
+                                        is_in_map_estimate = true;
+                                        // METHOD: MAP already contains the event, add corresponding probs from other event groups
+                                        for densities in grouped_event_densities.values() {
+                                            add_prob(densities, *vaf, aggregated_prob);
+                                        }
                                     }
-                                })
-                                .collect(),
-                        )
+                                    if !is_in_map_estimate {
+                                        // case 2: the MAP does not contain this range
+                                        // In this case, we add the first (arbitrary) grouped events and interpolate the rest.
+                                        let mut events_added: Option<Vec<AlleleFreq>> = None;
+                                        for densities in grouped_event_densities.values() {
+                                            if let Some(ref events_added) = events_added {
+                                                for vaf in events_added.iter() {
+                                                    let aggregated_prob = aggregated_event_densities.entry(*vaf).or_insert(LogProb::ln_zero());
+                                                    add_prob(densities, *vaf, aggregated_prob)
+                                                }
+                                            } else {
+                                                events_added = Some(Vec::new());
+                                                for (vaf, prob) in densities {
+                                                    aggregated_event_densities.insert(*vaf, *prob);
+                                                    events_added.as_mut().unwrap().push(*vaf);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Some(aggregated_event_densities)
                     } else {
                         None
                     });
@@ -963,7 +1021,7 @@ pub(crate) struct WorkItem {
 }
 
 pub(crate) trait CallProcessor: Sized {
-    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+    fn setup<Pr: bayesian::model::Prior + model::prior::PriorWithUniverse, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>>;
@@ -983,7 +1041,7 @@ pub(crate) struct CallWriter {
 }
 
 impl CallProcessor for CallWriter {
-    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+    fn setup<Pr: bayesian::model::Prior + model::prior::PriorWithUniverse, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>> {
