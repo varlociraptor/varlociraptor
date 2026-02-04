@@ -122,11 +122,11 @@ where
             b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
              Description=\"Posterior probability for any artifact, indicated by strand, read position, \
              read orientation, softclip bias, or divindel bias (PHRED). See the bias specific records below for \
-             an explanation for each type of bias.\">",
+             an explanation for each type of bias.\">".as_slice(),
         );
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
-             Description=\"Posterior probability for not having a variant (PHRED)\">",
+                Description=\"Posterior probability for not having a variant (PHRED)\">".as_slice(),
         );
 
         header.push_record(
@@ -141,17 +141,20 @@ where
              alignments with non-standard read orientation) have been removed from the \
              pileup. \
              missing-data: no alignments that properly cover the candidate variant in \
-             any considered sample.\">",
+             any considered sample.\">".as_slice(),
         );
 
         // register sample specific tags
         header.push_record(
             b"##FORMAT=<ID=DP,Number=1,Type=Integer,\
-              Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
+                Description=\"Expected sequencing depth, while considering mapping uncertainty\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
-              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
+              Description=\"Maximum a posteriori probability estimate of the alteration fraction (also called VAF). \
+              Note that in case of contamination between samples, this is corrected for this contamination, \
+              thus only representing the fraction in the cells of the actual sample without the contaminating \
+              cells.\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SAOBS,Number=A,Type=String,\
@@ -161,14 +164,14 @@ where
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal). \
               Further note that there is no N=none score, as such observations occur with an opposite direction \
-              score (odds for the reference or a third allele) in the SROBS field.\">",
+              score (odds for the reference or a third allele) in the SROBS field.\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SROBS,Number=A,Type=String,\
               Description=\"Summary of simplified observations favoring the reference or a third allele (has to be considered together with SAOBS). Each entry is encoded as CB, with C being a count, \
               B being the posterior odds for the reference or a third allele. \
               The latter denotes an extended Kass Raftery score: E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%).\">",
+              probability for correct mapping of fragment is <95%).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
@@ -191,20 +194,20 @@ where
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
               I denoting indel operations in the respective alignments against the alt allele \
-              (* = some indel, . = no indel or information irrelevant for variant type).\">",
+              (* = some indel, . = no indel or information irrelevant for variant type).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
               Description=\"Number of omitted observations. \
               For SNVs and MNVs, read pairs are omitted if they have a non-standard read orientation (neither F1R2 nor F2R1) as \
-              those can frequently lead to alignment artifacts.\">",
+              those can frequently lead to alignment artifacts.\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
               Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
               forward strand, - indicates that ALT allele is associated with reverse strand, \
               . indicates no strand bias. Strand bias is indicative for systematic sequencing \
-              errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">",
+              errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=ROB,Number=A,Type=String,\
@@ -212,7 +215,7 @@ where
               F1R2 orientation, < indicates that ALT allele is associated with F2R1 orientation, \
               . indicates no read orientation bias. Read orientation bias is indicative of Guanin \
               oxidation artifacts. Probability for read orientation bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=RPB,Number=A,Type=String,\
@@ -220,7 +223,7 @@ where
               the most found read position, . indicates that there is no read position bias. \
               Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
               Probability for read position bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SCB,Number=A,Type=String,\
@@ -232,7 +235,7 @@ where
               same haplotype as e.g. an SNV should not cause a softclip bias, because there will usually \
               still be reads that do not reach the SV, thereby providing evidence against a softclip \
               bias. Probability for softclip bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=HE,Number=A,Type=String,\
@@ -240,7 +243,7 @@ where
               with homopolymer indel operations of varying length, . indicates that there is no homopolymer error. \
               Homopolymer error is indicative of systematic PCR amplification errors. \
               Probability for such homopolymer artifacts is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=ALB,Number=A,Type=String,\
@@ -250,20 +253,25 @@ where
               This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
               a homology, a distant variant allele, or a CNV). \
               Probability for alt locus bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=AFD,Number=.,Type=String,\
-              Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
+              Description=\"Sampled posterior probability densities of alteration fractions in PHRED scale \
               (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
               In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
-              these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
+              these can be seen as posterior probabilities. Note that densities can be greater than one. \
+              Note that the distribution is not necessarily unimodal since it aggregates the densities \
+              over all alteration fractions of all other samples. \
+              Furthermore, it might diverge from the maximum a posteriori estimate \
+              of the alteration fraction, because the latter is constrained to be consistent \
+              with the most probable event.\">".as_slice(),
         );
         header.push_record(
-            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">"
+            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">".as_slice()
         );
         header.push_record(
-            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">"
+            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">".as_slice()
         );
         aux_info_collector.write_header_info(&mut header);
 
@@ -493,9 +501,9 @@ where
                 }
             };
 
-            let variant_heterozygosity = get_prior(b"HETEROZYGOSITY")?;
+            let variant_heterozygosity = get_prior(b"HETEROZYGOSITY".as_slice())?;
             let variant_somatic_effective_mutation_rate =
-                get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE")?;
+                get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE".as_slice())?;
 
             let mut call_builder = CallBuilder::default();
             call_builder
