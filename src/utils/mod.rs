@@ -691,7 +691,6 @@ pub fn signif(float: f64, precision: usize) -> String {
     format!("{0:.1$}", float, precision)
 }
 
-
 pub fn interpolate_prob<T>(
     left_val: T,
     right_val: T,
@@ -700,7 +699,7 @@ pub fn interpolate_prob<T>(
     val: T,
 ) -> LogProb
 where
-    T: num_traits::Float + num_traits::AsPrimitive<f64> + Copy
+    T: num_traits::Float + num_traits::AsPrimitive<f64> + Copy,
 {
     let scale = (val - left_val) / (right_val - left_val);
 

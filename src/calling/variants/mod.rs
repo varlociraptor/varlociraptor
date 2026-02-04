@@ -6,8 +6,8 @@
 pub(crate) mod calling;
 pub mod preprocessing;
 
-use std::collections::{HashMap, BTreeMap};
 use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::RangeInclusive;
 use std::rc::Rc;

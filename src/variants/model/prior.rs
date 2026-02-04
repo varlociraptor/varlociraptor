@@ -105,7 +105,11 @@ impl Clone for Prior {
 
 impl PriorWithUniverse for Prior {
     fn universe(&self, sample: usize) -> &grammar::VAFUniverse {
-        self.universe.as_ref().unwrap().get(sample).expect("bug: invalid sample id")
+        self.universe
+            .as_ref()
+            .unwrap()
+            .get(sample)
+            .expect("bug: invalid sample id")
     }
 }
 

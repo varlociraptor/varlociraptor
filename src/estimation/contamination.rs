@@ -17,10 +17,11 @@ use serde_json::json;
 
 use crate::{
     calling::variants::{
-        Call, calling::{CallProcessor, Caller, CandidateFilter, WorkItem, call_generic}
+        calling::{call_generic, CallProcessor, Caller, CandidateFilter, WorkItem},
+        Call,
     },
     grammar,
-    utils::{PathMap, aux_info::AuxInfoCollector},
+    utils::{aux_info::AuxInfoCollector, PathMap},
     variants::model::{self, AlleleFreq},
 };
 

@@ -1,11 +1,11 @@
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
 use std::sync::RwLock;
-use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
@@ -29,7 +29,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils::aux_info::AuxInfoCollector;
-use crate::utils::{self, PathMap, interpolate_prob};
+use crate::utils::{self, interpolate_prob, PathMap};
 use crate::variants::evidence::observations::pileup::Pileup;
 
 use crate::variants::model::modes::generic::LikelihoodOperands;
@@ -126,7 +126,8 @@ where
         );
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
-                Description=\"Posterior probability for not having a variant (PHRED)\">".as_slice(),
+                Description=\"Posterior probability for not having a variant (PHRED)\">"
+                .as_slice(),
         );
 
         header.push_record(
@@ -141,13 +142,15 @@ where
              alignments with non-standard read orientation) have been removed from the \
              pileup. \
              missing-data: no alignments that properly cover the candidate variant in \
-             any considered sample.\">".as_slice(),
+             any considered sample.\">"
+                .as_slice(),
         );
 
         // register sample specific tags
         header.push_record(
             b"##FORMAT=<ID=DP,Number=1,Type=Integer,\
-                Description=\"Expected sequencing depth, while considering mapping uncertainty\">".as_slice(),
+                Description=\"Expected sequencing depth, while considering mapping uncertainty\">"
+                .as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
