@@ -1,8 +1,6 @@
 [workspace]
 channels = ["conda-forge", "bioconda"]
-name = "varlociraptor"
 platforms = ["linux-64"]
-version = "8.9.3"
 
 [dependencies]
 rust = ">=1.92.0,<1.93"
