@@ -938,16 +938,17 @@ where
                         // METHOD: add missing events from non-MAP distributions
                         for vaf_spectrum in model.prior().universe(sample).iter() {
                             match vaf_spectrum {
-                                // METHOD: sum up probabilities of all discrete events, potentially adding new events to the MAP
+                                // METHOD: for discrete events take the best probability in case they are not part of the MAP
                                 grammar::formula::VAFSpectrum::Set(vafs) => {
                                     for vaf in vafs {
-                                        let aggregated_prob = aggregated_af_dist
-                                            .entry(*vaf)
-                                            .or_insert(LogProb::ln_zero());
-                                        for dist in grouped_af_dists.values() {
-                                            if let Some(prob) = dist.get(vaf) {
-                                                *aggregated_prob =
-                                                    aggregated_prob.ln_add_exp(*prob);
+                                        if !aggregated_af_dist.contains_key(vaf) {
+                                            let aggregated_prob = aggregated_af_dist
+                                                .entry(*vaf)
+                                                .or_insert(LogProb::ln_zero());
+                                            for dist in grouped_af_dists.values() {
+                                                if let Some(prob) = dist.get(vaf) {
+                                                    *aggregated_prob = LogProb(aggregated_prob.max(**prob));
+                                                }
                                             }
                                         }
                                     }
