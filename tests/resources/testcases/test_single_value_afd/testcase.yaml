@@ -1,0 +1,30 @@
+# example that caused an AFD that consisted only of a single value in the normal sample
+# fixed by aggregating over non MAP events
+
+# necessary bam files
+samples:
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":200.0702125595384,"sd":65.8386290736141},"max_del_cigar_len":27,"max_ins_cigar_len":23,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.955468362045481,"prob_deletion_artifact":-10.223016963674327,"prob_insertion_extend_artifact":-0.7250002560577681,"prob_deletion_extend_artifact":-0.7597140388557858},"hop_params":{"prob_seq_homopolymer":[-7.602651419264362,-8.969459595244436,-8.60146184922629,-7.361188009263872],"prob_ref_homopolymer":[-7.533404100974331,-9.563881125492694,-8.862057272754068,-7.496470957994187],"prob_seq_extend_homopolymer":[-7.602651419264362,-8.969459595244436,-8.60146184922629,-7.361188009263872],"prob_ref_extend_homopolymer":[-7.533404100974331,-9.563881125492694,-8.862057272754068,-7.496470957994187]},"wildtype_homopolymer_error_model":{"2":0.00003070029217730329,"19":1.7484253501311757e-6,"25":1.5427282501157433e-7,"18":1.7484253501311757e-6,"16":4.9367304003703785e-6,"-2":1.028485500077162e-6,"15":4.371063375327939e-6,"-5":1.5427282501157433e-7,"20":9.770612250733041e-7,"7":2.7769108502083377e-6,"8":6.942277125520844e-6,"-6":5.1424275003858105e-8,"37":5.1424275003858105e-8,"12":5.039578950378094e-6,"-3":6.685155750501554e-7,"-4":1.0284855000771621e-7,"0":0.9997713676733329,"5":9.77061225073304e-6,"9":5.14242750038581e-6,"24":1.5427282501157433e-7,"4":7.765065525582574e-6,"10":6.119488725459115e-6,"21":8.227884000617297e-7,"11":6.016640175451398e-6,"1":0.00013935978526045546,"6":7.199398500540135e-6,"-1":2.519789475189047e-6,"3":0.00001028485500077162,"13":5.913791625443682e-6,"22":1.2341826000925946e-6,"17":2.519789475189047e-6,"23":5.656670250424392e-7,"14":5.296700325397385e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/R-002/R-002-DNA-3-1.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  tumor_biopsy:
+    path: 'tumor.bam'
+    properties: '{"insert_size":{"mean":181.2126940021571,"sd":56.2985608751949},"max_del_cigar_len":43,"max_ins_cigar_len":27,"frac_max_softclip":0.8118811881188119,"max_read_len":101,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.263272519655585,"prob_deletion_artifact":-9.523106960527135,"prob_insertion_extend_artifact":-0.7746611739119096,"prob_deletion_extend_artifact":-0.8327492636109686},"hop_params":{"prob_seq_homopolymer":[-6.513089094730393,-8.751795135082821,-8.810753619196966,-6.519176850851771],"prob_ref_homopolymer":[-7.044892075460948,-9.32977779988832,-9.121359613483486,-7.0438827390361975],"prob_seq_extend_homopolymer":[-6.513089094730393,-8.751795135082821,-8.810753619196966,-6.519176850851771],"prob_ref_extend_homopolymer":[-7.044892075460948,-9.32977779988832,-9.121359613483486,-7.0438827390361975]},"wildtype_homopolymer_error_model":{"5":9.867251798567832e-6,"9":0.000010273550402038272,"15":8.300100042324705e-6,"13":9.170739906904221e-6,"14":9.402910537458758e-6,"24":4.6434126110907445e-7,"7":4.99166855692255e-6,"20":2.786047566654447e-6,"-7":5.8042657638634307e-8,"11":0.00001213091544647457,"28":5.8042657638634307e-8,"17":4.759497926368013e-6,"4":0.000012943512653415451,"6":6.849033601358848e-6,"25":3.4825594583180587e-7,"3":0.000021649911299210598,"10":0.000013349811256885891,"-2":7.023161574274751e-6,"23":1.5671517562431263e-6,"18":5.281881845115722e-6,"-4":5.8042657638634307e-8,"8":9.228782564542854e-6,"21":1.9734503597135662e-6,"22":1.2769384680499548e-6,"2":0.00005519856741434122,"26":2.9021328819317155e-7,"12":9.751166483290563e-6,"19":2.1475783326294693e-6,"-1":2.669962251377178e-6,"16":5.456009818031625e-6,"0":0.9995624164040623,"-3":1.4510664409658577e-6,"30":5.8042657638634307e-8,"1":0.00027204593635227897},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/R-002/R-002-DNA-1-1.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
