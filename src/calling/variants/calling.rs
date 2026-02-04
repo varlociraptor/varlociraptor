@@ -947,7 +947,8 @@ where
                                                 .or_insert(LogProb::ln_zero());
                                             for dist in grouped_af_dists.values() {
                                                 if let Some(prob) = dist.get(vaf) {
-                                                    *aggregated_prob = LogProb(aggregated_prob.max(**prob));
+                                                    *aggregated_prob =
+                                                        LogProb(aggregated_prob.max(**prob));
                                                 }
                                             }
                                         }
