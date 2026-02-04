@@ -994,6 +994,7 @@ where
                                     //     // case 2: the MAP does not contain this range
                                     //     // In this case, we add the first (arbitrary) grouped events and interpolate the rest.
                                     //     let mut events_added: Option<Vec<AlleleFreq>> = None;
+                                    //     // TODO fix iteration to run over a BTreeMap for deterministic order!
                                     //     for densities in grouped_af_dists.values() {
                                     //         if let Some(ref events_added) = events_added {
                                     //             for vaf in events_added.iter() {
@@ -1003,6 +1004,7 @@ where
                                     //         } else {
                                     //             events_added = Some(Vec::new());
                                     //             for (vaf, prob) in densities {
+                                    //                 // TODO: fix below, it would overwrite existing entries!
                                     //                 aggregated_af_dist.insert(*vaf, *prob);
                                     //                 events_added.as_mut().unwrap().push(*vaf);
                                     //             }
