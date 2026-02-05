@@ -955,64 +955,8 @@ where
                                     }
                                 }
                                 grammar::formula::VAFSpectrum::Range(_range) => {
-                                    // TODO: decide if something like below is needed.
-                                    // If summing up across all MAPs, we have to ensure that the marginalization is handled in a
-                                    // statistically sane way.
-                                    // For now, we just keep what we have from the MAP
-
-                                    // let add_prob = |dist: &BTreeMap<AlleleFreq, LogProb>, vaf: AlleleFreq, aggregated_prob: &mut LogProb| {
-                                    //     let prob = if let Some(prob) = dist.get(&vaf) {
-                                    //         Some(*prob)
-                                    //     } else {
-                                    //         // METHOD: event group does not have the exact VAF, hence interpolate.
-                                    //         // If the vaf is not enclosed by two values, do nothing.
-                                    //         let lower = dist.range(..vaf).last();
-                                    //         let upper = dist.range(vaf..).next();
-                                    //         match (lower, upper) {
-                                    //             (Some((lower_vaf, lower_prob)), Some((upper_vaf, upper_prob))) => {
-                                    //                 Some(interpolate_prob(**lower_vaf, **upper_vaf, *lower_prob, *upper_prob, *vaf))
-                                    //             }
-                                    //             _ => None
-                                    //         }
-                                    //     };
-                                    //     if let Some(prob) = prob {
-                                    //         *aggregated_prob = aggregated_prob.ln_add_exp(prob);
-                                    //     }
-                                    // };
-
-                                    // // case 1: the MAP already contains a VAF within this range
-                                    // let mut is_in_map_estimate = false;
-                                    // for (vaf, aggregated_prob) in aggregated_af_dist.iter_mut() {
-                                    //     if !range.contains(*vaf) {
-                                    //         continue;
-                                    //     }
-                                    //     is_in_map_estimate = true;
-                                    //     // METHOD: MAP already contains the event, add corresponding probs from other event groups
-                                    //     for densities in grouped_af_dists.values() {
-                                    //         add_prob(densities, *vaf, aggregated_prob);
-                                    //     }
-                                    // }
-                                    // if !is_in_map_estimate {
-                                    //     // case 2: the MAP does not contain this range
-                                    //     // In this case, we add the first (arbitrary) grouped events and interpolate the rest.
-                                    //     let mut events_added: Option<Vec<AlleleFreq>> = None;
-                                    //     // TODO fix iteration to run over a BTreeMap for deterministic order!
-                                    //     for densities in grouped_af_dists.values() {
-                                    //         if let Some(ref events_added) = events_added {
-                                    //             for vaf in events_added.iter() {
-                                    //                 let aggregated_prob = aggregated_af_dist.entry(*vaf).or_insert(LogProb::ln_zero());
-                                    //                 add_prob(densities, *vaf, aggregated_prob)
-                                    //             }
-                                    //         } else {
-                                    //             events_added = Some(Vec::new());
-                                    //             for (vaf, prob) in densities {
-                                    //                 // TODO: fix below, it would overwrite existing entries!
-                                    //                 aggregated_af_dist.insert(*vaf, *prob);
-                                    //                 events_added.as_mut().unwrap().push(*vaf);
-                                    //             }
-                                    //         }
-                                    //     }
-                                    // }
+                                    // TODO: add any range that is not yet represented by the MAP,
+                                    // using the event with the highest mode (peak).
                                 }
                             }
                         }
