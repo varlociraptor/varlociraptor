@@ -495,10 +495,10 @@ impl Formula {
     }
 
     /// Add missing samples to the formula based on the given scenario.
-    pub fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) {
+    pub fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) -> Result<()> {
         // If the formula is false we do not need to add anything since it will always evaluate to false
         if matches!(self, Formula::Terminal(FormulaTerminal::False)) {
-            return;
+            return Ok(());
         }
 
         // Collect all samples already present
@@ -511,8 +511,7 @@ impl Formula {
                 included_samples.insert(name.clone());
                 // Collect all possible VAFs for this sample on the given contig
                 let mut operands: Vec<Formula> = sample
-                    .contig_universe(contig, scenario.species())
-                    .unwrap()
+                    .contig_universe(contig, scenario.species())?
                     .iter()
                     .map(|vafs| {
                         Formula::Terminal(FormulaTerminal::Atom {
@@ -543,6 +542,7 @@ impl Formula {
                 }
             }
         }
+        Ok(())
     }
 
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
@@ -555,7 +555,7 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
-        simplified.add_missing_samples(scenario, contig);
+        simplified.add_missing_samples(scenario, contig)?;
         simplified.sort();
         Ok(simplified.to_normalized_formula())
     }
@@ -1291,7 +1291,6 @@ impl VAFRange {
             *self.end != 0.0,
             "bug: observable_max may not be called if end=0.0."
         );
-
         if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
             if self.right_exclusive {
                 let end = *self.end - f64::EPSILON;
