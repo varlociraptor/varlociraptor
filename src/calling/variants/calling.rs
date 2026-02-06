@@ -14,6 +14,7 @@ use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
+use ordered_float::NotNan;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
@@ -935,6 +936,14 @@ where
                             .remove(&key(map_estimates.events()))
                             .expect("bug: MAP event not found in grouped event densities");
 
+                        let sorted_af_dists = grouped_af_dists
+                            .into_values()
+                            .sorted_by_key(|dist| {
+                                dist.values().map(|prob| NotNan::new(**prob).unwrap()).max()
+                            })
+                            .rev()
+                            .collect_vec();
+
                         // METHOD: add missing events from non-MAP distributions
                         for vaf_spectrum in model.prior().universe(sample).iter() {
                             match vaf_spectrum {
@@ -945,7 +954,7 @@ where
                                             let aggregated_prob = aggregated_af_dist
                                                 .entry(*vaf)
                                                 .or_insert(LogProb::ln_zero());
-                                            for dist in grouped_af_dists.values() {
+                                            for dist in sorted_af_dists.iter() {
                                                 if let Some(prob) = dist.get(vaf) {
                                                     *aggregated_prob =
                                                         LogProb(aggregated_prob.max(**prob));
@@ -954,9 +963,23 @@ where
                                         }
                                     }
                                 }
-                                grammar::formula::VAFSpectrum::Range(_range) => {
-                                    // TODO: add any range that is not yet represented by the MAP,
+                                grammar::formula::VAFSpectrum::Range(range) => {
+                                    // METHOD: add any range that is not yet represented by the MAP,
                                     // using the event with the highest mode (peak).
+                                    if !aggregated_af_dist.keys().any(|vaf| range.contains(*vaf)) {
+                                        for dist in sorted_af_dists.iter() {
+                                            let mut inserted = false;
+                                            for (vaf, prob) in
+                                                dist.iter().filter(|(vaf, _)| range.contains(**vaf))
+                                            {
+                                                aggregated_af_dist.insert(*vaf, *prob);
+                                                inserted = true;
+                                            }
+                                            if inserted {
+                                                break;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
