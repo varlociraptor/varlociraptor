@@ -352,8 +352,4 @@ impl VariantEmission for MnvEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
     }
-
-    fn alt_vs_ref_len_diff(&self) -> isize {
-        0
-    }
 }

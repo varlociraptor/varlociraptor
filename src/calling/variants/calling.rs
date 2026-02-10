@@ -30,7 +30,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils::aux_info::AuxInfoCollector;
-use crate::utils::{self, interpolate_prob, PathMap};
+use crate::utils::{self, PathMap};
 use crate::variants::evidence::observations::pileup::Pileup;
 
 use crate::variants::model::modes::generic::LikelihoodOperands;

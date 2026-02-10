@@ -342,8 +342,4 @@ impl VariantEmission for DeletionEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer.is_some()
     }
-
-    fn alt_vs_ref_len_diff(&self) -> isize {
-        -(self.del_len as isize)
-    }
 }

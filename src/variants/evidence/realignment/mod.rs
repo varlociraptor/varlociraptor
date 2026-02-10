@@ -235,6 +235,8 @@ pub(crate) trait Realigner {
         let mut strand = Strand::None;
         let mut homopolymer_indel_len = None;
 
+        let mut is_third_allele_evidence = false;
+
         for region in merged_regions {
             // read emission
             let read_emission = ReadEmission::new(
@@ -341,6 +343,7 @@ pub(crate) trait Realigner {
                         self.calculate_prob_allele(&third_allele_hit, &mut read_inferred_allele);
                     if prob_read_inferred > prob_ref {
                         prob_ref = prob_read_inferred;
+                        is_third_allele_evidence = true;
                     }
                 }
             }
@@ -426,11 +429,13 @@ pub(crate) trait Realigner {
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
-            .third_allele_evidence(if prob_alt_all >= prob_ref_all {
-                alt_edit_dist
-            } else {
-                None
-            })
+            .third_allele_evidence(
+                if prob_alt_all >= prob_ref_all || is_third_allele_evidence {
+                    alt_edit_dist
+                } else {
+                    None
+                },
+            )
             .build()
             .unwrap())
     }
