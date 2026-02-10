@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.5](https://github.com/varlociraptor/varlociraptor/compare/v8.9.4...v8.9.5) (2026-02-10)
+
+
+### Bug Fixes
+
+* ensure that dummy third alleles also work in repetitive regions; stop estimating artifact gap extensions via looking at true extensions in the data, instead estimate them from gap openings, which is more robust since we have more data for that ([#543](https://github.com/varlociraptor/varlociraptor/issues/543)) ([a68a10e](https://github.com/varlociraptor/varlociraptor/commit/a68a10e8595ffcf7bebb8ff3625932714f3f7e5e))
+
 ## [8.9.4](https://github.com/varlociraptor/varlociraptor/compare/v8.9.3...v8.9.4) (2026-02-06)
 
 
