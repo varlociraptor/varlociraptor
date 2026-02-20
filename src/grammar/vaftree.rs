@@ -296,10 +296,10 @@ impl VAFTree {
         }
 
         let mut inner = from(formula, scenario)?;
-        for node in &mut inner {
-            let mut seen = HashSet::new();
-            add_missing_samples(node, &mut seen, scenario, contig)?;
-        }
+        // for node in &mut inner {
+        //     let mut seen = HashSet::new();
+        //     add_missing_samples(node, &mut seen, scenario, contig)?;
+        // }
 
         Ok(VAFTree { inner })
     }
