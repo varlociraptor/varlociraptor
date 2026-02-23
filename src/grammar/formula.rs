@@ -1110,18 +1110,18 @@ impl VAFRange {
         );
         let left = VAFRange {
             inner: self.start..vaf,
-            left_exclusive: self.left_exclusive,
+            left_exclusive: self.left_exclusive || self.start == vaf,
             right_exclusive: true,
         };
         let right = VAFRange {
             inner: vaf..self.end,
             left_exclusive: true,
-            right_exclusive: self.right_exclusive,
+            right_exclusive: self.right_exclusive || self.end == vaf,
         };
 
         let to_spectrum = |range: VAFRange| {
             if range.start == range.end {
-                if !(range.left_exclusive && self.right_exclusive) {
+                if !(range.left_exclusive && range.right_exclusive) {
                     Some(VAFSpectrum::singleton(range.start))
                 } else {
                     None
