@@ -203,6 +203,7 @@ fn basedir(test: &str) -> String {
 }
 
 fn cleanup_file(f: &str) {
+    println!("Cleaning up file: {}", f);
     if Path::new(f).exists() {
         fs::remove_file(f).unwrap();
     }
