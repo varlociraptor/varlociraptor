@@ -468,7 +468,6 @@ impl Formula {
                     _ => (2, String::new()),
                 });
             }
-
             _ => (),
         }
     }
@@ -497,14 +496,11 @@ impl Formula {
                 if !is_last {
                     return Ok(None);
                 }
-
                 let mut missing_terms = Vec::new();
-
                 for (name, sample_data) in scenario.samples() {
                     if seen.contains(name) {
                         continue;
                     }
-
                     seen.insert(name.to_string());
 
                     // Build all VAF-specific atoms for this sample.
@@ -527,10 +523,8 @@ impl Formula {
                             operands: vaf_terms,
                         },
                     };
-
                     missing_terms.push(term);
                 }
-
                 return Ok(Some(missing_terms));
             }
             // Go through each operand of the conjunction and add them to seen. Only the last operand is allowed to add missing samples, to avoid multiple injections.
@@ -540,14 +534,12 @@ impl Formula {
 
                 for (idx, operand) in operands.iter_mut().enumerate() {
                     let is_last = idx + 1 == len;
-
                     if let Some(new_terms) =
                         operand.add_missing_samples(seen, scenario, contig, is_last)?
                     {
                         to_append = Some(new_terms);
                     }
                 }
-
                 // Append newly created sample terms at the end of the conjunction.
                 if let Some(mut extra) = to_append {
                     operands.append(&mut extra);
@@ -563,14 +555,12 @@ impl Formula {
                     {
                         // Preserve the original operand as the final conjunct.
                         missing.push(operand.to_owned());
-
                         *operand = Formula::Conjunction { operands: missing };
                     }
                 }
             }
             _ => {}
         }
-
         Ok(None)
     }
 
@@ -584,7 +574,6 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
-        println!("Normalized formula: {}", simplified);
         let terms = simplified.add_missing_samples(&mut HashSet::new(), scenario, contig, true)?;
         // Add missing samples returns all samples missing from the last conjunction term. If there is no conjunction we can just add them to our formula.
         if let Some(mut new_terms) = terms {
