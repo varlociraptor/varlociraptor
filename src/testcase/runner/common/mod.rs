@@ -376,7 +376,6 @@ pub trait Testcase {
                                         format!("PLAIN_{id}"),
                                         Prob::from(PHREDProb(phred_prob as f64)),
                                     );
-                                    println!("{}: {}", id, phred_prob);
                                 }
                             }
                         }

@@ -478,9 +478,11 @@ impl Formula {
         }
     }
 
+    // Traverses the formula and ensures each conjunction term includes all scenario samples.
+    // If a term is missing samples, returns a list of the missing ones to add.
+    // Returns None if the term already contains all samples.
     pub fn add_missing_samples(
         &mut self,
-        // formula: &mut Formula,
         seen: &mut HashSet<String>,
         scenario: &Scenario,
         contig: &str,
@@ -488,67 +490,92 @@ impl Formula {
     ) -> Result<Option<Vec<Formula>>> {
         match self {
             Formula::Terminal(term) => {
+                // Boolean constants never contribute samples.
                 if let FormulaTerminal::False | FormulaTerminal::True = term {
                     return Ok(None);
                 }
                 if let FormulaTerminal::Atom { sample, .. } = term {
-                    seen.insert(sample.clone());
+                    seen.insert(sample.to_string());
                 }
-                if is_last {
-                    let mut new_terms = Vec::new();
-                    for (name, sample_data) in scenario.samples() {
-                        if !seen.contains(name) {
-                            seen.insert(name.clone());
-                            let vaf_terms: Vec<Formula> = sample_data
-                                .contig_universe(contig, scenario.species())?
-                                .iter()
-                                .map(|vafs| {
-                                    Formula::Terminal(FormulaTerminal::Atom {
-                                        sample: name.clone(),
-                                        vafs: vafs.clone(),
-                                    })
-                                })
-                                .collect();
-                            let term_to_add = if vaf_terms.len() == 1 {
-                                vaf_terms.into_iter().next().unwrap()
-                            } else {
-                                Formula::Disjunction {
-                                    operands: vaf_terms,
-                                }
-                            };
+                // Only the last element of a conjunction is allowed to add
+                // missing samples. This ensures we only inject once.
+                if !is_last {
+                    return Ok(None);
+                }
 
-                            new_terms.push(term_to_add);
-                        }
+                let mut missing_terms = Vec::new();
+
+                for (name, sample_data) in scenario.samples() {
+                    if seen.contains(name) {
+                        continue;
                     }
-                    return Ok(Some(new_terms));
-                }
-            }
 
-            Formula::Conjunction { operands } => {
-                let operands_copy = operands.clone();
-                let mut new_operands = None;
-                for (i, op) in operands.iter_mut().enumerate() {
-                    let is_last = i == operands_copy.len() - 1;
-                    new_operands = op.add_missing_samples(seen, scenario, contig, is_last)?;
+                    seen.insert(name.to_string());
+
+                    // Build all VAF-specific atoms for this sample.
+                    let vaf_terms: Vec<Formula> = sample_data
+                        .contig_universe(contig, scenario.species())?
+                        .iter()
+                        .map(|vafs| {
+                            Formula::Terminal(FormulaTerminal::Atom {
+                                sample: name.to_string(),
+                                vafs: vafs.to_owned(),
+                            })
+                        })
+                        .collect();
+
+                    // If there is no VAF spectrum for this sample, we can skip it as it will not contribute to the probability of the event. If there are multiple VAF spectra for this sample, we take the disjunction of them. Otherwise, we just take the single term.
+                    let term = match vaf_terms.len() {
+                        0 => continue,
+                        1 => vaf_terms.into_iter().next().unwrap(),
+                        _ => Formula::Disjunction {
+                            operands: vaf_terms,
+                        },
+                    };
+
+                    missing_terms.push(term);
                 }
-                if let Some(mut new_ops) = new_operands {
-                    operands.append(&mut new_ops);
+
+                return Ok(Some(missing_terms));
+            }
+            // Go through each operand of the conjunction and add them to seen. Only the last operand is allowed to add missing samples, to avoid multiple injections.
+            Formula::Conjunction { operands } => {
+                let len = operands.len();
+                let mut to_append: Option<Vec<Formula>> = None;
+
+                for (idx, operand) in operands.iter_mut().enumerate() {
+                    let is_last = idx + 1 == len;
+
+                    if let Some(new_terms) =
+                        operand.add_missing_samples(seen, scenario, contig, is_last)?
+                    {
+                        to_append = Some(new_terms);
+                    }
+                }
+
+                // Append newly created sample terms at the end of the conjunction.
+                if let Some(mut extra) = to_append {
+                    operands.append(&mut extra);
                 }
             }
+            // Split disjunctions into separate Conjunctions and add missing samples to each of them.
             Formula::Disjunction { operands } => {
-                for op in operands.iter_mut() {
-                    let new_ops =
-                        op.add_missing_samples(&mut HashSet::new(), scenario, contig, true)?;
-                    if let Some(mut new_ops) = new_ops {
-                        new_ops.push(op.clone());
-                        let mut conj_ops = Vec::with_capacity(new_ops.len() + 1);
-                        conj_ops.append(&mut new_ops);
-                        *op = Formula::Conjunction { operands: conj_ops };
+                for operand in operands.iter_mut() {
+                    let mut branch_seen = HashSet::new();
+
+                    if let Some(mut missing) =
+                        operand.add_missing_samples(&mut branch_seen, scenario, contig, true)?
+                    {
+                        // Preserve the original operand as the final conjunct.
+                        missing.push(operand.to_owned());
+
+                        *operand = Formula::Conjunction { operands: missing };
                     }
                 }
             }
             _ => {}
         }
+
         Ok(None)
     }
 
@@ -565,7 +592,6 @@ impl Formula {
 
         let terms = simplified.add_missing_samples(&mut HashSet::new(), scenario, contig, true)?;
         if let Some(mut new_terms) = terms {
-            println!("New terms to add: {new_terms:#?}");
             new_terms.push(simplified);
             simplified = Formula::Conjunction {
                 operands: new_terms,
