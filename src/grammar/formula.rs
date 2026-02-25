@@ -460,21 +460,16 @@ impl Formula {
                 }
                 operands.sort();
 
-                operands.sort_by(|a, b| {
-                    let key = |f: &Formula| match f {
-                        Formula::Terminal(FormulaTerminal::Log2FoldChange { sample_a, .. }) => {
-                            (0, sample_a.clone())
-                        }
-                        Formula::Terminal(FormulaTerminal::Atom { sample, .. }) => {
-                            (1, sample.clone())
-                        }
-                        _ => (2, String::new()),
-                    };
-
-                    key(a).cmp(&key(b))
+                operands.sort_by_key(|f| match f {
+                    Formula::Terminal(FormulaTerminal::Log2FoldChange { sample_a, .. }) => {
+                        (0, sample_a.clone())
+                    }
+                    Formula::Terminal(FormulaTerminal::Atom { sample, .. }) => (1, sample.clone()),
+                    _ => (2, String::new()),
                 });
             }
-            _ => {}
+
+            _ => (),
         }
     }
 
@@ -589,8 +584,9 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
-
+        println!("Normalized formula: {}", simplified);
         let terms = simplified.add_missing_samples(&mut HashSet::new(), scenario, contig, true)?;
+        // Add missing samples returns all samples missing from the last conjunction term. If there is no conjunction we can just add them to our formula.
         if let Some(mut new_terms) = terms {
             new_terms.push(simplified);
             simplified = Formula::Conjunction {
