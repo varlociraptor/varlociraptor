@@ -127,10 +127,6 @@ pub(crate) fn collect_estimates(
             vafmap.insert(name, vafs);
         }
         if !is_valid_variant(&mut rec, &header)? {
-            info!(
-                "Skipping variant {}:{} because it is not coding.",
-                contig, vcfpos
-            );
             continue;
         }
 
