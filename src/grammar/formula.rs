@@ -489,7 +489,7 @@ impl Formula {
                     return Ok(None);
                 }
                 if let FormulaTerminal::Atom { sample, .. } = term {
-                    seen.insert(sample.to_string());
+                    seen.insert(sample.to_owned());
                 }
                 // Only the last element of a conjunction is allowed to add
                 // missing samples. This ensures we only inject once.
@@ -501,7 +501,7 @@ impl Formula {
                     if seen.contains(name) {
                         continue;
                     }
-                    seen.insert(name.to_string());
+                    seen.insert(name.to_owned());
 
                     // Build all VAF-specific atoms for this sample.
                     let vaf_terms: Vec<Formula> = sample_data
@@ -509,7 +509,7 @@ impl Formula {
                         .iter()
                         .map(|vafs| {
                             Formula::Terminal(FormulaTerminal::Atom {
-                                sample: name.to_string(),
+                                sample: name.to_owned(),
                                 vafs: vafs.to_owned(),
                             })
                         })
@@ -1901,19 +1901,19 @@ events:
                 NormalizedFormula::Conjunction {
                     operands: vec![
                         NormalizedFormula::Atom {
-                            sample: "a".to_string(),
+                            sample: "a".to_owned(),
                             vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
                         },
                         NormalizedFormula::Atom {
-                            sample: "b".to_string(),
+                            sample: "b".to_owned(),
                             vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
                         },
                         NormalizedFormula::Atom {
-                            sample: "c".to_string(),
+                            sample: "c".to_owned(),
                             vafs: full_range.clone(),
                         },
                         NormalizedFormula::Atom {
-                            sample: "d".to_string(),
+                            sample: "d".to_owned(),
                             vafs: full_range.clone(),
                         },
                     ],
@@ -1922,19 +1922,19 @@ events:
                 NormalizedFormula::Conjunction {
                     operands: vec![
                         NormalizedFormula::Atom {
-                            sample: "a".to_string(),
+                            sample: "a".to_owned(),
                             vafs: full_range.clone(),
                         },
                         NormalizedFormula::Atom {
-                            sample: "b".to_string(),
+                            sample: "b".to_owned(),
                             vafs: full_range.clone(),
                         },
                         NormalizedFormula::Atom {
-                            sample: "c".to_string(),
+                            sample: "c".to_owned(),
                             vafs: full_range.clone(),
                         },
                         NormalizedFormula::Atom {
-                            sample: "d".to_string(),
+                            sample: "d".to_owned(),
                             vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
                         },
                     ],
