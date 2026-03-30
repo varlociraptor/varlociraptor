@@ -472,10 +472,10 @@ impl Formula {
         }
     }
 
-    // Traverses the formula and ensures each conjunction term includes all scenario samples.
-    // If a term is missing samples, returns a list of the missing ones to add.
-    // Returns None if the term already contains all samples.
-    pub fn add_missing_samples(
+    /// Traverses the formula and ensures each conjunction term includes all scenario samples.
+    /// If a term is missing samples, returns a list of the missing ones to add.
+    /// Returns None if the term already contains all samples.
+    pub fn missing_sample_handler(
         &mut self,
         seen: &mut HashSet<String>,
         scenario: &Scenario,
@@ -535,7 +535,7 @@ impl Formula {
                 for (idx, operand) in operands.iter_mut().enumerate() {
                     let is_last = idx + 1 == len;
                     if let Some(new_terms) =
-                        operand.add_missing_samples(seen, scenario, contig, is_last)?
+                        operand.missing_sample_handler(seen, scenario, contig, is_last)?
                     {
                         to_append = Some(new_terms);
                     }
@@ -548,10 +548,11 @@ impl Formula {
             // Split disjunctions into separate Conjunctions and add missing samples to each of them.
             Formula::Disjunction { operands } => {
                 for operand in operands.iter_mut() {
-                    let mut branch_seen = HashSet::new();
+                    let mut branch_seen = seen.clone();
+                    // let mut branch_seen = HashSet::new();
 
                     if let Some(mut missing) =
-                        operand.add_missing_samples(&mut branch_seen, scenario, contig, true)?
+                        operand.missing_sample_handler(&mut branch_seen, scenario, contig, true)?
                     {
                         // Preserve the original operand as the final conjunct.
                         missing.push(operand.to_owned());
@@ -574,17 +575,24 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
-        let terms = simplified.add_missing_samples(&mut HashSet::new(), scenario, contig, true)?;
-        // Add missing samples returns all samples missing from the last conjunction term. If there is no conjunction we can just add them to our formula.
-        if let Some(mut new_terms) = terms {
-            new_terms.push(simplified);
-            simplified = Formula::Conjunction {
+        simplified.add_missing_samples(scenario, contig)?;
+        simplified.sort();
+        Ok(simplified.to_normalized_formula())
+    }
+
+    fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) -> Result<()> {
+        if let Some(mut new_terms) =
+            self.missing_sample_handler(&mut HashSet::new(), scenario, contig, true)?
+        {
+            new_terms.push(std::mem::replace(
+                self,
+                Formula::Terminal(FormulaTerminal::False),
+            ));
+            *self = Formula::Conjunction {
                 operands: new_terms,
             };
         }
-
-        simplified.sort();
-        Ok(simplified.to_normalized_formula())
+        Ok(())
     }
 
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
@@ -1715,8 +1723,9 @@ fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
 
 #[cfg(test)]
 mod test {
+    use crate::grammar::formula::NormalizedFormula;
     use crate::grammar::Scenario;
-    use crate::grammar::{Formula, VAFRange};
+    use crate::grammar::{Formula, VAFRange, VAFSpectrum};
     use crate::variants::model::AlleleFreq;
 
     #[test]
@@ -1852,5 +1861,86 @@ events:
         let full = scenario.events["full"].clone();
         let full = full.normalize(&scenario, "all").unwrap();
         assert_eq!(full, expected.normalize(&scenario, "all").unwrap());
+    }
+    #[test]
+    fn test_normalize_simple_disjunction_conjunction() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"
+samples:
+  a:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  b:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  c:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  d:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  formula: "(a:0.5 & b:0.5) | d:0.5"
+"#,
+        )
+        .unwrap();
+
+        let formula = scenario.events["formula"].clone();
+        let normalized = formula.normalize(&scenario, "all").unwrap();
+
+        // Build expected formula
+        let full_range = VAFSpectrum::Range(VAFRange {
+            inner: AlleleFreq(0.0)..AlleleFreq(1.0),
+            left_exclusive: false,
+            right_exclusive: false,
+        });
+
+        let expected = NormalizedFormula::Disjunction {
+            operands: vec![
+                // First conjunction: a:0.5 & b:0.5 & c:[0.0,1.0] & d:[0.0,1.0]
+                NormalizedFormula::Conjunction {
+                    operands: vec![
+                        NormalizedFormula::Atom {
+                            sample: "a".to_string(),
+                            vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "b".to_string(),
+                            vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "c".to_string(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "d".to_string(),
+                            vafs: full_range.clone(),
+                        },
+                    ],
+                },
+                // Second conjunction: a:[0.0,1.0] & b:[0.0,1.0] & c:[0.0,1.0] & d:0.5
+                NormalizedFormula::Conjunction {
+                    operands: vec![
+                        NormalizedFormula::Atom {
+                            sample: "a".to_string(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "b".to_string(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "c".to_string(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "d".to_string(),
+                            vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
+                        },
+                    ],
+                },
+            ],
+        };
+        assert_eq!(normalized, expected);
     }
 }
