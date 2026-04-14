@@ -548,8 +548,7 @@ impl Formula {
             // Split disjunctions into separate Conjunctions and add missing samples to each of them.
             Formula::Disjunction { operands } => {
                 for operand in operands.iter_mut() {
-                    let mut branch_seen = seen.clone();
-                    // let mut branch_seen = HashSet::new();
+                    let mut branch_seen = HashSet::new();
 
                     if let Some(mut missing) =
                         operand.missing_sample_handler(&mut branch_seen, scenario, contig, true)?
