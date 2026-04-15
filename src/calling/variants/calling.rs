@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::path::PathBuf;
@@ -13,9 +14,11 @@ use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use derive_new::new;
 use itertools::{Itertools, MinMaxResult};
+use ordered_float::NotNan;
 use progress_logger::ProgressLogger;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
+use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::{
     read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
@@ -54,7 +57,7 @@ use crate::variants::evidence::observations::read_observation::adjust_singleton_
 #[builder(pattern = "owned")]
 pub(crate) struct Caller<Pr, CP, CF>
 where
-    Pr: bayesian::model::Prior,
+    Pr: bayesian::model::Prior + model::prior::PriorWithUniverse,
     CP: CallProcessor,
     CF: CandidateFilter,
 {
@@ -83,7 +86,7 @@ where
 
 impl<Pr, CP, CF> Caller<Pr, CP, CF>
 where
-    Pr: bayesian::model::Prior,
+    Pr: bayesian::model::Prior + model::prior::PriorWithUniverse,
     CP: CallProcessor,
     CF: CandidateFilter,
 {
@@ -121,11 +124,12 @@ where
             b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
              Description=\"Posterior probability for any artifact, indicated by strand, read position, \
              read orientation, softclip bias, or divindel bias (PHRED). See the bias specific records below for \
-             an explanation for each type of bias.\">",
+             an explanation for each type of bias.\">".as_slice(),
         );
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
-             Description=\"Posterior probability for not having a variant (PHRED)\">",
+                Description=\"Posterior probability for not having a variant (PHRED)\">"
+                .as_slice(),
         );
 
         header.push_record(
@@ -140,17 +144,22 @@ where
              alignments with non-standard read orientation) have been removed from the \
              pileup. \
              missing-data: no alignments that properly cover the candidate variant in \
-             any considered sample.\">",
+             any considered sample.\">"
+                .as_slice(),
         );
 
         // register sample specific tags
         header.push_record(
             b"##FORMAT=<ID=DP,Number=1,Type=Integer,\
-              Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
+                Description=\"Expected sequencing depth, while considering mapping uncertainty\">"
+                .as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
-              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
+              Description=\"Maximum a posteriori probability estimate of the alteration fraction (also called VAF). \
+              Note that in case of contamination between samples, this is corrected for this contamination, \
+              thus only representing the fraction in the cells of the actual sample without the contaminating \
+              cells.\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SAOBS,Number=A,Type=String,\
@@ -160,14 +169,14 @@ where
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal). \
               Further note that there is no N=none score, as such observations occur with an opposite direction \
-              score (odds for the reference or a third allele) in the SROBS field.\">",
+              score (odds for the reference or a third allele) in the SROBS field.\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SROBS,Number=A,Type=String,\
               Description=\"Summary of simplified observations favoring the reference or a third allele (has to be considered together with SAOBS). Each entry is encoded as CB, with C being a count, \
               B being the posterior odds for the reference or a third allele. \
               The latter denotes an extended Kass Raftery score: E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%).\">",
+              probability for correct mapping of fragment is <95%).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
@@ -178,8 +187,9 @@ where
               The second letter denotes an extended Kass Raftery score: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal). \
-              D denotes the edit distance to the ALT allele in case it is higher than what could be expected from sequencing errors \
-              (in that case, Varlociraptor derives a third allele from the read sequence and considers that as an alternative \
+              D denotes the edit distance to the ALT allele \
+              (if it is higher than expected from the sequencing error rates, \
+              Varlociraptor derives a third allele from the read sequence and considers that as an alternative \
               to the alt allele, instead of the reference allele), \
               T being the type of alignment, encoded \
               as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus \
@@ -189,20 +199,20 @@ where
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
               I denoting indel operations in the respective alignments against the alt allele \
-              (* = some indel, . = no indel or information irrelevant for variant type).\">",
+              (* = some indel, . = no indel or information irrelevant for variant type).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
               Description=\"Number of omitted observations. \
               For SNVs and MNVs, read pairs are omitted if they have a non-standard read orientation (neither F1R2 nor F2R1) as \
-              those can frequently lead to alignment artifacts.\">",
+              those can frequently lead to alignment artifacts.\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
               Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
               forward strand, - indicates that ALT allele is associated with reverse strand, \
               . indicates no strand bias. Strand bias is indicative for systematic sequencing \
-              errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">",
+              errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=ROB,Number=A,Type=String,\
@@ -210,7 +220,7 @@ where
               F1R2 orientation, < indicates that ALT allele is associated with F2R1 orientation, \
               . indicates no read orientation bias. Read orientation bias is indicative of Guanin \
               oxidation artifacts. Probability for read orientation bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=RPB,Number=A,Type=String,\
@@ -218,7 +228,7 @@ where
               the most found read position, . indicates that there is no read position bias. \
               Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
               Probability for read position bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=SCB,Number=A,Type=String,\
@@ -230,7 +240,7 @@ where
               same haplotype as e.g. an SNV should not cause a softclip bias, because there will usually \
               still be reads that do not reach the SV, thereby providing evidence against a softclip \
               bias. Probability for softclip bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=HE,Number=A,Type=String,\
@@ -238,7 +248,7 @@ where
               with homopolymer indel operations of varying length, . indicates that there is no homopolymer error. \
               Homopolymer error is indicative of systematic PCR amplification errors. \
               Probability for such homopolymer artifacts is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=ALB,Number=A,Type=String,\
@@ -248,20 +258,25 @@ where
               This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
               a homology, a distant variant allele, or a CNV). \
               Probability for alt locus bias is captured by the ARTIFACT \
-              event (PROB_ARTIFACT).\">",
+              event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=AFD,Number=.,Type=String,\
-              Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
+              Description=\"Sampled posterior probability densities of alteration fractions in PHRED scale \
               (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
               In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
-              these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
+              these can be seen as posterior probabilities. Note that densities can be greater than one. \
+              Note that the distribution is not necessarily unimodal since it aggregates the densities \
+              over all alteration fractions of all other samples. \
+              Furthermore, it might diverge from the maximum a posteriori estimate \
+              of the alteration fraction, because the latter is constrained to be consistent \
+              with the most probable event.\">".as_slice(),
         );
         header.push_record(
-            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">"
+            b"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description=\"PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)\">".as_slice()
         );
         header.push_record(
-            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">"
+            b"##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description=\"PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)\">".as_slice()
         );
         aux_info_collector.write_header_info(&mut header);
 
@@ -289,6 +304,7 @@ where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
         + model::prior::UpdatablePrior
         + model::prior::CheckablePrior
+        + model::prior::PriorWithUniverse
         + Clone
         + Default,
     CP: CallProcessor,
@@ -491,9 +507,9 @@ where
                 }
             };
 
-            let variant_heterozygosity = get_prior(b"HETEROZYGOSITY")?;
+            let variant_heterozygosity = get_prior(b"HETEROZYGOSITY".as_slice())?;
             let variant_somatic_effective_mutation_rate =
-                get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE")?;
+                get_prior(b"SOMATIC_EFFECTIVE_MUTATION_RATE".as_slice())?;
 
             let mut call_builder = CallBuilder::default();
             call_builder
@@ -812,6 +828,7 @@ where
                 is_artifact,
                 data,
                 best_event,
+                model,
             ));
         } else {
             unreachable!();
@@ -849,6 +866,7 @@ where
         is_artifact: bool,
         data: model::modes::generic::Data,
         best_event: &Event,
+        model: &Model<Pr>,
     ) -> Vec<Option<SampleInfo>> {
         for (map_estimates, _) in model_instance.event_posteriors() {
             if map_estimates
@@ -889,42 +907,86 @@ where
                         }
                     };
 
-                    // METHOD: Collect VAF dist for sample by looking at all alternative VAFs with the same VAFs for the other samples as the MAP.
                     sample_builder.vaf_dist(if !estimate.is_artifact() {
-                        Some(
-                            model_instance
-                                .event_posteriors()
-                                .filter_map(|(estimate, prob)| {
-                                    if !best_event.contains(estimate, Some(sample)) {
-                                        // estimate must be compatible with best event
-                                        return None;
-                                    }
-                                    let event = estimate.events().get(sample).unwrap();
-                                    let others_equal_map = || {
-                                        map_estimates.events().iter().all(
-                                            |(other_sample, map_event)| {
-                                                if other_sample != sample {
-                                                    // check if other event is the same as the map event
-                                                    let other_event = estimate
-                                                        .events()
-                                                        .get(other_sample)
-                                                        .unwrap();
-                                                    other_event == map_event
-                                                } else {
-                                                    // don't do that for our current sample
-                                                    true
-                                                }
-                                            },
-                                        )
-                                    };
-                                    if !event.is_artifact() && others_equal_map() {
-                                        Some((event.allele_freq, prob))
+                        let key = |events: &VecMap<model::likelihood::Event>| {
+                            events
+                                .iter()
+                                .filter_map(|(other_sample, event)| {
+                                    if other_sample != sample {
+                                        Some(event.allele_freq)
                                     } else {
                                         None
                                     }
                                 })
-                                .collect(),
-                        )
+                                .collect_vec()
+                        };
+
+                        // collect all events grouped by the other sample VAFs
+                        let mut grouped_af_dists = HashMap::new();
+                        for (estimate, prob) in model_instance.event_posteriors() {
+                            let event = estimate.events().get(sample).unwrap();
+                            if !event.is_artifact() {
+                                let entry = grouped_af_dists
+                                    .entry(key(estimate.events()))
+                                    .or_insert_with(BTreeMap::new);
+                                entry.insert(event.allele_freq, prob);
+                            }
+                        }
+
+                        // METHOD: obtain primary event densities
+                        let mut aggregated_af_dist = grouped_af_dists
+                            .remove(&key(map_estimates.events()))
+                            .expect("bug: MAP event not found in grouped event densities");
+
+                        let sorted_af_dists = grouped_af_dists
+                            .into_values()
+                            .sorted_by_key(|dist| {
+                                dist.values().map(|prob| NotNan::new(**prob).unwrap()).max()
+                            })
+                            .rev()
+                            .collect_vec();
+
+                        // METHOD: add missing events from non-MAP distributions
+                        for vaf_spectrum in model.prior().universe(sample).iter() {
+                            match vaf_spectrum {
+                                // METHOD: for discrete events take the best probability in case they are not part of the MAP
+                                grammar::formula::VAFSpectrum::Set(vafs) => {
+                                    for vaf in vafs {
+                                        if !aggregated_af_dist.contains_key(vaf) {
+                                            let aggregated_prob = aggregated_af_dist
+                                                .entry(*vaf)
+                                                .or_insert(LogProb::ln_zero());
+                                            for dist in sorted_af_dists.iter() {
+                                                if let Some(prob) = dist.get(vaf) {
+                                                    *aggregated_prob =
+                                                        LogProb(aggregated_prob.max(**prob));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                grammar::formula::VAFSpectrum::Range(range) => {
+                                    // METHOD: add any range that is not yet represented by the MAP,
+                                    // using the event with the highest mode (peak).
+                                    if !aggregated_af_dist.keys().any(|vaf| range.contains(*vaf)) {
+                                        for dist in sorted_af_dists.iter() {
+                                            let mut inserted = false;
+                                            for (vaf, prob) in
+                                                dist.iter().filter(|(vaf, _)| range.contains(**vaf))
+                                            {
+                                                aggregated_af_dist.insert(*vaf, *prob);
+                                                inserted = true;
+                                            }
+                                            if inserted {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Some(aggregated_af_dist)
                     } else {
                         None
                     });
@@ -964,7 +1026,7 @@ pub(crate) struct WorkItem {
 }
 
 pub(crate) trait CallProcessor: Sized {
-    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+    fn setup<Pr: bayesian::model::Prior + model::prior::PriorWithUniverse, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>>;
@@ -984,7 +1046,7 @@ pub(crate) struct CallWriter {
 }
 
 impl CallProcessor for CallWriter {
-    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+    fn setup<Pr: bayesian::model::Prior + model::prior::PriorWithUniverse, CF: CandidateFilter>(
         &mut self,
         caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>> {

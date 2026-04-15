@@ -21,9 +21,8 @@ use crate::{
         Call,
     },
     grammar,
-    utils::aux_info::AuxInfoCollector,
-    utils::PathMap,
-    variants::model::AlleleFreq,
+    utils::{aux_info::AuxInfoCollector, PathMap},
+    variants::model::{self, AlleleFreq},
 };
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
@@ -371,7 +370,7 @@ impl ContaminationEstimator {
 }
 
 impl CallProcessor for ContaminationEstimator {
-    fn setup<Pr: bayesian::model::Prior, CF: CandidateFilter>(
+    fn setup<Pr: bayesian::model::Prior + model::prior::PriorWithUniverse, CF: CandidateFilter>(
         &mut self,
         _caller: &Caller<Pr, Self, CF>,
     ) -> Result<Option<AuxInfoCollector>> {

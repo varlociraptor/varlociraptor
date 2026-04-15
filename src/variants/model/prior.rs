@@ -37,6 +37,10 @@ pub(crate) trait CheckablePrior {
     fn check(&self) -> Result<()>;
 }
 
+pub(crate) trait PriorWithUniverse {
+    fn universe(&self, sample: usize) -> &grammar::VAFUniverse;
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
     Mendelian { from: (usize, usize) },
@@ -99,6 +103,16 @@ impl Clone for Prior {
     }
 }
 
+impl PriorWithUniverse for Prior {
+    fn universe(&self, sample: usize) -> &grammar::VAFUniverse {
+        self.universe
+            .as_ref()
+            .unwrap()
+            .get(sample)
+            .expect("bug: invalid sample id")
+    }
+}
+
 impl Prior {
     fn n_samples(&self) -> usize {
         self.germline_mutation_rate.len()
@@ -117,7 +131,7 @@ impl Prior {
                 is_discrete: false,
             };
 
-            for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
+            for vaf_spectrum in self.universe(sample).iter() {
                 match vaf_spectrum {
                     grammar::formula::VAFSpectrum::Set(vafs) => {
                         for vaf in vafs {
@@ -397,7 +411,7 @@ impl Prior {
                 LogProb::ln_zero()
             } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
-                if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
+                if self.universe(sample).contains(event[sample].allele_freq) {
                     // no explicit info about germline VAF, assume 0.0
                     let germline_vafs = push_vafs(AlleleFreq(0.0));
                     self.calc_prob(event, germline_vafs)
@@ -671,7 +685,7 @@ impl Prior {
             // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
             panic!(
                 "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
-                    (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
+                    (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor",
                 source_ploidy.0, source_ploidy.1, target_ploidy
             );
         }

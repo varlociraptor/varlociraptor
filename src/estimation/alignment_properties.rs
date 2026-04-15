@@ -865,7 +865,7 @@ impl AlignmentProperties {
         if let Some(transition_counts) = &self.transition_counts {
             let mut insufficient_counts = false;
             use State::*;
-            let [[prob_insertion_artifact, prob_insertion_extend_artifact], [prob_deletion_artifact, prob_deletion_extend_artifact]] =
+            let [[prob_insertion_artifact, _prob_insertion_extend_artifact], [prob_deletion_artifact, _prob_deletion_extend_artifact]] =
                 [GapX, GapY].map(|gap| {
                     // Number of transitions from match states to gap state
                     let from_match_to_gap = [MatchA, MatchC, MatchG, MatchT]
@@ -906,11 +906,20 @@ impl AlignmentProperties {
                     "Insufficient observations for hop parameter estimation"
                 ));
             }
+
+            // METHOD: estimating true gap extends is risky, as there might be predominantly true indels
+            // that are longer than 1. We have seen samples where this would cause gap extension
+            // probabilities close to 1.0, which causes all kinds of false positive indel calls.
+            // Instead, we consider gap extensions as likely as gap openings.
+            // This assumes that the artifact indel probability is actually constant and does not change
+            // depending on how large the artifact already is.
+            // This also reflects our findings on homopolymer indels, where this could be shown as well.
+
             Ok(GapParams {
                 prob_insertion_artifact,
                 prob_deletion_artifact,
-                prob_insertion_extend_artifact,
-                prob_deletion_extend_artifact,
+                prob_insertion_extend_artifact: prob_insertion_artifact,
+                prob_deletion_extend_artifact: prob_deletion_artifact,
             })
         } else {
             warn!("Insufficient observations for hop parameter estimation, falling back to default hop parameters");
