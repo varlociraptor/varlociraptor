@@ -360,8 +360,15 @@ impl GenericPosterior {
                             // METHOD: interval represents a single value, no need
                             // to integrate.
                             let vaf = vafs.start;
+                            let previous = likelihood_operands.events.get(*sample).cloned();
                             push_base_event(vaf, likelihood_operands, true);
-                            return subdensity(likelihood_operands);
+                            let p = subdensity(likelihood_operands);
+                            if let Some(previous) = previous {
+                                likelihood_operands.events.insert(*sample, previous);
+                            } else {
+                                likelihood_operands.events.remove(*sample);
+                            }
+                            return p;
                         }
 
                         let resolution = &self.resolutions[*sample];
