@@ -205,13 +205,7 @@ impl GenericPosterior {
                         .children()
                         .iter()
                         .map(|child| {
-                            self.density(
-                                child,
-                                &mut likelihood_operands.clone(),
-                                data,
-                                biases,
-                                joint_prob,
-                            )
+                            self.density(child, likelihood_operands, data, biases, joint_prob)
                         })
                         .collect_vec(),
                 )
@@ -235,12 +229,15 @@ impl GenericPosterior {
                 sample_b,
                 predicate,
             } => {
+                let n_lfcs = likelihood_operands.lfcs.len();
                 likelihood_operands.lfcs.push(VafLfc {
                     sample_a: *sample_a,
                     sample_b: *sample_b,
                     predicate: *predicate,
                 });
-                subdensity(likelihood_operands)
+                let p = subdensity(likelihood_operands);
+                likelihood_operands.lfcs.truncate(n_lfcs);
+                p
             }
             grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::True => LogProb::ln_one(),
@@ -308,21 +305,34 @@ impl GenericPosterior {
                         };
 
                         if vafs.len() == 1 {
+                            let previous = likelihood_operands.events.get(*sample).cloned();
                             push_base_event(
                                 *vafs.iter().next().unwrap(),
                                 likelihood_operands,
                                 true,
                             );
-
-                            subdensity(likelihood_operands)
+                            let p = subdensity(likelihood_operands);
+                            if let Some(previous) = previous {
+                                likelihood_operands.events.insert(*sample, previous);
+                            } else {
+                                likelihood_operands.events.remove(*sample);
+                            }
+                            p
                         } else {
                             LogProb::ln_sum_exp(
                                 &vafs
                                     .iter()
                                     .map(|vaf| {
-                                        let mut likelihood_operands = likelihood_operands.clone();
-                                        push_base_event(*vaf, &mut likelihood_operands, true);
-                                        subdensity(&mut likelihood_operands)
+                                        let previous =
+                                            likelihood_operands.events.get(*sample).cloned();
+                                        push_base_event(*vaf, likelihood_operands, true);
+                                        let p = subdensity(likelihood_operands);
+                                        if let Some(previous) = previous {
+                                            likelihood_operands.events.insert(*sample, previous);
+                                        } else {
+                                            likelihood_operands.events.remove(*sample);
+                                        }
+                                        p
                                     })
                                     .collect_vec(),
                             )
@@ -359,9 +369,15 @@ impl GenericPosterior {
                         let max_vaf = vafs.observable_max(n_obs);
                         assert!(min_vaf <= max_vaf, "bug: min_vaf > max_vaf");
                         let mut density = |vaf| {
-                            let mut likelihood_operands = likelihood_operands.clone();
-                            push_base_event(vaf, &mut likelihood_operands, false);
-                            subdensity(&mut likelihood_operands)
+                            let previous = likelihood_operands.events.get(*sample).cloned();
+                            push_base_event(vaf, likelihood_operands, false);
+                            let p = subdensity(likelihood_operands);
+                            if let Some(previous) = previous {
+                                likelihood_operands.events.insert(*sample, previous);
+                            } else {
+                                likelihood_operands.events.remove(*sample);
+                            }
+                            p
                         };
 
                         if (max_vaf - min_vaf) < **resolution {
