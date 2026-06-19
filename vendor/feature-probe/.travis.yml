@@ -1,0 +1,10 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+  - 1.16.0
+
+notifications:
+  email:
+    on_success: never

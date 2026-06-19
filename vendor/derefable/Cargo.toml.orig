@@ -1,0 +1,15 @@
+[package]
+name = "derefable"
+version = "0.1.0"
+authors = ["Aaron Power <a.power@1aim.com>"]
+edition = "2018"
+description = "Automatically derive Deref/DerefMut implementations"
+license = "MIT/Apache-2.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "0.15"
+quote = "0.6"
+proc-macro2 = "0.4.26"

@@ -1,0 +1,12 @@
+[package]
+name = "auto_ops"
+version = "0.3.0"
+authors = ["Quy Nguyen <quy.d.x.nguyen@gmail.com>"]
+license="MIT"
+description = "Macros for easy operator overloading."
+keywords = ["macro", "operator", "overloading", "impl", "op"]
+categories = ["rust-patterns", "no_std"]
+edition = "2018"
+repository = "https://github.com/carbotaniuman/auto_ops"
+
+[dependencies]

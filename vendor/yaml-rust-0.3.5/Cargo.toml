@@ -1,0 +1,16 @@
+[package]
+name = "yaml-rust"
+version = "0.3.5"
+authors = ["Yuheng Chen <yuhengchen@sensetime.com>"]
+homepage = "http://chyh1990.github.io/yaml-rust/"
+documentation = "http://chyh1990.github.io/yaml-rust/doc/yaml_rust/"
+license = "MIT/Apache-2.0"
+description = "The missing YAML 1.2 parser for rust"
+repository = "https://github.com/chyh1990/yaml-rust"
+
+[features]
+preserve_order = ["linked-hash-map"]
+
+[dependencies]
+clippy = { version = "^0.*", optional = true }
+linked-hash-map = { version = ">=0.0.9, <0.4", optional = true }
