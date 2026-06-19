@@ -50,6 +50,15 @@ lazy_static! {
     pub(crate) static ref PROB_09: LogProb = LogProb::from(Prob(0.9));
 }
 
+/// Numerically stable log-sum-exp over an iterator of [`LogProb`] values.
+///
+/// Equivalent to `LogProb::ln_sum_exp(&iter.collect_vec())` but avoids the intermediate
+/// `Vec` allocation by folding with [`LogProb::ln_add_exp`].
+pub(crate) fn ln_sum_exp_iter<I: IntoIterator<Item = LogProb>>(iter: I) -> LogProb {
+    iter.into_iter()
+        .fold(LogProb::ln_zero(), |acc, p| acc.ln_add_exp(p))
+}
+
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
     if let Ok(bam::record::Aux::String(strand_info)) = record.aux(b"SI") {
         Some(strand_info.as_bytes())
