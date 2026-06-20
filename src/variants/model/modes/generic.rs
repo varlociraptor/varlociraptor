@@ -118,6 +118,13 @@ pub(crate) struct VafLfc {
 pub(crate) struct LikelihoodOperands {
     events: VecMap<likelihood::Event>,
     lfcs: Vec<VafLfc>,
+    lfc_bounds_cache: VecMap<LfcBoundsCacheEntry>,
+}
+
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
+struct LfcBoundsCacheEntry {
+    bounds: Option<VAFRange>,
+    dirty: bool,
 }
 
 impl LikelihoodOperands {
@@ -130,7 +137,41 @@ impl LikelihoodOperands {
     }
 
     pub(crate) fn push(&mut self, event: Event) {
-        self.events.insert(self.events.len(), event);
+        let sample = self.events.len();
+        self.set_event(sample, event);
+    }
+
+    pub(crate) fn set_event(&mut self, sample: usize, event: Event) {
+        self.events.insert(sample, event);
+        let affected_samples = self
+            .lfcs
+            .iter()
+            .filter_map(|lfc| {
+                if lfc.sample_a == sample {
+                    Some(lfc.sample_b)
+                } else if lfc.sample_b == sample {
+                    Some(lfc.sample_a)
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        for affected_sample in affected_samples {
+            self.mark_lfc_bounds_dirty(affected_sample);
+        }
+    }
+
+    pub(crate) fn push_lfc(&mut self, lfc: VafLfc) {
+        self.mark_lfc_bounds_dirty(lfc.sample_a);
+        self.mark_lfc_bounds_dirty(lfc.sample_b);
+        self.lfcs.push(lfc);
+    }
+
+    pub(crate) fn pop_lfc(&mut self) {
+        if let Some(lfc) = self.lfcs.pop() {
+            self.mark_lfc_bounds_dirty(lfc.sample_a);
+            self.mark_lfc_bounds_dirty(lfc.sample_b);
+        }
     }
 
     pub(crate) fn iter(&self) -> Values<'_, Event> {
@@ -145,7 +186,25 @@ impl LikelihoodOperands {
         self.events.values().all(|evt| evt.is_absent())
     }
 
-    pub(crate) fn lfc_bounds(&self, sample: usize) -> Option<VAFRange> {
+    fn mark_lfc_bounds_dirty(&mut self, sample: usize) {
+        self.lfc_bounds_cache
+            .entry(sample)
+            .or_insert_with(LfcBoundsCacheEntry::default)
+            .dirty = true;
+    }
+
+    pub(crate) fn lfc_bounds(&mut self, sample: usize) -> Option<VAFRange> {
+        let needs_recompute = self
+            .lfc_bounds_cache
+            .get(sample)
+            .map_or(true, |entry| entry.dirty);
+        if !needs_recompute {
+            return self
+                .lfc_bounds_cache
+                .get(sample)
+                .and_then(|entry| entry.bounds.clone());
+        }
+
         let mut acc: Option<VAFRange> = None;
         for lfc in &self.lfcs {
             let maybe_bounds = if lfc.sample_a == sample {
@@ -170,6 +229,13 @@ impl LikelihoodOperands {
                 });
             }
         }
+        self.lfc_bounds_cache.insert(
+            sample,
+            LfcBoundsCacheEntry {
+                bounds: acc.clone(),
+                dirty: false,
+            },
+        );
         acc
     }
 }
@@ -235,19 +301,21 @@ impl GenericPosterior {
                 sample_b,
                 predicate,
             } => {
-                likelihood_operands.lfcs.push(VafLfc {
+                likelihood_operands.push_lfc(VafLfc {
                     sample_a: *sample_a,
                     sample_b: *sample_b,
                     predicate: *predicate,
                 });
-                subdensity(likelihood_operands)
+                let density = subdensity(likelihood_operands);
+                likelihood_operands.pop_lfc();
+                density
             }
             grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::True => LogProb::ln_one(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event =
                     |allele_freq, likelihood_operands: &mut LikelihoodOperands, is_discrete| {
-                        likelihood_operands.events.insert(
+                        likelihood_operands.set_event(
                             *sample,
                             likelihood::Event {
                                 allele_freq,
