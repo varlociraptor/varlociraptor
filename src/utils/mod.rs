@@ -50,13 +50,39 @@ lazy_static! {
     pub(crate) static ref PROB_09: LogProb = LogProb::from(Prob(0.9));
 }
 
-/// Numerically stable log-sum-exp over an iterator of [`LogProb`] values.
+/// Pool of reusable [`Vec<LogProb>`] buffers for numerically stable log-sum-exp computations.
 ///
-/// Equivalent to `LogProb::ln_sum_exp(&iter.collect_vec())` but avoids the intermediate
-/// `Vec` allocation by folding with [`LogProb::ln_add_exp`].
-pub(crate) fn ln_sum_exp_iter<I: IntoIterator<Item = LogProb>>(iter: I) -> LogProb {
-    iter.into_iter()
-        .fold(LogProb::ln_zero(), |acc, p| acc.ln_add_exp(p))
+/// Avoids repeated independent heap allocations: each call to [`acquire`][Self::acquire] pops
+/// a buffer from the pool (allocating a new one only when the pool is empty), and
+/// [`release`][Self::release] returns it for future reuse.  Because the pool is unlocked
+/// between `acquire` and `release`, nested / recursive callers each get their own buffer
+/// and can safely call `acquire`/`release` themselves.
+///
+/// # Usage
+///
+/// ```ignore
+/// let mut buf = pool.acquire();          // borrow a Vec from the pool
+/// buf.extend(some_iterator);             // fill it (recursive calls are safe here)
+/// let result = LogProb::ln_sum_exp(&buf);
+/// pool.release(buf);                     // return the Vec for later reuse
+/// ```
+#[derive(Debug, Default)]
+pub(crate) struct LnSumExpBuffer {
+    pool: Vec<Vec<LogProb>>,
+}
+
+impl LnSumExpBuffer {
+    /// Pop a cleared `Vec<LogProb>` from the pool, or allocate a fresh one if the pool is empty.
+    pub(crate) fn acquire(&mut self) -> Vec<LogProb> {
+        let mut buf = self.pool.pop().unwrap_or_default();
+        buf.clear();
+        buf
+    }
+
+    /// Return a buffer to the pool so its allocation can be reused in a future [`acquire`][Self::acquire].
+    pub(crate) fn release(&mut self, buf: Vec<LogProb>) {
+        self.pool.push(buf);
+    }
 }
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {

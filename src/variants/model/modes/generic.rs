@@ -7,7 +7,7 @@ use vec_map::{Values, VecMap};
 use crate::grammar::{self, VAFRange};
 use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
-use crate::utils::{ln_sum_exp_iter, PROB_05};
+use crate::utils::{LnSumExpBuffer, PROB_05};
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::model;
 use crate::variants::model::likelihood;
@@ -182,9 +182,20 @@ impl Index<usize> for LikelihoodOperands {
     }
 }
 
-#[derive(new, Clone, Debug, Default)]
+#[derive(new, Debug, Default)]
 pub(crate) struct GenericPosterior {
     resolutions: grammar::SampleInfo<grammar::Resolution>,
+    #[new(default)]
+    buffer: std::cell::RefCell<LnSumExpBuffer>,
+}
+
+impl Clone for GenericPosterior {
+    fn clone(&self) -> Self {
+        GenericPosterior {
+            resolutions: self.resolutions.clone(),
+            buffer: Default::default(),
+        }
+    }
 }
 
 impl GenericPosterior {
@@ -200,7 +211,8 @@ impl GenericPosterior {
             let p = if vaf_tree_node.is_leaf() {
                 joint_prob(likelihood_operands, data)
             } else if vaf_tree_node.is_branching() {
-                ln_sum_exp_iter(vaf_tree_node.children().iter().map(|child| {
+                let mut buf = self.buffer.borrow_mut().acquire();
+                buf.extend(vaf_tree_node.children().iter().map(|child| {
                     self.density(
                         child,
                         &mut likelihood_operands.clone(),
@@ -208,7 +220,10 @@ impl GenericPosterior {
                         biases,
                         joint_prob,
                     )
-                }))
+                }));
+                let result = LogProb::ln_sum_exp(&buf);
+                self.buffer.borrow_mut().release(buf);
+                result
             } else {
                 self.density(
                     &vaf_tree_node.children()[0],
@@ -310,11 +325,15 @@ impl GenericPosterior {
 
                             subdensity(likelihood_operands)
                         } else {
-                            ln_sum_exp_iter(vafs.iter().map(|vaf| {
+                            let mut buf = self.buffer.borrow_mut().acquire();
+                            buf.extend(vafs.iter().map(|vaf| {
                                 let mut likelihood_operands = likelihood_operands.clone();
                                 push_base_event(*vaf, &mut likelihood_operands, true);
                                 subdensity(&mut likelihood_operands)
-                            }))
+                            }));
+                            let result = LogProb::ln_sum_exp(&buf);
+                            self.buffer.borrow_mut().release(buf);
+                            result
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
@@ -436,13 +455,17 @@ impl Posterior for GenericPosterior {
                 && bias.is_likely(&data.pileups)
         });
 
-        ln_sum_exp_iter(possible_biases.cartesian_product(vaf_tree).map(
+        let mut buf = self.buffer.borrow_mut().acquire();
+        buf.extend(possible_biases.cartesian_product(vaf_tree).map(
             |(biases, node)| {
                 let mut likelihood_operands = LikelihoodOperands::default();
                 bias_prior
                     + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
             },
-        ))
+        ));
+        let result = LogProb::ln_sum_exp(&buf);
+        self.buffer.borrow_mut().release(buf);
+        result
     }
 }
 
