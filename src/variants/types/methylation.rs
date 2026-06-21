@@ -54,6 +54,8 @@ impl Methylation {
             // TODO expect u64 in read_pos
             .read_pos(position as u32, false, false)?
         {
+            eprintln!("MAPQ: {:?}", read.record().mapq());
+            eprintln!("Position: {:?}", self.locus().range().start);
             if let Some((prob_alt, prob_ref)) =
                 process_read(read, read.prob_methylation(), qpos, annotated_read)
             {
@@ -257,6 +259,7 @@ fn process_read(
         || mutation_occurred(read_reverse_orientation(read), read, qpos, annotated_read)
         || read_invalid(read.inner.core.flag)
     {
+        eprintln!("Skipping read because it contains unexpected bases.",);
         return None;
     }
 
@@ -290,9 +293,15 @@ fn compute_probs_annotated_read(
     if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
         prob_alt = value.to_owned();
         prob_ref = LogProb::from(Prob(1_f64 - prob_alt.0.exp()));
+        eprintln!("Prob alt: {:?}", (prob_alt, Prob::from(prob_alt)));
+        eprintln!("Prob ref: {:?}\n", (prob_ref, Prob::from(prob_ref)));
     } else {
         prob_alt = LogProb::from(Prob(0.0));
         prob_ref = LogProb::from(Prob(1.0));
+        eprintln!(
+            "Position not found. LogProbs: prob_alt: {:?}, prob_ref: {:?}\n",
+            prob_alt, prob_ref,
+        );
     }
     (prob_alt, prob_ref)
 }
@@ -320,6 +329,8 @@ pub fn compute_probs_converted_read(
 
     let prob_alt = prob_read_base(read_base, ref_base, base_qual);
     let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
+    eprintln!("Prob alt: {:?}", (prob_alt, Prob::from(prob_alt)));
+    eprintln!("Prob ref: {:?}\n", (prob_ref, Prob::from(prob_ref)));
     (prob_alt, prob_ref)
 }
 
@@ -472,16 +483,16 @@ impl ToVariantRepresentation for Methylation {
     }
 }
 
-/// Determines the orientation of a read based on its flags.  
+/// Determines the orientation of a read based on its flags.
 ///
-/// For single-end reads: returns true if the read is reverse-complemented.  
-/// For paired-end reads: returns true if the read is from the reverse strand  
-/// (either first-in-pair and reverse, or second-in-pair and forward).  
-///  
-/// # Arguments  
-/// * `read` - The sequencing read to check  
-///  
-/// # Returns  
+/// For single-end reads: returns true if the read is reverse-complemented.
+/// For paired-end reads: returns true if the read is from the reverse strand
+/// (either first-in-pair and reverse, or second-in-pair and forward).
+///
+/// # Arguments
+/// * `read` - The sequencing read to check
+///
+/// # Returns
 /// * `true` if the read is from the reverse strand, `false` otherwise
 pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
     let read_paired = read.is_paired();
