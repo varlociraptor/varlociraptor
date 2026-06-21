@@ -52,29 +52,47 @@ jobs:
           wget -q https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
           sudo dpkg -i hyperfine_1.18.0_amd64.deb
 
-      - name: Run benchmark
+      - name: Run preprocess variants benchmark
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           hyperfine \
             --warmup 2 \
-            --export-markdown /tmp/benchmark-results.md \
+            --export-markdown /tmp/benchmark-preprocess.md \
             --command-name "master" \
               "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --read-type Annotated > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
               "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --read-type Annotated > /dev/null"
+
+      - name: Run call variants benchmark
+        run: |
+          DATA=master/tests/resources/flamegraph_profiling
+          hyperfine \
+            --warmup 2 \
+            --export-markdown /tmp/benchmark-call.md \
+            --command-name "master" \
+              "master/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
+            --command-name "PR (${{ github.head_ref }})" \
+              "pr/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
       - name: Post benchmark results as PR comment
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const table = fs.readFileSync('/tmp/benchmark-results.md', 'utf8');
+            const preprocessTable = fs.readFileSync('/tmp/benchmark-preprocess.md', 'utf8');
+            const callTable = fs.readFileSync('/tmp/benchmark-call.md', 'utf8');
             const body = [
               '## ⏱ Benchmark Results',
               '',
-              table,
+              '### `preprocess variants`',
               '',
-              '<sub>Command: `varlociraptor preprocess variants` on `tests/resources/flamegraph_profiling` data</sub>',
+              preprocessTable,
+              '',
+              '### `call variants`',
+              '',
+              callTable,
+              '',
+              '<sub>Data: `tests/resources/flamegraph_profiling`</sub>',
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
