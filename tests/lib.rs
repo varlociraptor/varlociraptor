@@ -196,6 +196,8 @@ testcase!(test_moelder_floatisnan, exact);
 testcase!(test_alt_locus_mapq_only, exact);
 testcase!(test_single_value_afd, exact);
 
+testcase!(test_prinz_pbToolsTest_illumina, exact);
+
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }

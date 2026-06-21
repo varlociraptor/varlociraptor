@@ -1,0 +1,24 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - normal == 0.0
+
+# necessary bam files
+samples:
+  normal:
+    path: "normal.bam"
+    properties: '{"insert_size":{"mean":210.64583003411985,"sd":64.84769438981195},"max_del_cigar_len":48,"max_ins_cigar_len":34,"frac_max_softclip":0.5579710144927537,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.319498864762447,"prob_deletion_artifact":-7.703801994639231,"prob_insertion_extend_artifact":-7.319498864762447,"prob_deletion_extend_artifact":-7.703801994639231},"hop_params":{"prob_seq_homopolymer":[-6.16339601869362,-7.849708898015265,-8.095872220199508,-5.495412283412622],"prob_ref_homopolymer":[-6.282877580382424,-8.865036084210333,-8.94458952724094,-6.371952803982387],"prob_seq_extend_homopolymer":[-6.16339601869362,-7.849708898015265,-8.095872220199508,-5.495412283412622],"prob_ref_extend_homopolymer":[-6.282877580382424,-8.865036084210333,-8.94458952724094,-6.371952803982387]},"wildtype_homopolymer_error_model":{"-5":2.09015682446654e-6,"39":5.22539206116635e-7,"18":2.351426427524857e-6,"-7":2.612696030583175e-7,"13":0.000019072681023257176,"1":0.001111963430616199,"11":0.000012802210549857557,"-18":2.612696030583175e-7,"7":0.00003344250919146464,"25":4.441583251991397e-6,"-10":7.838088091749524e-7,"0":0.998199329895722,"41":5.22539206116635e-7,"40":1.5676176183499049e-6,"10":0.00002377553387830689,"-9":1.04507841223327e-6,"-8":7.838088091749524e-7,"-6":1.3063480152915874e-6,"26":5.22539206116635e-7,"4":0.000038406631649572665,"16":4.702852855049714e-6,"24":2.612696030583175e-7,"27":1.3063480152915874e-6,"-1":0.00004154186688627248,"-4":6.531740076457936e-6,"2":0.00028034228408157466,"19":5.486661664224666e-6,"20":8.099357694807842e-6,"29":2.612696030583175e-7,"35":2.612696030583175e-7,"-3":0.000027172038718065016,"37":7.838088091749524e-7,"3":0.00008543516020006981,"6":0.000031091082763939776,"9":0.00004206440609238911,"42":1.3063480152915874e-6,"12":0.000021946646656898665,"8":0.00003213616117617305,"-11":2.612696030583175e-7,"15":0.00002064029864160708,"23":1.8288872214082223e-6,"-2":0.00005277645981778013,"14":0.000018811411420198857,"5":0.00005669550386365489,"17":7.576818488691206e-6,"21":3.919044045874762e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":"converted"}}}}'
+
+# candidate variant
+candidate: "candidates.vcf"
+
+scenario: "scenario.yaml"
+
+# reference sequence
+reference:
+  path: "ref.fa"
+
+mode: Generic
+
+version: "4"
