@@ -1,0 +1,105 @@
+name: Benchmark
+
+on:
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    name: Measure speedup vs master
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          path: master
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            pr -> target
+            master -> target
+
+      - name: Build master binary
+        working-directory: master
+        run: cargo build --release
+
+      - name: Build PR binary
+        working-directory: pr
+        run: cargo build --release
+
+      - name: Install hyperfine
+        run: |
+          wget -q https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
+          sudo dpkg -i hyperfine_1.18.0_amd64.deb
+
+      - name: Run benchmark
+        run: |
+          DATA=master/tests/resources/flamegraph_profiling
+          hyperfine \
+            --warmup 2 \
+            --export-markdown /tmp/benchmark-results.md \
+            --command-name "master" \
+              "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --read-type Annotated > /dev/null" \
+            --command-name "PR (${{ github.head_ref }})" \
+              "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --read-type Annotated > /dev/null"
+
+      - name: Post benchmark results as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const table = fs.readFileSync('/tmp/benchmark-results.md', 'utf8');
+            const body = [
+              '## ⏱ Benchmark Results',
+              '',
+              table,
+              '',
+              '<sub>Command: `varlociraptor preprocess variants` on `tests/resources/flamegraph_profiling` data</sub>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const marker = '## ⏱ Benchmark Results';
+            const existing = comments.find(
+              c => c.body.startsWith(marker) && c.user.login === 'github-actions[bot]'
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
