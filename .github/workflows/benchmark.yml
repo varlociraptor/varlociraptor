@@ -52,6 +52,7 @@ jobs:
           DATA=master/tests/resources/flamegraph_profiling
           hyperfine \
             --warmup 2 \
+            --show-output \
             --export-markdown /tmp/benchmark-preprocess.md \
             --command-name "master" \
               "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null" \
@@ -63,6 +64,7 @@ jobs:
           DATA=master/tests/resources/flamegraph_profiling
           hyperfine \
             --warmup 2 \
+            --show-output \
             --export-markdown /tmp/benchmark-call.md \
             --command-name "master" \
               "master/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
