@@ -54,9 +54,9 @@ jobs:
             --warmup 2 \
             --export-markdown /tmp/benchmark-preprocess.md \
             --command-name "master" \
-              "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --read-type Annotated > /dev/null" \
+              "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
-              "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --read-type Annotated > /dev/null"
+              "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null"
 
       - name: Run call variants benchmark
         run: |
