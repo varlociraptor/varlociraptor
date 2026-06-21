@@ -197,6 +197,8 @@ testcase!(test_alt_locus_mapq_only, exact);
 testcase!(test_single_value_afd, exact);
 
 testcase!(test_prinz_pbToolsTest_illumina, exact);
+testcase!(test_prinz_pbToolsTest_pacbio, exact);
+testcase!(test_prinz_pbToolsTest_nanopore, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

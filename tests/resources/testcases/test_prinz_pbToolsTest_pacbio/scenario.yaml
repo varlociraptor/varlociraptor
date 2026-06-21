@@ -1,0 +1,7 @@
+samples:
+  normal:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+
+events:
+  present: "normal:]0.0,1.0]"

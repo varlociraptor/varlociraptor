@@ -2,6 +2,9 @@ expected:
   allelefreqs:
     # write down a list of expressions of the form
     - normal == 0.0
+  posteriors:
+    - PROB_ABSENT >= 0.0425862 && PROB_ABSENT <= 0.0425864
+    - PROB_PRESENT >= 20.1063 && PROB_PRESENT <= 20.1065
 
 # necessary bam files
 samples:
