@@ -101,3 +101,9 @@ lto = "fat"
 codegen-units = 128
 inherits = "release"
 lto = false
+
+[profile.profiling]
+inherits = "release"
+debug = true
+debug-assertions = false
+overflow-checks = false
