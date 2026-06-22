@@ -40,13 +40,13 @@ jobs:
 
       - name: Build master binary
         working-directory: master
-        run: pixi run cargo build --release
+        run: pixi run cargo build --profile profiling
 
       - name: Build PR binary
-        run: pixi run cargo build --release
+        run: pixi run cargo build --profile profiling
 
       - name: Install cargo-flamegraph
-        run: pixi run cargo install cargo-flamegraph
+        run: pixi run cargo install flamegraph
 
       - name: Run preprocess variants benchmark
         run: |
@@ -76,22 +76,22 @@ jobs:
         run: |
           DATA=tests/resources/flamegraph_profiling
           cd master
-          pixi run --manifest-path ../pixi.toml cargo flamegraph --release --output /tmp/flamegraph-master-preprocess.svg -- \
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --profile profiling --output /tmp/flamegraph-master-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type annotated > /dev/null
-          pixi run --manifest-path ../pixi.toml cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --profile profiling --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
           cd ..
-          pixi run cargo flamegraph --release --output /tmp/flamegraph-pr-preprocess.svg -- \
+          pixi run cargo flamegraph --profile profiling --output /tmp/flamegraph-pr-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type annotated > /dev/null
-          pixi run cargo flamegraph --release --output /tmp/flamegraph-pr-call.svg -- \
+          pixi run cargo flamegraph --profile profiling --output /tmp/flamegraph-pr-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
