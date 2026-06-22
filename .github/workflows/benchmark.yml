@@ -1,0 +1,170 @@
+name: Benchmark
+
+on:
+  pull_request:
+    types: [edited, synchronize, opened]
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark:
+    name: Measure speedup vs master
+    if: contains(github.event.pull_request.body, '[x] Run benchmark')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+          echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+
+      - name: Checkout PR
+        uses: actions/checkout@v6
+
+      - uses: prefix-dev/setup-pixi@v0.9.6
+        with:
+          cache: true
+
+      - name: Checkout master
+        uses: actions/checkout@v6
+        with:
+          ref: master
+          path: master
+
+      - name: Cache cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          cmd-format: pixi run {0}
+          workspaces: |
+            target
+            master -> target
+
+      - name: Build master binary
+        working-directory: master
+        run: pixi run cargo build --profile profiling
+
+      - name: Build PR binary
+        run: pixi run cargo build --profile profiling
+
+      - name: Install cargo-flamegraph
+        run: pixi run cargo install flamegraph
+
+      - name: Run preprocess variants benchmark
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
+        run: |
+          DATA=master/tests/resources/flamegraph_profiling
+          pixi run hyperfine \
+            --warmup 2 \
+            --show-output \
+            --export-markdown /tmp/benchmark-preprocess.md \
+            --reference-name "master" \
+            --reference "master/target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
+            --command-name "PR (${{ github.head_ref }})" \
+              "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
+
+      - name: Run call variants benchmark
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
+        run: |
+          DATA=master/tests/resources/flamegraph_profiling
+          pixi run hyperfine \
+            --warmup 2 \
+            --show-output \
+            --export-markdown /tmp/benchmark-call.md \
+            --reference-name "master" \
+            --reference "master/target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
+            --command-name "PR (${{ github.head_ref }})" \
+              "target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
+
+      - name: Generate flamegraphs
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
+        run: |
+          DATA=tests/resources/flamegraph_profiling
+          cd master
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --profile profiling --output /tmp/flamegraph-master-preprocess.svg -- \
+            preprocess variants $DATA/ref.fa \
+            --candidates $DATA/candidates.vcf \
+            --bam $DATA/alignment.bam \
+            --methylation-read-type annotated > /dev/null
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --profile profiling --output /tmp/flamegraph-master-call.svg -- \
+            call variants generic \
+            --scenario $DATA/scenario.yaml \
+            --obs normal=$DATA/normal.bcf > /dev/null
+          cd ..
+          pixi run cargo flamegraph --profile profiling --output /tmp/flamegraph-pr-preprocess.svg -- \
+            preprocess variants $DATA/ref.fa \
+            --candidates $DATA/candidates.vcf \
+            --bam $DATA/alignment.bam \
+            --methylation-read-type annotated > /dev/null
+          pixi run cargo flamegraph --profile profiling --output /tmp/flamegraph-pr-call.svg -- \
+            call variants generic \
+            --scenario $DATA/scenario.yaml \
+            --obs normal=$DATA/normal.bcf > /dev/null
+
+      - name: Upload flamegraph SVGs
+        uses: actions/upload-artifact@v4
+        with:
+          name: flamegraphs
+          path: /tmp/flamegraph-*.svg
+          retention-days: 90
+
+      - name: Post benchmark results as PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const preprocessTable = fs.readFileSync('/tmp/benchmark-preprocess.md', 'utf8');
+            const callTable = fs.readFileSync('/tmp/benchmark-call.md', 'utf8');
+            const body = [
+              '## Benchmark Results',
+              '',
+              '### `preprocess variants`',
+              '',
+              preprocessTable,
+              '',
+              '### `call variants`',
+              '',
+              callTable,
+              '',
+              '### Flamegraphs',
+              '',
+              `Flamegraph SVGs (master and PR, for both subcommands) are available as artifacts on the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              '',
+              '<sub>Data: `tests/resources/flamegraph_profiling`</sub>',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const marker = '## ⏱ Benchmark Results';
+            const existing = comments.find(
+              c => c.body.startsWith(marker) && c.user.login === 'github-actions[bot]'
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
