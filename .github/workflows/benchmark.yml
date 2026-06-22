@@ -63,9 +63,9 @@ jobs:
             --show-output \
             --export-markdown /tmp/benchmark-preprocess.md \
             --reference-name "master" \
-            --reference "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type converted > /dev/null" \
+            --reference "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
-              "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type converted > /dev/null"
+              "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
 
       - name: Run call variants benchmark
         run: |
@@ -87,7 +87,7 @@ jobs:
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
-            --methylation-read-type converted > /dev/null
+            --methylation-read-type annotated > /dev/null
           cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
@@ -97,7 +97,7 @@ jobs:
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
-            --methylation-read-type converted > /dev/null
+            --methylation-read-type annotated > /dev/null
           cargo flamegraph --release --output /tmp/flamegraph-pr-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
