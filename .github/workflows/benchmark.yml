@@ -11,7 +11,7 @@ env:
 jobs:
   benchmark:
     name: Measure speedup vs master
-    if: contains(github.event.pull_request.body, '[x] Run benchmark') || contains(github.event.pull_request.body, '[X] Run benchmark')
+    if: contains(github.event.pull_request.body, '[x] Run benchmark')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -87,21 +87,21 @@ jobs:
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
-            --methylation-read-type converted
+            --methylation-read-type converted > /dev/null
           cargo flamegraph --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
-            --obs normal=$DATA/normal.bcf
+            --obs normal=$DATA/normal.bcf > /dev/null
           cd ../pr
           cargo flamegraph --output /tmp/flamegraph-pr-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
-            --methylation-read-type converted
+            --methylation-read-type converted > /dev/null
           cargo flamegraph --output /tmp/flamegraph-pr-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
-            --obs normal=$DATA/normal.bcf
+            --obs normal=$DATA/normal.bcf > /dev/null
 
       - name: Upload flamegraph SVGs
         uses: actions/upload-artifact@v4
