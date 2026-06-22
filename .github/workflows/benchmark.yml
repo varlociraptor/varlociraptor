@@ -61,9 +61,9 @@ jobs:
             --show-output \
             --export-markdown /tmp/benchmark-preprocess.md \
             --reference-name "master" \
-            --reference "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
+            --reference "master/target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
-              "target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
+              "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
 
       - name: Run call variants benchmark
         run: |
@@ -73,9 +73,9 @@ jobs:
             --show-output \
             --export-markdown /tmp/benchmark-call.md \
             --reference-name "master" \
-            --reference "master/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
+            --reference "master/target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
-              "target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
+              "target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
       - name: Generate flamegraphs
         run: |
