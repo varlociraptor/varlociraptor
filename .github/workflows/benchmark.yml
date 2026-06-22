@@ -36,6 +36,7 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
         with:
+          cmd-format: pixi run bash -e {0}
           workspaces: |
             pr -> target
             master -> target
