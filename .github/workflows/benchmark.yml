@@ -30,7 +30,13 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install system dependencies
-        run: sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools hyperfine
+        run: sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools hyperfine linux-tools-common linux-tools-generic
+
+      - name: Set up perf and install cargo-flamegraph
+        run: |
+          sudo apt-get install --yes linux-tools-$(uname -r) || true
+          echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
+          cargo install flamegraph
 
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
@@ -71,6 +77,37 @@ jobs:
             --command-name "PR (${{ github.head_ref }})" \
               "pr/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
+      - name: Generate flamegraphs
+        run: |
+          DATA=tests/resources/flamegraph_profiling
+          cd master
+          cargo flamegraph --output /tmp/flamegraph-master-preprocess.svg -- \
+            preprocess variants $DATA/ref.fa \
+            --candidates $DATA/candidates.vcf \
+            --bam $DATA/alignment.bam \
+            --methylation-read-type converted
+          cargo flamegraph --output /tmp/flamegraph-master-call.svg -- \
+            call variants generic \
+            --scenario $DATA/scenario.yaml \
+            --obs normal=$DATA/normal.bcf
+          cd ../pr
+          cargo flamegraph --output /tmp/flamegraph-pr-preprocess.svg -- \
+            preprocess variants $DATA/ref.fa \
+            --candidates $DATA/candidates.vcf \
+            --bam $DATA/alignment.bam \
+            --methylation-read-type converted
+          cargo flamegraph --output /tmp/flamegraph-pr-call.svg -- \
+            call variants generic \
+            --scenario $DATA/scenario.yaml \
+            --obs normal=$DATA/normal.bcf
+
+      - name: Upload flamegraph SVGs
+        uses: actions/upload-artifact@v4
+        with:
+          name: flamegraphs
+          path: /tmp/flamegraph-*.svg
+          retention-days: 90
+
       - name: Post benchmark results as PR comment
         uses: actions/github-script@v7
         with:
@@ -88,6 +125,10 @@ jobs:
               '### `call variants`',
               '',
               callTable,
+              '',
+              '### 🔥 Flamegraphs',
+              '',
+              `Flamegraph SVGs (master and PR, for both subcommands) are available as artifacts on the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
               '',
               '<sub>Data: `tests/resources/flamegraph_profiling`</sub>',
             ].join('\n');
