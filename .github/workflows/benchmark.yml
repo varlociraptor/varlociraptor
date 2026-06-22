@@ -62,8 +62,8 @@ jobs:
             --warmup 2 \
             --show-output \
             --export-markdown /tmp/benchmark-preprocess.md \
-            --command-name "master" \
-              "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type converted > /dev/null" \
+            --reference-name "master" \
+            --reference "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type converted > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
               "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type converted > /dev/null"
 
@@ -74,8 +74,8 @@ jobs:
             --warmup 2 \
             --show-output \
             --export-markdown /tmp/benchmark-call.md \
-            --command-name "master" \
-              "master/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
+            --reference-name "master" \
+            --reference "master/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
               "pr/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
