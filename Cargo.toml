@@ -96,6 +96,7 @@ use-intrinsics = ["half/use-intrinsics"]
 [profile.release]
 codegen-units = 1
 lto = "fat"
+debug = true # keep debug symbols (only increases bin size but yields better panics and enables flamegraphing)
 
 [profile.develop]
 codegen-units = 128
