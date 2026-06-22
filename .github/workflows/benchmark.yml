@@ -45,7 +45,7 @@ jobs:
 
       - name: Build master binary
         working-directory: master
-        run: pixi run cargo build # --profile profiling TODO enable once the profile is in master
+        run: pixi run cargo build --profile profiling
 
       - name: Build PR binary
         run: pixi run cargo build --profile profiling
