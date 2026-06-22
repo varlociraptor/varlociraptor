@@ -17,6 +17,11 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Install system dependencies
+        run: |
+          sudo apt install linux-tools-common linux-tools-generic linux-tools-`uname -r`
+          echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+
       - name: Checkout PR
         uses: actions/checkout@v6
 
