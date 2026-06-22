@@ -690,3 +690,18 @@ pub fn signif(float: f64, precision: usize) -> String {
     // format with the given computed precision
     format!("{0:.1$}", float, precision)
 }
+
+pub fn interpolate_prob<T>(
+    left_val: T,
+    right_val: T,
+    left_prob: LogProb,
+    right_prob: LogProb,
+    val: T,
+) -> LogProb
+where
+    T: num_traits::Float + num_traits::AsPrimitive<f64> + Copy,
+{
+    let scale = (val - left_val) / (right_val - left_val);
+
+    left_prob.ln_add_exp(LogProb(*right_prob + scale.ln().as_()))
+}

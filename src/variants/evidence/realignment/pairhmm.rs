@@ -76,8 +76,6 @@ pub(crate) trait RefBaseEmission {
 
 pub(crate) trait VariantEmission {
     fn is_homopolymer_indel(&self) -> bool;
-
-    fn alt_vs_ref_len_diff(&self) -> isize;
 }
 
 #[macro_export]
@@ -368,10 +366,6 @@ impl<'a> VariantEmission for ReadVsAlleleEmission<'a> {
     fn is_homopolymer_indel(&self) -> bool {
         self.allele_emission.is_homopolymer_indel()
     }
-
-    fn alt_vs_ref_len_diff(&self) -> isize {
-        self.allele_emission.alt_vs_ref_len_diff()
-    }
 }
 
 impl<'a> pairhmm::EmissionParameters for ReadVsAlleleEmission<'a> {
@@ -519,10 +513,6 @@ impl RefBaseEmission for ReferenceEmissionParams {
 impl VariantEmission for ReferenceEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
-    }
-
-    fn alt_vs_ref_len_diff(&self) -> isize {
-        0
     }
 }
 

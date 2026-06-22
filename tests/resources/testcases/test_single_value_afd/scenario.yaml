@@ -1,0 +1,31 @@
+species:
+  heterozygosity: 0.001
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+samples:
+  normal:
+    resolution: 0.1
+    sex: female
+    somatic-effective-mutation-rate: 1e-6
+  tumor_biopsy:
+    resolution: 0.01
+    sex: female
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: true
+    contamination:
+      by: normal
+      fraction: 0.4
+events:
+  somatic_tumor: normal:0.0 & tumor_biopsy:]0.0,1.0]
+  germline: normal:0.5 | normal:1.0
+  somatic_normal: normal:]0.0,0.5[

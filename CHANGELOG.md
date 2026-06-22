@@ -2,6 +2,22 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.9.5](https://github.com/varlociraptor/varlociraptor/compare/v8.9.4...v8.9.5) (2026-02-10)
+
+
+### Bug Fixes
+
+* ensure that dummy third alleles also work in repetitive regions; stop estimating artifact gap extensions via looking at true extensions in the data, instead estimate them from gap openings, which is more robust since we have more data for that ([#543](https://github.com/varlociraptor/varlociraptor/issues/543)) ([a68a10e](https://github.com/varlociraptor/varlociraptor/commit/a68a10e8595ffcf7bebb8ff3625932714f3f7e5e))
+
+## [8.9.4](https://github.com/varlociraptor/varlociraptor/compare/v8.9.3...v8.9.4) (2026-02-06)
+
+
+### Bug Fixes
+
+* always report non-zero edit dist against alt allele if it exceeds the edit dist against the ref allele ([#537](https://github.com/varlociraptor/varlociraptor/issues/537)) ([bea854b](https://github.com/varlociraptor/varlociraptor/commit/bea854bf2843443eb0ab41eee49efe44b2ea85fb))
+* ensure that discrete VAFs are reported in the AFD field even if they are not part of the maximum likelihood AF estimate ([#540](https://github.com/varlociraptor/varlociraptor/issues/540)) ([d35bc5b](https://github.com/varlociraptor/varlociraptor/commit/d35bc5b5dc387efd8fef1ddbea820783a2013425))
+* only output alt edit dist if the observation supports the ALT allele ([#539](https://github.com/varlociraptor/varlociraptor/issues/539)) ([013eb5d](https://github.com/varlociraptor/varlociraptor/commit/013eb5d43cae9fd809dd94bdf729afb8c100f8c2))
+
 ## [8.9.3](https://github.com/varlociraptor/varlociraptor/compare/v8.9.2...v8.9.3) (2026-01-14)
 
 

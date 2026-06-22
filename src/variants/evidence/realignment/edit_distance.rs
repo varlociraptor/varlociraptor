@@ -386,76 +386,16 @@ impl EditDistanceCalculation {
 
             let alignment = edit_distance_hit.some_alignment();
 
-            // relative position in the emission snippet we have aligned against
-            let mut pos_ref = alignment.start;
-            let mut pos_read = 0; // semiglobal alignment
-
             let mut allele = Vec::new();
             // add part before the alignment
             allele.extend((0..alignment.start).map(|i| emission_params.ref_base(i)));
-
-            for op in alignment.operations() {
-                let is_in_range = emission_params
-                    .is_in_variant_ref_range(pos_ref as u64 + emission_params.ref_offset() as u64);
-                match op {
-                    AlignmentOperation::Match => {
-                        allele.push(emission_params.ref_base(pos_ref));
-                        pos_ref += 1;
-                        pos_read += 1;
-                    }
-                    AlignmentOperation::Subst => {
-                        allele.push(if is_in_range {
-                            self.read_seq[pos_read]
-                        } else {
-                            emission_params.ref_base(pos_ref)
-                        });
-                        pos_ref += 1;
-                        pos_read += 1;
-                    }
-                    AlignmentOperation::Del => {
-                        if is_in_range {
-                            pos_ref += 1;
-                        } else {
-                            emission_params.ref_base(pos_ref);
-                            pos_ref += 1;
-                        }
-                    }
-                    AlignmentOperation::Ins => {
-                        if is_in_range {
-                            allele.push(self.read_seq[pos_read]);
-                            pos_read += 1;
-                        } else {
-                            pos_read += 1;
-                        }
-                    }
-                    _ => {
-                        unreachable!("bug: unexpected alignment operation")
-                    }
-                }
-            }
-
-            let del_len = cmp::min(emission_params.alt_vs_ref_len_diff(), 0).unsigned_abs();
-            // add the remaining sequence
-            // be robust to del_len being too large (can happen when the encoding in the VCF is wrong)
-            allele.extend(
-                (pos_ref
-                    ..cmp::max(
-                        (emission_params.ref_end() - emission_params.ref_offset())
-                            .saturating_sub(del_len),
-                        pos_ref,
-                    ))
-                    //(pos_ref..emission_params.ref_end() - emission_params.ref_offset())
-                    .map(|i| emission_params.ref_base(i)),
-            );
-
-            // Adjust ref_end by end_reduce, in order to ensure that deletions in var_range do not shorten the allele
-            // without adjusting the ref_end.
+            allele.extend(self.read_seq.iter());
 
             Some(ReadVsAlleleEmission::new(
                 emission_params.read_emission(),
                 Box::new(PatchedAlleleEmission {
                     ref_offset: emission_params.allele_emission().ref_offset(),
-                    ref_end: emission_params.allele_emission().ref_offset() + allele.len(), //emission_params.allele_emission().ref_end(),
+                    ref_end: emission_params.allele_emission().ref_offset() + allele.len(),
                     patched_seq: allele,
                     ref_offset_override: None,
                     ref_end_override: None,
@@ -542,10 +482,6 @@ impl RefBaseEmission for PatchedAlleleEmission {
 
 impl VariantEmission for PatchedAlleleEmission {
     fn is_homopolymer_indel(&self) -> bool {
-        unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
-    }
-
-    fn alt_vs_ref_len_diff(&self) -> isize {
         unreachable!("bug: PatchedAlleleEmission should not be used as a normal alt allele");
     }
 }

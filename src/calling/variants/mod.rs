@@ -6,8 +6,8 @@
 pub(crate) mod calling;
 pub mod preprocessing;
 
-use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::RangeInclusive;
 use std::rc::Rc;
@@ -380,7 +380,6 @@ impl Call {
                 simple_ref_observations.insert(i, fmt_simple_obs(false));
 
                 omitted_observations.insert(i, sample_info.pileup.n_filtered_out_observations());
-
                 vaf_densities.insert(i, sample_info.vaf_dist.clone());
             }
         }
@@ -546,7 +545,6 @@ impl Call {
                         || b".".to_vec(),
                         |dist| {
                             dist.iter()
-                                .sorted_by_key(|(vaf, _)| *vaf)
                                 .map(|(vaf, prob)| {
                                     format!("{:.3}={:.2}", **vaf, *PHREDProb::from(*prob))
                                 })
@@ -703,7 +701,7 @@ pub(crate) struct SampleInfo {
     pileup: Rc<Pileup>,
     artifacts: Artifacts,
     #[getset(get = "pub(crate)")]
-    vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
+    vaf_dist: Option<BTreeMap<AlleleFreq, LogProb>>,
 }
 
 pub(crate) fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
