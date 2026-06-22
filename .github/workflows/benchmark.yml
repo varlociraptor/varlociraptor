@@ -54,6 +54,9 @@ jobs:
         run: pixi run cargo install flamegraph
 
       - name: Run preprocess variants benchmark
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           pixi run hyperfine \
@@ -66,6 +69,9 @@ jobs:
               "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
 
       - name: Run call variants benchmark
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           pixi run hyperfine \
@@ -78,6 +84,9 @@ jobs:
               "target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
       - name: Generate flamegraphs
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
         run: |
           DATA=tests/resources/flamegraph_profiling
           cd master
