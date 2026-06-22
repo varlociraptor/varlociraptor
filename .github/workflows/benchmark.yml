@@ -81,13 +81,12 @@ jobs:
         run: |
           DATA=tests/resources/flamegraph_profiling
           cd master
-          # TODO  --profile profiling once the profile is in master
-          pixi run --manifest-path ../pixi.toml cargo flamegraph --output /tmp/flamegraph-master-preprocess.svg -- \
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --profile profiling --output /tmp/flamegraph-master-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type annotated > /dev/null
-          pixi run --manifest-path ../pixi.toml cargo flamegraph --output /tmp/flamegraph-master-call.svg -- \
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --profile profiling --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
