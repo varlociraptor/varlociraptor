@@ -18,27 +18,19 @@ jobs:
 
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: pr
 
       - name: Checkout master
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: master
           path: master
 
-      - name: Install stable toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install system dependencies
-        run: sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools hyperfine linux-tools-common linux-tools-generic
-
-      - name: Set up perf and install cargo-flamegraph
-        run: |
-          sudo apt-get install --yes linux-tools-$(uname -r) || true
-          echo "-1" | sudo tee /proc/sys/kernel/perf_event_paranoid
-          cargo install flamegraph
+      - uses: prefix-dev/setup-pixi@v0.9.6
+        with:
+          cache: true
 
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
@@ -49,16 +41,19 @@ jobs:
 
       - name: Build master binary
         working-directory: master
-        run: cargo build --release
+        run: pixi run cargo build --release
 
       - name: Build PR binary
         working-directory: pr
-        run: cargo build --release
+        run: pixi run cargo build --release
+
+      - name: Install hyperfine
+        run: pixi run cargo install cargo-flamegraph
 
       - name: Run preprocess variants benchmark
         run: |
           DATA=master/tests/resources/flamegraph_profiling
-          hyperfine \
+          pixi run hyperfine \
             --warmup 2 \
             --show-output \
             --export-markdown /tmp/benchmark-preprocess.md \
@@ -70,7 +65,7 @@ jobs:
       - name: Run call variants benchmark
         run: |
           DATA=master/tests/resources/flamegraph_profiling
-          hyperfine \
+          pixi run hyperfine \
             --warmup 2 \
             --show-output \
             --export-markdown /tmp/benchmark-call.md \
@@ -83,22 +78,22 @@ jobs:
         run: |
           DATA=tests/resources/flamegraph_profiling
           cd master
-          cargo flamegraph --release --output /tmp/flamegraph-master-preprocess.svg -- \
+          pixi run cargo flamegraph --release --output /tmp/flamegraph-master-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type annotated > /dev/null
-          cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
+          pixi run cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
           cd ../pr
-          cargo flamegraph --release --output /tmp/flamegraph-pr-preprocess.svg -- \
+          pixi run cargo flamegraph --release --output /tmp/flamegraph-pr-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type annotated > /dev/null
-          cargo flamegraph --release --output /tmp/flamegraph-pr-call.svg -- \
+          pixi run cargo flamegraph --release --output /tmp/flamegraph-pr-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
