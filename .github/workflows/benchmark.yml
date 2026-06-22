@@ -83,22 +83,22 @@ jobs:
         run: |
           DATA=tests/resources/flamegraph_profiling
           cd master
-          cargo flamegraph --output /tmp/flamegraph-master-preprocess.svg -- \
+          cargo flamegraph --release --output /tmp/flamegraph-master-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type converted > /dev/null
-          cargo flamegraph --output /tmp/flamegraph-master-call.svg -- \
+          cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
           cd ../pr
-          cargo flamegraph --output /tmp/flamegraph-pr-preprocess.svg -- \
+          cargo flamegraph --release --output /tmp/flamegraph-pr-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type converted > /dev/null
-          cargo flamegraph --output /tmp/flamegraph-pr-call.svg -- \
+          cargo flamegraph --release --output /tmp/flamegraph-pr-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
