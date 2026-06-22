@@ -19,8 +19,6 @@ jobs:
     steps:
       - name: Checkout PR
         uses: actions/checkout@v6
-        with:
-          path: pr
 
       - name: Checkout master
         uses: actions/checkout@v6
@@ -36,9 +34,9 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
         with:
-          cmd-format: pixi run --manifest-path ${{ github.workspace }}/pr/pixi.toml {0}
+          cmd-format: pixi run {0}
           workspaces: |
-            pr -> target
+            target
             master -> target
 
       - name: Build master binary
@@ -46,10 +44,9 @@ jobs:
         run: pixi run cargo build --release
 
       - name: Build PR binary
-        working-directory: pr
         run: pixi run cargo build --release
 
-      - name: Install hyperfine
+      - name: Install cargo-flamegraph
         run: pixi run cargo install cargo-flamegraph
 
       - name: Run preprocess variants benchmark
@@ -62,7 +59,7 @@ jobs:
             --reference-name "master" \
             --reference "master/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
-              "pr/target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
+              "target/release/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
 
       - name: Run call variants benchmark
         run: |
@@ -74,22 +71,22 @@ jobs:
             --reference-name "master" \
             --reference "master/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
             --command-name "PR (${{ github.head_ref }})" \
-              "pr/target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
+              "target/release/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
       - name: Generate flamegraphs
         run: |
           DATA=tests/resources/flamegraph_profiling
           cd master
-          pixi run cargo flamegraph --release --output /tmp/flamegraph-master-preprocess.svg -- \
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --release --output /tmp/flamegraph-master-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
             --bam $DATA/alignment.bam \
             --methylation-read-type annotated > /dev/null
-          pixi run cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
+          pixi run --manifest-path ../pixi.toml cargo flamegraph --release --output /tmp/flamegraph-master-call.svg -- \
             call variants generic \
             --scenario $DATA/scenario.yaml \
             --obs normal=$DATA/normal.bcf > /dev/null
-          cd ../pr
+          cd ..
           pixi run cargo flamegraph --release --output /tmp/flamegraph-pr-preprocess.svg -- \
             preprocess variants $DATA/ref.fa \
             --candidates $DATA/candidates.vcf \
