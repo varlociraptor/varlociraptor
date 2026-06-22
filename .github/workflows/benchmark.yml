@@ -116,7 +116,7 @@ jobs:
             const preprocessTable = fs.readFileSync('/tmp/benchmark-preprocess.md', 'utf8');
             const callTable = fs.readFileSync('/tmp/benchmark-call.md', 'utf8');
             const body = [
-              '## ⏱ Benchmark Results',
+              '## Benchmark Results',
               '',
               '### `preprocess variants`',
               '',
@@ -126,7 +126,7 @@ jobs:
               '',
               callTable,
               '',
-              '### 🔥 Flamegraphs',
+              '### Flamegraphs',
               '',
               `Flamegraph SVGs (master and PR, for both subcommands) are available as artifacts on the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
               '',
