@@ -29,8 +29,6 @@ jobs:
           path: master
 
       - uses: prefix-dev/setup-pixi@v0.9.6
-        with:
-          cache: true
 
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
