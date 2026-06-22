@@ -36,7 +36,7 @@ jobs:
       - name: Cache cargo registry
         uses: Swatinem/rust-cache@v2
         with:
-          cmd-format: ls -l
+          cmd-format: (ls -l >&2) && pixi run --manifest-path $GITHUB_WORKSPACE/pr/pixi.toml {0}
           workspaces: |
             pr -> target
             master -> target
