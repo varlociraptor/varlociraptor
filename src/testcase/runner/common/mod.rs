@@ -342,6 +342,7 @@ pub trait Testcase {
 
         for call in calls {
             let afs = call.format(b"AF").float().unwrap();
+            warn!("AFS: {:?}", afs);
             if let Some(exprs) = self.yaml()["expected"]["allelefreqs"].as_vec() {
                 for expr in exprs.iter() {
                     let mut expr = Expr::new(expr.as_str().unwrap());

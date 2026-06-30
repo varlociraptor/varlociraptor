@@ -131,7 +131,7 @@ where
     }
 
     let sorted_grid_points: Vec<f64> = probs.keys().sorted().map(|point| (*point).into()).collect();
-
+    warn!("Sorted grid points: {:?}", sorted_grid_points);
     // METHOD:
     // Step 2: integrate over grid points visited during the binary search.
     LogProb::ln_trapezoidal_integrate_grid_exp::<f64, _>(

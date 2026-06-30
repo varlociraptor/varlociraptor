@@ -1,0 +1,8 @@
+samples:
+  pacbio:
+    universe: "[0.0, 1.0]"
+  nanopore:
+    universe: "[0.0, 1.0]"
+
+events:
+  present: "pacbio:]0.0,1.0] & pacbio == nanopore"
