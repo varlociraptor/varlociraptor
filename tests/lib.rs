@@ -181,7 +181,8 @@ testcase!(test_prinz_af_scan, exact);
 testcase!(test_prinz_call_meth_1, exact);
 testcase!(test_prinz_call_meth_2, exact);
 testcase!(test_prinz_pacbio_zero, exact);
-testcase!(test_prinz_common_calling, exact);
+testcase!(test_prinz_common_calling_equal, exact);
+testcase!(test_prinz_common_calling_smaller, exact);
 testcase!(test_prinz_single_calling, exact);
 
 testcase!(test_imprecise_fusion, exact);
