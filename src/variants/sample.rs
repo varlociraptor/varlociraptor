@@ -29,9 +29,10 @@ use std::f64;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
+use std::sync::Arc;
 
 type MethylationPosToProbs = HashMap<usize, LogProb>;
-type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<Rc<MethylationPosToProbs>>>;
+type MethylationOfRead = HashMap<ByAddress<Arc<Record>>, Option<Rc<MethylationPosToProbs>>>;
 
 #[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -44,7 +45,7 @@ pub(crate) struct RecordBuffer {
     // Hashmap containing as a key the read and as a value a hashmap with the position of methylation and the probability of methylation
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
-    failed_reads: Option<HashSet<ByAddress<Rc<Record>>>>,
+    failed_reads: Option<HashSet<ByAddress<Arc<Record>>>>,
 }
 
 impl RecordBuffer {
@@ -83,11 +84,11 @@ impl RecordBuffer {
 
     pub(crate) fn get_read_specific_meth_probs(
         &self,
-        rec: &Rc<Record>,
+        rec: &Arc<Record>,
     ) -> Option<Rc<HashMap<usize, LogProb>>> {
         self.methylation_probs.as_ref().and_then(|meth_probs| {
             meth_probs
-                .get(&ByAddress(Rc::clone(rec)))
+                .get(&ByAddress(Arc::clone(rec)))
                 .cloned()
                 .flatten()
         })
@@ -110,7 +111,7 @@ impl RecordBuffer {
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 for rec in self.inner.iter() {
-                    let rec_id = ByAddress(Rc::clone(rec));
+                    let rec_id = ByAddress(Arc::clone(rec));
                     // If the read has been processed in a previous fetch we skip it.
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         // Extract methylation probs out of MM and ML tag and save in methylation_probs
@@ -126,7 +127,7 @@ impl RecordBuffer {
                 let buffer_ids: HashSet<_> = self
                     .inner
                     .iter()
-                    .map(|rec| ByAddress(Rc::clone(rec)))
+                    .map(|rec| ByAddress(Arc::clone(rec)))
                     .collect();
                 // Clean up methylation_probs to only keep entries for reads that are still in the buffer.
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
@@ -145,11 +146,11 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = Rc<bam::Record>> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Arc<bam::Record>> + '_ {
         self.inner
             .iter()
             .filter(|record| is_valid_record(record.as_ref()))
-            .map(Rc::clone)
+            .map(Arc::clone)
     }
 }
 

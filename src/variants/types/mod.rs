@@ -5,7 +5,7 @@
 
 use std::cmp;
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
@@ -359,11 +359,11 @@ where
                 let evidence = Evidence::PairedEndSequencingRead {
                     // buffer.get_read_specific_meth_probs returns None if we do not deal with reads annotated with methylation information
                     left: AlignmentRecord::new(
-                        Rc::clone(&candidate.left),
+                        Arc::clone(&candidate.left),
                         buffer.get_read_specific_meth_probs(&candidate.left),
                     ),
                     right: AlignmentRecord::new(
-                        Rc::clone(right),
+                        Arc::clone(right),
                         buffer.get_read_specific_meth_probs(right),
                     ),
                 };
@@ -374,7 +374,7 @@ where
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = Evidence::SingleEndSequencingRead(AlignmentRecord::new(
-                    Rc::clone(&candidate.left),
+                    Arc::clone(&candidate.left),
                     buffer.get_read_specific_meth_probs(&candidate.left),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -514,12 +514,12 @@ impl Loci for MultiLocus {
 
 #[derive(Debug)]
 struct Candidate {
-    left: Rc<bam::Record>,
-    right: Option<Rc<bam::Record>>,
+    left: Arc<bam::Record>,
+    right: Option<Arc<bam::Record>>,
 }
 
 impl Candidate {
-    fn new(record: Rc<bam::Record>) -> Self {
+    fn new(record: Arc<bam::Record>) -> Self {
         Candidate {
             left: record,
             right: None,

@@ -20,6 +20,7 @@ use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
@@ -110,7 +111,7 @@ fn mm_exists(evidence: &Evidence) -> bool {
 
 /// Helper function to check MM tags for a single record
 /// Sometimes single PacBio reads do not have methylation information
-fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
+fn mm_tag_exists(record: &Arc<bam::Record>) -> bool {
     matches!(
         (record.aux(b"Mm"), record.aux(b"MM")),
         (Ok(_), _) | (_, Ok(_))
@@ -127,7 +128,7 @@ fn is_5mc_header(header: &str) -> bool {
 /// pos_methylated_bases: Vector of positions (0-based read indices) of methylated bases
 ///
 ///
-pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
+pub fn extract_mm_ml_5mc(read: &Arc<Record>) -> Option<HashMap<usize, LogProb>> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -248,7 +249,7 @@ fn complement_base(base: u8) -> u8 {
 ///
 /// Returns `Some((meth, unmeth))` on success, or `None` if the read should be skipped.
 fn process_read(
-    read: &Rc<Record>,
+    read: &Arc<Record>,
     meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
     qpos: u32,
     annotated_read: bool,
@@ -305,7 +306,7 @@ fn compute_probs_annotated_read(
 /// prob_ref: Probability of no methylation (reference)
 pub fn compute_probs_converted_read(
     read_reverse: bool,
-    record: &Rc<Record>,
+    record: &Arc<Record>,
     qpos: u32,
 ) -> (LogProb, LogProb) {
     let (ref_base, bisulfite_base) = if !read_reverse {
@@ -333,7 +334,7 @@ pub fn compute_probs_converted_read(
 /// * `true` if an unexpected base is found (indicating mutation), `false` otherwise
 fn mutation_occurred(
     read_reverse: bool,
-    record: &Rc<Record>,
+    record: &Arc<Record>,
     qpos: u32,
     annotated_read: bool,
 ) -> bool {
@@ -483,7 +484,7 @@ impl ToVariantRepresentation for Methylation {
 ///  
 /// # Returns  
 /// * `true` if the read is from the reverse strand, `false` otherwise
-pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
+pub(crate) fn read_reverse_orientation(read: &Arc<Record>) -> bool {
     let read_paired = read.is_paired();
     let read_reverse = read.is_reverse();
     let read_first = read.is_first_in_template();
