@@ -267,7 +267,7 @@ impl GenericPosterior {
                     }
                 }
 
-                let (n_obs, is_clear_ref) = {
+                let (n_obs, is_clear_ref, is_clear_hom_alt) = {
                     let pileup = &data.pileups[*sample];
                     if pileup.read_observations().is_empty()
                         && !pileup.depth_observations().is_empty()
@@ -277,7 +277,7 @@ impl GenericPosterior {
                         // Hence we always assume that there is no clear ref support and do the full
                         // evaluation below.
                         // This should be fine since there should be much less CNV calls than small variants.
-                        (pileup.depth_observations().len(), false)
+                        (pileup.depth_observations().len(), false, false)
                     } else {
                         // normal variants, only consider read observations for these heuristic markers
                         let n_obs = pileup.read_observations().len();
@@ -286,7 +286,12 @@ impl GenericPosterior {
                                 .read_observations()
                                 .iter()
                                 .all(|obs| obs.is_positive_ref_support());
-                        (n_obs, is_clear_ref)
+                        let is_clear_hom_alt = n_obs > 10
+                            && pileup
+                                .read_observations()
+                                .iter()
+                                .all(|obs| obs.is_positive_alt_support());
+                        (n_obs, is_clear_ref, is_clear_hom_alt)
                     }
                 };
 
@@ -298,6 +303,13 @@ impl GenericPosterior {
                             // immediately stop, returning a probability of zero.
                             return LogProb::ln_zero();
                         }
+                        if is_clear_hom_alt && vafs.iter().all(|vaf| **vaf < 1.0) {
+                            // METHOD: shortcut for the case that all obs support the alt but the vafs
+                            // in this event are < 1. Then, we don't need to recurse further and can
+                            // immediately stop, returning a probability of zero.
+                            return LogProb::ln_zero();
+                        }
+
                         let vafs = if let Some(lfc_bounds) = &lfc_bounds {
                             vafs.iter()
                                 .filter(|vaf| lfc_bounds.contains(**vaf))
