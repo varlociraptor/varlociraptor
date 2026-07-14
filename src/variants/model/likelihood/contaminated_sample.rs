@@ -1,56 +1,14 @@
-// Copyright 2016-2019 Johannes Köster, David Lähnemann.
-// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
-// This file may not be copied, modified, or distributed
-// except according to those terms.
-
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 use lru::LruCache;
+use itertools::Itertools;
 
-use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Artifacts;
 use crate::variants::model::AlleleFreq;
+use crate::variants::model::likelihood::{Event, likelihood_mapping};
 
 pub(crate) type ContaminatedSampleCache = LruCache<ContaminatedSampleEvent, LogProb>;
-pub(crate) type SingleSampleCache = LruCache<Event, LogProb>;
-
-#[derive(PartialEq, Eq, Debug, Clone, Hash)]
-pub(crate) struct Event {
-    pub(crate) allele_freq: AlleleFreq,
-    pub(crate) artifacts: Artifacts,
-    pub(crate) is_discrete: bool,
-}
-
-impl Event {
-    pub(crate) fn absent() -> Self {
-        Event {
-            allele_freq: AlleleFreq(0.0),
-            artifacts: Artifacts::none(),
-            is_discrete: true,
-        }
-    }
-
-    pub(crate) fn is_artifact(&self) -> bool {
-        self.artifacts.is_artifact()
-    }
-
-    pub(crate) fn is_absent(&self) -> bool {
-        *self.allele_freq == 0.0
-    }
-}
-
-fn prob_sample_alt(observation: &ProcessedReadObservation, allele_freq: LogProb) -> LogProb {
-    if allele_freq != LogProb::ln_one() {
-        // The effective sample probability for the alt allele is the allele frequency times
-        // the probability to obtain a feasible fragment (prob_sample_alt).
-        (allele_freq + observation.prob_sample_alt).cap_numerical_overshoot(NUMERICAL_EPSILON)
-    } else {
-        // If allele frequency is 1.0, sampling bias does have no effect because all reads
-        // should come from the alt allele.
-        allele_freq
-    }
-}
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct ContaminatedSampleEvent {
@@ -113,6 +71,18 @@ impl ContaminatedSampleLikelihoodModel {
         assert!(!total.is_nan());
         total
     }
+
+    /// Estimate the allele frequency as expected value of the posterior distribution with a uniform prior.
+    pub(crate) fn estimate_allele_freq(&self, pileup: &Pileup, contaminant_allele_freq: AlleleFreq) -> AlleleFreq {
+        // METHOD: Calculate expected depth and expected alt depth, and correct it with the purity.
+        // This is a good estimate of the mode of the posterior distribution.
+        let depth = LogProb::ln_sum_exp(&pileup.read_observations().iter().map(|obs| obs.prob_mapping()).collect_vec());
+        let alt_depth = LogProb::ln_sum_exp(&pileup.read_observations().iter().map(|obs| obs.prob_mapping() + obs.prob_missed_allele + obs.prob_alt()).collect_vec());
+        let expected_observed_allele_freq = (alt_depth - depth).exp();
+        // METHOD: it holds purity * sample_vaf + impurity * contaminant_vaf = observed_vaf
+        // We resolve this to sample_vaf below
+        AlleleFreq((expected_observed_allele_freq - *contaminant_allele_freq * self.impurity.exp()) / self.purity.exp())
+    }
 }
 
 impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
@@ -157,103 +127,13 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
     }
 }
 
-/// Likelihood model for single sample.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct SampleLikelihoodModel {}
-
-impl SampleLikelihoodModel {
-    /// Create new model.
-    pub(crate) fn new() -> Self {
-        SampleLikelihoodModel {}
-    }
-
-    /// Likelihood to observe a read given allele frequency for a single sample.
-    fn likelihood_observation(
-        &self,
-        allele_freq: LogProb,
-        biases: &Artifacts,
-        observation: &ProcessedReadObservation,
-    ) -> LogProb {
-        // Step 1: likelihood for the mapping case.
-        let prob = likelihood_mapping(allele_freq, biases, observation);
-
-        // Step 2: total probability
-        // Important note: we need to multiply a probability for a hypothetical missed allele
-        // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
-        // differences in the likelihood for alt and ref allele with low probabilities and very
-        // low allele frequencies, such that we loose sensitivity for those.
-        let total = (observation.prob_mapping() + prob).ln_add_exp(
-            observation.prob_mismapping()
-                + observation.prob_missed_allele
-                + biases.prob_any(observation),
-        );
-
-        assert!(!total.is_nan());
-        total
-    }
-}
-
-/// Calculate likelihood of allele freq given observation in a single sample assuming that the
-/// underlying fragment/read is mapped correctly.
-fn likelihood_mapping(
-    allele_freq: LogProb,
-    biases: &Artifacts,
-    observation: &ProcessedReadObservation,
-) -> LogProb {
-    // Step 1: calculate probability to sample from alt allele
-    let prob_sample_alt = prob_sample_alt(observation, allele_freq);
-    let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
-
-    let prob_bias_alt = biases.prob_alt(observation);
-    let prob_bias_ref = biases.prob_ref(observation);
-
-    // Step 2: read comes from case sample and is correctly mapped
-    let prob = LogProb::ln_sum_exp(&[
-        // alt allele
-        prob_sample_alt + prob_bias_alt + observation.prob_alt(),
-        // ref allele
-        prob_sample_ref + observation.prob_ref() + prob_bias_ref,
-    ]);
-    assert!(!prob.is_nan());
-
-    prob
-}
-
-impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
-    type Event = Event;
-    type Data = Pileup;
-
-    /// Likelihood to observe a pileup given allele frequencies for case and control.
-    fn compute(&self, event: &Event, pileup: &Pileup, cache: &mut SingleSampleCache) -> LogProb {
-        if let Some(prob) = cache.get(event) {
-            *prob
-        } else {
-            let ln_af = LogProb(event.allele_freq.ln());
-
-            // calculate product of per-read likelihoods in log space
-            let likelihood =
-                pileup
-                    .read_observations()
-                    .iter()
-                    .fold(LogProb::ln_one(), |prob, obs| {
-                        let lh = self.likelihood_observation(ln_af, &event.artifacts, obs);
-                        prob + lh
-                    });
-
-            assert!(!likelihood.is_nan());
-
-            cache.put(event.clone(), likelihood);
-
-            likelihood
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::variants::model::bias::Artifacts;
     use crate::variants::model::likelihood;
+    use crate::variants::model::likelihood::contaminated_sample::ContaminatedSampleLikelihoodModel;
     use crate::variants::model::tests::observation;
     use bio::stats::LogProb;
     use itertools_num::linspace;
@@ -268,17 +148,6 @@ mod tests {
             artifacts: biases(),
             is_discrete: true,
         }
-    }
-
-    #[test]
-    fn test_likelihood_observation_absent_single() {
-        let observation = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());
-
-        let model = SampleLikelihoodModel::new();
-
-        let lh =
-            model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, *biases().prob_ref(&observation));
     }
 
     #[test]
@@ -307,7 +176,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::ContaminatedSampleCache::new(100);
+        let mut cache = ContaminatedSampleCache::new(100);
 
         let lh = model.compute(
             &ContaminatedSampleEvent {
@@ -325,31 +194,6 @@ mod tests {
                 .map(|observation| biases().prob_ref(observation))
                 .sum::<LogProb>()
         );
-    }
-
-    #[test]
-    fn test_likelihood_pileup_absent_single() {
-        let model = SampleLikelihoodModel::new();
-        let mut observations = Pileup::default();
-        for _ in 0..10 {
-            observations.read_observations_mut().push(observation(
-                LogProb::ln_one(),
-                LogProb::ln_zero(),
-                LogProb::ln_one(),
-            ));
-        }
-        let mut cache = likelihood::SingleSampleCache::new(100);
-        let evt = event(0.0);
-        let lh = model.compute(&evt, &observations, &mut cache);
-        assert_relative_eq!(
-            *lh,
-            *observations
-                .read_observations()
-                .iter()
-                .map(|observation| biases().prob_ref(observation))
-                .sum::<LogProb>()
-        );
-        assert!(cache.get(&evt).is_some())
     }
 
     #[test]
@@ -371,7 +215,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::ContaminatedSampleCache::new(100);
+        let mut cache = ContaminatedSampleCache::new(100);
         let lh = model.compute(
             &ContaminatedSampleEvent {
                 primary: event(0.5),
