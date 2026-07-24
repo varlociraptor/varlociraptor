@@ -24,6 +24,6 @@ tests/resources/prior/**
 tests/resources/flamegraph_big/**
 tests/resources/prior/.snakemake
 tests/resources/prior/.snakemake/**
-.vscode/**
+.vscode
 .micromamba
 Cargo.lock

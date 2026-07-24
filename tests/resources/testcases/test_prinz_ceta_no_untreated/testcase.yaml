@@ -1,0 +1,37 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    # - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    # - PROB_SOMATIC_TUMOR <= 0.05
+    # - PROB_GERMLINE_HET > 0.05
+    - PROB_ABSENT < 2.6
+
+# necessary bam files
+samples:
+  methylseq:
+    path: 'methylseq.bam'
+    properties: '{"insert_size":{"mean":257.43374522918793,"sd":73.6692535597758},"max_del_cigar_len":51,"max_ins_cigar_len":34,"frac_max_softclip":0.5562913907284768,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.271644488245024,"prob_deletion_artifact":-8.064804682502636,"prob_insertion_extend_artifact":-0.36898824264424535,"prob_deletion_extend_artifact":-0.5577070794580832},"hop_params":{"prob_seq_homopolymer":[-6.368887212135669,-7.7716933075861,-7.6076107398177815,-5.86644357608611],"prob_ref_homopolymer":[-6.729507130477487,-9.265002122572243,-9.232960661949296,-6.6228400798892775],"prob_seq_extend_homopolymer":[-6.368887212135669,-7.7716933075861,-7.6076107398177815,-5.86644357608611],"prob_ref_extend_homopolymer":[-6.729507130477487,-9.265002122572243,-9.232960661949296,-6.6228400798892775]},"wildtype_homopolymer_error_model":{"3":0.0001935824834320544,"13":0.000010165714787978522,"37":2.4794426312142735e-7,"38":2.4794426312142735e-7,"29":1.2397213156071367e-7,"-2":0.000054981640347176516,"39":3.099303289017842e-7,"28":5.578745920232116e-7,"42":4.3390246046249785e-7,"20":1.3636934471678504e-6,"-10":1.2397213156071367e-7,"-12":6.198606578035684e-8,"35":6.198606578035684e-8,"24":4.3390246046249785e-7,"22":1.4256795129482072e-6,"15":4.462996736185693e-6,"7":0.000043080315717348004,"25":1.3636934471678504e-6,"21":9.297909867053526e-7,"40":3.099303289017842e-7,"36":1.2397213156071367e-7,"14":9.917770524857094e-6,"16":3.843136078382124e-6,"23":4.3390246046249785e-7,"-7":5.578745920232116e-7,"-9":3.099303289017842e-7,"-6":1.1157491840464232e-6,"5":0.00004016697062567123,"10":0.000015186586116187426,"-14":6.198606578035684e-8,"19":2.35547049965356e-6,"11":0.000010165714787978522,"26":4.958885262428547e-7,"-4":4.029094275723195e-6,"-11":1.8595819734107052e-7,"-23":6.198606578035684e-8,"-1":0.0000231208025360731,"1":0.0011655239948680496,"4":0.000060250455938506846,"0":0.9980756425878489,"6":0.000045745716545903345,"8":0.000028947492719426643,"17":4.277038538844622e-6,"2":0.00020449203100939722,"18":8.058188551446389e-7,"27":5.578745920232116e-7,"9":0.00002411257958855881,"-8":4.958885262428547e-7,"-5":3.161289354798199e-6,"12":0.000010289686919539236,"-3":0.000012831115616533865},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  emseq:
+    path: 'emseq.bam'
+    properties: '{"insert_size":{"mean":298.32294935006723,"sd":68.43850185498819},"max_del_cigar_len":45,"max_ins_cigar_len":31,"frac_max_softclip":0.5562913907284768,"max_read_len":151,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-7.649493207984526,"prob_deletion_artifact":-8.111554275447823,"prob_insertion_extend_artifact":-0.38791121940006823,"prob_deletion_extend_artifact":-0.5627057617858854},"hop_params":{"prob_seq_homopolymer":[-6.5647509045320165,-7.95759219477471,-7.9616131263152115,-6.089163166068255],"prob_ref_homopolymer":[-6.76764645326352,-9.256935381788708,-9.31591499569361,-6.6333458975974695],"prob_seq_extend_homopolymer":[-6.5647509045320165,-7.95759219477471,-7.9616131263152115,-6.089163166068255],"prob_ref_extend_homopolymer":[-6.76764645326352,-9.256935381788708,-9.31591499569361,-6.6333458975974695]},"wildtype_homopolymer_error_model":{"3":0.00005834882562770858,"-7":6.95664090941384e-7,"25":7.82622102309057e-7,"-6":7.82622102309057e-7,"5":0.00004269638358152744,"-2":0.00005913144773001764,"6":0.00004278334159289511,"8":0.00003078313602415624,"12":0.00001078279340959145,"20":1.3043701705150949e-6,"13":8.956675170870318e-6,"4":0.000033044044319715735,"-4":4.434858579751323e-6,"0":0.9984333644672,"-18":8.6958011367673e-8,"11":9.30450721634101e-6,"23":1.73916022735346e-7,"38":3.47832045470692e-7,"-8":2.60874034103019e-7,"-5":2.086992272824152e-6,"-1":0.000025739571364831206,"15":5.2174806820603795e-6,"9":0.000023304747046536362,"37":2.60874034103019e-7,"1":0.0009992345086259303,"39":4.34790056838365e-7,"36":8.6958011367673e-8,"42":8.6958011367673e-8,"-3":0.000015913316080284157,"26":1.73916022735346e-7,"18":9.56538125044403e-7,"-9":3.47832045470692e-7,"21":9.56538125044403e-7,"41":8.6958011367673e-8,"24":9.56538125044403e-7,"10":0.000015304610000710447,"17":3.6522364774422656e-6,"22":1.130454147779749e-6,"16":2.782656363765536e-6,"14":9.739297273179376e-6,"2":0.00018087266364475983,"19":1.4782861932504408e-6,"-12":8.6958011367673e-8,"7":0.00004591383000213134,"40":1.73916022735346e-7},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":5000,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
