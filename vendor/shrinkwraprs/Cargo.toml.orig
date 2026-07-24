@@ -1,0 +1,36 @@
+[package]
+
+name = "shrinkwraprs"
+version = "0.3.0"
+authors = [ "William Yao <williamyaoh@gmail.com>" ]
+description = "Auto-derive for Rust conversion traits -- make working with newtypes a breeze"
+documentation = "https://docs.rs/shrinkwraprs"
+repository = "https://gitlab.com/williamyaoh/shrinkwraprs"
+readme = "README.md"
+license = "BSD-3-Clause"
+
+keywords = [ "conversion", "convert", "newtype" ]
+categories = [ "rust-patterns", "development-tools", "no-std" ]
+
+[dependencies]
+
+syn = { version = "1.0.8", features = [ "default", "extra-traits" ] }
+quote = "1.0.2"
+itertools = "0.8.1"
+bitflags = "1.0.1"
+proc-macro2 = "1.0.6"
+
+[lib]
+
+proc-macro = true
+
+[features]
+
+default = ["std"]
+
+# Forces crate to compile cleanly. Mostly used for CI; build must pass with this
+# feature to be merged in.
+strict = []
+
+# Makes the crate emit code that refers to paths in `std` rather than `core`.
+std = []

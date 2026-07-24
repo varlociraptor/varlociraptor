@@ -1,0 +1,18 @@
+[package]
+name = "fs-utils"
+version = "1.1.4"
+edition = "2018"
+authors = ["Sebastian Thiel <byronimo@gmail.com>"]
+repository = "https://github.com/Byron/fs-utils-rs"
+description = "Utilities to help working with the filesytem"
+documentation = "https://docs.rs/fs-utils"
+keywords = ["utility", "filesystem"]
+license = "MIT OR Apache-2.0"
+include = ["src/**/*.rs", "Cargo.toml"]
+readme = "README.md"
+
+[dependencies]
+quick-error = "1.2"
+
+[dev-dependencies]
+tempfile = "^3.0"
