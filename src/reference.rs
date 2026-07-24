@@ -54,4 +54,9 @@ impl Buffer {
             Ok(Arc::clone(sequences.get(chrom).unwrap()))
         }
     }
+
+    pub(crate) fn total_reference_length(&self) -> u64 {
+        let reader = self.reader.read().unwrap();
+        reader.index.sequences().iter().map(|seq| seq.len).sum()
+    }
 }

@@ -11,7 +11,7 @@ samples:
   simulated:
     path: 'simulated.bam'
     #path: 'constrained.bam'
-    properties: '{"insert_size":{"mean":539.7590852685694,"sd":205.96587181874736},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.55,"max_read_len":100}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":539.7590852685694,"sd":205.96587181874736},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.55,"max_read_len":100}'
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/chrI.genome.fasta","candidates":"results/simulated.variants.vcf","bam":"results/mapped/30x.sorted.bam","alignment_properties":null,"output":"results/varlociraptor/preprocess/30x.bcf","spurious_ins_rate":0.00005,"spurious_del_rate":0.00005,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
   
 

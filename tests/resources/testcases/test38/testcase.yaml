@@ -6,10 +6,10 @@ expected:
 samples:
   sample1:
     path: sample1.bam
-    properties: '{"insert_size":{"mean":401.0,"sd":66.33306583244769},"max_del_cigar_len":4,"max_ins_cigar_len":5,"frac_max_softclip":0.8675496688741722}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":401.0,"sd":66.33306583244769},"max_del_cigar_len":4,"max_ins_cigar_len":5,"frac_max_softclip":0.8675496688741722}'
   sample0:
     path: sample0.bam
-    properties: '{"insert_size":{"mean":405.0,"sd":69.797565333136},"max_del_cigar_len":4,"max_ins_cigar_len":12,"frac_max_softclip":0.8741721854304636}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":405.0,"sd":69.797565333136},"max_del_cigar_len":4,"max_ins_cigar_len":12,"frac_max_softclip":0.8741721854304636}'
 
 
 # candidate variant

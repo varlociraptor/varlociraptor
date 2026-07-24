@@ -4,13 +4,13 @@
 samples:
   father:
     path: 'father.bam'
-    properties: '{"insert_size":{"mean":361.0,"sd":80.85618131151946},"max_del_cigar_len":22,"max_ins_cigar_len":19,"frac_max_softclip":0.8733333333333333}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":361.0,"sd":80.85618131151946},"max_del_cigar_len":22,"max_ins_cigar_len":19,"frac_max_softclip":0.8733333333333333}'
   index:
     path: 'index.bam'
-    properties: '{"insert_size":{"mean":348.0,"sd":76.62338998789966},"max_del_cigar_len":32,"max_ins_cigar_len":23,"frac_max_softclip":0.8733333333333333}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":348.0,"sd":76.62338998789966},"max_del_cigar_len":32,"max_ins_cigar_len":23,"frac_max_softclip":0.8733333333333333}'
   mother:
     path: 'mother.bam'
-    properties: '{"insert_size":{"mean":366.0,"sd":83.29480536279246},"max_del_cigar_len":25,"max_ins_cigar_len":22,"frac_max_softclip":0.8733333333333333}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":366.0,"sd":83.29480536279246},"max_del_cigar_len":25,"max_ins_cigar_len":22,"frac_max_softclip":0.8733333333333333}'
   
 
 # candidate variant
