@@ -213,7 +213,7 @@ impl Scenario {
                     .normalize(self, contig)
                     .with_context(|| format!("invalid event definition for {}", name))?;
                 info!("    {}: {}", name, normalized);
-                let vaftree = VAFTree::new(&normalized, self, contig)?;
+                let vaftree = VAFTree::new(&normalized, self)?;
                 Ok((name.to_owned(), vaftree))
             })
             .collect();

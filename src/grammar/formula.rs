@@ -461,13 +461,107 @@ impl Formula {
                 operands.sort();
 
                 operands.sort_by_key(|f| match f {
-                    Formula::Terminal(FormulaTerminal::Log2FoldChange { .. }) => 0,
-
-                    _ => 1,
+                    Formula::Terminal(FormulaTerminal::Log2FoldChange { sample_a, .. }) => {
+                        (0, sample_a.clone())
+                    }
+                    Formula::Terminal(FormulaTerminal::Atom { sample, .. }) => (1, sample.clone()),
+                    _ => (2, String::new()),
                 });
             }
             _ => (),
         }
+    }
+
+    /// Traverses the formula and ensures each conjunction term includes all scenario samples.
+    /// If a term is missing samples, returns a list of the missing ones to add.
+    /// Returns None if the term already contains all samples.
+    pub fn missing_sample_handler(
+        &mut self,
+        seen: &mut HashSet<String>,
+        scenario: &Scenario,
+        contig: &str,
+        is_last: bool,
+    ) -> Result<Option<Vec<Formula>>> {
+        match self {
+            Formula::Terminal(term) => {
+                // Boolean constants never contribute samples.
+                if let FormulaTerminal::False | FormulaTerminal::True = term {
+                    return Ok(None);
+                }
+                if let FormulaTerminal::Atom { sample, .. } = term {
+                    seen.insert(sample.to_owned());
+                }
+                // Only the last element of a conjunction is allowed to add
+                // missing samples. This ensures we only inject once.
+                if !is_last {
+                    return Ok(None);
+                }
+                let mut missing_terms = Vec::new();
+                for (name, sample_data) in scenario.samples() {
+                    if seen.contains(name) {
+                        continue;
+                    }
+                    seen.insert(name.to_owned());
+
+                    // Build all VAF-specific atoms for this sample.
+                    let vaf_terms: Vec<Formula> = sample_data
+                        .contig_universe(contig, scenario.species())?
+                        .iter()
+                        .map(|vafs| {
+                            Formula::Terminal(FormulaTerminal::Atom {
+                                sample: name.to_owned(),
+                                vafs: vafs.to_owned(),
+                            })
+                        })
+                        .collect();
+
+                    // If there is no VAF spectrum for this sample, we can skip it as it will not contribute to the probability of the event. If there are multiple VAF spectra for this sample, we take the disjunction of them. Otherwise, we just take the single term.
+                    let term = match vaf_terms.len() {
+                        0 => continue,
+                        1 => vaf_terms.into_iter().next().unwrap(),
+                        _ => Formula::Disjunction {
+                            operands: vaf_terms,
+                        },
+                    };
+                    missing_terms.push(term);
+                }
+                return Ok(Some(missing_terms));
+            }
+            // Go through each operand of the conjunction and add them to seen. Only the last operand is allowed to add missing samples, to avoid multiple injections.
+            Formula::Conjunction { operands } => {
+                let len = operands.len();
+                let mut to_append: Option<Vec<Formula>> = None;
+
+                for (idx, operand) in operands.iter_mut().enumerate() {
+                    let is_last = idx + 1 == len;
+                    if let Some(new_terms) =
+                        operand.missing_sample_handler(seen, scenario, contig, is_last)?
+                    {
+                        to_append = Some(new_terms);
+                    }
+                }
+                // Append newly created sample terms at the end of the conjunction.
+                if let Some(mut extra) = to_append {
+                    operands.append(&mut extra);
+                }
+            }
+            // Split disjunctions into separate Conjunctions and add missing samples to each of them.
+            Formula::Disjunction { operands } => {
+                for operand in operands.iter_mut() {
+                    let mut branch_seen = HashSet::new();
+
+                    if let Some(mut missing) =
+                        operand.missing_sample_handler(&mut branch_seen, scenario, contig, true)?
+                    {
+                        // Preserve the original operand as the final conjunct.
+                        missing.push(operand.to_owned());
+                        *operand = Formula::Conjunction { operands: missing };
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(None)
     }
 
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
@@ -480,8 +574,24 @@ impl Formula {
             .merge_atoms()
             .simplify();
         simplified.strip_false();
+        simplified.add_missing_samples(scenario, contig)?;
         simplified.sort();
         Ok(simplified.to_normalized_formula())
+    }
+
+    fn add_missing_samples(&mut self, scenario: &Scenario, contig: &str) -> Result<()> {
+        if let Some(mut new_terms) =
+            self.missing_sample_handler(&mut HashSet::new(), scenario, contig, true)?
+        {
+            new_terms.push(std::mem::replace(
+                self,
+                Formula::Terminal(FormulaTerminal::False),
+            ));
+            *self = Formula::Conjunction {
+                operands: new_terms,
+            };
+        }
+        Ok(())
     }
 
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
@@ -1171,7 +1281,16 @@ impl VAFRange {
 
     pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
         let min_vaf = if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
-            self.start
+            if self.left_exclusive {
+                let start = *self.start + f64::EPSILON;
+                if start >= *self.end {
+                    self.start
+                } else {
+                    AlleleFreq(start)
+                }
+            } else {
+                self.start
+            }
         } else {
             let obs_count = Self::expected_observation_count(self.start, n_obs);
             let adjust_allelefreq = |obs_count: f64| AlleleFreq(obs_count.ceil() / n_obs as f64);
@@ -1207,7 +1326,16 @@ impl VAFRange {
             "bug: observable_max may not be called if end=0.0."
         );
         if n_obs < 10 || !self.is_adjustment_possible(n_obs) {
-            self.end
+            if self.right_exclusive {
+                let end = *self.end - f64::EPSILON;
+                if end <= *self.start {
+                    self.end
+                } else {
+                    AlleleFreq(end)
+                }
+            } else {
+                self.end
+            }
         } else {
             let mut obs_count = Self::expected_observation_count(self.end, n_obs);
             if self.right_exclusive && obs_count % 1.0 == 0.0 {
@@ -1594,8 +1722,9 @@ fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
 
 #[cfg(test)]
 mod test {
+    use crate::grammar::formula::NormalizedFormula;
     use crate::grammar::Scenario;
-    use crate::grammar::{Formula, VAFRange};
+    use crate::grammar::{Formula, VAFRange, VAFSpectrum};
     use crate::variants::model::AlleleFreq;
 
     #[test]
@@ -1731,5 +1860,86 @@ events:
         let full = scenario.events["full"].clone();
         let full = full.normalize(&scenario, "all").unwrap();
         assert_eq!(full, expected.normalize(&scenario, "all").unwrap());
+    }
+    #[test]
+    fn test_normalize_simple_disjunction_conjunction() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"
+samples:
+  a:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  b:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  c:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  d:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  formula: "(a:0.5 & b:0.5) | d:0.5"
+"#,
+        )
+        .unwrap();
+
+        let formula = scenario.events["formula"].clone();
+        let normalized = formula.normalize(&scenario, "all").unwrap();
+
+        // Build expected formula
+        let full_range = VAFSpectrum::Range(VAFRange {
+            inner: AlleleFreq(0.0)..AlleleFreq(1.0),
+            left_exclusive: false,
+            right_exclusive: false,
+        });
+
+        let expected = NormalizedFormula::Disjunction {
+            operands: vec![
+                // First conjunction: a:0.5 & b:0.5 & c:[0.0,1.0] & d:[0.0,1.0]
+                NormalizedFormula::Conjunction {
+                    operands: vec![
+                        NormalizedFormula::Atom {
+                            sample: "a".to_owned(),
+                            vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "b".to_owned(),
+                            vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "c".to_owned(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "d".to_owned(),
+                            vafs: full_range.clone(),
+                        },
+                    ],
+                },
+                // Second conjunction: a:[0.0,1.0] & b:[0.0,1.0] & c:[0.0,1.0] & d:0.5
+                NormalizedFormula::Conjunction {
+                    operands: vec![
+                        NormalizedFormula::Atom {
+                            sample: "a".to_owned(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "b".to_owned(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "c".to_owned(),
+                            vafs: full_range.clone(),
+                        },
+                        NormalizedFormula::Atom {
+                            sample: "d".to_owned(),
+                            vafs: VAFSpectrum::singleton(AlleleFreq(0.5)),
+                        },
+                    ],
+                },
+            ],
+        };
+        assert_eq!(normalized, expected);
     }
 }

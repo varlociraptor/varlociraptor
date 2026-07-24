@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use anyhow::Result;
 use itertools::Itertools;
 
@@ -165,11 +163,7 @@ impl Node {
 }
 
 impl VAFTree {
-    pub(crate) fn new(
-        formula: &NormalizedFormula,
-        scenario: &Scenario,
-        contig: &str,
-    ) -> Result<Self> {
+    pub(crate) fn new(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Self> {
         fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Node>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
@@ -247,60 +241,8 @@ impl VAFTree {
             }
         }
 
-        fn add_missing_samples(
-            node: &mut Node,
-            seen: &mut HashSet<usize>,
-            scenario: &Scenario,
-            contig: &str,
-        ) -> Result<()> {
-            if let NodeKind::False = node.kind {
-                // METHOD: no need to add further missing samples as the formula is false anyways
-                return Ok(());
-            }
-
-            if let NodeKind::Sample { sample, .. } = node.kind {
-                seen.insert(sample);
-            }
-
-            if node.is_leaf() {
-                // leaf, add missing samples
-                for (name, sample) in scenario.samples() {
-                    let idx = scenario.idx(name).unwrap();
-                    if !seen.contains(&idx) {
-                        seen.insert(idx);
-
-                        node.children = sample
-                            .contig_universe(contig, scenario.species())?
-                            .iter()
-                            .map(|vafs| {
-                                Node::new(NodeKind::Sample {
-                                    sample: idx,
-                                    vafs: vafs.clone(),
-                                })
-                            })
-                            .collect();
-                        add_missing_samples(node, seen, scenario, contig)?;
-                        break;
-                    }
-                }
-            } else {
-                if node.is_branching() {
-                    for child in &mut node.children[1..] {
-                        add_missing_samples(child, &mut seen.clone(), scenario, contig)?;
-                    }
-                }
-                add_missing_samples(&mut node.children[0], seen, scenario, contig)?;
-            }
-
-            Ok(())
-        }
-
-        let mut inner = from(formula, scenario)?;
-        for node in &mut inner {
-            let mut seen = HashSet::new();
-            add_missing_samples(node, &mut seen, scenario, contig)?;
-        }
-
-        Ok(VAFTree { inner })
+        Ok(VAFTree {
+            inner: from(formula, scenario)?,
+        })
     }
 }
