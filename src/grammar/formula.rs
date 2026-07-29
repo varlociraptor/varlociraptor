@@ -1052,6 +1052,47 @@ impl VAFSpectrum {
             VAFSpectrum::Range(range) => range.is_complete(),
         }
     }
+
+    /// Intersection of two spectra. Returns an empty spectrum if they are disjoint.
+    pub(crate) fn intersect(&self, other: &VAFSpectrum) -> VAFSpectrum {
+        match (self, other) {
+            (VAFSpectrum::Range(a), VAFSpectrum::Range(b)) => {
+                let r = a.intersect(b);
+                if r.is_empty() {
+                    VAFSpectrum::empty()
+                } else if r.is_singleton() {
+                    VAFSpectrum::singleton(r.start)
+                } else {
+                    VAFSpectrum::Range(r)
+                }
+            }
+            (VAFSpectrum::Range(r), VAFSpectrum::Set(s))
+            | (VAFSpectrum::Set(s), VAFSpectrum::Range(r)) => {
+                VAFSpectrum::Set(s.iter().filter(|v| r.contains(**v)).cloned().collect())
+            }
+            (VAFSpectrum::Set(a), VAFSpectrum::Set(b)) => {
+                VAFSpectrum::Set(a.intersection(b).cloned().collect())
+            }
+        }
+    }
+
+    /// Pick a representative allele frequency that is contained in this spectrum, or `None` if the
+    /// spectrum is empty. For ranges, the midpoint is returned, which is strictly interior and thus
+    /// contained regardless of the range's exclusivity.
+    pub(crate) fn representative(&self) -> Option<AlleleFreq> {
+        match self {
+            VAFSpectrum::Set(s) => s.iter().next().copied(),
+            VAFSpectrum::Range(r) => {
+                if r.is_empty() {
+                    None
+                } else if r.is_singleton() {
+                    Some(r.start)
+                } else {
+                    Some(AlleleFreq((*r.start + *r.end) / 2.0))
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Hash, CopyGetters)]

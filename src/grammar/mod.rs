@@ -14,7 +14,6 @@ pub(crate) mod formula;
 pub(crate) mod vaftree;
 
 use crate::errors;
-use crate::grammar::formula::FormulaTerminal;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
@@ -205,75 +204,67 @@ impl Scenario {
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
         info!("Preprocessing events for contig {}", contig);
-        let trees = self
-            .events()
-            .iter()
-            .map(|(name, formula)| {
-                let normalized = formula
-                    .normalize(self, contig)
-                    .with_context(|| format!("invalid event definition for {}", name))?;
-                info!("    {}: {}", name, normalized);
-                let vaftree = VAFTree::new(&normalized, self, contig)?;
-                Ok((name.to_owned(), vaftree))
-            })
-            .collect();
-        self.validate(contig)?;
-        trees
+        let mut trees = HashMap::new();
+        for (name, formula) in self.events() {
+            let normalized = formula
+                .normalize(self, contig)
+                .with_context(|| format!("invalid event definition for {}", name))?;
+            info!("    {}: {}", name, normalized);
+            let vaftree = VAFTree::new(&normalized, self, contig)?;
+            trees.insert(name.to_owned(), vaftree);
+        }
+        self.validate(&trees, contig)?;
+        Ok(trees)
     }
 
-    pub(crate) fn validate(&self, contig: &str) -> Result<()> {
-        let names = self
-            .events()
+    /// Verify the invariant that all events are pairwise disjoint: there must be no combination of
+    /// allele frequencies (within the declared universes) for which more than one event is true.
+    /// The generic model treats events as mutually exclusive when summing posterior probabilities,
+    /// so a violation silently distorts the results. On violation, the returned error names every
+    /// offending pair and exhibits a concrete witness assignment.
+    ///
+    /// Disjointness is checked per contig, because a sample's universe (and hence the events) may
+    /// depend on the contig via ploidy or contig-specific universe definitions.
+    fn validate(&self, trees: &HashMap<String, VAFTree>, contig: &str) -> Result<()> {
+        // Resolve each sample's universe once, indexed by the sample index used inside the trees
+        // (the enumeration order of `samples()`, which drives `Scenario::idx`).
+        let universes: Vec<(String, VAFUniverse)> = self
+            .samples()
             .iter()
-            .filter(|(name, _)| *name != "absent")
-            .map(|(name, formula)| {
-                (
-                    // if `formula.normalize(…)` failed above, we won't get to this line,
-                    // so we might as well unwrap.
-                    formula.normalize(self, contig).map(Formula::from).unwrap(),
-                    name,
-                )
+            .map(|(name, sample)| {
+                Ok((
+                    name.clone(),
+                    sample.contig_universe(contig, self.species())?,
+                ))
             })
-            .into_group_map();
-        let mut overlapping = vec![];
-        let events: Vec<_> = names.keys().sorted().cloned().collect();
-        for (e1, e2) in events.iter().tuple_combinations() {
-            // skip comparison of event with itself
-            if e1 == e2 {
-                continue;
-            }
-            let terms = [e1, e2]
-                .iter()
-                .filter(|e| !matches!(e.to_terminal(), Some(FormulaTerminal::False)))
-                .map(|&v| v.clone())
-                .collect_vec();
+            .collect::<Result<_>>()?;
 
-            // skip if any of the operands is a terminal `False`.
-            if terms.len() != 2 {
-                continue;
-            }
+        // The auto-generated `absent` event is excluded, matching the previous behaviour.
+        let names: Vec<&String> = trees
+            .keys()
+            .filter(|name| *name != "absent")
+            .sorted()
+            .collect();
 
-            // TODO make sure the disjunction really is canonical, such that trying to check if it's contained in `events` isn't a game of chance
-            let disjunction =
-                Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
-            if events.contains(&disjunction) {
-                overlapping.push((
-                    names[e1].clone(),
-                    names[e2].clone(),
-                    names[&disjunction].clone(),
-                ));
+        let mut overlapping = Vec::new();
+        for (i, name_a) in names.iter().enumerate() {
+            for name_b in &names[i + 1..] {
+                if let Some(witness) = trees[*name_a].overlap_witness(&trees[*name_b], &universes) {
+                    overlapping.push(format!(
+                        "{:?} and {:?} (witness: {})",
+                        name_a, name_b, witness
+                    ));
+                }
             }
         }
-        if !overlapping.is_empty() {
-            return Err(crate::errors::Error::OverlappingEvents {
-                expressions: overlapping
-                    .iter()
-                    .map(|(a1, a2, f)| format!("({:?} | {:?}) = {:?}", a1, a2, f))
-                    .join(", "),
-            }
-            .into());
-        } else {
+
+        if overlapping.is_empty() {
             Ok(())
+        } else {
+            Err(crate::errors::Error::OverlappingEvents {
+                expressions: overlapping.join("; "),
+            }
+            .into())
         }
     }
 }
@@ -651,4 +642,168 @@ pub(crate) enum Sex {
 pub(crate) enum UniverseDefinition {
     Map(BTreeMap<String, VAFUniverse>),
     Simple(VAFUniverse),
+}
+
+#[cfg(test)]
+mod validate_tests {
+    use super::Scenario;
+
+    fn scenario(yaml: &str) -> Scenario {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
+    /// Compile the events for contig `all` and return the disjointness error message, or `None` if
+    /// the scenario validated successfully.
+    fn overlap_error(yaml: &str) -> Option<String> {
+        match scenario(yaml).vaftrees("all") {
+            Ok(_) => None,
+            Err(err) => Some(format!("{}", err)),
+        }
+    }
+
+    #[test]
+    fn documented_counter_example_is_rejected() {
+        // From the documentation: a `somatic_normal` defined as normal:]0.0,0.5] overlaps
+        // `germline` on normal:0.5.
+        let msg = overlap_error(
+            r#"
+samples:
+  normal:
+    resolution: 0.1
+    universe: "0.0 | 0.5 | 1.0 | ]0.0,0.5["
+events:
+  germline: "normal:0.5"
+  somatic_normal: "normal:]0.0,0.5]""#,
+        )
+        .expect("expected overlapping events to be rejected");
+        assert!(msg.contains("germline"), "message: {}", msg);
+        assert!(msg.contains("somatic_normal"), "message: {}", msg);
+        // The witness must exhibit the offending allele frequency.
+        assert!(msg.contains("normal=0.5"), "message: {}", msg);
+    }
+
+    #[test]
+    fn disjoint_tumor_normal_scenario_validates() {
+        assert_eq!(
+            overlap_error(
+                r#"
+species:
+  heterozygosity: 0.001
+  ploidy: 2
+samples:
+  tumor:
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: false
+  normal:
+    sex: female
+events:
+  somatic_tumor: "normal:0.0 & tumor:]0.0,1.0]"
+  germline: "normal:0.5 | normal:1.0""#,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn identical_events_overlap() {
+        let msg = overlap_error(
+            r#"
+samples:
+  normal:
+    universe: "0.0 | 0.5 | 1.0"
+events:
+  a: "normal:0.5"
+  b: "normal:0.5""#,
+        )
+        .expect("two identical events must be reported as overlapping");
+        assert!(msg.contains("normal=0.5"), "message: {}", msg);
+    }
+
+    #[test]
+    fn overlapping_ranges_yield_interior_witness() {
+        let msg = overlap_error(
+            r#"
+samples:
+  normal:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  part1: "normal:[0.0,0.7]"
+  part2: "normal:[0.3,1.0]""#,
+        )
+        .expect("overlapping ranges must be rejected");
+        // Witness is the midpoint of [0.3, 0.7].
+        assert!(msg.contains("normal=0.5"), "message: {}", msg);
+    }
+
+    #[test]
+    fn full_overlapping_scenario_is_rejected() {
+        // The canonical `test_overlapping_events` fixture: riddled with overlaps.
+        assert!(overlap_error(
+            r#"
+samples:
+  tumor:
+    contamination:
+      by: normal
+      fraction: 0.25
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  normal:
+    resolution: 0.1
+    universe: "[0.0,0.5[ | 0.5 | 1.0"
+events:
+  somatic: "tumor:]0.0,1.0] & normal:[0.0,0.5["
+  somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
+  somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
+  germline: "normal:0.5 | normal:1.0"
+  germline_het:   "tumor:[0.0,1.0] & normal:0.5"
+  germline_hom:   "tumor:[0.0,1.0] & normal:1.0""#,
+        )
+        .is_some());
+    }
+
+    #[test]
+    fn events_distinguished_only_by_log2fold_change_are_disjoint() {
+        // `a_greater_b` and `b_greater_a` overlap at l2fc == 1.0, but the model treats
+        // differing log2-fold-change predicates as disjoint (exact fact-set consumption), so the
+        // scenario must validate.
+        assert_eq!(
+            overlap_error(
+                r#"
+samples:
+  sample_a:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+  sample_b:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  similar: "l2fc(sample_a,sample_b) < 1.0 & l2fc(sample_b,sample_a) < 1.0"
+  a_greater_b: "l2fc(sample_a,sample_b) >= 1.0"
+  b_greater_a: "l2fc(sample_a,sample_b) <= 1.0""#,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn events_distinguished_only_by_variant_are_disjoint() {
+        // Same VAF range, complementary variant constraints: disjoint via the variant terminal.
+        assert_eq!(
+            overlap_error(
+                r#"
+samples:
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  ffpe_artifact: "(C>T | G>A) & tumor:]0.0,0.05["
+  present: "!(C>T | G>A) & tumor:]0.0,0.05[""#,
+            ),
+            None
+        );
+    }
 }
