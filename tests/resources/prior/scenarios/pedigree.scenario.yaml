@@ -32,6 +32,6 @@ samples:
           - father
 
 events:
-  denovo_child: "(child:0.5 | child:1.0) & mother:0.0 & father:0.0"
-  denovo_sibling: "(sibling:0.5 | sibling:1.0) & mother:0.0 & father:0.0"
+  denovo_child: "(child:0.5 | child:1.0) & sibling:0.0 & mother:0.0 & father:0.0"
+  denovo_sibling: "child:0.0 & (sibling:0.5 | sibling:1.0) & mother:0.0 & father:0.0"
   inherited: "!mother:0.0 | !father:0.0"
