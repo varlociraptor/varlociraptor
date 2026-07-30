@@ -1,10 +1,13 @@
-use std::collections::HashSet;
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use anyhow::Result;
 use itertools::Itertools;
 
 use crate::errors;
-use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
+use crate::grammar::{
+    formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum, VAFUniverse,
+};
 use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::modes::generic::{LikelihoodOperands, VafLfc};
 use crate::variants::model::AlleleFreq;
@@ -58,6 +61,188 @@ impl<'a> IntoIterator for &'a VAFTree {
     fn into_iter(self) -> Self::IntoIter {
         self.inner.iter()
     }
+}
+
+/// A single conjunctive clause of a `VAFTree`, i.e. one root-to-leaf path. It captures exactly the
+/// set of assignments (per-sample VAF plus variant / log2-fold-change context) for which that path
+/// evaluates to true. The disjunction of all clauses of a tree is the event itself.
+#[derive(Clone, Debug)]
+pub(crate) struct Clause {
+    /// Per-sample VAF constraint. Every sample of the scenario is present on every live path
+    /// (see `VAFTree::new`'s `add_missing_samples`); a sample constrained more than once along the
+    /// path carries the intersection of its constraints.
+    vafs: BTreeMap<usize, VAFSpectrum>,
+    /// Variant terminals (`refbase>altbase`, negated if `positive` is false) required on this path.
+    variants: BTreeSet<(Iupac, Iupac, bool)>,
+    /// Log2-fold-change terminals required on this path.
+    lfcs: BTreeSet<(usize, usize, Log2FoldChangePredicate)>,
+}
+
+impl Clause {
+    fn empty() -> Self {
+        Clause {
+            vafs: BTreeMap::new(),
+            variants: BTreeSet::new(),
+            lfcs: BTreeSet::new(),
+        }
+    }
+}
+
+/// Depth-first enumeration of a node's clauses, extending `acc` with the current node. Paths
+/// through a `False` node or an empty VAF intersection are pruned (they can never be true).
+fn collect_clauses(node: &Node, acc: &Clause, out: &mut Vec<Clause>) {
+    let mut acc = acc.clone();
+    match node.kind() {
+        NodeKind::Sample { sample, vafs } => match acc.vafs.entry(*sample) {
+            Entry::Occupied(mut entry) => {
+                let intersection = entry.get().intersect(vafs);
+                if intersection.is_empty() {
+                    return;
+                }
+                *entry.get_mut() = intersection;
+            }
+            Entry::Vacant(entry) => {
+                if vafs.is_empty() {
+                    return;
+                }
+                entry.insert(vafs.clone());
+            }
+        },
+        NodeKind::Variant {
+            refbase,
+            altbase,
+            positive,
+        } => {
+            acc.variants.insert((*refbase, *altbase, *positive));
+        }
+        NodeKind::Log2FoldChange {
+            sample_a,
+            sample_b,
+            predicate,
+        } => {
+            acc.lfcs.insert((*sample_a, *sample_b, *predicate));
+        }
+        NodeKind::True => {}
+        NodeKind::False => return,
+    }
+
+    if node.is_leaf() {
+        out.push(acc);
+    } else {
+        for child in node.children() {
+            collect_clauses(child, &acc, out);
+        }
+    }
+}
+
+impl VAFTree {
+    /// Enumerate the conjunctive clauses (root-to-leaf paths) of this tree, pruning unsatisfiable
+    /// paths.
+    fn clauses(&self) -> Vec<Clause> {
+        let mut out = Vec::new();
+        let root = Clause::empty();
+        for node in &self.inner {
+            collect_clauses(node, &root, &mut out);
+        }
+        out
+    }
+
+    /// If `self` and `other` are *not* disjoint, return a human-readable witness: a concrete VAF
+    /// assignment (drawn from the universes) together with the shared variant / log2-fold-change
+    /// context for which both events are true simultaneously. Returns `None` if the two events are
+    /// disjoint.
+    ///
+    /// Two clauses can be jointly true only if they impose exactly the same variant and
+    /// log2-fold-change terminals: this matches the model's own containment semantics
+    /// (`VAFTree::contains`), where a leaf is satisfied only when the provided log2-fold-change
+    /// facts are consumed exactly, and where a genomic locus carries a single, definite variant.
+    /// For events that differ only in such terminals this is conservative (it never reports a
+    /// spurious overlap), while for pure allele-frequency events the check is exact and complete.
+    pub(crate) fn overlap_witness(
+        &self,
+        other: &VAFTree,
+        universes: &[(String, VAFUniverse)],
+    ) -> Option<String> {
+        let own = self.clauses();
+        let others = other.clauses();
+        for a in &own {
+            for b in &others {
+                if a.variants != b.variants || a.lfcs != b.lfcs {
+                    continue;
+                }
+                if let Some(witness) = clause_witness(a, b, universes) {
+                    return Some(witness);
+                }
+            }
+        }
+        None
+    }
+}
+
+/// Build a witness for a pair of clauses that share the same variant/lfc context, or `None` if for
+/// some sample the two VAF constraints have no common value within that sample's universe.
+fn clause_witness(a: &Clause, b: &Clause, universes: &[(String, VAFUniverse)]) -> Option<String> {
+    let mut assignment = Vec::with_capacity(universes.len());
+    for (sample, (name, universe)) in universes.iter().enumerate() {
+        // Combine the (possibly absent) constraints of both clauses for this sample.
+        let combined = match (a.vafs.get(&sample), b.vafs.get(&sample)) {
+            (Some(x), Some(y)) => Some(x.intersect(y)),
+            (Some(x), None) => Some(x.clone()),
+            (None, Some(y)) => Some(y.clone()),
+            (None, None) => None,
+        };
+        if let Some(ref spectrum) = combined {
+            if spectrum.is_empty() {
+                return None;
+            }
+        }
+
+        // Clip against the universe (a disjunction of spectra) and pick a representative value. If
+        // no universe value satisfies the combined constraint, this VAF combination can never
+        // occur and the two events do not actually overlap here.
+        let mut universe_specs: Vec<&VAFSpectrum> = universe.iter().collect();
+        universe_specs.sort();
+        let representative = universe_specs.iter().find_map(|u| match &combined {
+            Some(spectrum) => spectrum.intersect(u).representative(),
+            None => u.representative(),
+        })?;
+        assignment.push(format!("{}={}", name, representative));
+    }
+
+    let mut witness = assignment.join(", ");
+    let context = clause_context(a, universes);
+    if !context.is_empty() {
+        witness = format!("{}, {}", witness, context.join(", "));
+    }
+    Some(witness)
+}
+
+/// Human-readable description of the variant and log2-fold-change terminals shared by a clause.
+fn clause_context(clause: &Clause, universes: &[(String, VAFUniverse)]) -> Vec<String> {
+    let name = |idx: usize| {
+        universes
+            .get(idx)
+            .map(|(name, _)| name.clone())
+            .unwrap_or_else(|| format!("sample{}", idx))
+    };
+    let mut context = Vec::new();
+    for (refbase, altbase, positive) in &clause.variants {
+        context.push(format!(
+            "{}({}>{})",
+            if *positive { "" } else { "!" },
+            refbase,
+            altbase
+        ));
+    }
+    for (sample_a, sample_b, predicate) in &clause.lfcs {
+        context.push(format!(
+            "l2fc({}, {}) {}",
+            name(*sample_a),
+            name(*sample_b),
+            predicate
+        ));
+    }
+    context
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
