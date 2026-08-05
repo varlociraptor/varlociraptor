@@ -1,0 +1,32 @@
+# This scenario is templated with Jinja2 and rendered for each group (see sample sheet).
+# A variable `samples` is available, holding the dataframe of
+# the sample sheet, filtered to those samples contained in the group to be rendered.
+# For example, this can be used to pass arbitrary column values (like the purity below),
+# to the sample definitions.
+# Note that sample names here must correspond to the alias column in the sample sheet.
+
+species:
+  genome-size: 3137144693
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+
+samples:
+  index:
+    sex: female
+    resolution: 0.25
+    universe: "[0.0,1.0]"
+
+
+events:
+  het: "index:0.5"
+  ambiguous: "!index:1.0 & !$het & !$absent"
+  hom: "!$ambiguous & !$absent & !$het"
