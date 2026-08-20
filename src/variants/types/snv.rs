@@ -15,11 +15,11 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use rust_htslib::bam;
 
+use crate::calling::variants::preprocessing::BaseConversion;
 use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
@@ -41,6 +41,7 @@ pub(crate) struct Snv<R: Realigner> {
     alt_base: u8,
     realigner: RefCell<R>,
     realign_indel_reads: bool,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl<R: Realigner> Snv<R> {
@@ -50,6 +51,7 @@ impl<R: Realigner> Snv<R> {
         alt_base: u8,
         realigner: R,
         realign_indel_reads: bool,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         Snv {
             loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
@@ -60,6 +62,7 @@ impl<R: Realigner> Snv<R> {
             alt_base: alt_base.to_ascii_uppercase(),
             realigner: RefCell::new(realigner),
             realign_indel_reads,
+            base_conversion,
         }
     }
 
@@ -93,7 +96,9 @@ impl<R: Realigner> Snv<R> {
             let read_base =
                 unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-            let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
+            let prob_alt = self
+                .base_conversion
+                .prob_read_base(read_base, self.alt_base, base_qual);
             let mut is_third_allele = false;
 
             // METHOD: instead of considering the actual REF base, we assume that REF is whatever
@@ -113,7 +118,9 @@ impl<R: Realigner> Snv<R> {
                 self.ref_base
             };
 
-            let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+            let prob_ref = self
+                .base_conversion
+                .prob_read_base(read_base, non_alt_base, base_qual);
             let strand = if prob_ref != prob_alt {
                 Strand::from_record_and_pos(read, qpos as usize)?
             } else {

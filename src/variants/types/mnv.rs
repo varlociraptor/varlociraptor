@@ -15,12 +15,12 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
+use crate::calling::variants::preprocessing::BaseConversion;
 use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::is_explainable_by_error_rates;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
@@ -44,6 +44,7 @@ pub(crate) struct Mnv<R: Realigner> {
     alt_bases: Rc<Vec<u8>>,
     realigner: RefCell<R>,
     realign_indel_reads: bool,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl<R: Realigner> Mnv<R> {
@@ -53,6 +54,7 @@ impl<R: Realigner> Mnv<R> {
         alt_bases: Vec<u8>,
         realigner: R,
         realign_indel_reads: bool,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         Mnv {
             loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
@@ -63,6 +65,7 @@ impl<R: Realigner> Mnv<R> {
             alt_bases: Rc::new(alt_bases.to_ascii_uppercase()),
             realigner: RefCell::new(realigner),
             realign_indel_reads,
+            base_conversion,
         }
     }
 
@@ -103,7 +106,13 @@ impl<R: Realigner> Mnv<R> {
             let mut strand = Strand::None;
             let mut read_position = None;
             let mut alt_edit_dist = 0_u32;
-            let read_emission = ReadEmission::new(read.seq(), read.qual(), None, None);
+            let read_emission = ReadEmission::new(
+                read.seq(),
+                read.qual(),
+                None,
+                None,
+                Arc::clone(&self.base_conversion),
+            );
             let mut is_third_allele = false;
 
             for ((alt_base, ref_base), pos) in self
@@ -135,9 +144,15 @@ impl<R: Realigner> Mnv<R> {
                         alt_edit_dist += 1;
                     }
 
-                    let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
-                    let base_prob_ref = prob_read_base(read_base, *ref_base, base_qual);
-                    let base_prob_third = prob_read_base(read_base, read_base, base_qual);
+                    let base_prob_alt = self
+                        .base_conversion
+                        .prob_read_base(read_base, *alt_base, base_qual);
+                    let base_prob_ref = self
+                        .base_conversion
+                        .prob_read_base(read_base, *ref_base, base_qual);
+                    let base_prob_third = self
+                        .base_conversion
+                        .prob_read_base(read_base, read_base, base_qual);
 
                     if base_prob_alt != base_prob_ref {
                         if let Some(strand_info) = aux_strand_info {

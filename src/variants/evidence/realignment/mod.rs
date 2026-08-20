@@ -19,6 +19,7 @@ use bio_types::genome::AbstractInterval;
 use itertools::Itertools;
 use rust_htslib::bam;
 
+use crate::calling::variants::preprocessing::BaseConversion;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
@@ -244,6 +245,7 @@ pub(crate) trait Realigner {
                 read_qual,
                 Some(region.read_interval.start),
                 Some(region.read_interval.end),
+                self.base_conversion(),
             );
             let mut edit_dist_calc =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
@@ -505,6 +507,8 @@ pub(crate) trait Realigner {
     fn ref_buffer(&self) -> &Arc<reference::Buffer>;
 
     fn max_window(&self) -> u64;
+
+    fn base_conversion(&self) -> Arc<BaseConversion>;
 }
 
 #[derive(Clone)]
@@ -513,6 +517,7 @@ pub(crate) struct PairHMMRealigner {
     pairhmm: PairHMM,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl PairHMMRealigner {
@@ -521,6 +526,7 @@ impl PairHMMRealigner {
         ref_buffer: Arc<reference::Buffer>,
         gap_params: pairhmm::GapParams,
         max_window: u64,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         let pairhmm = PairHMM::new(&gap_params);
         PairHMMRealigner {
@@ -528,6 +534,7 @@ impl PairHMMRealigner {
             pairhmm,
             max_window,
             ref_buffer,
+            base_conversion,
         }
     }
 }
@@ -539,6 +546,10 @@ impl Realigner for PairHMMRealigner {
 
     fn max_window(&self) -> u64 {
         self.max_window
+    }
+
+    fn base_conversion(&self) -> Arc<BaseConversion> {
+        Arc::clone(&self.base_conversion)
     }
 
     fn calculate_prob_allele(
@@ -566,6 +577,7 @@ pub(crate) struct PathHMMRealigner {
     gap_params: pairhmm::GapParams,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
+    base_conversion: Arc<BaseConversion>,
     prob_no_gap: LogProb,
     prob_close_gap_x: LogProb,
     prob_close_gap_y: LogProb,
@@ -578,6 +590,7 @@ impl PathHMMRealigner {
         gap_params: pairhmm::GapParams,
         max_window: u64,
         ref_buffer: Arc<reference::Buffer>,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         let prob_no_gap = gap_params
             .prob_gap_x()
@@ -595,6 +608,7 @@ impl PathHMMRealigner {
             gap_params,
             max_window,
             ref_buffer,
+            base_conversion,
             prob_no_gap,
             prob_close_gap_x,
             prob_close_gap_y,
@@ -611,6 +625,10 @@ impl Realigner for PathHMMRealigner {
 
     fn max_window(&self) -> u64 {
         self.max_window
+    }
+
+    fn base_conversion(&self) -> Arc<BaseConversion> {
+        Arc::clone(&self.base_conversion)
     }
 
     fn calculate_prob_allele(
@@ -700,6 +718,7 @@ pub(crate) struct HomopolyPairHMMRealigner {
     pairhmm: HomopolyPairHMM,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl HomopolyPairHMMRealigner {
@@ -709,6 +728,7 @@ impl HomopolyPairHMMRealigner {
         gap_params: pairhmm::GapParams,
         hop_params: pairhmm::HopParams,
         max_window: u64,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         let pairhmm = HomopolyPairHMM::new(&gap_params, &hop_params);
         HomopolyPairHMMRealigner {
@@ -716,6 +736,7 @@ impl HomopolyPairHMMRealigner {
             pairhmm,
             max_window,
             ref_buffer,
+            base_conversion,
         }
     }
 }
@@ -727,6 +748,10 @@ impl Realigner for HomopolyPairHMMRealigner {
 
     fn max_window(&self) -> u64 {
         self.max_window
+    }
+
+    fn base_conversion(&self) -> Arc<BaseConversion> {
+        Arc::clone(&self.base_conversion)
     }
 
     fn calculate_prob_allele(

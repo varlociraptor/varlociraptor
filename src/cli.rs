@@ -904,6 +904,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let log_each_record = log_mode == "each-record";
 
+                    // Create default base conversion for bisulfite (C->T on forward strand)
+                    let base_conversion = Arc::new(
+                        calling::variants::preprocessing::BaseConversion::new(b'C', b'T'),
+                    );
+
                     let propagate_info_fields = propagate_info_fields
                         .iter()
                         .map(|s| s.as_bytes().to_owned())
@@ -935,6 +940,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         gap_params,
                                         hop_params,
                                         realignment_window,
+                                        Arc::clone(&base_conversion),
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
@@ -968,6 +974,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         gap_params,
                                         realignment_window,
                                         reference_buffer,
+                                        Arc::clone(&base_conversion),
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
@@ -1011,6 +1018,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         reference_buffer,
                                         gap_params,
                                         realignment_window,
+                                        Arc::clone(&base_conversion),
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)

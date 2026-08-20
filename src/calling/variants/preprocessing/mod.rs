@@ -6,6 +6,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
+
+use bio::stats::LogProb;
 use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
@@ -46,6 +48,63 @@ use crate::variants::types::{breakends::Breakend, Loci};
 pub(crate) mod haplotype_feature_index;
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+
+/// Represents base conversion events (e.g., bisulfite conversion C->T)
+#[derive(Debug, Clone)]
+pub(crate) struct BaseConversion {
+    /// Maps from ref_base to read_base that results from conversion
+    /// e.g., 'C' -> 'T' for forward strand bisulfite
+    conversions: HashMap<u8, u8>,
+    /// Whether this conversion is active for this sample
+    pub is_active: bool,
+}
+
+impl BaseConversion {
+    /// Create a new BaseConversion from a from->to base pair
+    pub(crate) fn new(from: u8, to: u8) -> Self {
+        let mut conversions = HashMap::new();
+        conversions.insert(from.to_ascii_uppercase(), to.to_ascii_uppercase());
+
+        BaseConversion {
+            conversions,
+            is_active: true,
+        }
+    }
+
+    /// Calculate probability of read_base given ref_base, considering possible conversions
+    pub(crate) fn prob_read_base(&self, read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
+        // Use the original prob_read_base function from bases module
+        // This serves as a wrapper that can be extended with conversion logic later
+        crate::variants::evidence::bases::prob_read_base(read_base, ref_base, base_qual)
+    }
+
+    /// Check if a (read_base, ref_base) pair could be explained by conversion
+    pub(crate) fn is_possible_conversion(&self, read_base: u8, ref_base: u8) -> bool {
+        self.conversions
+            .get(&ref_base.to_ascii_uppercase())
+            .map(|&converted_base| converted_base == read_base.to_ascii_uppercase())
+            .unwrap_or(false)
+    }
+}
+
+// Import necessary constants for prob_read_base implementation
+use bio::stats::Prob;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref BASEQUAL_TO_PROB_CALL: [LogProb; 256] = {
+        let mut probs = [LogProb::ln_zero(); 256];
+        for qual in 0u8..=255u8 {
+            probs[qual as usize] =
+                LogProb::from(Prob(1.0) - Prob::from(PHREDProb::from((qual) as f64)));
+        }
+        probs
+    };
+    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
+    static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
+}
+
+use bio::stats::PHREDProb;
 
 #[derive(TypedBuilder)]
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
@@ -488,6 +547,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })
         };
 
+        // Create a base conversion wrapper for the variant types
+        let base_conversion = Arc::new(BaseConversion::new(b'C', b'T'));
+
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
             let methylation_readtype = self.methylation_readtype;
@@ -495,6 +557,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 Ok(variants::types::Methylation::new(
                     locus,
                     methylation_readtype,
+                    Arc::clone(&base_conversion),
                 ))
             } else {
                 panic!("Please specify the methylation read type with --methylation-read-type <converted|annotated> in order to process methylation variants.");
@@ -509,6 +572,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt,
                 self.realigner.clone(),
                 !self.atomic_candidate_variants,
+                Arc::clone(&base_conversion),
             ))
         };
 
@@ -533,6 +597,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt.to_owned(),
                 self.realigner.clone(),
                 !self.atomic_candidate_variants,
+                Arc::clone(&base_conversion),
             ))
         };
 

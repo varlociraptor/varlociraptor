@@ -14,6 +14,7 @@ use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
 use rust_htslib::bam;
 
+use crate::calling::variants::preprocessing::BaseConversion;
 use crate::variants::evidence::bases::prob_read_base_miscall;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
@@ -424,6 +425,8 @@ pub(crate) struct ReadEmission<'a> {
     read_end: usize,
     #[getset(get_copy = "pub(crate)")]
     error_rate: LogProb,
+    #[getset(get = "pub(crate)")]
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl<'a> ReadEmission<'a> {
@@ -432,6 +435,7 @@ impl<'a> ReadEmission<'a> {
         qual: &[u8],
         read_offset: Option<usize>,
         read_end: Option<usize>,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         let read_offset = read_offset.unwrap_or(0);
         let read_end = read_end.unwrap_or(qual.len());
@@ -450,6 +454,7 @@ impl<'a> ReadEmission<'a> {
             read_offset,
             read_end,
             error_rate,
+            base_conversion,
         }
     }
 

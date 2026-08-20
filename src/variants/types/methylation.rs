@@ -6,7 +6,7 @@ use crate::{
 };
 
 use super::MultiLocus;
-use crate::variants::evidence::bases::prob_read_base;
+use crate::calling::variants::preprocessing::BaseConversion;
 use crate::variants::evidence::observations::read_observation::{AlignmentRecord, Strand};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Evidence, Overlap, SingleLocus, Variant,
@@ -20,21 +20,28 @@ use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub(crate) struct Methylation {
     loci: MultiLocus,
     methylation_readtype: MethylationReadtype,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl Methylation {
-    pub(crate) fn new(locus: genome::Locus, methylation_readtype: MethylationReadtype) -> Self {
+    pub(crate) fn new(
+        locus: genome::Locus,
+        methylation_readtype: MethylationReadtype,
+        base_conversion: Arc<BaseConversion>,
+    ) -> Self {
         Methylation {
             loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
             ))),
             methylation_readtype,
+            base_conversion,
         }
     }
 
@@ -54,9 +61,13 @@ impl Methylation {
             // TODO expect u64 in read_pos
             .read_pos(position as u32, false, false)?
         {
-            if let Some((prob_alt, prob_ref)) =
-                process_read(read, read.prob_methylation(), qpos, annotated_read)
-            {
+            if let Some((prob_alt, prob_ref)) = process_read(
+                read,
+                read.prob_methylation(),
+                qpos,
+                annotated_read,
+                &self.base_conversion,
+            ) {
                 let strand = if prob_ref != prob_alt {
                     Strand::from_record_and_pos(read, qpos as usize)?
                 } else {
@@ -252,6 +263,7 @@ fn process_read(
     meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
     qpos: u32,
     annotated_read: bool,
+    base_conversion: &Arc<BaseConversion>,
 ) -> Option<(LogProb, LogProb)> {
     if (annotated_read && meth_info.is_none())
         || mutation_occurred(read_reverse_orientation(read), read, qpos, annotated_read)
@@ -270,6 +282,7 @@ fn process_read(
             read_reverse_orientation(read),
             read,
             qpos,
+            base_conversion,
         ))
     }
 }
@@ -307,6 +320,7 @@ pub fn compute_probs_converted_read(
     read_reverse: bool,
     record: &Rc<Record>,
     qpos: u32,
+    base_conversion: &Arc<BaseConversion>,
 ) -> (LogProb, LogProb) {
     let (ref_base, bisulfite_base) = if !read_reverse {
         (b'C', b'T')
@@ -318,8 +332,8 @@ pub fn compute_probs_converted_read(
     let read_base = seq_bytes[qpos as usize];
     let base_qual = record.qual()[qpos as usize];
 
-    let prob_alt = prob_read_base(read_base, ref_base, base_qual);
-    let prob_ref = prob_read_base(read_base, bisulfite_base, base_qual);
+    let prob_alt = base_conversion.prob_read_base(read_base, ref_base, base_qual);
+    let prob_ref = base_conversion.prob_read_base(read_base, bisulfite_base, base_qual);
     (prob_alt, prob_ref)
 }
 
@@ -472,16 +486,16 @@ impl ToVariantRepresentation for Methylation {
     }
 }
 
-/// Determines the orientation of a read based on its flags.  
+/// Determines the orientation of a read based on its flags.
 ///
-/// For single-end reads: returns true if the read is reverse-complemented.  
-/// For paired-end reads: returns true if the read is from the reverse strand  
-/// (either first-in-pair and reverse, or second-in-pair and forward).  
-///  
-/// # Arguments  
-/// * `read` - The sequencing read to check  
-///  
-/// # Returns  
+/// For single-end reads: returns true if the read is reverse-complemented.
+/// For paired-end reads: returns true if the read is from the reverse strand
+/// (either first-in-pair and reverse, or second-in-pair and forward).
+///
+/// # Arguments
+/// * `read` - The sequencing read to check
+///
+/// # Returns
 /// * `true` if the read is from the reverse strand, `false` otherwise
 pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
     let read_paired = read.is_paired();
