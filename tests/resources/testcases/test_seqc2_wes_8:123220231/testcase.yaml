@@ -1,0 +1,36 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  tumor:
+    path: 'tumor.bam'
+    properties: '{"insert_size":{"mean":174.34929673203902,"sd":33.43177866237884},"max_del_cigar_len":86,"max_ins_cigar_len":52,"frac_max_softclip":0.9920634920634921,"max_read_len":126,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.858040103438997,"prob_deletion_artifact":-10.332979255112187,"prob_insertion_extend_artifact":-9.858040103438997,"prob_deletion_extend_artifact":-10.332979255112187},"hop_params":{"prob_seq_homopolymer":[-7.690410287443487,-9.292267006210071,-8.729682275627233,-7.643006176608742],"prob_ref_homopolymer":[-8.47418379849533,-9.602173353495933,-9.058224803398105,-8.284203632708886],"prob_seq_extend_homopolymer":[-7.690410287443487,-9.292267006210071,-8.729682275627233,-7.643006176608742],"prob_ref_extend_homopolymer":[-8.47418379849533,-9.602173353495933,-9.058224803398105,-8.284203632708886]},"wildtype_homopolymer_error_model":{"22":6.931421978772561e-7,"4":6.972195049235929e-6,"-2":2.8541149324357605e-7,"7":1.6309228185347201e-6,"11":3.5880302007763845e-6,"24":8.154614092673601e-8,"8":4.648130032823952e-6,"17":2.079426593631768e-6,"19":2.8541149324357605e-7,"14":3.0172072142892323e-6,"1":0.0001287205834528528,"2":0.000035880302007763845,"10":1.7940151003881923e-6,"5":2.4056111573387124e-6,"6":6.523691274138881e-7,"-3":2.44638422780208e-7,"15":1.0600998320475681e-6,"28":4.0773070463368004e-8,"12":2.2425188754852403e-6,"20":2.44638422780208e-7,"9":2.4463842278020805e-6,"16":1.3862843957545122e-6,"23":2.8541149324357605e-7,"27":4.0773070463368004e-8,"18":7.746883388039921e-7,"21":5.708229864871521e-7,"13":3.1802994961427044e-6,"3":2.4463842278020805e-6,"-1":3.2618456370694403e-7,"0":0.9998199053477633},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/normal_tumor/tumor_wes.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":173.71424470511397,"sd":33.963474241885436},"max_del_cigar_len":78,"max_ins_cigar_len":42,"frac_max_softclip":0.9920634920634921,"max_read_len":126,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.855164698288393,"prob_deletion_artifact":-10.34495970313552,"prob_insertion_extend_artifact":-9.855164698288393,"prob_deletion_extend_artifact":-10.34495970313552},"hop_params":{"prob_seq_homopolymer":[-7.696764777445105,-9.255755122946299,-8.797585258234779,-7.649568383654242],"prob_ref_homopolymer":[-8.56409791323305,-9.567429410268254,-9.17244443247397,-8.222010849886592],"prob_seq_extend_homopolymer":[-7.696764777445105,-9.255755122946299,-8.797585258234779,-7.649568383654242],"prob_ref_extend_homopolymer":[-8.56409791323305,-9.567429410268254,-9.17244443247397,-8.222010849886592]},"wildtype_homopolymer_error_model":{"-2":3.709454579521577e-7,"22":3.709454579521577e-7,"0":0.9998233475296908,"7":1.8959434517554726e-6,"17":1.6486464797873674e-6,"18":4.945939439362102e-7,"11":2.8439151776332087e-6,"21":1.6486464797873675e-7,"-3":2.885131339627893e-7,"24":1.2364848598405255e-7,"12":1.4013495078192623e-6,"5":2.637834367659788e-6,"13":2.0608080997342095e-6,"16":1.2364848598405256e-6,"27":4.121616199468419e-8,"4":9.14998796281989e-6,"9":6.883099053112259e-6,"14":3.4209414455587877e-6,"8":5.646614193271734e-6,"-1":5.358101059308944e-7,"19":3.709454579521577e-7,"20":2.885131339627893e-7,"6":4.945939439362102e-7,"25":8.243232398936838e-8,"15":1.1540525358511571e-6,"10":1.4425656698139466e-6,"1":0.00012455524154793561,"23":1.2364848598405255e-7,"3":3.668238417526893e-6,"26":4.121616199468419e-8,"2":0.00003082968917202377},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/normal_tumor/normal_wes.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
