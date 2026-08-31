@@ -61,29 +61,39 @@ pub(crate) struct BaseConversion {
 
 impl BaseConversion {
     /// Create a new BaseConversion from a from->to base pair
-    pub(crate) fn new(from: u8, to: u8) -> Self {
+    pub(crate) fn new(from: u8, to: u8, is_active: bool) -> Self {
         let mut conversions = HashMap::new();
         conversions.insert(from.to_ascii_uppercase(), to.to_ascii_uppercase());
 
         BaseConversion {
             conversions,
-            is_active: true,
+            is_active,
         }
     }
 
     /// Calculate probability of read_base given ref_base, considering possible conversions
-    pub(crate) fn prob_read_base(&self, read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
+    pub(crate) fn prob_read_base(
+        &self,
+        ref_base: u8,
+        read_base: u8,
+        alt_base: u8,
+        base_qual: u8,
+    ) -> LogProb {
         // Use the original prob_read_base function from bases module
         // This serves as a wrapper that can be extended with conversion logic later
-        crate::variants::evidence::bases::prob_read_base(read_base, ref_base, base_qual)
+        if self.is_possible_conversion(read_base, ref_base) {
+            return *PROB_ANY;
+        }
+        crate::variants::evidence::bases::prob_read_base(read_base, alt_base, base_qual)
     }
 
     /// Check if a (read_base, ref_base) pair could be explained by conversion
     pub(crate) fn is_possible_conversion(&self, read_base: u8, ref_base: u8) -> bool {
-        self.conversions
-            .get(&ref_base.to_ascii_uppercase())
-            .map(|&converted_base| converted_base == read_base.to_ascii_uppercase())
-            .unwrap_or(false)
+        self.is_active
+            && self
+                .conversions
+                .get(&ref_base.to_ascii_uppercase())
+                .is_some_and(|&converted_base| converted_base == read_base.to_ascii_uppercase())
     }
 }
 
@@ -548,7 +558,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         };
 
         // Create a base conversion wrapper for the variant types
-        let base_conversion = Arc::new(BaseConversion::new(b'C', b'T'));
+        let base_conversion = Arc::new(BaseConversion::new(b'C', b'T', true));
 
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();

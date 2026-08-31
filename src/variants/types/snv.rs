@@ -96,9 +96,12 @@ impl<R: Realigner> Snv<R> {
             let read_base =
                 unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-            let prob_alt = self
-                .base_conversion
-                .prob_read_base(read_base, self.alt_base, base_qual);
+            let prob_alt = self.base_conversion.prob_read_base(
+                self.ref_base,
+                read_base,
+                self.alt_base,
+                base_qual,
+            );
             let mut is_third_allele = false;
 
             // METHOD: instead of considering the actual REF base, we assume that REF is whatever
@@ -118,9 +121,12 @@ impl<R: Realigner> Snv<R> {
                 self.ref_base
             };
 
-            let prob_ref = self
-                .base_conversion
-                .prob_read_base(read_base, non_alt_base, base_qual);
+            let prob_ref = self.base_conversion.prob_read_base(
+                self.ref_base,
+                read_base,
+                non_alt_base,
+                base_qual,
+            );
             let strand = if prob_ref != prob_alt {
                 Strand::from_record_and_pos(read, qpos as usize)?
             } else {

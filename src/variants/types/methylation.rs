@@ -332,8 +332,8 @@ pub fn compute_probs_converted_read(
     let read_base = seq_bytes[qpos as usize];
     let base_qual = record.qual()[qpos as usize];
 
-    let prob_alt = base_conversion.prob_read_base(read_base, ref_base, base_qual);
-    let prob_ref = base_conversion.prob_read_base(read_base, bisulfite_base, base_qual);
+    let prob_alt = base_conversion.prob_read_base(ref_base, read_base, ref_base, base_qual);
+    let prob_ref = base_conversion.prob_read_base(ref_base, read_base, bisulfite_base, base_qual);
     (prob_alt, prob_ref)
 }
 

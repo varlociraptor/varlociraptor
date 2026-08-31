@@ -906,7 +906,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     // Create default base conversion for bisulfite (C->T on forward strand)
                     let base_conversion = Arc::new(
-                        calling::variants::preprocessing::BaseConversion::new(b'C', b'T'),
+                        calling::variants::preprocessing::BaseConversion::new(b'C', b'T', true),
                     );
 
                     let propagate_info_fields = propagate_info_fields
