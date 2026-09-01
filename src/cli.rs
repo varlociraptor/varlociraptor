@@ -369,6 +369,13 @@ pub enum PreprocessKind {
             help = "Type of methylation information encoded in the reads. Use 'converted' for reads treated with bisulfite or EMSeq. Use 'annotated' for reads where methylation information is encoded in the MM and ML tags."
         )]
         methylation_readtype: Option<MethylationReadtype>,
+        #[structopt(
+            long = "base-conversion",
+            value_name = "FROM_1:TO_1 FROM_2:TO_2",
+            help = "Reference to read base conversions introduced by library prep that should be treated as non-informative instead of mismatches. Multiple conversions can be specified, e.g. `--base-conversion C:T G:A` for bisulfite / EM-seq."
+        )]
+        #[serde(default)]
+        base_conversion: Vec<String>,
     },
 }
 
@@ -872,6 +879,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     methylation_readtype,
                     variant_heterozygosity_field,
                     variant_somatic_effective_mutation_rate_field,
+                    base_conversion,
                 } => {
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
@@ -904,9 +912,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let log_each_record = log_mode == "each-record";
 
-                    // Create default base conversion for bisulfite (C->T on forward strand)
                     let base_conversion = Arc::new(
-                        calling::variants::preprocessing::BaseConversion::new(b'C', b'T', true),
+                        calling::variants::preprocessing::BaseConversion::from_specs(
+                            &base_conversion,
+                        )?,
                     );
 
                     let propagate_info_fields = propagate_info_fields

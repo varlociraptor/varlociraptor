@@ -54,28 +54,29 @@ lazy_static! {
 }
 
 /// Represents base conversion events (e.g., bisulfite conversion C->T)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct BaseConversion {
     /// Maps from ref_base to read_base that results from conversion
-    /// e.g., 'C' -> 'T' for forward strand bisulfite
     conversions: HashMap<u8, u8>,
-    /// Whether this conversion is active for this sample
-    is_active: bool,
 }
 
 impl BaseConversion {
-    /// Create a new BaseConversion from a from->to base pair
-    pub(crate) fn new(from: u8, to: u8, is_active: bool) -> Self {
+    pub(crate) fn from_specs(specs: &[String]) -> anyhow::Result<Self> {
         let mut conversions = HashMap::new();
-        conversions.insert(from.to_ascii_uppercase(), to.to_ascii_uppercase());
 
-        BaseConversion {
-            conversions,
-            is_active,
+        for spec in specs {
+            let (from, to) = parse_conversion(spec)?;
+            conversions.insert(from, to);
         }
+        Ok(Self { conversions })
+    }
+    // A conversion is possible if the original ref_base maps to the read_base
+    pub(crate) fn is_possible_conversion(&self, read_base: u8, ref_base: u8) -> bool {
+        self.conversions
+            .get(&ref_base.to_ascii_uppercase())
+            .is_some_and(|&converted_base| converted_base == read_base.to_ascii_uppercase())
     }
 
-    /// Calculate probability of read_base given ref_base, considering possible conversions
     pub(crate) fn prob_read_base(
         &self,
         ref_base: u8,
@@ -83,22 +84,33 @@ impl BaseConversion {
         alt_base: u8,
         base_qual: u8,
     ) -> LogProb {
-        // We don't know the true base, so use a uniform probability for any possible conversion
         if self.is_possible_conversion(read_base, ref_base) {
-            return *PROB_ANY;
+            *PROB_ANY
+        } else {
+            // Use the original prob_read_base function from bases module if there is no conversion
+            crate::variants::evidence::bases::prob_read_base(read_base, alt_base, base_qual)
         }
-        // Use the original prob_read_base function from bases module if there is no conversion
-        crate::variants::evidence::bases::prob_read_base(read_base, alt_base, base_qual)
     }
+}
 
-    /// Check if a (read_base, ref_base) pair could be explained by conversion
-    pub(crate) fn is_possible_conversion(&self, read_base: u8, ref_base: u8) -> bool {
-        self.is_active
-            && self
-                .conversions
-                .get(&ref_base.to_ascii_uppercase())
-                .is_some_and(|&converted_base| converted_base == read_base.to_ascii_uppercase())
+fn parse_conversion(spec: &str) -> anyhow::Result<(u8, u8)> {
+    let b: Vec<u8> = spec
+        .bytes()
+        .filter(u8::is_ascii_alphabetic)
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    anyhow::ensure!(
+        b.len() == 2,
+        "invalid base conversion '{spec}', expected two bases (e.g. C:T)"
+    );
+    for x in &b {
+        anyhow::ensure!(
+            matches!(x, b'A' | b'C' | b'G' | b'T'),
+            "invalid base '{}' in '{spec}'",
+            *x as char
+        );
     }
+    Ok((b[0], b[1]))
 }
 
 #[derive(TypedBuilder)]
