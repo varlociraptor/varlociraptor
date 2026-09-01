@@ -552,7 +552,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 Ok(variants::types::Methylation::new(
                     locus,
                     methylation_readtype,
-                    Arc::clone(&base_conversion),
                 ))
             } else {
                 panic!("Please specify the methylation read type with --methylation-read-type <converted|annotated> in order to process methylation variants.");
