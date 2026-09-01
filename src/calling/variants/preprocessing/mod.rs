@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
@@ -49,6 +49,10 @@ pub(crate) mod haplotype_feature_index;
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
 
+lazy_static! {
+    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
+}
+
 /// Represents base conversion events (e.g., bisulfite conversion C->T)
 #[derive(Debug, Clone)]
 pub(crate) struct BaseConversion {
@@ -56,7 +60,7 @@ pub(crate) struct BaseConversion {
     /// e.g., 'C' -> 'T' for forward strand bisulfite
     conversions: HashMap<u8, u8>,
     /// Whether this conversion is active for this sample
-    pub is_active: bool,
+    is_active: bool,
 }
 
 impl BaseConversion {
@@ -79,11 +83,11 @@ impl BaseConversion {
         alt_base: u8,
         base_qual: u8,
     ) -> LogProb {
-        // Use the original prob_read_base function from bases module
-        // This serves as a wrapper that can be extended with conversion logic later
+        // We don't know the true base, so use a uniform probability for any possible conversion
         if self.is_possible_conversion(read_base, ref_base) {
             return *PROB_ANY;
         }
+        // Use the original prob_read_base function from bases module if there is no conversion
         crate::variants::evidence::bases::prob_read_base(read_base, alt_base, base_qual)
     }
 
@@ -96,25 +100,6 @@ impl BaseConversion {
                 .is_some_and(|&converted_base| converted_base == read_base.to_ascii_uppercase())
     }
 }
-
-// Import necessary constants for prob_read_base implementation
-use bio::stats::Prob;
-use lazy_static::lazy_static;
-
-lazy_static! {
-    static ref BASEQUAL_TO_PROB_CALL: [LogProb; 256] = {
-        let mut probs = [LogProb::ln_zero(); 256];
-        for qual in 0u8..=255u8 {
-            probs[qual as usize] =
-                LogProb::from(Prob(1.0) - Prob::from(PHREDProb::from((qual) as f64)));
-        }
-        probs
-    };
-    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
-    static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-}
-
-use bio::stats::PHREDProb;
 
 #[derive(TypedBuilder)]
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
