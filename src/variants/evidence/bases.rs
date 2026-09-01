@@ -7,7 +7,7 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
+    pub(crate) static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
 }
 
 /// Calculate probability of read_base given ref_base.

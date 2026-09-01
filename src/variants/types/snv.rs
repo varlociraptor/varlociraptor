@@ -97,8 +97,8 @@ impl<R: Realigner> Snv<R> {
                 unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = self.base_conversion.prob_read_base(
-                self.ref_base,
                 read_base,
+                self.ref_base,
                 self.alt_base,
                 base_qual,
             );
@@ -122,8 +122,8 @@ impl<R: Realigner> Snv<R> {
             };
 
             let prob_ref = self.base_conversion.prob_read_base(
-                self.ref_base,
                 read_base,
+                self.ref_base,
                 non_alt_base,
                 base_qual,
             );

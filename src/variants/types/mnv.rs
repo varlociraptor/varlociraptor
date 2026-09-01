@@ -146,13 +146,13 @@ impl<R: Realigner> Mnv<R> {
 
                     let base_prob_alt = self
                         .base_conversion
-                        .prob_read_base(*ref_base, read_base, *alt_base, base_qual);
+                        .prob_read_base(read_base, *ref_base, *alt_base, base_qual);
                     let base_prob_ref = self
                         .base_conversion
-                        .prob_read_base(*ref_base, read_base, *ref_base, base_qual);
+                        .prob_read_base(read_base, *ref_base, *ref_base, base_qual);
                     let base_prob_third = self
                         .base_conversion
-                        .prob_read_base(*ref_base, read_base, read_base, base_qual);
+                        .prob_read_base(read_base, *ref_base, read_base, base_qual);
 
                     if base_prob_alt != base_prob_ref {
                         if let Some(strand_info) = aux_strand_info {

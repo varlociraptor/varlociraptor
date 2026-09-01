@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
-use bio::stats::{LogProb, Prob};
+use bio::stats::LogProb;
 use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
@@ -33,6 +33,7 @@ use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
+use crate::variants::evidence::bases::PROB_ANY;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
     AltLocus, ReadObservationBuilder, ReadPosition, Strand,
@@ -44,14 +45,9 @@ use crate::variants::sample::Sample;
 use crate::variants::sample::SampleBuilder;
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
-
 pub(crate) mod haplotype_feature_index;
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
-
-lazy_static! {
-    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
-}
 
 /// Represents base conversion events (e.g., bisulfite conversion C->T)
 #[derive(Debug, Clone, Default)]
@@ -79,8 +75,8 @@ impl BaseConversion {
 
     pub(crate) fn prob_read_base(
         &self,
-        ref_base: u8,
         read_base: u8,
+        ref_base: u8,
         alt_base: u8,
         base_qual: u8,
     ) -> LogProb {
