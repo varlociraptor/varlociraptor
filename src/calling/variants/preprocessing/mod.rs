@@ -542,9 +542,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })
         };
 
-        // Create a base conversion wrapper for the variant types
-        let base_conversion = Arc::new(BaseConversion::new(b'C', b'T', true));
-
         let parse_meth = || -> Result<variants::types::Methylation> {
             let locus = variants.locus().clone();
             let methylation_readtype = self.methylation_readtype;
@@ -566,7 +563,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt,
                 self.realigner.clone(),
                 !self.atomic_candidate_variants,
-                Arc::clone(&base_conversion),
+                self.realigner.base_conversion(),
             ))
         };
 
@@ -591,7 +588,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt.to_owned(),
                 self.realigner.clone(),
                 !self.atomic_candidate_variants,
-                Arc::clone(&base_conversion),
+                self.realigner.base_conversion(),
             ))
         };
 
