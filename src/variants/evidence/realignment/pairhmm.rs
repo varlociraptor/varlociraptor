@@ -15,15 +15,11 @@ use num_traits::Zero;
 use rust_htslib::bam;
 
 use crate::calling::variants::preprocessing::BaseConversion;
-use crate::variants::evidence::bases::prob_read_base_miscall;
+use crate::variants::evidence::bases::{prob_read_base, prob_read_base_miscall};
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
 /// Width of band around alignment with optimal edit distance.
 pub(crate) const EDIT_BAND: usize = 4;
-
-lazy_static! {
-    static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-}
 
 pub(crate) trait RefBaseEmission {
     /// Return ref base with coordinate i relative to ref_offset.
@@ -418,7 +414,7 @@ pub(crate) struct ReadEmission<'a> {
     #[getset(get = "pub(crate)")]
     any_miscall: Vec<LogProb>,
     #[getset(get = "pub(crate)")]
-    no_miscall: Vec<LogProb>,
+    qual: &'a [u8],
     #[getset(get = "pub(crate)")]
     read_offset: usize,
     #[getset(get = "pub(crate)")]
@@ -432,7 +428,7 @@ pub(crate) struct ReadEmission<'a> {
 impl<'a> ReadEmission<'a> {
     pub(crate) fn new(
         read_seq: bam::record::Seq<'a>,
-        qual: &[u8],
+        qual: &'a [u8],
         read_offset: Option<usize>,
         read_end: Option<usize>,
         base_conversion: Arc<BaseConversion>,
@@ -440,17 +436,14 @@ impl<'a> ReadEmission<'a> {
         let read_offset = read_offset.unwrap_or(0);
         let read_end = read_end.unwrap_or(qual.len());
         let mut any_miscall = vec![LogProb::ln_zero(); read_end - read_offset];
-        let mut no_miscall = any_miscall.clone();
         for (j, j_) in (read_offset..read_end).enumerate() {
-            let prob_miscall = prob_read_base_miscall(*unsafe { qual.get_unchecked(j_) });
-            any_miscall[j] = prob_miscall;
-            no_miscall[j] = prob_miscall.ln_one_minus_exp();
+            any_miscall[j] = prob_read_base_miscall(*unsafe { qual.get_unchecked(j_) });
         }
         let error_rate = LogProb(*LogProb::ln_sum_exp(&any_miscall) - (qual.len() as f64).ln());
         ReadEmission {
             read_seq,
             any_miscall,
-            no_miscall,
+            qual,
             read_offset,
             read_end,
             error_rate,
@@ -458,19 +451,17 @@ impl<'a> ReadEmission<'a> {
         }
     }
 
-    fn particular_miscall(&self, j: usize) -> LogProb {
-        (unsafe { self.any_miscall.get_unchecked(j) }) + *PROB_CONFUSION
-    }
-
     /// Calculate probability of read_base given ref_base.
     pub(crate) fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
         let read_base = unsafe { self.read_seq.decoded_base_unchecked(self.project_j(j)) };
+        let base_qual = unsafe { *self.qual.get_unchecked(self.project_j(j)) };
+        let prob = prob_read_base(read_base, ref_base, base_qual);
 
         if read_base == ref_base.to_ascii_uppercase() {
-            pairhmm::XYEmission::Match(*unsafe { self.no_miscall.get_unchecked(j) })
+            pairhmm::XYEmission::Match(prob)
         } else {
             // TODO replace the second term with technology specific confusion matrix
-            pairhmm::XYEmission::Mismatch(self.particular_miscall(j))
+            pairhmm::XYEmission::Mismatch(prob)
         }
     }
 

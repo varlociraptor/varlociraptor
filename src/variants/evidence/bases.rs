@@ -15,6 +15,7 @@ pub(crate) fn prob_read_base(mut read_base: u8, ref_base: u8, base_qual: u8) -> 
     read_base = read_base.to_ascii_uppercase();
     if read_base == ref_base.to_ascii_uppercase() {
         unsafe { *BASEQUAL_TO_PROB_CALL.get_unchecked(base_qual as usize) }
+    // TODO: Since we use this method for the realignment HMM, we have special cases for N and IUPAC codes. This is new and we need to think about it if this causes issues.
     } else if read_base == b'N' {
         // METHOD: N means there can be anything, assuming a flat probability here.
         *PROB_ANY
