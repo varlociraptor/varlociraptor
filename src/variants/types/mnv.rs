@@ -13,15 +13,14 @@ use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
-use rust_htslib::bam;
 
-use crate::calling::variants::preprocessing::BaseConversion;
 use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::observations::read_observation::{AlignmentRecord, Strand};
 use crate::variants::evidence::realignment::edit_distance::is_explainable_by_error_rates;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::ReadEmission;
@@ -44,7 +43,6 @@ pub(crate) struct Mnv<R: Realigner> {
     alt_bases: Rc<Vec<u8>>,
     realigner: RefCell<R>,
     realign_indel_reads: bool,
-    base_conversion: Arc<BaseConversion>,
 }
 
 impl<R: Realigner> Mnv<R> {
@@ -54,7 +52,6 @@ impl<R: Realigner> Mnv<R> {
         alt_bases: Vec<u8>,
         realigner: R,
         realign_indel_reads: bool,
-        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         Mnv {
             loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
@@ -65,7 +62,6 @@ impl<R: Realigner> Mnv<R> {
             alt_bases: Rc::new(alt_bases.to_ascii_uppercase()),
             realigner: RefCell::new(realigner),
             realign_indel_reads,
-            base_conversion,
         }
     }
 
@@ -75,7 +71,7 @@ impl<R: Realigner> Mnv<R> {
 
     fn allele_support_per_read(
         &self,
-        read: &bam::Record,
+        read: &AlignmentRecord,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -106,13 +102,8 @@ impl<R: Realigner> Mnv<R> {
             let mut strand = Strand::None;
             let mut read_position = None;
             let mut alt_edit_dist = 0_u32;
-            let read_emission = ReadEmission::new(
-                read.seq(),
-                read.qual(),
-                None,
-                None,
-                Arc::clone(&self.base_conversion),
-            );
+            let read_emission =
+                ReadEmission::new(read.seq(), read.qual(), None, None, read.converted_seq());
             let mut is_third_allele = false;
 
             for ((alt_base, ref_base), pos) in self
@@ -135,24 +126,21 @@ impl<R: Realigner> Mnv<R> {
                         read_position =
                             Some(qpos + read.cigar_cached().unwrap().leading_hardclips() as u32);
                     }
-                    let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) }
-                        .to_ascii_uppercase();
+                    let read_base = match read.converted_seq() {
+                        Some(seq) => unsafe { *seq.get_unchecked(qpos as usize) },
+                        None => unsafe { read.seq().decoded_base_unchecked(qpos as usize) }
+                            .to_ascii_uppercase(),
+                    };
                     let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-
-                    // N bases do not count as additional edits
-                    if read_base != b'N' && read_base != *alt_base {
+                    let alt_bases = [b'N', b'R', b'Y', b'S', b'W', b'K', b'M'];
+                    // N bases and iupac codes do not count as additional edits
+                    if !alt_bases.contains(&read_base) && read_base != *alt_base {
                         alt_edit_dist += 1;
                     }
 
-                    let base_prob_alt = self
-                        .base_conversion
-                        .prob_read_base(read_base, *ref_base, *alt_base, base_qual);
-                    let base_prob_ref = self
-                        .base_conversion
-                        .prob_read_base(read_base, *ref_base, *ref_base, base_qual);
-                    let base_prob_third = self
-                        .base_conversion
-                        .prob_read_base(read_base, *ref_base, read_base, base_qual);
+                    let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
+                    let base_prob_ref = prob_read_base(read_base, *ref_base, base_qual);
+                    let base_prob_third = prob_read_base(read_base, read_base, base_qual);
 
                     if base_prob_alt != base_prob_ref {
                         if let Some(strand_info) = aux_strand_info {

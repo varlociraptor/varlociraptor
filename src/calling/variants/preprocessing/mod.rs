@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
-use bio::stats::LogProb;
 use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
@@ -33,7 +32,7 @@ use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
-use crate::variants::evidence::bases::PROB_ANY;
+use crate::variants::evidence::bases::bases_to_iupac;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
     AltLocus, ReadObservationBuilder, ReadPosition, Strand,
@@ -52,39 +51,41 @@ use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeF
 /// Represents base conversion events (e.g., bisulfite conversion C->T)
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BaseConversion {
-    /// Maps from ref_base to read_base that results from conversion
+    /// Maps a sequenced ("to") base to the IUPAC code representing its possible conversion origins.
     conversions: HashMap<u8, u8>,
 }
 
 impl BaseConversion {
     pub(crate) fn from_specs(specs: &[String]) -> anyhow::Result<Self> {
-        let mut conversions = HashMap::new();
+        if specs.is_empty() {
+            return Ok(Self::default());
+        }
 
+        //group by the "to" base, since multiple specs can convert different "from" bases into the same "to" base (e.g. C:T and G:T), in which case the IUPAC code must represent all of them.
+        let mut groups: HashMap<u8, Vec<u8>> = HashMap::new();
         for spec in specs {
             let (from, to) = parse_conversion(spec)?;
-            conversions.insert(from, to);
+            let members = groups.entry(to).or_insert_with(|| vec![to]);
+            members.push(from);
         }
+
+        let conversions = groups
+            .into_iter()
+            .map(|(to, members)| (to, bases_to_iupac(&members)))
+            .collect();
         Ok(Self { conversions })
     }
-    // A conversion is possible if the original ref_base maps to the read_base
-    pub(crate) fn is_possible_conversion(&self, read_base: u8, ref_base: u8) -> bool {
-        self.conversions
-            .get(&ref_base.to_ascii_uppercase())
-            .is_some_and(|&converted_base| converted_base == read_base.to_ascii_uppercase())
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.conversions.is_empty()
     }
 
-    pub(crate) fn prob_read_base(
-        &self,
-        read_base: u8,
-        ref_base: u8,
-        alt_base: u8,
-        base_qual: u8,
-    ) -> LogProb {
-        if self.is_possible_conversion(read_base, ref_base) {
-            *PROB_ANY
-        } else {
-            // Use the original prob_read_base function from bases module if there is no conversion
-            crate::variants::evidence::bases::prob_read_base(read_base, alt_base, base_qual)
+    /// Replace `base` with the IUPAC ambiguity code representing its possible conversion origins, if `--base-conversion` targets it. Otherwise return `base` unchanged.
+    #[inline]
+    pub(crate) fn convert(&self, base: u8) -> u8 {
+        match self.conversions.get(&base.to_ascii_uppercase()) {
+            Some(&iupac) => iupac,
+            None => base,
         }
     }
 }
@@ -140,6 +141,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     methylation_readtype: Option<MethylationReadtype>,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -296,6 +298,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
                 methylation_mm_ml_tag,
+                Arc::clone(&self.base_conversion),
             )
             .build()
             .unwrap();
@@ -571,7 +574,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt,
                 self.realigner.clone(),
                 !self.atomic_candidate_variants,
-                self.realigner.base_conversion(),
             ))
         };
 
@@ -596,7 +598,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt.to_owned(),
                 self.realigner.clone(),
                 !self.atomic_candidate_variants,
-                self.realigner.base_conversion(),
             ))
         };
 

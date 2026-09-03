@@ -949,7 +949,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         gap_params,
                                         hop_params,
                                         realignment_window,
-                                        Arc::clone(&base_conversion),
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
@@ -957,6 +956,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .base_conversion(Arc::clone(&base_conversion))
                                     .build();
                             processor.process()?;
                         }
@@ -983,7 +983,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         gap_params,
                                         realignment_window,
                                         reference_buffer,
-                                        Arc::clone(&base_conversion),
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
@@ -991,6 +990,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .base_conversion(Arc::clone(&base_conversion))
                                     .build();
                             processor.process()?;
                         }
@@ -1027,7 +1027,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         reference_buffer,
                                         gap_params,
                                         realignment_window,
-                                        Arc::clone(&base_conversion),
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
@@ -1035,6 +1034,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
                                     )
+                                    .base_conversion(Arc::clone(&base_conversion))
                                     .build();
                             processor.process()?;
                         }

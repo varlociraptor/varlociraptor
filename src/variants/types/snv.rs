@@ -6,21 +6,19 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::ops::Range;
-
 use std::sync::Arc;
 
 use anyhow::Result;
 
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
-use rust_htslib::bam;
 
-use crate::calling::variants::preprocessing::BaseConversion;
 use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::observations::read_observation::{AlignmentRecord, Strand};
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
@@ -41,7 +39,6 @@ pub(crate) struct Snv<R: Realigner> {
     alt_base: u8,
     realigner: RefCell<R>,
     realign_indel_reads: bool,
-    base_conversion: Arc<BaseConversion>,
 }
 
 impl<R: Realigner> Snv<R> {
@@ -51,7 +48,6 @@ impl<R: Realigner> Snv<R> {
         alt_base: u8,
         realigner: R,
         realign_indel_reads: bool,
-        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         Snv {
             loci: MultiLocus::from_single_locus(SingleLocus::new(genome::Interval::new(
@@ -62,13 +58,12 @@ impl<R: Realigner> Snv<R> {
             alt_base: alt_base.to_ascii_uppercase(),
             realigner: RefCell::new(realigner),
             realign_indel_reads,
-            base_conversion,
         }
     }
 
     fn allele_support_per_read(
         &self,
-        read: &bam::Record,
+        read: &AlignmentRecord,
         alignment_properties: &AlignmentProperties,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
@@ -93,15 +88,16 @@ impl<R: Realigner> Snv<R> {
             // TODO expect u64 in read_pos
             .read_pos(self.locus().range().start as u32, false, false)?
         {
-            let read_base =
-                unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase();
+            // Use the read's converted bases (if user requested --base-conversion), otherwise decode the original bases.
+            let read_base = match read.converted_seq() {
+                Some(seq) => unsafe { *seq.get_unchecked(qpos as usize) },
+                None => {
+                    unsafe { read.seq().decoded_base_unchecked(qpos as usize) }.to_ascii_uppercase()
+                }
+            };
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-            let prob_alt = self.base_conversion.prob_read_base(
-                read_base,
-                self.ref_base,
-                self.alt_base,
-                base_qual,
-            );
+
+            let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
             let mut is_third_allele = false;
 
             // METHOD: instead of considering the actual REF base, we assume that REF is whatever
@@ -113,20 +109,15 @@ impl<R: Realigner> Snv<R> {
             // However, the approximation is pretty accurate, because it will only matter for true
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
-            // Here, N bases do not count as additional edits that would indicate a third allele.
-            let non_alt_base = if read_base != b'N' && read_base != self.alt_base {
+            // Here, N bases and IUPAC codes do not count as additional edits that would indicate a third allele.
+            let alt_bases = [b'N', b'R', b'Y', b'S', b'W', b'K', b'M'];
+            let non_alt_base = if !alt_bases.contains(&read_base) && read_base != self.alt_base {
                 is_third_allele = read_base != self.ref_base;
                 read_base
             } else {
                 self.ref_base
             };
-
-            let prob_ref = self.base_conversion.prob_read_base(
-                read_base,
-                self.ref_base,
-                non_alt_base,
-                base_qual,
-            );
+            let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
             let strand = if prob_ref != prob_alt {
                 Strand::from_record_and_pos(read, qpos as usize)?
             } else {
@@ -134,7 +125,6 @@ impl<R: Realigner> Snv<R> {
                 // retain its information (e.g. strand).
                 Strand::no_strand_info()
             };
-
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)

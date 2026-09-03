@@ -708,17 +708,25 @@ pub struct AlignmentRecord {
     record: Rc<bam::Record>,
     #[getset(get = "pub")]
     prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+    /// Converted read bases (with IUPAC codes), if --base-conversion is active, else `None
+    converted_seq_: Option<Rc<Vec<u8>>>,
 }
 
 impl AlignmentRecord {
     pub(crate) fn new(
         record: Rc<bam::Record>,
         prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+        converted_seq: Option<Rc<Vec<u8>>>,
     ) -> Self {
         AlignmentRecord {
             record,
             prob_methylation,
+            converted_seq_: converted_seq,
         }
+    }
+
+    pub(crate) fn converted_seq(&self) -> Option<Rc<Vec<u8>>> {
+        self.converted_seq_.clone()
     }
 }
 

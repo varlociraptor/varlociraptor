@@ -361,10 +361,12 @@ where
                     left: AlignmentRecord::new(
                         Rc::clone(&candidate.left),
                         buffer.get_read_specific_meth_probs(&candidate.left),
+                        buffer.convert_read_iupac(&candidate.left),
                     ),
                     right: AlignmentRecord::new(
                         Rc::clone(right),
                         buffer.get_read_specific_meth_probs(right),
+                        buffer.convert_read_iupac(right),
                     ),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
@@ -376,6 +378,7 @@ where
                 let evidence = Evidence::SingleEndSequencingRead(AlignmentRecord::new(
                     Rc::clone(&candidate.left),
                     buffer.get_read_specific_meth_probs(&candidate.left),
+                    buffer.convert_read_iupac(&candidate.left),
                 ));
                 if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);

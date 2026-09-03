@@ -6,6 +6,7 @@
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
+use crate::calling::variants::preprocessing::BaseConversion;
 use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::pileup::Pileup;
@@ -29,6 +30,7 @@ use std::f64;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
+use std::sync::Arc;
 
 type MethylationPosToProbs = HashMap<usize, LogProb>;
 type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<Rc<MethylationPosToProbs>>>;
@@ -45,6 +47,7 @@ pub(crate) struct RecordBuffer {
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
     failed_reads: Option<HashSet<ByAddress<Rc<Record>>>>,
+    base_conversion: Arc<BaseConversion>,
 }
 
 impl RecordBuffer {
@@ -53,6 +56,7 @@ impl RecordBuffer {
         single_read_window: u64,
         read_pair_window: u64,
         methylation_mm_ml_tag: bool,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         RecordBuffer {
             inner,
@@ -68,6 +72,7 @@ impl RecordBuffer {
             } else {
                 None
             },
+            base_conversion,
         }
     }
 
@@ -91,6 +96,21 @@ impl RecordBuffer {
                 .cloned()
                 .flatten()
         })
+    }
+
+    /// Convert a read to their IUPAC ambiguity representation, if the user requested --base-conversion. We do this for each 'to' base in the read, independent of the reference base. This is no problem since we compare to the actual reference base (can be different due to ralignment) in prob_read_base of src/variants/evidence/bases.rs
+    pub(crate) fn convert_read_iupac(&self, rec: &Rc<Record>) -> Option<Rc<Vec<u8>>> {
+        if self.base_conversion.is_empty() {
+            return None;
+        }
+        Some(Rc::new(
+            (0..rec.seq().len())
+                .map(|i| {
+                    self.base_conversion
+                        .convert(unsafe { rec.seq().decoded_base_unchecked(i) })
+                })
+                .collect(),
+        ))
     }
 
     pub(crate) fn fetch(
@@ -252,6 +272,7 @@ impl SampleBuilder {
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
         methylation_mm_ml_tag: bool,
+        base_conversion: Arc<BaseConversion>,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -274,6 +295,7 @@ impl SampleBuilder {
                 single_read_window,
                 read_pair_window,
                 methylation_mm_ml_tag,
+                base_conversion,
             ))
     }
 }

@@ -6,6 +6,7 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::ops::Range;
+use std::rc::Rc;
 
 use std::sync::Arc;
 
@@ -14,7 +15,6 @@ use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
 use rust_htslib::bam;
 
-use crate::calling::variants::preprocessing::BaseConversion;
 use crate::variants::evidence::bases::{prob_read_base, prob_read_base_miscall};
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
@@ -421,8 +421,8 @@ pub(crate) struct ReadEmission<'a> {
     read_end: usize,
     #[getset(get_copy = "pub(crate)")]
     error_rate: LogProb,
-    #[getset(get = "pub(crate)")]
-    base_conversion: Arc<BaseConversion>,
+    // TODO: Realiger uses unconverted `read_seq` for homopolymer PairHMM,
+    converted_seq: Option<Rc<Vec<u8>>>,
 }
 
 impl<'a> ReadEmission<'a> {
@@ -431,7 +431,7 @@ impl<'a> ReadEmission<'a> {
         qual: &'a [u8],
         read_offset: Option<usize>,
         read_end: Option<usize>,
-        base_conversion: Arc<BaseConversion>,
+        converted_seq: Option<Rc<Vec<u8>>>,
     ) -> Self {
         let read_offset = read_offset.unwrap_or(0);
         let read_end = read_end.unwrap_or(qual.len());
@@ -447,14 +447,18 @@ impl<'a> ReadEmission<'a> {
             read_offset,
             read_end,
             error_rate,
-            base_conversion,
+            converted_seq,
         }
     }
 
     /// Calculate probability of read_base given ref_base.
     pub(crate) fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
-        let read_base = unsafe { self.read_seq.decoded_base_unchecked(self.project_j(j)) };
-        let base_qual = unsafe { *self.qual.get_unchecked(self.project_j(j)) };
+        let pos = self.project_j(j);
+        let read_base = match &self.converted_seq {
+            Some(seq) => unsafe { *seq.get_unchecked(pos) },
+            None => unsafe { self.read_seq.decoded_base_unchecked(pos) },
+        };
+        let base_qual = unsafe { *self.qual.get_unchecked(pos) };
         let prob = prob_read_base(read_base, ref_base, base_qual);
 
         if read_base == ref_base.to_ascii_uppercase() {
