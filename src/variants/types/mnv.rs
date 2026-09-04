@@ -132,7 +132,9 @@ impl<R: Realigner> Mnv<R> {
                             .to_ascii_uppercase(),
                     };
                     let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-                    let alt_bases = [b'N', b'R', b'Y', b'S', b'W', b'K', b'M'];
+                    let alt_bases = [
+                        b'N', b'R', b'Y', b'S', b'W', b'K', b'M', b'V', b'H', b'D', b'B',
+                    ];
                     // N bases and iupac codes do not count as additional edits
                     if !alt_bases.contains(&read_base) && read_base != *alt_base {
                         alt_edit_dist += 1;

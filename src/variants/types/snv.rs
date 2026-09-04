@@ -110,7 +110,9 @@ impl<R: Realigner> Snv<R> {
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
             // Here, N bases and IUPAC codes do not count as additional edits that would indicate a third allele.
-            let alt_bases = [b'N', b'R', b'Y', b'S', b'W', b'K', b'M'];
+            let alt_bases = [
+                b'N', b'R', b'Y', b'S', b'W', b'K', b'M', b'V', b'H', b'D', b'B',
+            ];
             let non_alt_base = if !alt_bases.contains(&read_base) && read_base != self.alt_base {
                 is_third_allele = read_base != self.ref_base;
                 read_base

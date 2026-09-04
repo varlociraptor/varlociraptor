@@ -5,7 +5,7 @@
 
 use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam::Record;
-use std::rc::Rc;
+use std::{panic, rc::Rc};
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
@@ -53,14 +53,14 @@ pub(crate) fn bases_to_iupac(bases: &[u8]) -> u8 {
         [b'A', b'G', b'T'] => b'D',
         [b'A', b'C', b'T'] => b'H',
         [b'A', b'C', b'G'] => b'V',
-        _ => b'N',
+        _ => panic!("bases_to_iupac: invalid bases: {:?}", bases),
     }
 }
 
 /// True if `ref_base` (a concrete A/C/G/T) is among the bases represented by
 /// the IUPAC ambiguity code `read_base`.
 #[inline]
-fn iupac_contains(read_base: u8, ref_base: u8) -> bool {
+pub(crate) fn iupac_contains(read_base: u8, ref_base: u8) -> bool {
     matches!(
         (read_base, ref_base),
         (b'M', b'A')

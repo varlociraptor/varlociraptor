@@ -372,7 +372,7 @@ pub enum PreprocessKind {
         #[structopt(
             long = "base-conversion",
             value_name = "FROM_1:TO_1 FROM_2:TO_2",
-            help = "Reference to read base conversions introduced by library prep that should be treated as non-informative instead of mismatches. Multiple conversions can be specified, e.g. `--base-conversion C:T G:A` for bisulfite / EM-seq."
+            help = "Reference to read base conversions introduced by library prep that should be treated as non-informative instead of mismatches. Multiple conversions can be specified, e.g. `--base-conversion C:T A:T`."
         )]
         #[serde(default)]
         base_conversion: Vec<String>,

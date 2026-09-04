@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::ops::Range;
 use std::rc::Rc;
 
+use crate::variants::evidence::bases::iupac_contains;
 use std::sync::Arc;
 
 use bio::stats::pairhmm;
@@ -461,7 +462,7 @@ impl<'a> ReadEmission<'a> {
         let base_qual = unsafe { *self.qual.get_unchecked(pos) };
         let prob = prob_read_base(read_base, ref_base, base_qual);
 
-        if read_base == ref_base.to_ascii_uppercase() {
+        if read_base == ref_base || iupac_contains(read_base, ref_base) {
             pairhmm::XYEmission::Match(prob)
         } else {
             // TODO replace the second term with technology specific confusion matrix
