@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use crate::variants::evidence::bases::complement_base;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -52,7 +53,8 @@ use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeF
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BaseConversion {
     /// Maps a sequenced ("to") base to the IUPAC code representing its possible conversion origins.
-    conversions: HashMap<u8, u8>,
+    conversions_forward: HashMap<u8, u8>,
+    conversions_reverse: HashMap<u8, u8>,
 }
 
 impl BaseConversion {
@@ -60,30 +62,44 @@ impl BaseConversion {
         if specs.is_empty() {
             return Ok(Self::default());
         }
-
-        //group by the "to" base, since multiple specs can convert different "from" bases into the same "to" base (e.g. C:T and G:T), in which case the IUPAC code must represent all of them.
         let mut groups: HashMap<u8, Vec<u8>> = HashMap::new();
         for spec in specs {
             let (from, to) = parse_conversion(spec)?;
-            let members = groups.entry(to).or_insert_with(|| vec![to]);
-            members.push(from);
+            groups.entry(to).or_insert_with(|| vec![to]).push(from);
         }
 
-        let conversions = groups
-            .into_iter()
-            .map(|(to, members)| (to, bases_to_iupac(&members)))
+        let conversions_forward = groups
+            .iter()
+            .map(|(&to, members)| (to, bases_to_iupac(members)))
             .collect();
-        Ok(Self { conversions })
+
+        let conversions_reverse = groups
+            .iter()
+            .map(|(&to, members)| {
+                let complemented: Vec<u8> = members.iter().map(|&b| complement_base(b)).collect();
+                (complement_base(to), bases_to_iupac(&complemented))
+            })
+            .collect();
+
+        Ok(Self {
+            conversions_forward,
+            conversions_reverse,
+        })
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.conversions.is_empty()
+        self.conversions_forward.is_empty()
     }
 
     /// Replace `base` with the IUPAC ambiguity code representing its possible conversion origins, if `--base-conversion` targets it. Otherwise return `base` unchanged.
     #[inline]
-    pub(crate) fn convert(&self, base: u8) -> u8 {
-        match self.conversions.get(&base.to_ascii_uppercase()) {
+    pub(crate) fn convert(&self, base: u8, reverse: bool) -> u8 {
+        let map = if reverse {
+            &self.conversions_reverse
+        } else {
+            &self.conversions_forward
+        };
+        match map.get(&base.to_ascii_uppercase()) {
             Some(&iupac) => iupac,
             None => base,
         }

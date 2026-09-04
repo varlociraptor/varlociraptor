@@ -9,10 +9,12 @@ use super::evidence::realignment::Realignable;
 use crate::calling::variants::preprocessing::BaseConversion;
 use crate::estimation::alignment_properties;
 use crate::reference;
+use crate::variants::evidence::bases::read_reverse_orientation;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
     major_read_position, Observable, ReadObservation,
 };
+
 use crate::variants::types::methylation::extract_mm_ml_5mc;
 use crate::variants::types::Loci;
 use crate::variants::types::Variant;
@@ -106,8 +108,10 @@ impl RecordBuffer {
         Some(Rc::new(
             (0..rec.seq().len())
                 .map(|i| {
-                    self.base_conversion
-                        .convert(unsafe { rec.seq().decoded_base_unchecked(i) })
+                    self.base_conversion.convert(
+                        unsafe { rec.seq().decoded_base_unchecked(i) },
+                        read_reverse_orientation(rec),
+                    )
                 })
                 .collect(),
         ))

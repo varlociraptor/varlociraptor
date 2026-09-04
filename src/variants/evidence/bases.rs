@@ -4,6 +4,8 @@
 // except according to those terms.
 
 use bio::stats::{LogProb, PHREDProb, Prob};
+use rust_htslib::bam::Record;
+use std::rc::Rc;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
@@ -113,4 +115,37 @@ lazy_static! {
         }
         probs
     };
+}
+
+/// Returns the complement base for a given base
+pub(crate) fn complement_base(base: u8) -> u8 {
+    match base {
+        b'A' => b'T',
+        b'T' => b'A',
+        b'C' => b'G',
+        b'G' => b'C',
+        _ => base,
+    }
+}
+
+/// Determines the orientation of a read based on its flags.
+///
+/// For single-end reads: returns true if the read is reverse-complemented.
+/// For paired-end reads: returns true if the read is from the reverse strand
+/// (either first-in-pair and reverse, or second-in-pair and forward).
+///
+/// # Arguments
+/// * `read` - The sequencing read to check
+///
+/// # Returns
+/// * `true` if the read is from the reverse strand, `false` otherwise
+pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
+    let read_paired = read.is_paired();
+    let read_reverse = read.is_reverse();
+    let read_first = read.is_first_in_template();
+    if read_paired {
+        read_reverse && read_first || !read_reverse && !read_first
+    } else {
+        read_reverse
+    }
 }

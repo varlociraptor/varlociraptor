@@ -1,4 +1,5 @@
 use super::ToVariantRepresentation;
+use crate::variants::evidence::bases::read_reverse_orientation;
 use crate::variants::evidence::realignment::Realignable;
 use crate::variants::model;
 use crate::{
@@ -6,6 +7,7 @@ use crate::{
 };
 
 use super::MultiLocus;
+use crate::variants::evidence::bases::complement_base;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observations::read_observation::{AlignmentRecord, Strand};
 use crate::variants::types::{
@@ -20,7 +22,6 @@ use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use std::collections::HashMap;
 use std::rc::Rc;
-
 #[derive(Debug)]
 pub(crate) struct Methylation {
     loci: MultiLocus,
@@ -218,17 +219,6 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
         }
     }
     Some(pos_to_prob)
-}
-
-/// Returns the complement base for a given base
-fn complement_base(base: u8) -> u8 {
-    match base {
-        b'A' => b'T',
-        b'T' => b'A',
-        b'C' => b'G',
-        b'G' => b'C',
-        _ => base,
-    }
 }
 
 /// Computes methylation probabilities for a CpG site in a read.
@@ -469,27 +459,5 @@ impl Variant for Methylation {
 impl ToVariantRepresentation for Methylation {
     fn to_variant_representation(&self) -> model::Variant {
         model::Variant::Methylation()
-    }
-}
-
-/// Determines the orientation of a read based on its flags.
-///
-/// For single-end reads: returns true if the read is reverse-complemented.
-/// For paired-end reads: returns true if the read is from the reverse strand
-/// (either first-in-pair and reverse, or second-in-pair and forward).
-///
-/// # Arguments
-/// * `read` - The sequencing read to check
-///
-/// # Returns
-/// * `true` if the read is from the reverse strand, `false` otherwise
-pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
-    let read_paired = read.is_paired();
-    let read_reverse = read.is_reverse();
-    let read_first = read.is_first_in_template();
-    if read_paired {
-        read_reverse && read_first || !read_reverse && !read_first
-    } else {
-        read_reverse
     }
 }
