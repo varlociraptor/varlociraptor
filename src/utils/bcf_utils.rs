@@ -39,7 +39,6 @@ use crate::utils::stats::phred_to_prob;
 ///
 /// # Arguments
 /// * `record` - VCF record
-/// * `header` - VCF header (for resolving RID to name)
 ///
 /// # Returns
 /// Chromosome name as String
@@ -50,19 +49,21 @@ use crate::utils::stats::phred_to_prob;
 /// - Chromosome name resolution fails
 ///
 /// # Example
-/// assert_eq!(get_chrom(&record, &header).unwrap(), "chr1");
-pub(crate) fn get_chrom(record: &bcf::Record, header: &HeaderView) -> Result<String> {
+/// assert_eq!(get_chrom(&record).unwrap(), "chr1");
+pub(crate) fn get_chrom(record: &bcf::Record) -> Result<String> {
     let rid = record.rid().ok_or_else(|| Error::VcfRecordChromMissing {
         pos: record.pos() + 1,
     })?;
 
-    let chrom_bytes = header
-        .rid2name(rid)
-        .map_err(|_| Error::VcfRecordChromResolveFailed {
-            pos: record.pos() + 1,
-            rid,
-            details: "Failed to resolve chromosome name".to_string(),
-        })?;
+    let chrom_bytes =
+        record
+            .header()
+            .rid2name(rid)
+            .map_err(|_| Error::VcfRecordChromResolveFailed {
+                pos: record.pos() + 1,
+                rid,
+                details: "Failed to resolve chromosome name".to_string(),
+            })?;
 
     let chrom = String::from_utf8_lossy(chrom_bytes).to_string();
 
@@ -105,7 +106,6 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 ///
 /// # Arguments
 /// * `record`   - VCF record
-/// * `header`   - VCF header
 /// * `alt_idx`  - ALT allele index (0-based into the ALT array, not alleles array)
 /// * `events`   - Event names (e.g. `["somatic", "germline_het"]`)
 /// * `is_phred` - Whether `INFO/PROB_*` values are PHRED-scaled
@@ -116,7 +116,6 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 /// * `Err`         - NaN value in a probability field
 pub(crate) fn get_events_probability(
     record: &bcf::Record,
-    header: &HeaderView,
     alt_idx: usize,
     events: &[String],
     is_phred: bool,
@@ -140,7 +139,7 @@ pub(crate) fn get_events_probability(
             return Err(Error::VcfProbabilityValueInvalid {
                 field: field_name,
                 value: raw,
-                chrom: get_chrom(record, header)?,
+                chrom: get_chrom(record)?,
                 pos: record.pos() + 1,
             }
             .into());
@@ -169,7 +168,6 @@ pub(crate) fn get_events_probability(
 ///
 /// # Arguments
 /// * `record`     - VCF record
-/// * `header`     - VCF header
 /// * `sample_idx` - Sample index in FORMAT columns
 /// * `alt_idx`    - ALT allele index (0-based into the ALT array)
 ///
@@ -179,7 +177,6 @@ pub(crate) fn get_events_probability(
 /// * `Err`          - AF outside [0.0, 1.0] or NaN
 pub(crate) fn get_sample_af(
     record: &bcf::Record,
-    header: &HeaderView,
     sample_idx: usize,
     alt_idx: usize,
 ) -> Result<Option<f32>> {
@@ -201,7 +198,7 @@ pub(crate) fn get_sample_af(
         return Err(Error::VcfAlleleFrequencyInvalid {
             sample: format!("sample_idx={}", sample_idx),
             af,
-            chrom: get_chrom(record, header)?,
+            chrom: get_chrom(record)?,
             pos: record.pos() + 1,
         }
         .into());
@@ -690,8 +687,6 @@ pub(crate) fn validate_required_vcf_fields_msi(header: &HeaderView) -> Result<()
 /// Advances the reader past the first record - reopen the file before
 /// further iteration.
 pub(crate) fn validate_vcf_file(vcf: &mut bcf::Reader) -> Result<()> {
-    let header = vcf.header().clone();
-
     match vcf.records().next() {
         None => Err(Error::VcfFileEmpty.into()),
         Some(Err(e)) => Err(Error::VcfRecordReadFailed {
@@ -699,7 +694,7 @@ pub(crate) fn validate_vcf_file(vcf: &mut bcf::Reader) -> Result<()> {
         }
         .into()),
         Some(Ok(record)) => {
-            let chrom = get_chrom(&record, &header)?;
+            let chrom = get_chrom(&record)?;
             let pos = record.pos();
             info!("  - First variant: {}:{}", chrom, pos + 1);
             info!("  - VCF file validated successfully");
@@ -950,23 +945,10 @@ pub(crate) mod tests {
     /// Read the first record from a VCF/BCF file (without header).
     ///
     /// # Returns
-    /// Tuple of (reader, record) for testing
-    pub fn read_first_record_simple(path: &Path) -> (bcf::Reader, bcf::Record) {
+    /// bcf::Record for testing
+    pub fn read_first_record(path: &Path) -> bcf::Record {
         let mut reader = bcf::Reader::from_path(path).unwrap();
-        let record = reader.records().next().unwrap().unwrap();
-        (reader, record)
-    }
-
-    /// Read the first record from a VCF/BCF file with header.
-    ///
-    /// Internally calls `read_first_record_simple` and clones the header.
-    ///
-    /// # Returns
-    /// Tuple of (reader, header, record) for testing
-    pub fn read_first_record(path: &Path) -> (bcf::Reader, HeaderView, bcf::Record) {
-        let (reader, record) = read_first_record_simple(path);
-        let header = reader.header().clone();
-        (reader, header, record)
+        reader.records().next().unwrap().unwrap()
     }
 
     /// Create a test VCF record with one or more ALT alleles.
@@ -1060,11 +1042,8 @@ pub(crate) mod tests {
     fn test_get_chrom() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig::default());
 
-        let mut reader = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
-        let header = reader.header().clone();
-        let record = reader.records().next().unwrap().unwrap();
-
-        let chrom = get_chrom(&record, &header).unwrap();
+        let record = read_first_record(tmp_vcf.path());
+        let chrom = get_chrom(&record).unwrap();
         assert_eq!(chrom, "chr1");
     }
 
@@ -1109,9 +1088,9 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        let p = get_events_probability(&record, &header, 0, &["somatic".to_string()], false)
+        let p = get_events_probability(&record, 0, &["somatic".to_string()], false)
             .unwrap()
             .unwrap();
         assert!((p - 0.9).abs() < TEST_EPSILON_LOOSE);
@@ -1127,11 +1106,10 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         let p = get_events_probability(
             &record,
-            &header,
             0,
             &["somatic".to_string(), "high_vaf".to_string()],
             false,
@@ -1150,9 +1128,9 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        let p = get_events_probability(&record, &header, 0, &["somatic".to_string()], true)
+        let p = get_events_probability(&record, 0, &["somatic".to_string()], true)
             .unwrap()
             .unwrap();
         assert!((p - 0.1).abs() < TEST_EPSILON_LOOSE);
@@ -1166,9 +1144,9 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        let p = get_events_probability(&record, &header, 0, &["somatic".to_string()], false)
+        let p = get_events_probability(&record, 0, &["somatic".to_string()], false)
             .unwrap()
             .unwrap();
         assert!((p - 1.0).abs() < TEST_EPSILON);
@@ -1183,10 +1161,10 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         assert!(
-            get_events_probability(&record, &header, 0, &["somatic".to_string()], false)
+            get_events_probability(&record, 0, &["somatic".to_string()], false)
                 .unwrap()
                 .is_none()
         );
@@ -1199,16 +1177,10 @@ pub(crate) mod tests {
             num_samples: 2,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        assert!(
-            (get_sample_af(&record, &header, 0, 0).unwrap().unwrap() - 0.75).abs()
-                < TEST_EPSILON_F32
-        );
-        assert!(
-            (get_sample_af(&record, &header, 1, 0).unwrap().unwrap() - 0.25).abs()
-                < TEST_EPSILON_F32
-        );
+        assert!((get_sample_af(&record, 0, 0).unwrap().unwrap() - 0.75).abs() < TEST_EPSILON_F32);
+        assert!((get_sample_af(&record, 1, 0).unwrap().unwrap() - 0.25).abs() < TEST_EPSILON_F32);
     }
 
     #[test]
@@ -1219,9 +1191,9 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        assert!(get_sample_af(&record, &header, 0, 0).unwrap().is_none());
+        assert!(get_sample_af(&record, 0, 0).unwrap().is_none());
     }
 
     #[test]
@@ -1231,9 +1203,9 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        assert!(get_sample_af(&record, &header, 0, 0).is_err());
+        assert!(get_sample_af(&record, 0, 0).is_err());
     }
 
     #[test]
@@ -1243,9 +1215,9 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        assert!(get_sample_af(&record, &header, 0, 0).unwrap().is_none());
+        assert!(get_sample_af(&record, 0, 0).unwrap().is_none());
     }
 
     #[test]
@@ -1257,10 +1229,10 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
-        let af0 = get_sample_af(&record, &header, 0, 0).unwrap().unwrap();
-        let af1 = get_sample_af(&record, &header, 0, 1).unwrap().unwrap();
+        let af0 = get_sample_af(&record, 0, 0).unwrap().unwrap();
+        let af1 = get_sample_af(&record, 0, 1).unwrap().unwrap();
         assert!((af0 - 0.6).abs() < TEST_EPSILON_F32);
         assert!((af1 - 0.3).abs() < TEST_EPSILON_F32);
     }
@@ -1272,10 +1244,10 @@ pub(crate) mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // sample_idx=5 doesn't exist — should return None not panic
-        assert!(get_sample_af(&record, &header, 5, 0).unwrap().is_none());
+        assert!(get_sample_af(&record, 5, 0).unwrap().is_none());
     }
 
     /* ====== BCF Specification check tests ===== ==== */
@@ -1386,7 +1358,7 @@ pub(crate) mod tests {
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         assert!(record_has_info_string(&record, b"REGION_ID"));
         assert!(!record_has_info_string(&record, b"NONEXISTENT"));
     }
@@ -1404,7 +1376,7 @@ pub(crate) mod tests {
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         assert_eq!(
             get_info_strings(&record, b"REGION_ID"),
             Some(vec!["chr1:100-130".to_string()])
@@ -1424,7 +1396,7 @@ pub(crate) mod tests {
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         assert_eq!(
             get_info_strings(&record, b"TAGS"),
             Some(vec!["val1".to_string(), "val2".to_string()])
@@ -1439,7 +1411,7 @@ pub(crate) mod tests {
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         assert_eq!(get_info_strings(&record, b"NONEXISTENT"), None);
     }
 
@@ -1455,7 +1427,7 @@ pub(crate) mod tests {
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         assert!(record_has_info_flag(&record, b"MSI_DUMMY"));
         assert!(!record_has_info_flag(&record, b"NONEXISTENT"));
     }
@@ -1470,7 +1442,7 @@ pub(crate) mod tests {
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         assert!(!record_has_info_flag(&record, b"MSI_DUMMY"));
     }
 
@@ -1526,13 +1498,13 @@ pub(crate) mod tests {
         let (tmp_dst, mut writer) = create_info_test_vcf(&[
             br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
         ]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
         copy_info_fields(&src, &mut dst, &["SVLEN"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
 
-        let (_, result) = read_first_record_simple(tmp_dst.path());
+        let result = read_first_record(tmp_dst.path());
         assert_eq!(result.info(b"SVLEN").integer().unwrap().unwrap()[0], 3);
     }
 
@@ -1549,13 +1521,13 @@ pub(crate) mod tests {
         let (tmp_dst, mut writer) = create_info_test_vcf(&[
             br##"##INFO=<ID=SCORE,Number=A,Type=Float,Description="Score">"##,
         ]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
         copy_info_fields(&src, &mut dst, &["SCORE"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
 
-        let (_, result) = read_first_record_simple(tmp_dst.path());
+        let result = read_first_record(tmp_dst.path());
         assert!(
             (result.info(b"SCORE").float().unwrap().unwrap()[0] - 0.42).abs() < TEST_EPSILON as f32
         );
@@ -1574,13 +1546,13 @@ pub(crate) mod tests {
         let (tmp_dst, mut writer) = create_info_test_vcf(&[
             br##"##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">"##,
         ]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
         copy_info_fields(&src, &mut dst, &["SVTYPE"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
 
-        let (_, result) = read_first_record_simple(tmp_dst.path());
+        let result = read_first_record(tmp_dst.path());
         assert_eq!(result.info(b"SVTYPE").string().unwrap().unwrap()[0], b"INS");
     }
 
@@ -1597,13 +1569,13 @@ pub(crate) mod tests {
         let (tmp_dst, mut writer) = create_info_test_vcf(&[
             br##"##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise">"##,
         ]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
         copy_info_fields(&src, &mut dst, &["IMPRECISE"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
 
-        let (_, result) = read_first_record_simple(tmp_dst.path());
+        let result = read_first_record(tmp_dst.path());
         assert!(result.info(b"IMPRECISE").flag().unwrap());
     }
 
@@ -1618,14 +1590,14 @@ pub(crate) mod tests {
         let (tmp_dst, mut writer) = create_info_test_vcf(&[
             br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
         ]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
 
         assert!(copy_info_fields(&src, &mut dst, &["SVLEN"]).is_ok());
         writer.write(&dst).unwrap();
         drop(writer);
 
-        let (_, result) = read_first_record_simple(tmp_dst.path());
+        let result = read_first_record(tmp_dst.path());
         assert!(result.info(b"SVLEN").integer().unwrap().is_none());
     }
 
@@ -1642,7 +1614,7 @@ pub(crate) mod tests {
         drop(writer);
 
         let (_tmp_dst, writer) = create_info_test_vcf(&[]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
 
         let result = copy_info_fields(&src, &mut dst, &["BADCOUNT"]);
@@ -1666,7 +1638,7 @@ pub(crate) mod tests {
         drop(writer);
 
         let (_tmp_dst, writer) = create_info_test_vcf(&[]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
 
         let result = copy_info_fields(&src, &mut dst, &["BADTYPE"]);
@@ -1694,13 +1666,13 @@ pub(crate) mod tests {
             br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
             br##"##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">"##,
         ]);
-        let (_, src) = read_first_record_simple(tmp_src.path());
+        let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
         copy_info_fields(&src, &mut dst, &["SVLEN", "SVTYPE"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
 
-        let (_, result) = read_first_record_simple(tmp_dst.path());
+        let result = read_first_record(tmp_dst.path());
         assert_eq!(result.info(b"SVLEN").integer().unwrap().unwrap()[0], 3);
         assert_eq!(result.info(b"SVTYPE").string().unwrap().unwrap()[0], b"INS");
     }

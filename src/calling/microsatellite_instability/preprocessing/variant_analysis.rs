@@ -10,7 +10,7 @@
 
 use anyhow::Result;
 use log::debug;
-use rust_htslib::bcf::{self, header::HeaderView};
+use rust_htslib::bcf;
 
 use crate::utils::bcf_utils::{
     get_chrom, is_breakend, is_reference_allele, is_spanning_deletion, is_symbolic,
@@ -163,7 +163,6 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
 ///
 /// # Arguments
 /// * `record` - BCF record representing the variant
-/// * `header` - BCF header for metadata access
 /// * `alt_idx` - Index of the alternate allele to analyze
 /// * `region` - BED region context for motif information
 ///
@@ -173,10 +172,9 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
 /// * `Err` - Error reading variant data
 ///
 /// # Example
-/// assert!(should_include_variant(&record, &header, 0, &region).unwrap());
+/// assert!(should_include_variant(&record, 0, &region).unwrap());
 pub(super) fn should_include_variant(
     record: &bcf::Record,
-    header: &HeaderView,
     alt_idx: usize,
     region: &BedRegion,
 ) -> Result<bool> {
@@ -193,7 +191,7 @@ pub(super) fn should_include_variant(
     {
         debug!(
             "Filtering non-indel variant at {}:{}",
-            get_chrom(record, header)?,
+            get_chrom(record)?,
             record.pos() + 1
         );
         return Ok(false);
@@ -295,7 +293,7 @@ mod tests {
             &[(0, 99, b"A", &[b"T"])],
         );
 
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         let region = BedRegion {
             chrom: "chr1".to_string(),
@@ -304,7 +302,7 @@ mod tests {
             motif: "A".to_string(),
         };
 
-        let result = should_include_variant(&record, &header, 0, &region).unwrap();
+        let result = should_include_variant(&record, 0, &region).unwrap();
         assert!(!result); // SNV should be filtered out
     }
 
@@ -315,7 +313,7 @@ mod tests {
             &[(0, 99, b"ACAG", &[b"ACAGCAG"])],
         );
 
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         let region = BedRegion {
             chrom: "chr1".to_string(),
@@ -324,7 +322,7 @@ mod tests {
             motif: "CAG".to_string(),
         };
 
-        let result = should_include_variant(&record, &header, 0, &region).unwrap();
+        let result = should_include_variant(&record, 0, &region).unwrap();
 
         assert!(result); // Perfect indel should be included
     }
@@ -336,7 +334,7 @@ mod tests {
             &[(0, 99, b"A", &[b"T", b"ATG"])],
         );
 
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         let region = BedRegion {
             chrom: "chr1".to_string(),
@@ -346,10 +344,10 @@ mod tests {
         };
 
         // alt_idx=0 is SNV (T) - should filter out
-        assert!(!should_include_variant(&record, &header, 0, &region).unwrap());
+        assert!(!should_include_variant(&record, 0, &region).unwrap());
 
         // alt_idx=1 is indel (ATG) - should include
-        assert!(should_include_variant(&record, &header, 1, &region).unwrap());
+        assert!(should_include_variant(&record, 1, &region).unwrap());
     }
 
     #[test]
@@ -359,7 +357,7 @@ mod tests {
             &[(0, 99, b"A", &[b"<DEL>"])],
         );
 
-        let (_reader, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         let region = BedRegion {
             chrom: "chr1".to_string(),
@@ -368,7 +366,7 @@ mod tests {
             motif: "A".to_string(),
         };
 
-        let result = should_include_variant(&record, &header, 0, &region).unwrap();
+        let result = should_include_variant(&record, 0, &region).unwrap();
         assert!(!result); // Symbolic allele should be filtered out
     }
 
@@ -379,7 +377,7 @@ mod tests {
             &[(0, 99, b"ACAG", &[b"ACAGCAT"])], // Not perfect CAG repeat
         );
 
-        let (_, header, record) = read_first_record(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         let region = BedRegion {
             chrom: "chr1".to_string(),
@@ -388,7 +386,7 @@ mod tests {
             motif: "CAG".to_string(),
         };
 
-        let result = should_include_variant(&record, &header, 0, &region).unwrap();
+        let result = should_include_variant(&record, 0, &region).unwrap();
         assert!(!result); // Imperfect repeat should be filtered
     }
 }

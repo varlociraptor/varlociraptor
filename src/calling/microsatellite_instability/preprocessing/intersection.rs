@@ -235,9 +235,6 @@ pub(super) fn process_and_annotate(
     aux_info_collector: &AuxInfoCollector,
 ) -> Result<PreprocessingStats> {
     /* ========== Setup ========== */
-    let header_view = input_vcf.header().clone();
-
-    /* ===== Main processing loop ===== */
     let mut bed_reader = bed::Reader::from_file(bed_path).context("Failed to open BED file")?;
 
     let mut total_regions = 0;
@@ -308,7 +305,7 @@ pub(super) fn process_and_annotate(
                     .into());
                 }
                 Some(Ok(())) => {
-                    let chrom = get_chrom(&next_record, &header_view)?;
+                    let chrom = get_chrom(&next_record)?;
                     let pos = next_record.pos();
 
                     if pos < 0 {
@@ -354,7 +351,7 @@ pub(super) fn process_and_annotate(
                     continue;
                 }
 
-                if should_include_variant(&variant_info.record, &header_view, alt_idx, &region)? {
+                if should_include_variant(&variant_info.record, alt_idx, &region)? {
                     let region_id = region.region_id();
 
                     if let Some(existing) = variant_info.matching_regions.get(&alt_idx) {
@@ -423,7 +420,7 @@ mod tests {
     use crate::utils::aux_info::tests::make_aux_collector;
     use crate::utils::bcf_utils::get_info_strings;
     use crate::utils::bcf_utils::tests::{
-        create_minimal_vcf, create_test_vcf, read_first_record_simple, TestVcfConfig,
+        create_minimal_vcf, create_test_vcf, read_first_record, TestVcfConfig,
     };
 
     // Helper: Create BED file
@@ -445,7 +442,7 @@ mod tests {
             &[(0, 99, b"T", &[b"TT"])],
         );
 
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // VCF POS=99 (0-based), REF=T, ALT=TT
         // Anchor = T (1 base)
@@ -495,7 +492,7 @@ mod tests {
             &[(0, 99, b"TGCCT", &[b"TG"])],
         );
 
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // VCF POS=99, REF=TGCCT, ALT=TG
         // Anchor = TG (2 bases)
@@ -533,7 +530,7 @@ mod tests {
             &[(0, 99, b"ATT", &[b"AG"])],
         );
 
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // Complex variant returns None: should NOT overlap
         assert!(!variant_overlaps_region(
@@ -555,7 +552,7 @@ mod tests {
             &[(0, 99, b"A", &[b"T"])],
         );
 
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // SNV returns None: should NOT overlap
         assert!(!variant_overlaps_region(
@@ -577,7 +574,7 @@ mod tests {
             &[(0, 99, b"GCCT", &[b"G", b"GCCTCCT"])],
         );
 
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // VCF POS=99
         // ALT1: GCCT -> G, anchor=1, indel_pos=100
@@ -616,7 +613,7 @@ mod tests {
             &[br"##contig=<ID=chr1,length=1000000>"],
             &[(0, 99, b"T", &[b"TT"])],
         );
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // Insertion at exactly region.end=100:  INCLUDED (inclusive)
         assert!(
@@ -656,7 +653,7 @@ mod tests {
             &[br"##contig=<ID=chr1,length=1000000>"],
             &[(0, 99, b"TT", &[b"T"])],
         );
-        let (_reader, record) = read_first_record_simple(tmp_vcf.path());
+        let record = read_first_record(tmp_vcf.path());
 
         // Deletion at exactly region.end=100: EXCLUDED (exclusive)
         assert!(

@@ -29,7 +29,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use log::{debug, info, warn};
-use rust_htslib::bcf::{self, header::HeaderView, Read};
+use rust_htslib::bcf::{self, Read};
 
 use crate::constants::{MSI_DUMMY_TAG, MSI_REGION_ID_TAG};
 use crate::errors::Error;
@@ -207,7 +207,6 @@ pub(super) fn extract_regions(
     is_phred: bool,
     needs_heatmap: bool,
 ) -> Result<(Vec<RegionSummary>, ExtractionStats)> {
-    let header: HeaderView = vcf.header().clone();
     let mut regions: Vec<RegionSummary> = Vec::new();
     let mut region_index: HashMap<String, usize> = HashMap::new();
     let mut stats = ExtractionStats::default();
@@ -250,7 +249,7 @@ pub(super) fn extract_regions(
                     debug!(
                         "ALT {} at {}:{} has no region - skipping",
                         alt_idx,
-                        get_chrom(&record, &header).unwrap_or_default(),
+                        get_chrom(&record).unwrap_or_default(),
                         record.pos() + 1
                     );
                     continue;
@@ -284,30 +283,29 @@ pub(super) fn extract_regions(
             }
 
             // Combine event probabilities, P(at least one event)
-            let prob_events =
-                match get_events_probability(&record, &header, alt_idx, events, is_phred)? {
-                    Some(p) => p,
-                    None => {
-                        stats.skipped_missing_prob += 1;
-                        debug!(
-                            "Event prob missing at {}:{} alt={} — skipping allele",
-                            get_chrom(&record, &header).unwrap_or_default(),
-                            record.pos() + 1,
-                            alt_idx
-                        );
-                        continue;
-                    }
-                };
+            let prob_events = match get_events_probability(&record, alt_idx, events, is_phred)? {
+                Some(p) => p,
+                None => {
+                    stats.skipped_missing_prob += 1;
+                    debug!(
+                        "Event prob missing at {}:{} alt={} — skipping allele",
+                        get_chrom(&record).unwrap_or_default(),
+                        record.pos() + 1,
+                        alt_idx
+                    );
+                    continue;
+                }
+            };
 
             // FORMAT:AF for this sample and ALT allele
-            let af = match get_sample_af(&record, &header, sample_idx, alt_idx)? {
+            let af = match get_sample_af(&record, sample_idx, alt_idx)? {
                 Some(a) => a,
                 None => {
                     stats.skipped_missing_af += 1;
                     debug!(
                         "FORMAT:AF missing for '{}' at {}:{} alt={} — skipping allele",
                         sample,
-                        get_chrom(&record, &header).unwrap_or_default(),
+                        get_chrom(&record).unwrap_or_default(),
                         record.pos() + 1,
                         alt_idx
                     );

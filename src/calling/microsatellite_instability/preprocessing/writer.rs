@@ -201,7 +201,7 @@ mod tests {
     use crate::utils::bcf_utils::get_chrom;
     use crate::utils::bcf_utils::tests::{
         create_test_record, create_test_record_multi_alt, create_test_vcf, read_first_record,
-        read_first_record_simple, TestVcfConfig,
+        TestVcfConfig,
     };
 
     /* ============ VCF Helpers  ======================= */
@@ -377,7 +377,7 @@ mod tests {
 
         assert_eq!(counter, 1);
 
-        let (_reader, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
 
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap();
         assert!(region_id.is_some());
@@ -405,7 +405,7 @@ mod tests {
 
         assert_eq!(counter, 0);
 
-        let (_reader, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
 
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap();
         assert!(region_id.is_none());
@@ -440,7 +440,7 @@ mod tests {
 
         assert_eq!(counter, 0);
 
-        let (_reader, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
 
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap();
         assert!(region_id.is_none(), "REGION_ID should be removed");
@@ -474,7 +474,7 @@ mod tests {
 
         assert_eq!(counter, 1);
 
-        let (_reader, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
 
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap().unwrap();
         assert_eq!(region_id.len(), 1);
@@ -518,7 +518,7 @@ mod tests {
         write_variant(&mut writer, variant_info, &mut counter).unwrap();
         drop(writer);
 
-        let (_reader, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         let cosmic = record.info(b"COSMIC_ID").string().unwrap();
         assert!(cosmic.is_some(), "COSMIC_ID propagated via aux_info");
         assert_eq!(cosmic.unwrap()[0], b"COSM123");
@@ -550,7 +550,7 @@ mod tests {
 
         assert_eq!(counter, 1);
 
-        let (_reader, record) = read_first_record_simple(tmp.path());
+        let record = read_first_record(tmp.path());
         let region_ids = record.info(MSI_REGION_ID_TAG).string().unwrap().unwrap();
 
         assert_eq!(region_ids.len(), 2);
@@ -588,8 +588,8 @@ mod tests {
         write_variant(&mut writer, variant_info, &mut counter).unwrap();
         drop(writer);
 
-        let (_, header, record) = read_first_record(tmp.path());
-        let chrom = get_chrom(&record, &header).unwrap();
+        let record = read_first_record(tmp.path());
+        let chrom = get_chrom(&record).unwrap();
         assert_eq!(
             chrom, "chr2",
             "should use VariantInWindow.chrom, not record's raw rid"
