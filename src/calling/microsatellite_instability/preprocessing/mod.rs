@@ -148,7 +148,7 @@ impl PreprocessMSIConfig {
 /// Main Orchestrator for MSI candidate preprocessing workflow.
 pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
     info!("----------------------------------------------");
-    info!("Step 1: Config Stats");
+    info!("Step 1: Configuration");
     info!("----------------------------------------------");
     config.log_config();
 

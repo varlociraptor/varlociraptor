@@ -39,9 +39,26 @@ use crate::utils::bcf_utils::{
     validate_vcf_file as validate_ms_vcf_file,
 };
 
-use dp_analysis::{AnalysisConfig, OutputRequirements};
+use dp_analysis::AnalysisConfig;
 
 /* ======== CLI CONFIGURATION ===================== */
+
+/// Output requirements for optimizing calculations(conditional generation of metrics):
+///
+/// Determines which expensive computations are needed based on
+/// which output files the user requested.
+///     - needs_pseudotime: For pseudotime data
+///     - needs_distribution: For distribution data
+///     - needs_heatmap: For heatmap data
+#[derive(Debug, Clone, Copy)]
+struct OutputRequirements {
+    /// Whether to compute uncertainty bounds (std dev, lower/upper)
+    needs_pseudotime: bool,
+    /// Whether to compute full probability distribution
+    needs_distribution: bool,
+    /// Whether to compute windowed heatmap analysis
+    needs_heatmap: bool,
+}
 
 /// Configuration for MSI calling pipeline.
 ///
@@ -93,11 +110,6 @@ impl MSIConfig {
     /// 1. Set is_phred based on events sepcification.
     pub fn set_defaults(&mut self) -> Result<()> {
         self.is_phred = is_phred_scaled_from_path(&self.calls)?;
-        info!(
-            "  - Probabilities are {} scaled",
-            if self.is_phred { "PHRED" } else { "linear" }
-        );
-
         Ok(())
     }
 
@@ -212,6 +224,63 @@ impl MSIConfig {
 
         Ok(())
     }
+
+    /// Log configuration details:
+    ///   - Input file, sample, events
+    ///   - Threshold and AF settings
+    ///   - Requested outputs
+    fn log_config(&self, output_req: &OutputRequirements) {
+        info!("Input file: {}", self.calls.display());
+        info!("Sample: {}", self.sample);
+        info!("Events: {}", self.events.join(", "));
+        info!("MSI threshold: {}", self.msi_threshold);
+        if output_req.needs_pseudotime {
+            info!(
+                "AF thresholds: {}",
+                self.af_thresholds
+                    .iter()
+                    .map(|af| af.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        if output_req.needs_distribution {
+            info!("Distribution AF: {}", self.distribution_af);
+        }
+        if output_req.needs_heatmap {
+            info!("Windowed AF: {}", self.windowed_af);
+            info!("Sliding window: {} bp", self.sliding_window);
+        }
+        match self.threads {
+            Some(t) => info!("Threads: {}", t),
+            None => info!("Threads: default (rayon)"),
+        }
+
+        info!(
+            "Probabilities are {} scaled",
+            if self.is_phred { "PHRED" } else { "Linear" }
+        );
+
+        info!("Requested outputs:");
+        if let Some(ref p) = self.data_distribution {
+            info!("  - Distribution data (TSV): {}", p.display());
+        }
+        if let Some(ref p) = self.plot_distribution {
+            info!("  - Distribution plot (JSON): {}", p.display());
+        }
+        if let Some(ref p) = self.data_pseudotime {
+            info!("  - Pseudotime data (TSV): {}", p.display());
+        }
+        if let Some(ref p) = self.plot_pseudotime {
+            info!("  - Pseudotime plot (JSON): {}", p.display());
+        }
+        if let Some(ref p) = self.data_heatmap {
+            info!("  - Heatmap data (TSV): {}", p.display());
+        }
+        if let Some(ref p) = self.plot_heatmap {
+            info!("  - Heatmap plot (JSON): {}", p.display());
+        }
+    }
 }
 
 /* ================================================ */
@@ -220,7 +289,19 @@ impl MSIConfig {
 /// called VCF/BCF, run AF-evolution analysis, then write requested outputs.
 pub fn call_msi(config: MSIConfig) -> Result<()> {
     info!("----------------------------------------------");
-    info!("Step 1: Data Extraction");
+    info!("Step 1: Configuration");
+    info!("----------------------------------------------");
+
+    let output_req = OutputRequirements {
+        needs_pseudotime: config.plot_pseudotime.is_some() || config.data_pseudotime.is_some(),
+        needs_distribution: config.plot_distribution.is_some()
+            || config.data_distribution.is_some(),
+        needs_heatmap: config.plot_heatmap.is_some() || config.data_heatmap.is_some(),
+    };
+    config.log_config(&output_req);
+
+    info!("----------------------------------------------");
+    info!("Step 2: Data Extraction");
     info!("----------------------------------------------");
 
     let (global_results, window_results) = {
@@ -229,13 +310,6 @@ pub fn call_msi(config: MSIConfig) -> Result<()> {
         let header = vcf.header().clone();
 
         let sample_idx = get_sample_index(&header, &config.sample)?;
-
-        let output_req = OutputRequirements {
-            needs_pseudotime: config.plot_pseudotime.is_some() || config.data_pseudotime.is_some(),
-            needs_distribution: config.plot_distribution.is_some()
-                || config.data_distribution.is_some(),
-            needs_heatmap: config.plot_heatmap.is_some() || config.data_heatmap.is_some(),
-        };
 
         let (regions, stats) = extraction::extract_regions(
             &mut vcf,
@@ -252,7 +326,7 @@ pub fn call_msi(config: MSIConfig) -> Result<()> {
         }
 
         info!("----------------------------------------------");
-        info!("Step 2: AF Evolution Analysis");
+        info!("Step 3: AF Evolution Analysis");
         info!("----------------------------------------------");
 
         let af_thresholds: Vec<f32> = if output_req.needs_pseudotime {
@@ -278,7 +352,7 @@ pub fn call_msi(config: MSIConfig) -> Result<()> {
     };
 
     info!("----------------------------------------------");
-    info!("Step 3: Output Generation");
+    info!("Step 4: Output Generation");
     info!("----------------------------------------------");
 
     if let Some(ref path) = config.data_distribution {

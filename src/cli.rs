@@ -1517,6 +1517,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     info!("==============================================");
                     info!("MSI Calling");
                     info!("==============================================");
+                    info!("----------------------------------------------");
+                    info!("Step 0: Setting up Configuration, Validating It  & Setting Defaults");
+                    info!("----------------------------------------------");
 
                     /* Set up calling configuration */
                     let mut config = calling::microsatellite_instability::MSIConfig {
@@ -1539,9 +1542,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     };
 
                     /* Validate the configuration and set defaults*/
-                    info!("----------------------------------------------");
-                    info!("Step 0: Validating Files or CLI Arguments & Setting Defaults");
-                    info!("----------------------------------------------");
                     config.validate()?;
                     config.set_defaults()?;
 

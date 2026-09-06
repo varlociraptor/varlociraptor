@@ -24,6 +24,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 
 use super::extraction::{RegionSummary, Variant};
+use super::OutputRequirements;
 use crate::constants::EPSILON;
 use crate::utils::stats::{calculate_percentage, usize_to_f64_exact};
 
@@ -138,23 +139,6 @@ impl<'a> FilteredRegions<'a> {
     fn len(&self) -> usize {
         self.region_starts.len()
     }
-}
-
-/// Output requirements for optimizing calculations(conditional generation of metrics):
-///
-/// Determines which expensive computations are needed based on
-/// which output files the user requested.
-///     - needs_pseudotime: For pseudotime data
-///     - needs_distribution: For distribution data
-///     - needs_heatmap: For heatmap data
-#[derive(Debug, Clone, Copy)]
-pub(super) struct OutputRequirements {
-    /// Whether to compute uncertainty bounds (std dev, lower/upper)
-    pub needs_pseudotime: bool,
-    /// Whether to compute full probability distribution
-    pub needs_distribution: bool,
-    /// Whether to compute windowed heatmap analysis
-    pub needs_heatmap: bool,
 }
 
 /// Holds everything needed to run one MSI calling analysis: how much data
