@@ -11,7 +11,7 @@ use std::{fs, path::Path, path::PathBuf};
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read, Reader};
-use varlociraptor::utils::bcf_utils;
+use varlociraptor::utils::{bcf_utils, MsiStatus};
 use varlociraptor::{testcase, testcase_should_panic};
 use varlociraptor::{MSI_DUMMY_TAG, MSI_REGION_ID_TAG};
 
@@ -859,7 +859,7 @@ fn test_call_msi_pseudotime_basic() -> Result<()> {
         "k_map=0 when no regions pass the filter"
     );
     assert_eq!(row_af_1_0[3], "0.00");
-    assert_eq!(row_af_1_0[6], "MSS");
+    assert_eq!(row_af_1_0[6], MsiStatus::Stable.as_str());
 
     // af=0.8: only the AF=0.9 region passes -> single region, p_stable=0.4 -> k_map=1
     let row_af_0_8 = rows.iter().find(|r| r[1] == "0.80").expect("af=0.8 row");
@@ -884,7 +884,7 @@ fn test_call_msi_pseudotime_basic() -> Result<()> {
         "three-region DP shifts the mode to k_map=2"
     );
     assert_eq!(row_af_0_0[3], "66.67");
-    assert_eq!(row_af_0_0[6], "MSI-High");
+    assert_eq!(row_af_0_0[6], MsiStatus::High.as_str());
 
     /****** Plot Checks ************/
     let plot_value: serde_json::Value = serde_json::from_str(&fs::read_to_string(&plot)?)?;

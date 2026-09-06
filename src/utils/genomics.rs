@@ -3,12 +3,43 @@
 //! Genomics utility functions.
 //!
 //! This module provides utilities for:
-//! 1. Allele type classification (indel detection);
-//! 2. Anchor length calculation (shared prefix between sequences);
-//! 3. Clean indel detection (pure insertion/deletion without complex variants);
-//! 4. Indel position calculation (adjusting for anchor to find true indel location);
-//! 5. Sequence analysis (Svlen calculation);
-//! 6. MSI status classification.
+//! 1. `MsiStatus` - the result type for MSI status classification.
+//! 2. Allele type classification (indel detection);
+//! 3. Anchor length calculation (shared prefix between sequences);
+//! 4. Clean indel detection (pure insertion/deletion without complex variants);
+//! 5. Indel position calculation (adjusting for anchor to find true indel location);
+//! 6. Sequence analysis (Svlen calculation);
+//! 7. MSI status classification, via the `MsiStatus` result type.
+
+/* ============ Data Structures =================== */
+
+/// Binary classification of microsatellite instability status.
+///
+/// - `High`   - displays as `"MSI-High"`
+/// - `Stable` - displays as `"MSS"`
+#[derive(Debug, PartialEq)]
+pub enum MsiStatus {
+    Stable,
+    High,
+}
+
+impl MsiStatus {
+    /// Returns the canonical text form of MSI status.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MsiStatus::Stable => "MSS",
+            MsiStatus::High => "MSI-High",
+        }
+    }
+}
+
+impl std::fmt::Display for MsiStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/* ================================================ */
 
 /// Check if two sequences represent an indel (different lengths).
 ///
@@ -193,30 +224,38 @@ pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
 /// Classify MSI status based on score and threshold.
 ///
 /// Binary classification of microsatellite instability status:
-/// - MSI-High: Score ≥ threshold
-/// - MSS (Microsatellite Stable): Score < threshold
+/// - `MsiStatus::High`: Score ≥ threshold (displays as "MSI-High")
+/// - `MsiStatus::Stable`: Score < threshold (displays as "MSS")
 ///
 /// # Arguments
 /// * `msi_score` - Calculated MSI score (percentage)
-/// * `threshold` - Classification threshold (default 3.5%)
+/// * `threshold` - Classification threshold
 ///
 /// # Returns
-/// * `"MSI-High"` - High microsatellite instability
-/// * `"MSS"` - Microsatellite stable
+/// * `MsiStatus::High` - High microsatellite instability
+/// * `MsiStatus::Stable` - Microsatellite stable
 ///
 /// # Examples
-/// assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High");
-pub(crate) fn classify_msi_status(msi_score: f32, threshold: f32) -> &'static str {
+/// assert_eq!(classify_msi_status(5.0, 3.5), MsiStatus::High);
+pub(crate) fn classify_msi_status(msi_score: f32, threshold: f32) -> MsiStatus {
     if msi_score >= threshold {
-        "MSI-High"
+        MsiStatus::High
     } else {
-        "MSS"
+        MsiStatus::Stable
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /* ========== MsiStatus tests ================== */
+
+    #[test]
+    fn test_msi_status_as_str() {
+        assert_eq!(MsiStatus::Stable.as_str(), "MSS");
+        assert_eq!(MsiStatus::High.as_str(), "MSI-High");
+    }
 
     /* ========== is_indel tests =================== */
 
@@ -418,8 +457,8 @@ mod tests {
 
     #[test]
     fn test_classify_msi_status() {
-        assert_eq!(classify_msi_status(2.0, 3.5), "MSS"); // Below threshold
-        assert_eq!(classify_msi_status(3.5, 3.5), "MSI-High"); // At threshold (inclusive)
-        assert_eq!(classify_msi_status(5.0, 3.5), "MSI-High"); // Above threshold
+        assert_eq!(classify_msi_status(2.0, 3.5), MsiStatus::Stable); // Below threshold
+        assert_eq!(classify_msi_status(3.5, 3.5), MsiStatus::High); // At threshold (inclusive)
+        assert_eq!(classify_msi_status(5.0, 3.5), MsiStatus::High); // Above threshold
     }
 }

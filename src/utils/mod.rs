@@ -34,6 +34,7 @@ pub mod bcf_utils;
 pub mod collect_variants;
 pub(crate) mod comparison;
 pub(crate) mod genomics;
+pub use genomics::MsiStatus;
 pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
 pub(crate) mod ms_bed;

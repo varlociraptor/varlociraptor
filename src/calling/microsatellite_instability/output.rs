@@ -385,7 +385,7 @@ pub(super) fn write_pseudotime_data(
             regions_str,
             result
                 .msi_score_map
-                .map(|s| classify_msi_status(s, msi_threshold))
+                .map(|s| classify_msi_status(s, msi_threshold).as_str())
                 .unwrap_or("NA"),
             lower,
             upper,
@@ -589,7 +589,7 @@ pub(super) fn generate_heatmap_plot_spec(
                 "msi_score": r.msi_score,
                 "posterior_probability": r.posterior_probability,
                 "regions_in_window": r.regions_in_window,
-                "msi_status": classify_msi_status(r.msi_score, msi_threshold),
+                "msi_status": classify_msi_status(r.msi_score, msi_threshold).as_str(),
             })
         })
         .collect();
@@ -618,6 +618,7 @@ mod tests {
     use crate::calling::microsatellite_instability::dp_analysis::{
         AfEvolutionResult, DpResult, WindowResult,
     };
+    use crate::utils::genomics::MsiStatus;
 
     /* ====== Test helpers ======================== */
 
@@ -749,7 +750,7 @@ mod tests {
         assert!(row.starts_with("tumor"));
         assert!(row.contains("0.00")); // af_threshold
         assert!(row.contains("2.00")); // msi_score
-        assert!(row.contains("MSS")); // MSI status
+        assert!(row.contains(MsiStatus::Stable.as_str())); // MSI status
     }
 
     #[test]
@@ -799,7 +800,7 @@ mod tests {
         let row = content.lines().nth(1).unwrap();
         assert!(row.starts_with("tumor"));
         assert!(row.contains("chr1"));
-        assert!(row.contains("MSS")); // MSI status
+        assert!(row.contains(MsiStatus::Stable.as_str())); // MSI status
         assert!(row.contains("0.8000")); // posterior
     }
 
