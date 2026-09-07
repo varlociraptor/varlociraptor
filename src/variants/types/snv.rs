@@ -17,7 +17,7 @@ use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::bases::{is_ambiguous_base, prob_read_base};
 use crate::variants::evidence::observations::read_observation::{AlignmentRecord, Strand};
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
@@ -110,10 +110,7 @@ impl<R: Realigner> Snv<R> {
             // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
             // because they are too rare.
             // Here, N bases and IUPAC codes do not count as additional edits that would indicate a third allele.
-            let alt_bases = [
-                b'N', b'R', b'Y', b'S', b'W', b'K', b'M', b'V', b'H', b'D', b'B',
-            ];
-            let non_alt_base = if !alt_bases.contains(&read_base) && read_base != self.alt_base {
+            let non_alt_base = if !is_ambiguous_base(read_base) && read_base != self.alt_base {
                 is_third_allele = read_base != self.ref_base;
                 read_base
             } else {

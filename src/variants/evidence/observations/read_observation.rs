@@ -721,7 +721,7 @@ impl AlignmentRecord {
         AlignmentRecord {
             record,
             prob_methylation,
-            converted_seq: converted_seq,
+            converted_seq,
         }
     }
 
