@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-
 use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
@@ -44,6 +43,7 @@ use crate::variants::sample::Sample;
 use crate::variants::sample::SampleBuilder;
 use crate::variants::types::haplotype_block::HaplotypeBlock;
 use crate::variants::types::{breakends::Breakend, Loci};
+
 pub(crate) mod haplotype_feature_index;
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
@@ -90,7 +90,7 @@ impl BaseConversion {
         self.conversions_forward.is_empty()
     }
 
-    /// Replace `base` with the IUPAC ambiguity code representing its possible conversion origins, if `--base-conversion` targets it. Otherwise return `base` unchanged.
+    /// Replace a base of a read with the IUPAC ambiguity code representing its possible conversion origins, if `--base-conversion` targets it. Otherwise return `base` unchanged.
     #[inline]
     pub(crate) fn convert(&self, base: u8, reverse: bool) -> u8 {
         let map = if reverse {

@@ -8,7 +8,6 @@ use std::fmt::Debug;
 use std::ops::Range;
 use std::rc::Rc;
 
-use crate::variants::evidence::bases::iupac_contains;
 use std::sync::Arc;
 
 use bio::stats::pairhmm;
@@ -16,6 +15,7 @@ use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
 use rust_htslib::bam;
 
+use crate::variants::evidence::bases::iupac_contains;
 use crate::variants::evidence::bases::{prob_read_base, prob_read_base_miscall};
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
