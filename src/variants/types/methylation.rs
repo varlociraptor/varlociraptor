@@ -111,7 +111,7 @@ fn mm_exists(evidence: &Evidence) -> bool {
 
 /// Helper function to check MM tags for a single record
 /// Sometimes single PacBio reads do not have methylation information
-fn mm_tag_exists(record: &Rc<bam::Record>) -> bool {
+fn mm_tag_exists(record: &Arc<bam::Record>) -> bool {
     matches!(
         (record.aux(b"Mm"), record.aux(b"MM")),
         (Ok(_), _) | (_, Ok(_))
@@ -128,7 +128,7 @@ fn is_5mc_header(header: &str) -> bool {
 /// pos_methylated_bases: Vector of positions (0-based read indices) of methylated bases
 ///
 ///
-pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
+pub fn extract_mm_ml_5mc(read: &Arc<Record>) -> Option<HashMap<usize, LogProb>> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -238,7 +238,7 @@ pub fn extract_mm_ml_5mc(read: &Rc<Record>) -> Option<HashMap<usize, LogProb>> {
 ///
 /// Returns `Some((meth, unmeth))` on success, or `None` if the read should be skipped.
 fn process_read(
-    read: &Rc<Record>,
+    read: &Arc<Record>,
     meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
     qpos: u32,
     annotated_read: bool,
@@ -295,7 +295,7 @@ fn compute_probs_annotated_read(
 /// prob_ref: Probability of no methylation (reference)
 pub fn compute_probs_converted_read(
     read_reverse: bool,
-    record: &Rc<Record>,
+    record: &Arc<Record>,
     qpos: u32,
 ) -> (LogProb, LogProb) {
     let (ref_base, bisulfite_base) = if !read_reverse {
@@ -323,7 +323,7 @@ pub fn compute_probs_converted_read(
 /// * `true` if an unexpected base is found (indicating mutation), `false` otherwise
 fn mutation_occurred(
     read_reverse: bool,
-    record: &Rc<Record>,
+    record: &Arc<Record>,
     qpos: u32,
     annotated_read: bool,
 ) -> bool {

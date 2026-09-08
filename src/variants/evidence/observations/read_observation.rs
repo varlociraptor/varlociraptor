@@ -9,6 +9,7 @@ use std::hash::{Hash, Hasher};
 use std::ops;
 use std::rc::Rc;
 use std::str;
+use std::sync::Arc;
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -705,7 +706,7 @@ pub(crate) trait Observable: Variant {
 pub struct AlignmentRecord {
     #[getset(get = "pub")]
     #[deref]
-    record: Rc<bam::Record>,
+    record: Arc<bam::Record>,
     #[getset(get = "pub")]
     prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
     /// Converted read bases (with IUPAC codes), if --base-conversion is active, else None
@@ -714,7 +715,7 @@ pub struct AlignmentRecord {
 
 impl AlignmentRecord {
     pub(crate) fn new(
-        record: Rc<bam::Record>,
+        record: Arc<bam::Record>,
         prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
         converted_seq: Option<Rc<Vec<u8>>>,
     ) -> Self {
