@@ -230,6 +230,7 @@ pub(crate) trait Realigner {
         let ref_seq = self.ref_buffer().seq(record.contig())?;
         let read_seq: bam::record::Seq<'a> = record.seq();
         let read_qual = record.qual();
+        let converted_seq = record.converted_seq();
 
         let aux_strand_info = utils::aux_tag_strand_info(record);
         let mut strand = Strand::None;
@@ -244,10 +245,16 @@ pub(crate) trait Realigner {
                 read_qual,
                 Some(region.read_interval.start),
                 Some(region.read_interval.end),
-                record.converted_seq(),
+                converted_seq.clone(),
             );
-            let mut edit_dist_calc =
-                EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
+
+            let mut edit_dist_calc = EditDistanceCalculation::new(
+                region.read_interval.clone().map(|i| read_seq[i]),
+                converted_seq
+                    .as_ref()
+                    .map(|seq| seq[region.read_interval.clone()].to_vec())
+                    .as_deref(),
+            );
 
             // Prepare reference alleles (the actual reference and any alt variants).
             // METHOD: here, we consider all alternative variants, together with the reference allele.

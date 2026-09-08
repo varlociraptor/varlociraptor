@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::ops::Range;
 
 use bio::alignment::AlignmentOperation;
-use bio::pattern_matching::myers::{self, long};
+use bio::pattern_matching::myers::{self, long, MyersBuilder};
 use bio::stats::LogProb;
 
 use crate::default_ref_base_emission;
@@ -124,6 +124,24 @@ impl Ord for EditOperationCounts {
     }
 }
 
+lazy_static! {
+    static ref IUPAC_MYERS_BUILDER: MyersBuilder = {
+        let mut builder = MyersBuilder::new();
+        builder
+            .ambig(b'M', b"AC")
+            .ambig(b'R', b"AG")
+            .ambig(b'W', b"AT")
+            .ambig(b'S', b"CG")
+            .ambig(b'Y', b"CT")
+            .ambig(b'K', b"GT")
+            .ambig(b'B', b"CGT")
+            .ambig(b'D', b"AGT")
+            .ambig(b'H', b"ACT")
+            .ambig(b'V', b"ACG");
+        builder
+    };
+}
+
 enum Myers {
     Short(myers::Myers<u64>), // TODO consider using u128 here
     Long(long::Myers<u64>),
@@ -143,17 +161,29 @@ impl EditDistanceCalculation {
     ///
     /// # Arguments
     /// * `read_seq` - read sequence in window (may not exceed 128 bases).
-    pub(crate) fn new<P>(read_seq: P) -> Self
+    pub(crate) fn new<P>(read_seq: P, converted_seq: Option<&[u8]>) -> Self
     where
         P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
         let l = read_seq.len();
         let read_seq = read_seq.collect();
         let num_bits = 64; // TODO consider using 128 here in comb with u128 for Myers
-        let myers = if l <= num_bits {
-            Myers::Short(myers::Myers::new(&read_seq))
-        } else {
-            Myers::Long(long::Myers::new(&read_seq))
+
+        let myers = match converted_seq {
+            Some(converted) => {
+                if l <= num_bits {
+                    Myers::Short(IUPAC_MYERS_BUILDER.build_64(converted))
+                } else {
+                    Myers::Long(IUPAC_MYERS_BUILDER.build_long_64(converted))
+                }
+            }
+            None => {
+                if l <= num_bits {
+                    Myers::Short(myers::Myers::new(&read_seq))
+                } else {
+                    Myers::Long(long::Myers::new(&read_seq))
+                }
+            }
         };
 
         EditDistanceCalculation { myers, read_seq }
