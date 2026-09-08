@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-    pub(crate) static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
+    static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
 }
 
 /// Calculate probability of read_base given ref_base.

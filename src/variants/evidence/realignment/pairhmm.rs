@@ -422,7 +422,6 @@ pub(crate) struct ReadEmission<'a> {
     read_end: usize,
     #[getset(get_copy = "pub(crate)")]
     error_rate: LogProb,
-    // TODO: Realiger uses unconverted `read_seq` for homopolymer PairHMM,
     converted_seq: Option<Rc<Vec<u8>>>,
 }
 

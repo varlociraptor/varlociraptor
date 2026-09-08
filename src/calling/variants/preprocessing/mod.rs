@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::variants::evidence::bases::complement_base;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
@@ -33,7 +32,7 @@ use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
-use crate::variants::evidence::bases::bases_to_iupac;
+use crate::variants::evidence::bases::{bases_to_iupac, complement_base};
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
     AltLocus, ReadObservationBuilder, ReadPosition, Strand,
@@ -64,7 +63,7 @@ impl BaseConversion {
         }
         let mut groups: HashMap<u8, Vec<u8>> = HashMap::new();
         for spec in specs {
-            let (from, to) = parse_conversion(spec)?;
+            let (from, to) = parse_conversion_specs(spec)?;
             groups.entry(to).or_insert_with(|| vec![to]).push(from);
         }
 
@@ -106,7 +105,7 @@ impl BaseConversion {
     }
 }
 
-fn parse_conversion(spec: &str) -> anyhow::Result<(u8, u8)> {
+fn parse_conversion_specs(spec: &str) -> anyhow::Result<(u8, u8)> {
     let b: Vec<u8> = spec
         .bytes()
         .filter(u8::is_ascii_alphabetic)
