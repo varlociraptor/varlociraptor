@@ -48,7 +48,7 @@ pub(crate) struct RecordBuffer {
     // Hashmap containing as a key the read and as a value a hashmap with the position of methylation and the probability of methylation
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
-    failed_reads: Option<HashSet<ByAddress<Rc<Record>>>>,
+    failed_reads: Option<HashSet<ByAddress<Arc<Record>>>>,
     base_conversion: Arc<BaseConversion>,
 }
 
@@ -101,7 +101,7 @@ impl RecordBuffer {
     }
 
     /// Convert a read to their IUPAC ambiguity representation, if the user requested --base-conversion. We do this for each 'to' base in the read, independent of the reference base. This is no problem since we compare to the actual reference base (can be different due to ralignment) in prob_read_base of src/variants/evidence/bases.rs
-    pub(crate) fn convert_read_iupac(&self, rec: &Rc<Record>) -> Option<Rc<Vec<u8>>> {
+    pub(crate) fn convert_read_iupac(&self, rec: &Arc<Record>) -> Option<Rc<Vec<u8>>> {
         if self.base_conversion.is_empty() {
             return None;
         }

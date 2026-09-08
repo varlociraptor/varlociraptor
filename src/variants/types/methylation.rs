@@ -22,6 +22,8 @@ use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
+
 #[derive(Debug)]
 pub(crate) struct Methylation {
     loci: MultiLocus,

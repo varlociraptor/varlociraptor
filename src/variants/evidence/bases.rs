@@ -5,7 +5,7 @@
 
 use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam::Record;
-use std::rc::Rc;
+use std::sync::Arc;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
@@ -148,7 +148,7 @@ pub(crate) fn complement_base(base: u8) -> u8 {
 ///
 /// # Returns
 /// * `true` if the read is from the reverse strand, `false` otherwise
-pub(crate) fn read_reverse_orientation(read: &Rc<Record>) -> bool {
+pub(crate) fn read_reverse_orientation(read: &Arc<Record>) -> bool {
     let read_paired = read.is_paired();
     let read_reverse = read.is_reverse();
     let read_first = read.is_first_in_template();
