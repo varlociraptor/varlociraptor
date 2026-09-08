@@ -463,9 +463,10 @@ impl<'a> ReadEmission<'a> {
         let base_qual = unsafe { *self.qual.get_unchecked(pos) };
         let prob = prob_read_base(read_base, ref_base, base_qual);
 
-        if read_base == ref_base || read_base == b'N' || iupac_contains(read_base, ref_base) {
+        if read_base == ref_base || iupac_contains(read_base, ref_base) {
             pairhmm::XYEmission::Match(prob)
         } else {
+            // TODO the 'N' case now gives PROB ANY instead of definitive probability. Is this correct?
             // TODO replace the second term with technology specific confusion matrix
             pairhmm::XYEmission::Mismatch(prob)
         }

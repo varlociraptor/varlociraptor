@@ -100,18 +100,17 @@ impl RecordBuffer {
         })
     }
 
-    /// Convert a read to their IUPAC ambiguity representation, if the user requested --base-conversion. We do this for each 'to' base in the read, independent of the reference base. This is no problem since we compare to the actual reference base (can be different due to ralignment) in prob_read_base of src/variants/evidence/bases.rs
+    /// Convert a read to their IUPAC ambiguity representation, if the user requested --base-conversion. We do this for each 'to' base in the read, independent of the reference base. This is no problem since we compare to the actual reference base (can be different due to realignment) in prob_read_base of src/variants/evidence/bases.rs
     pub(crate) fn convert_read_iupac(&self, rec: &Arc<Record>) -> Option<Rc<Vec<u8>>> {
         if self.base_conversion.is_empty() {
             return None;
         }
+        let is_reverse = read_reverse_orientation(rec);
         Some(Rc::new(
             (0..rec.seq().len())
                 .map(|i| {
-                    self.base_conversion.convert(
-                        unsafe { rec.seq().decoded_base_unchecked(i) },
-                        read_reverse_orientation(rec),
-                    )
+                    self.base_conversion
+                        .convert(unsafe { rec.seq().decoded_base_unchecked(i) }, is_reverse)
                 })
                 .collect(),
         ))

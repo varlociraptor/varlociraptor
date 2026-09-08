@@ -23,7 +23,7 @@ pub(crate) fn prob_read_base(mut read_base: u8, ref_base: u8, base_qual: u8) -> 
         *PROB_ANY
     } else if iupac_contains(read_base, ref_base) {
         // read_base is an IUPAC ambiguity code (introduced by
-        // base conversio), and ref_base is one of the bases it can represent.
+        // base conversion), and ref_base is one of the bases it can represent.
         unsafe { *BASEQUAL_TO_PROB_CALL.get_unchecked(base_qual as usize) }
     } else {
         let prob_miscall = prob_read_base_miscall(base_qual);
