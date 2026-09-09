@@ -102,8 +102,13 @@ impl<R: Realigner> Mnv<R> {
             let mut strand = Strand::None;
             let mut read_position = None;
             let mut alt_edit_dist = 0_u32;
-            let read_emission =
-                ReadEmission::new(read.seq(), read.qual(), None, None, read.converted_seq());
+            let read_emission = ReadEmission::new(
+                read.seq(),
+                read.qual(),
+                None,
+                None,
+                read.converted_seq().clone(),
+            );
             let mut is_third_allele = false;
 
             for ((alt_base, ref_base), pos) in self
