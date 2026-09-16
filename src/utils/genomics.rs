@@ -3,13 +3,23 @@
 //! Genomics utility functions.
 //!
 //! This module provides utilities for:
-//! 1. `MsiStatus` - the result type for MSI status classification.
-//! 2. Allele type classification (indel detection);
-//! 3. Anchor length calculation (shared prefix between sequences);
-//! 4. Clean indel detection (pure insertion/deletion without complex variants);
-//! 5. Indel position calculation (adjusting for anchor to find true indel location);
-//! 6. Sequence analysis (Svlen calculation);
-//! 7. MSI status classification, via the `MsiStatus` result type.
+//! 1. `MsiStatus` - the result type for MSI status classification
+//! 2. Basic indel detection (length-based: are REF and ALT different lengths?)
+//! 3. Anchor length calculation (shared prefix between sequences)
+//! 4. Clean vs. complex indel classification (pure insertion/deletion vs. mixed)
+//! 5. Indel position calculation (adjusting for anchor to find true indel location)
+//! 6. Sequence analysis (Svlen calculation)
+//! 7. MSI status classification, via the `MsiStatus` result type
+//!
+//! Note:
+//! These are generic byte-comparison utilities: they operate on any two byte
+//! slices regardless of source, and make no assumptions about non-empty
+//! input. Deciding what counts as meaningful data for a given caller is that
+//! caller's responsibility, not this module's.
+//!
+//! These utilities cover the normal case throughout; unusual edge cases
+//! (e.g. an indel at a contig's very first position, where VCF's own anchor
+//! convention flips) are left entirely to the caller to detect and handle.
 
 /* ============ Data Structures =================== */
 
@@ -53,21 +63,13 @@ impl std::fmt::Display for MsiStatus {
 /// # Returns
 /// * `true` if lengths differ (indel)
 /// * `false` if same length (SNV, MNV, or identical)
-///
-/// # Example
-/// Insertion:
-/// assert!(is_indel(b"ACAG", b"ACAGCAG"));
-///
-/// SNV (not an indel):
-/// assert!(!is_indel(b"A", b"T"));
 pub(crate) fn is_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
     ref_seq.len() != alt_seq.len()
 }
 
 /// Calculate anchor length (shared prefix) between two sequences.
 ///
-/// The anchor is the longest common prefix between REF and ALT alleles
-/// in VCF format. VCF indels always include at least one anchor base.
+/// The anchor is the longest common prefix between REF and ALT alleles.
 ///
 /// # Algorithm
 /// Compares sequences byte-by-byte (case-insensitive) until mismatch.
@@ -78,16 +80,6 @@ pub(crate) fn is_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
 ///
 /// # Returns
 /// Length of shared prefix in bytes
-///
-/// # Examples
-/// Deletion: GCCT -> G, anchor = G (1 base)
-/// assert_eq!(calculate_anchor_length(b"GCCT", b"G"), 1);
-///
-/// Insertion: G -> GCCT, anchor = G (1 base)
-/// assert_eq!(calculate_anchor_length(b"G", b"GCCT"), 1);
-///
-/// Two anchors: TGCCT -> TG, anchor = TG (2 bases)
-/// assert_eq!(calculate_anchor_length(b"TGCCT", b"TG"), 2);
 pub(crate) fn calculate_anchor_length(ref_seq: &[u8], alt_seq: &[u8]) -> usize {
     let min_len = ref_seq.len().min(alt_seq.len());
 
@@ -118,19 +110,6 @@ pub(crate) fn calculate_anchor_length(ref_seq: &[u8], alt_seq: &[u8]) -> usize {
 /// # Returns
 /// * `true` if clean indel (one tail empty, lengths differ)
 /// * `false` if SNV, complex variant, or identical sequences
-///
-/// # Examples
-/// Clean deletion: GCCT -> G (anchor=G, ref_tail=CCT, alt_tail=empty)
-/// assert!(is_clean_indel(b"GCCT", b"G"));
-///
-/// Clean insertion: G -> GCCT (anchor=G, ref_tail=empty, alt_tail=CCT)
-/// assert!(is_clean_indel(b"G", b"GCCT"));
-///
-/// Complex: ATT -> AG (anchor=A, ref_tail=TT, alt_tail=G - BOTH non-empty)
-/// assert!(!is_clean_indel(b"ATT", b"AG"));
-///
-/// SNV: A -> T (same length, not an indel)
-/// assert!(!is_clean_indel(b"A", b"T"));
 pub(crate) fn is_clean_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
     if !is_indel(ref_seq, alt_seq) {
         return false;
@@ -171,23 +150,6 @@ pub(crate) fn is_clean_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
 /// # Returns
 /// * `Some(position)` - Position where clean indel starts (same coordinate system as input)
 /// * `None` - Not a clean indel (complex variant, SNV, or identical sequences)
-///
-/// # Examples
-/// 0-based coordinates (BED):
-/// Position 18630802 (0-based) with anchor G
-/// Indel starts at: 18630802 + 1 = 18630803 (0-based)
-/// assert_eq!(calculate_indel_position(18630802, b"GCCT", b"G"), Some(18630803));
-///
-/// 1-based coordinates (VCF standard):
-/// Position 18630803 (1-based) with anchor G
-/// Indel starts at: 18630803 + 1 = 18630804 (1-based)
-/// assert_eq!(calculate_indel_position(18630803, b"GCCT", b"G"), Some(18630804));
-///
-/// Complex variant: returns None
-/// assert_eq!(calculate_indel_position(100, b"ATT", b"AG"), None);
-///
-/// SNV: returns None
-/// assert_eq!(calculate_indel_position(100, b"A", b"T"), None);
 pub(crate) fn calculate_indel_position(pos: u64, ref_seq: &[u8], alt_seq: &[u8]) -> Option<u64> {
     if !is_clean_indel(ref_seq, alt_seq) {
         return None;
@@ -211,12 +173,6 @@ pub(crate) fn calculate_indel_position(pos: u64, ref_seq: &[u8], alt_seq: &[u8])
 /// * Positive value - Insertion (ALT longer than REF)
 /// * Negative value - Deletion (REF longer than ALT)
 /// * Zero - Same length (likely SNV or MNV)
-///
-/// # Examples
-/// Insertion: REF=ACAG, ALT=ACAGCAG : +3
-/// assert_eq!(calculate_dynamic_svlen(b"ACAG", b"ACAGCAG"), 3);
-/// Deletion: REF=ACAGT, ALT=AC : -3  
-/// assert_eq!(calculate_dynamic_svlen(b"ACAGT", b"AC"), -3);
 pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
     alt_seq.len() as i32 - ref_seq.len() as i32
 }
@@ -234,9 +190,6 @@ pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
 /// # Returns
 /// * `MsiStatus::High` - High microsatellite instability
 /// * `MsiStatus::Stable` - Microsatellite stable
-///
-/// # Examples
-/// assert_eq!(classify_msi_status(5.0, 3.5), MsiStatus::High);
 pub(crate) fn classify_msi_status(msi_score: f32, threshold: f32) -> MsiStatus {
     if msi_score >= threshold {
         MsiStatus::High
@@ -357,18 +310,10 @@ mod tests {
     /* ==== calculate_indel_position tests =========== */
 
     #[test]
-    fn test_calculate_indel_position_clean_deletion_0based() {
+    fn test_calculate_indel_position_clean_deletion() {
         assert_eq!(
             calculate_indel_position(18630802, b"GCCT", b"G"),
             Some(18630803)
-        );
-    }
-
-    #[test]
-    fn test_calculate_indel_position_clean_deletion_1based() {
-        assert_eq!(
-            calculate_indel_position(18630803, b"GCCT", b"G"),
-            Some(18630804)
         );
     }
 
@@ -451,6 +396,7 @@ mod tests {
 
         // No common anchor
         assert_eq!(calculate_dynamic_svlen(b"AAA", b"TTT"), 0);
+        assert_eq!(calculate_dynamic_svlen(b"AAA", b"TTTTT"), 2);
     }
 
     /* ========= classify_msi_status tests =========== */

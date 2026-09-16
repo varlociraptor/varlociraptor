@@ -219,7 +219,7 @@ pub(crate) enum Error {
     /* ========== MSI: Calling & Preprocessing Errors ================ */
     /* -------------------- Configuration ---------------------------- */
     #[error(
-        "invalid MSI threshold: must be > {} (default: {}), got {threshold}",
+        "invalid MSI threshold: must be finite and > {} (default: {}), got {threshold}",
         MSI_MIN_THRESHOLD,
         MSI_DEFAULT_THRESHOLD
     )]

@@ -151,7 +151,7 @@ impl MSIConfig {
         validate_events_exist(&header, &self.events)?;
 
         // --- msi_threshold ---
-        if self.msi_threshold <= MSI_MIN_THRESHOLD {
+        if !self.msi_threshold.is_finite() || self.msi_threshold <= MSI_MIN_THRESHOLD {
             return Err(Error::MsiConfigThresholdInvalid {
                 threshold: self.msi_threshold,
             }
