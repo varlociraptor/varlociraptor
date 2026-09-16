@@ -49,6 +49,12 @@ pub(crate) fn phred_to_prob(phred: f64) -> f64 {
 /// guards against silently producing a corrupted percentage/statistic if
 /// that assumption is ever violated, instead of failing loudly.
 ///
+/// # Arguments
+/// * `value` - Count to convert (e.g. a region or allele total)
+///
+/// # Returns
+/// `value` as `f64`, exact for any input within range.
+///
 /// # Panics
 /// Panics if `value > 2^53` (9_007_199_254_740_992), where the conversion
 /// would lose precision.
@@ -93,6 +99,8 @@ mod tests {
 
     use crate::constants::test_constants::TEST_EPSILON;
 
+    /* ========== phred_to_prob tests ================ */
+
     #[test]
     fn test_phred_to_prob() {
         // Key boundary: PHRED 0 = probability 1.0
@@ -125,6 +133,8 @@ mod tests {
         phred_to_prob(f64::NEG_INFINITY);
     }
 
+    /* ========== usize_to_f64_exact tests =========== */
+
     #[test]
     fn test_usize_to_f64_exact_normal_value() {
         assert_eq!(usize_to_f64_exact(1_000_000), 1_000_000.0);
@@ -142,6 +152,8 @@ mod tests {
         let over = (1usize << 53) + 1;
         usize_to_f64_exact(over);
     }
+
+    /* ========== calculate_percentage tests ========= */
 
     #[test]
     fn test_calculate_percentage() {
