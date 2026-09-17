@@ -820,6 +820,76 @@ events:
     }
 
     #[test]
+    fn variant_constrained_event_overlaps_unconstrained_one() {
+        // For a C>T SNV both events are true: the unconstrained event accepts any variant.
+        let msg = overlap_error(
+            r#"
+samples:
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  ffpe: "C>T & tumor:[0.1,0.2]"
+  any: "tumor:[0.1,0.2]""#,
+        )
+        .expect("expected an overlap");
+        assert!(msg.contains("\"any\" and \"ffpe\""), "{}", msg);
+        assert!(msg.contains("C>T"), "{}", msg);
+    }
+
+    #[test]
+    fn events_on_mutually_exclusive_variants_are_disjoint() {
+        // A locus carries a single SNV, so C>T and G>A can never hold together.
+        assert_eq!(
+            overlap_error(
+                r#"
+samples:
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  ct: "C>T & tumor:]0.0,1.0]"
+  ga: "G>A & tumor:]0.0,1.0]""#,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn iupac_variant_constraints_overlap_when_compatible() {
+        // Y (pyrimidine) covers C, so Y>T admits the same C>T SNV.
+        let msg = overlap_error(
+            r#"
+samples:
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  pyrimidine: "Y>T & tumor:]0.0,1.0]"
+  ct: "C>T & tumor:]0.0,1.0]""#,
+        )
+        .expect("expected an overlap");
+        assert!(msg.contains("C>T"), "{}", msg);
+    }
+
+    #[test]
+    fn negated_variant_constraints_overlap_on_other_variants() {
+        // Both are true for any SNV other than C>T / G>A, and for non-SNV variants.
+        let msg = overlap_error(
+            r#"
+samples:
+  tumor:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+events:
+  not_ct: "!C>T & tumor:]0.0,1.0]"
+  not_ga: "!G>A & tumor:]0.0,1.0]""#,
+        )
+        .expect("expected an overlap");
+        assert!(!msg.contains("C>T") && !msg.contains("G>A"), "{}", msg);
+    }
+
+    #[test]
     fn events_distinguished_only_by_variant_are_disjoint() {
         // Same VAF range, complementary variant constraints: disjoint via the variant terminal.
         assert_eq!(

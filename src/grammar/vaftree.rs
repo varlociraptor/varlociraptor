@@ -152,12 +152,10 @@ impl VAFTree {
     /// context for which both events are true simultaneously. Returns `None` if the two events are
     /// disjoint.
     ///
-    /// Two clauses can be jointly true only if they impose exactly the same variant and
-    /// log2-fold-change terminals: this matches the model's own containment semantics
-    /// (`VAFTree::contains`), where a leaf is satisfied only when the provided log2-fold-change
-    /// facts are consumed exactly, and where a genomic locus carries a single, definite variant.
-    /// For events that differ only in such terminals this is conservative (it never reports a
-    /// spurious overlap), while for pure allele-frequency events the check is exact and complete.
+    /// Two clauses can be jointly true only if there is a variant satisfying both clauses' variant
+    /// terminals (see `variant_witness`) and if they impose exactly the same log2-fold-change
+    /// terminals: the latter matches the model's own containment semantics (`VAFTree::contains`),
+    /// where a leaf is satisfied only when the provided log2-fold-change facts are consumed exactly.
     pub(crate) fn overlap_witness(
         &self,
         other: &VAFTree,
@@ -167,10 +165,13 @@ impl VAFTree {
         let others = other.clauses();
         for a in &own {
             for b in &others {
-                if a.variants != b.variants || a.lfcs != b.lfcs {
+                if a.lfcs != b.lfcs {
                     continue;
                 }
-                if let Some(witness) = clause_witness(a, b, universes) {
+                let Some(variant) = variant_witness(&a.variants, &b.variants) else {
+                    continue;
+                };
+                if let Some(witness) = clause_witness(a, b, variant, universes) {
                     return Some(witness);
                 }
             }
@@ -179,9 +180,60 @@ impl VAFTree {
     }
 }
 
-/// Build a witness for a pair of clauses that share the same variant/lfc context, or `None` if for
-/// some sample the two VAF constraints have no common value within that sample's universe.
-fn clause_witness(a: &Clause, b: &Clause, universes: &[(String, VAFUniverse)]) -> Option<String> {
+/// The variant context a variant terminal is evaluated against: the model (see
+/// `GenericPosterior::density`) matches `refbase>altbase` terminals against the called SNV if there
+/// is one, and treats every positive terminal as false (every negated one as true) otherwise.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum VariantContext {
+    Snv { refbase: u8, altbase: u8 },
+    NoSnv,
+}
+
+impl VariantContext {
+    /// All contexts a locus can be in: one of the twelve concrete SNVs, or no SNV at all.
+    fn all() -> impl Iterator<Item = VariantContext> {
+        const BASES: [u8; 4] = [b'A', b'C', b'G', b'T'];
+        BASES
+            .iter()
+            .flat_map(|&refbase| {
+                BASES
+                    .iter()
+                    .filter(move |&&altbase| altbase != refbase)
+                    .map(move |&altbase| VariantContext::Snv { refbase, altbase })
+            })
+            .chain(std::iter::once(VariantContext::NoSnv))
+    }
+
+    fn satisfies(&self, (refbase, altbase, positive): &(Iupac, Iupac, bool)) -> bool {
+        match self {
+            VariantContext::Snv {
+                refbase: r,
+                altbase: a,
+            } => (refbase.contains(*r) && altbase.contains(*a)) == *positive,
+            VariantContext::NoSnv => !*positive,
+        }
+    }
+}
+
+/// Find a variant context under which the variant terminals of both clauses hold, or `None` if the
+/// clauses require mutually exclusive variants. This is exact, as the set of contexts is finite and
+/// the comparison mirrors the model's IUPAC matching.
+fn variant_witness(
+    a: &BTreeSet<(Iupac, Iupac, bool)>,
+    b: &BTreeSet<(Iupac, Iupac, bool)>,
+) -> Option<VariantContext> {
+    VariantContext::all().find(|context| a.iter().chain(b).all(|term| context.satisfies(term)))
+}
+
+/// Build a witness for a pair of clauses that are compatible on their variant terminals (under
+/// `variant`) and share the same lfc context, or `None` if for some sample the two VAF constraints
+/// have no common value within that sample's universe.
+fn clause_witness(
+    a: &Clause,
+    b: &Clause,
+    variant: VariantContext,
+    universes: &[(String, VAFUniverse)],
+) -> Option<String> {
     let mut assignment = Vec::with_capacity(universes.len());
     for (sample, (name, universe)) in universes.iter().enumerate() {
         // Combine the (possibly absent) constraints of both clauses for this sample.
@@ -210,15 +262,21 @@ fn clause_witness(a: &Clause, b: &Clause, universes: &[(String, VAFUniverse)]) -
     }
 
     let mut witness = assignment.join(", ");
-    let context = clause_context(a, universes);
+    let context = clause_context(a, b, variant, universes);
     if !context.is_empty() {
         witness = format!("{}, {}", witness, context.join(", "));
     }
     Some(witness)
 }
 
-/// Human-readable description of the variant and log2-fold-change terminals shared by a clause.
-fn clause_context(clause: &Clause, universes: &[(String, VAFUniverse)]) -> Vec<String> {
+/// Human-readable description of the variant context and of the log2-fold-change terminals under
+/// which both clauses hold. The variant context is only mentioned if a clause constrains it.
+fn clause_context(
+    a: &Clause,
+    b: &Clause,
+    variant: VariantContext,
+    universes: &[(String, VAFUniverse)],
+) -> Vec<String> {
     let name = |idx: usize| {
         universes
             .get(idx)
@@ -226,15 +284,15 @@ fn clause_context(clause: &Clause, universes: &[(String, VAFUniverse)]) -> Vec<S
             .unwrap_or_else(|| format!("sample{}", idx))
     };
     let mut context = Vec::new();
-    for (refbase, altbase, positive) in &clause.variants {
-        context.push(format!(
-            "{}({}>{})",
-            if *positive { "" } else { "!" },
-            refbase,
-            altbase
-        ));
+    if !a.variants.is_empty() || !b.variants.is_empty() {
+        context.push(match variant {
+            VariantContext::Snv { refbase, altbase } => {
+                format!("variant {}>{}", refbase as char, altbase as char)
+            }
+            VariantContext::NoSnv => "no SNV".to_owned(),
+        });
     }
-    for (sample_a, sample_b, predicate) in &clause.lfcs {
+    for (sample_a, sample_b, predicate) in &a.lfcs {
         context.push(format!(
             "l2fc({}, {}) {}",
             name(*sample_a),

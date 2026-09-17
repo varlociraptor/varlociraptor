@@ -1077,8 +1077,9 @@ impl VAFSpectrum {
     }
 
     /// Pick a representative allele frequency that is contained in this spectrum, or `None` if the
-    /// spectrum is empty. For ranges, the midpoint is returned, which is strictly interior and thus
-    /// contained regardless of the range's exclusivity.
+    /// spectrum is empty (or, for a range, if no representable value lies within it). For ranges,
+    /// the midpoint is preferred; when it rounds onto an excluded bound, an included bound is used
+    /// instead.
     pub(crate) fn representative(&self) -> Option<AlleleFreq> {
         match self {
             VAFSpectrum::Set(s) => s.iter().next().copied(),
@@ -1088,7 +1089,11 @@ impl VAFSpectrum {
                 } else if r.is_singleton() {
                     Some(r.start)
                 } else {
-                    Some(AlleleFreq((*r.start + *r.end) / 2.0))
+                    let midpoint = AlleleFreq((*r.start + *r.end) / 2.0);
+                    [midpoint, r.start, r.end]
+                        .iter()
+                        .copied()
+                        .find(|vaf| r.contains(*vaf))
                 }
             }
         }
@@ -1636,8 +1641,29 @@ fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
 #[cfg(test)]
 mod test {
     use crate::grammar::Scenario;
-    use crate::grammar::{Formula, VAFRange};
+    use crate::grammar::{Formula, VAFRange, VAFSpectrum};
     use crate::variants::model::AlleleFreq;
+
+    #[test]
+    fn representative_of_narrow_exclusive_range_is_contained() {
+        // The midpoint of this range rounds to 1.0, which the range excludes.
+        let range = VAFRange {
+            inner: AlleleFreq(0.9999999999999999)..AlleleFreq(1.0),
+            left_exclusive: false,
+            right_exclusive: true,
+        };
+        let spectrum = VAFSpectrum::Range(range.clone());
+        let vaf = spectrum.representative().expect("non-empty range");
+        assert!(range.contains(vaf), "{} is not in {:?}", vaf, spectrum);
+
+        // Both bounds excluded and nothing representable in between: no witness.
+        let range = VAFRange {
+            inner: AlleleFreq(0.9999999999999999)..AlleleFreq(1.0),
+            left_exclusive: true,
+            right_exclusive: true,
+        };
+        assert_eq!(VAFSpectrum::Range(range).representative(), None);
+    }
 
     #[test]
     fn test_vaf_range_overlap() {
