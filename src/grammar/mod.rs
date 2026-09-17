@@ -789,6 +789,36 @@ events:
         );
     }
 
+    /// The example scenarios shipped under `tests/resources/prior/scenarios` are the reference
+    /// configurations users start from. They are not exercised by any testcase, so a latent overlap
+    /// (such as the one `pedigree.scenario.yaml` used to have) would go unnoticed: compile every one
+    /// of them, on an autosome and on both sex chromosomes since ploidy shapes the universes.
+    #[test]
+    fn all_prior_example_scenarios_validate() {
+        let dir = std::path::Path::new("tests/resources/prior/scenarios");
+        let mut paths: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(".scenario.yaml"))
+            })
+            .collect();
+        paths.sort();
+        assert!(!paths.is_empty(), "no example scenarios found in {:?}", dir);
+
+        for path in &paths {
+            let scenario = Scenario::from_path(path)
+                .unwrap_or_else(|err| panic!("failed to load {:?}: {}", path, err));
+            for contig in ["1", "X", "Y"] {
+                if let Err(err) = scenario.vaftrees(contig) {
+                    panic!("{:?} does not validate on contig {}: {}", path, contig, err);
+                }
+            }
+        }
+    }
+
     #[test]
     fn events_distinguished_only_by_variant_are_disjoint() {
         // Same VAF range, complementary variant constraints: disjoint via the variant terminal.
