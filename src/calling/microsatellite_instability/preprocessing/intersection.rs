@@ -30,7 +30,7 @@ use rust_htslib::bcf::{self, Read};
 use crate::errors::Error;
 use crate::utils::aux_info::AuxInfoCollector;
 use crate::utils::bcf_utils::get_chrom;
-use crate::utils::genomics::calculate_indel_position;
+use crate::utils::genomics::{calculate_indel_position, is_clean_indel, reverse_alleles};
 use crate::utils::ms_bed::{parse_bed_record, BedRegion};
 
 use super::variant_analysis::should_include_variant;
@@ -96,6 +96,11 @@ impl WindowEntry {
     }
 
     /// Position used to decide if this entry is safe to flush.
+    ///
+    /// The true upper bound across all ALT alleles, so the flush check
+    /// never fires too early. At pos == 0, also tries each allele's
+    /// trailing-anchor reading (see `variant_overlaps_region`) so a
+    /// position-1 allele isn't silently dropped from the max.
     fn max_safe_pos(&self) -> Option<u64> {
         match self {
             WindowEntry::Real(v) => {
@@ -103,7 +108,17 @@ impl WindowEntry {
                 let alleles = v.record.alleles();
                 let ref_allele = alleles[0];
                 (1..alleles.len())
-                    .filter_map(|i| calculate_indel_position(pos, ref_allele, alleles[i]))
+                    .filter_map(|i| {
+                        let alt_allele = alleles[i];
+                        let ordinary = calculate_indel_position(pos, ref_allele, alt_allele);
+                        let trailing = if pos == 0 {
+                            let (rev_ref, rev_alt) = reverse_alleles(ref_allele, alt_allele);
+                            is_clean_indel(&rev_ref, &rev_alt).then_some(pos)
+                        } else {
+                            None
+                        };
+                        ordinary.max(trailing)
+                    })
                     .max()
             }
             WindowEntry::Dummy(_) => None,
@@ -130,6 +145,15 @@ impl WindowEntry {
 ///    - Insertions: [start, end] inclusive end - BED end is exclusive
 ///      so region.end equals last_tract_position + 1, making it a
 ///      valid attachment point for repeat unit insertions
+/// 5. Position-1 exception: when vcf_pos == 0, VCF may use a trailing
+///    anchor instead of a leading one (no preceding base exists to pad
+///    with; see genomics.rs module docs). Checked unconditionally
+///    alongside steps 3-4 - the ordinary reading can succeed with a
+///    position that doesn't overlap this region while the trailing
+///    reading's position (vcf_pos itself, not vcf_pos + anchor_len) does.
+///    Doesn't decide which reading is correct - should_include_variant's
+///    motif check does - only avoids wrongly excluding a variant that
+///    check might later validate.
 ///
 /// # Note:
 /// We perform point-based overlap, which means we only consider the variant position.
@@ -145,8 +169,9 @@ impl WindowEntry {
 /// * `alt_idx` - Index of the alternate allele to analyze (0-based into ALT array)
 ///
 /// # Returns
-/// * `true` if clean indel position is within region
-/// * `false` if complex variant, SNV, or outside region
+/// * `true` if clean indel position is within region (ordinary or
+///   position-1 trailing-anchor reading)
+/// * `false` if complex variant, SNV, or outside region under both readings
 ///
 /// # Example
 /// VCF: POS=18630802 (0-based), REF=GCCT, ALT=G
@@ -161,25 +186,39 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
     let alleles = record.alleles();
     let ref_allele = alleles[0];
     let alt_allele = alleles[alt_idx + 1]; // +1 because alleles[0] is REF
+    let is_insertion = alt_allele.len() > ref_allele.len();
+
+    // NOTE:
+    // Insertions: inclusive end - appending a repeat unit at region.end
+    // is valid since BED end is exclusive and it's a valid biological msi scenario.
+    // Deletions: exclusive end - standard BED convention.
+    let overlaps = |indel_pos: u64| {
+        indel_pos >= region.start
+            && if is_insertion {
+                indel_pos <= region.end
+            } else {
+                indel_pos < region.end
+            }
+    };
 
     // Calculate where the indel occurs (None if complex variant/SNV)
-    match calculate_indel_position(vcf_pos, ref_allele, alt_allele) {
-        Some(indel_pos) => {
-            // NOTE:
-            // Only clean indels reach here.
-            // Insertions: inclusive end - appending a repeat unit at region.end
-            // is valid since BED end is exclusive and it's a valid biological msi scenario.
-            // Deletions: exclusive end - standard BED convention.
-            let is_insertion = alt_allele.len() > ref_allele.len();
-            indel_pos >= region.start
-                && if is_insertion {
-                    indel_pos <= region.end
-                } else {
-                    indel_pos < region.end
-                }
+    if let Some(indel_pos) = calculate_indel_position(vcf_pos, ref_allele, alt_allele) {
+        // NOTE:
+        // Only clean indels reach here.
+        if overlaps(indel_pos) {
+            return true;
         }
-        None => false,
     }
+
+    // Position-1 exception (see # Algorithm step 5 above).
+    if vcf_pos == 0 {
+        let (rev_ref, rev_alt) = reverse_alleles(ref_allele, alt_allele);
+        if is_clean_indel(&rev_ref, &rev_alt) && overlaps(vcf_pos) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Streams through sorted VCF variants and BED regions to identify perfect microsatellite
@@ -418,6 +457,7 @@ mod tests {
 
     use crate::calling::microsatellite_instability::preprocessing::header::prepare_header;
     use crate::utils::aux_info::tests::make_aux_collector;
+    use crate::utils::aux_info::AuxInfo;
     use crate::utils::bcf_utils::get_info_strings;
     use crate::utils::bcf_utils::tests::{
         create_minimal_vcf, create_test_vcf, read_first_record, TestVcfConfig,
@@ -431,6 +471,31 @@ mod tests {
         }
         tmp.flush().unwrap();
         tmp
+    }
+
+    /* ====== WindowEntry tests ======================= */
+
+    #[test]
+    fn test_max_safe_pos_position_1_trailing_anchor_not_silently_dropped() {
+        // Full repeat-tract deletion at a contig's first base: AG-repeat
+        // entirely deleted, trailing anchor borrowed from the first non-repeat
+        // base after the tract (T, which doesn't continue the AG pattern).
+        // Ordinary reading fails entirely here - unlike a partial deletion
+        // within an ongoing tract, a full-tract deletion's trailing anchor has
+        // no reason to match the motif, so max_safe_pos must not silently drop
+        // this allele from consideration.
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 0, b"AGAGAGAGAGAGAGAGAGAGT", &[b"T"])],
+        );
+        let record = read_first_record(tmp_vcf.path());
+        let entry = WindowEntry::Real(VariantInWindow {
+            record,
+            chrom: "chr1".to_string(),
+            matching_regions: HashMap::new(),
+            aux_info: AuxInfo::default(),
+        });
+        assert_eq!(entry.max_safe_pos(), Some(0));
     }
 
     /* ====== variant_overlaps_region tests ========== */
@@ -684,6 +749,30 @@ mod tests {
             ),
             "Deletion inside region should be included"
         );
+    }
+
+    #[test]
+    fn test_variant_overlaps_region_position_1_ordinary_overlaps_fail() {
+        // GAGAGAGAGAGAGAGA/GAGAGAGAGA at pos=0: ordinary reading gives Some(10)
+        // (outside [0,10)), trailing reading gives 0 (inside it). Confirms the
+        // trailing check runs even when the ordinary reading already succeeded,
+        // not only as a None-fallback. Example used is of multiple trailing anchors.
+        // Though, it holds true for a single trailing anchor as well.
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 0, b"GAGAGAGAGAGAGAGA", &[b"GAGAGAGAGA"])],
+        );
+        let record = read_first_record(tmp_vcf.path());
+        assert!(variant_overlaps_region(
+            &record,
+            &BedRegion {
+                chrom: "chr1".to_string(),
+                start: 0,
+                end: 10,
+                motif: "GA".to_string(),
+            },
+            0
+        ));
     }
 
     /* ====== process_and_annotate tests ============= */

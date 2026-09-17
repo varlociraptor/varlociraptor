@@ -7,9 +7,10 @@
 //! 2. Basic indel detection (length-based: are REF and ALT different lengths?)
 //! 3. Anchor length calculation (shared prefix between sequences)
 //! 4. Clean vs. complex indel classification (pure insertion/deletion vs. mixed)
-//! 5. Indel position calculation (adjusting for anchor to find true indel location)
-//! 6. Sequence analysis (Svlen calculation)
-//! 7. MSI status classification, via the `MsiStatus` result type
+//! 5. `reverse_alleles` - helper for reversing REF and ALT byte sequences
+//! 6. Indel position calculation (adjusting for anchor to find true indel location)
+//! 7. Sequence analysis (Svlen calculation)
+//! 8. MSI status classification, via the `MsiStatus` result type
 //!
 //! Note:
 //! These are generic byte-comparison utilities: they operate on any two byte
@@ -121,6 +122,29 @@ pub(crate) fn is_clean_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
     let alt_tail = alt_seq.len() - anchor_len;
 
     (ref_tail == 0) != (alt_tail == 0)
+}
+
+/// Reverse both allele sequences.
+///
+/// # Note
+/// A caller handling the position-1 trailing-anchor edge case (see this
+/// module's docs) can run this and then use `calculate_anchor_length`/
+/// `is_clean_indel` unmodified on the result: a trailing anchor becomes a
+/// leading one under reversal. Sufficient for structural checks (which only
+/// depend on tail lengths, not byte order); not sufficient if a caller needs
+/// the changed content in correct real-world order.
+///
+/// # Arguments
+/// * `ref_seq` - Reference sequence
+/// * `alt_seq` - Alternate sequence
+///
+/// # Returns
+/// `(reversed ref_seq, reversed alt_seq)`
+pub(crate) fn reverse_alleles(ref_seq: &[u8], alt_seq: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    (
+        ref_seq.iter().rev().copied().collect(),
+        alt_seq.iter().rev().copied().collect(),
+    )
 }
 
 /// Calculate the genomic position where an indel actually occurs.
@@ -305,6 +329,27 @@ mod tests {
         // One empty (clean insertion/deletion from nothing)
         assert!(is_clean_indel(b"", b"ACGT"));
         assert!(is_clean_indel(b"ACGT", b""));
+    }
+
+    /* ========== reverse_alleles tests ============== */
+
+    #[test]
+    fn test_reverse_alleles() {
+        // Non-palindromic: verifies bytes are actually reversed, not a no-op.
+        assert_eq!(
+            reverse_alleles(b"ACGT", b"TT"),
+            (b"TGCA".to_vec(), b"TT".to_vec())
+        );
+        // Palindromic: the realistic indel edge case (position-1 trailing anchor).
+        assert_eq!(
+            reverse_alleles(b"GAGAGAG", b"G"),
+            (b"GAGAGAG".to_vec(), b"G".to_vec())
+        );
+    }
+
+    #[test]
+    fn test_reverse_alleles_empty() {
+        assert_eq!(reverse_alleles(b"", b""), (vec![], vec![]));
     }
 
     /* ==== calculate_indel_position tests =========== */

@@ -15,7 +15,9 @@ use rust_htslib::bcf;
 use crate::utils::bcf_utils::{
     get_chrom, is_breakend, is_reference_allele, is_spanning_deletion, is_symbolic,
 };
-use crate::utils::genomics::{calculate_anchor_length, calculate_dynamic_svlen, is_indel};
+use crate::utils::genomics::{
+    calculate_anchor_length, calculate_dynamic_svlen, is_indel, reverse_alleles,
+};
 use crate::utils::ms_bed::BedRegion;
 
 /* ============ Data Structures =================== */
@@ -160,6 +162,9 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
 /// 2. **Check Perfect Repeat Status**:
 ///    - Calculate SVLEN (indel length)
 ///    - Verify indel is perfect tandem repeat of motif
+///    - At a contig's first base (pos == 0), also retries with alleles
+///      rotated (anchor moved to front) if the ordinary check fails - VCF's
+///      trailing-anchor exception there (see genomics.rs module docs)
 ///
 /// # Arguments
 /// * `record` - BCF record representing the variant
@@ -199,7 +204,24 @@ pub(super) fn should_include_variant(
 
     /* 2. Check Perfect Repeat Status */
     let svlen = calculate_dynamic_svlen(ref_allele, alt_allele);
-    let repeat_status = is_perfect_repeat(alt_allele, svlen, &region.motif, ref_allele);
+    let mut repeat_status = is_perfect_repeat(alt_allele, svlen, &region.motif, ref_allele);
+
+    // Position-1 exception: see variant_overlaps_region for the same
+    // reasoning. is_perfect_repeat is just called again on
+    // rotated bytes if the ordinary reading didn't validate.
+    if repeat_status != RepeatStatus::Perfect && record.pos() == 0 {
+        let (rev_ref, rev_alt) = reverse_alleles(ref_allele, alt_allele);
+        let anchor_len = calculate_anchor_length(&rev_ref, &rev_alt);
+        let rotate = |s: &[u8]| -> Vec<u8> {
+            s[s.len() - anchor_len..]
+                .iter()
+                .chain(s[..s.len() - anchor_len].iter())
+                .copied()
+                .collect()
+        };
+        let (rot_ref, rot_alt) = (rotate(ref_allele), rotate(alt_allele));
+        repeat_status = is_perfect_repeat(&rot_alt, svlen, &region.motif, &rot_ref);
+    }
 
     Ok(repeat_status == RepeatStatus::Perfect)
 }
@@ -388,5 +410,25 @@ mod tests {
 
         let result = should_include_variant(&record, 0, &region).unwrap();
         assert!(!result); // Imperfect repeat should be filtered
+    }
+
+    #[test]
+    fn test_should_include_variant_position_1_trailing_anchor() {
+        // Full AG-repeat tract deleted at a contig's first base; trailing
+        // anchor is T, the first non-repeat base after the tract. Ordinary
+        // reading fails (byte-0 mismatch A vs T); rotated retry correctly
+        // identifies the deleted content as a perfect AG repeat.
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 0, b"AGAGAGAGAGAGAGAGAGAGT", &[b"T"])],
+        );
+        let record = read_first_record(tmp_vcf.path());
+        let region = BedRegion {
+            chrom: "chr1".to_string(),
+            start: 0,
+            end: 20,
+            motif: "AG".to_string(),
+        };
+        assert!(should_include_variant(&record, 0, &region).unwrap());
     }
 }
