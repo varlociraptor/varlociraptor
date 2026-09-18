@@ -192,7 +192,7 @@ enum VariantContext {
 impl VariantContext {
     /// All contexts a locus can be in: one of the twelve concrete SNVs, or no SNV at all.
     fn all() -> impl Iterator<Item = VariantContext> {
-        const BASES: [u8; 4] = [b'A', b'C', b'G', b'T'];
+        const BASES: &[u8] = b"ACGT";
         BASES
             .iter()
             .flat_map(|&refbase| {
