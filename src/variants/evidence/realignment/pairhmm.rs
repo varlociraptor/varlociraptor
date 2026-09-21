@@ -10,12 +10,12 @@ use std::rc::Rc;
 
 use std::sync::Arc;
 
+use bio::alphabets::dna::iupac_mask;
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
 use rust_htslib::bam;
 
-use crate::variants::evidence::bases::iupac_contains;
 use crate::variants::evidence::bases::{prob_read_base, prob_read_base_miscall};
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
@@ -373,6 +373,19 @@ impl<'a> pairhmm::EmissionParameters for ReadVsAlleleEmission<'a> {
         self.read_emission.prob_match_mismatch(j, r)
     }
 
+    /// IUPAC-aware emission for the active match state `base` of the HomopolyPairHMM:
+    /// a match iff x[i], y[j] and `base` share at least one possible nucleotide.
+    #[inline]
+    fn prob_emit_xy_for_base(
+        &self,
+        i: usize,
+        j: usize,
+        base: u8,
+    ) -> bio::stats::pairhmm::XYEmission {
+        let r = self.allele_emission.ref_base(i);
+        self.read_emission.prob_match_mismatch_statebase(j, r, base)
+    }
+
     #[inline]
     fn prob_emit_x(&self, _: usize) -> LogProb {
         LogProb::ln_one()
@@ -400,10 +413,10 @@ impl<'a> bio::stats::pairhmm::Emission for ReadVsAlleleEmission<'a> {
     }
 
     fn emission_y(&self, j: usize) -> u8 {
-        unsafe {
-            self.read_emission
-                .read_seq
-                .decoded_base_unchecked(self.read_emission.project_j(j))
+        let pos = self.read_emission.project_j(j);
+        match &self.read_emission().converted_seq {
+            Some(seq) => unsafe { *seq.get_unchecked(pos) },
+            None => unsafe { self.read_emission().read_seq.decoded_base_unchecked(pos) },
         }
     }
 }
@@ -463,7 +476,7 @@ impl<'a> ReadEmission<'a> {
         let base_qual = unsafe { *self.qual.get_unchecked(pos) };
         let prob = prob_read_base(read_base, ref_base, base_qual);
 
-        if read_base == ref_base || iupac_contains(read_base, ref_base) {
+        if iupac_mask(read_base) & iupac_mask(ref_base) != 0 {
             pairhmm::XYEmission::Match(prob)
         } else {
             // TODO the 'N' case now gives PROB ANY instead of definitive probability. Is this correct?
@@ -472,6 +485,32 @@ impl<'a> ReadEmission<'a> {
         }
     }
 
+    pub(crate) fn prob_match_mismatch_statebase(
+        &self,
+        j: usize,
+        ref_base: u8,
+        state_base: u8,
+    ) -> pairhmm::XYEmission {
+        let pos = self.project_j(j);
+        let read_base = match &self.converted_seq {
+            Some(seq) => unsafe { *seq.get_unchecked(pos) },
+            None => unsafe { self.read_seq.decoded_base_unchecked(pos) },
+        }
+        .to_ascii_uppercase();
+        let ref_base = ref_base.to_ascii_uppercase();
+        let state_base = state_base.to_ascii_uppercase();
+        let base_qual = unsafe { *self.qual.get_unchecked(pos) };
+
+        let prob = prob_read_base(read_base, ref_base, base_qual);
+
+        if iupac_mask(read_base) & iupac_mask(state_base) & iupac_mask(ref_base) != 0 {
+            pairhmm::XYEmission::Match(prob)
+        } else {
+            // TODO the 'N' case now gives PROB ANY instead of definitive probability. Is this correct?
+            // TODO replace the second term with technology specific confusion matrix
+            pairhmm::XYEmission::Mismatch(prob)
+        }
+    }
     pub(crate) fn prob_insertion(&self, j: usize) -> LogProb {
         *unsafe { self.any_miscall.get_unchecked(j) }
     }
@@ -522,3 +561,40 @@ impl VariantEmission for ReferenceEmissionParams {
 pub(crate) trait RefBaseVariantEmission: RefBaseEmission + VariantEmission {}
 
 impl<T: RefBaseEmission + VariantEmission> RefBaseVariantEmission for T {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bio::stats::pairhmm::{EmissionParameters, XYEmission};
+
+    #[test]
+    fn test_iupac_aware_emission() {
+        let mut record = bam::Record::new();
+        record.set(b"read", None, b"Y", &[30]);
+        let qual = record.qual().to_vec();
+        let read_emission = ReadEmission::new(record.seq(), &qual, None, None, None);
+        let allele_emission = ReferenceEmissionParams {
+            ref_seq: Arc::new(b"T".to_vec()),
+            ref_offset: 0,
+            ref_end: 1,
+            ref_offset_override: None,
+            ref_end_override: None,
+        };
+        let emission = ReadVsAlleleEmission::new(&read_emission, Box::new(allele_emission));
+
+        // Y (C or T) vs. T is compatible with state T ...
+        assert!(matches!(
+            emission.prob_emit_xy_for_base(0, 0, b'T'),
+            XYEmission::Match(_)
+        ));
+        // ... but not with state C (reference is T) or A.
+        assert!(matches!(
+            emission.prob_emit_xy_for_base(0, 0, b'C'),
+            XYEmission::Mismatch(_)
+        ));
+        assert!(matches!(
+            emission.prob_emit_xy_for_base(0, 0, b'A'),
+            XYEmission::Mismatch(_)
+        ));
+    }
+}

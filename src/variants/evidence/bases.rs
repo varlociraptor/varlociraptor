@@ -3,7 +3,10 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::{
+    alphabets::dna::iupac_mask,
+    stats::{LogProb, PHREDProb, Prob},
+};
 use rust_htslib::bam::Record;
 use std::sync::Arc;
 
@@ -21,7 +24,7 @@ pub(crate) fn prob_read_base(mut read_base: u8, ref_base: u8, base_qual: u8) -> 
     } else if read_base == b'N' {
         // METHOD: N means there can be anything, assuming a flat probability here.
         *PROB_ANY
-    } else if iupac_contains(read_base, ref_base) {
+    } else if iupac_mask(read_base) & iupac_mask(ref_base) != 0 {
         // read_base is an IUPAC ambiguity code (introduced by
         // base conversion), and ref_base is one of the bases it can represent.
         unsafe { *BASEQUAL_TO_PROB_CALL.get_unchecked(base_qual as usize) }
@@ -63,39 +66,6 @@ pub(crate) fn is_ambiguous_base(base: u8) -> bool {
     matches!(
         base,
         b'N' | b'M' | b'R' | b'W' | b'S' | b'Y' | b'K' | b'B' | b'D' | b'H' | b'V'
-    )
-}
-
-/// True if `ref_base` (a concrete A/C/G/T) is among the bases represented by
-/// the IUPAC ambiguity code `read_base`.
-#[inline]
-pub(crate) fn iupac_contains(read_base: u8, ref_base: u8) -> bool {
-    matches!(
-        (read_base, ref_base),
-        (b'M', b'A')
-            | (b'M', b'C')
-            | (b'R', b'A')
-            | (b'R', b'G')
-            | (b'W', b'A')
-            | (b'W', b'T')
-            | (b'S', b'C')
-            | (b'S', b'G')
-            | (b'Y', b'C')
-            | (b'Y', b'T')
-            | (b'K', b'G')
-            | (b'K', b'T')
-            | (b'B', b'C')
-            | (b'B', b'G')
-            | (b'B', b'T')
-            | (b'D', b'A')
-            | (b'D', b'G')
-            | (b'D', b'T')
-            | (b'H', b'A')
-            | (b'H', b'C')
-            | (b'H', b'T')
-            | (b'V', b'A')
-            | (b'V', b'C')
-            | (b'V', b'G')
     )
 }
 
