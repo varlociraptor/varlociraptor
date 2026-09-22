@@ -2,6 +2,23 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.10.0](https://github.com/varlociraptor/varlociraptor/compare/v8.9.5...v8.10.0) (2026-09-22)
+
+
+### Features
+
+* **grammar:** verify pairwise event disjointness at scenario compilation ([#558](https://github.com/varlociraptor/varlociraptor/issues/558)) ([7fae288](https://github.com/varlociraptor/varlociraptor/commit/7fae288288ae284cf35e945ec277218e2b6e5fb5))
+
+
+### Bug Fixes
+
+* correct borders for vaf splitting ([#545](https://github.com/varlociraptor/varlociraptor/issues/545)) ([6126679](https://github.com/varlociraptor/varlociraptor/commit/6126679abc9463b90922c6d8ea9450632f99bfff))
+
+
+### Performance Improvements
+
+* avoid logging every non-coding variant when estimating mutational burden ([#546](https://github.com/varlociraptor/varlociraptor/issues/546)) ([f9810d2](https://github.com/varlociraptor/varlociraptor/commit/f9810d2455976fd13850afa292e0326a416b1a55))
+
 ## [8.9.5](https://github.com/varlociraptor/varlociraptor/compare/v8.9.4...v8.9.5) (2026-02-10)
 
 
