@@ -1,0 +1,9 @@
+##fileformat=VCFv4.2
+##contig=<ID=chr1,length=10000000>
+##INFO=<ID=REGION_ID,Number=A,Type=String,Description="BED region ID for the overlapping microsatellite locus">
+##INFO=<ID=MSI_DUMMY,Number=0,Type=Flag,Description="Dummy deletion injected for MS region with no observed indel">
+##INFO=<ID=PROB_SOMATIC,Number=A,Type=Float,Description="P(somatic)">
+##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	tumor
+chr1	1000	.	GCAG	GCAGCAG	.	.	REGION_ID=chr1:1000-1030;PROB_SOMATIC=0.9	AF	0.8
+chr1	2000	.	GCAG	GCAGCAG	.	.	REGION_ID=chr1:2000-2030;PROB_SOMATIC=0.8	AF	0.9

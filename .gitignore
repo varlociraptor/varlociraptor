@@ -24,6 +24,13 @@ tests/resources/prior/**
 tests/resources/flamegraph_big/**
 tests/resources/prior/.snakemake
 tests/resources/prior/.snakemake/**
+!tests/resources/test_preprocess_msi_*/input.vcf
+!tests/resources/test_preprocess_msi_*/regions.bed
+!tests/resources/test_call_msi_*/calls.vcf
 .vscode/**
 .micromamba
 Cargo.lock
+
+# Local development box, always ignored
+# (can be used for large test files etc.)
+dev_sandbox/
