@@ -30,10 +30,14 @@ use crate::Event;
 pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod aux_info;
+pub(crate) mod bcf_utils;
 pub mod collect_variants;
 pub(crate) mod comparison;
+pub(crate) mod genomics;
 pub(crate) mod homopolymers;
 pub(crate) mod log2_fold_change;
+pub(crate) mod ms_bed;
+pub(crate) mod stats;
 pub(crate) mod variant_buffer;
 
 pub(crate) use collect_variants::collect_variants;
