@@ -9,9 +9,9 @@ use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
+use crate::variants::model::{self, Conversion};
 use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination};
 use std::ops::Index;
 
@@ -59,6 +59,7 @@ where
 {
     resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
+    conversions: Option<grammar::SampleInfo<Option<Conversion>>>,
     prior: P,
 }
 
@@ -84,6 +85,15 @@ where
         self
     }
 
+    pub(crate) fn conversions(
+        mut self,
+        conversions: grammar::SampleInfo<Option<Conversion>>,
+    ) -> Self {
+        self.conversions = Some(conversions);
+
+        self
+    }
+
     pub(crate) fn prior(mut self, prior: P) -> Self {
         self.prior = prior;
 
@@ -100,6 +110,8 @@ where
         let likelihood = GenericLikelihood::new(
             self.contaminations
                 .expect("GenericModelBuilder: need to call contaminations() before build()"),
+            self.conversions
+                .expect("GenericModelBuilder: need to call conversions() before build()"),
         );
         Ok(Model::new(likelihood, self.prior, posterior))
     }
@@ -376,6 +388,7 @@ impl GenericPosterior {
                         } else if n_obs < 5 {
                             // METHOD: Not enough observations to expect a unimodal density.
                             // Use 11 grid points.
+                            // TODO: Is there a reaseon 0 is included even if its excluded in the interval of the scenario for n_obs < 10?
                             LogProb::ln_simpsons_integrate_exp(
                                 |_, vaf| density(AlleleFreq(vaf)),
                                 *min_vaf,
@@ -465,31 +478,44 @@ enum SampleModel {
     Contaminated {
         likelihood_model: likelihood::ContaminatedSampleLikelihoodModel,
         by: usize,
+        conversion: Option<Conversion>,
     },
-    Normal(likelihood::SampleLikelihoodModel),
+    Normal {
+        likelihood_model: likelihood::SampleLikelihoodModel,
+        conversion: Option<Conversion>,
+    },
 }
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct GenericLikelihood {
-    inner: grammar::SampleInfo<SampleModel>,
+    sample_models: grammar::SampleInfo<SampleModel>,
 }
 
 impl GenericLikelihood {
-    pub(crate) fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
-        let inner = contaminations.map(|contamination| {
-            if let Some(contamination) = contamination {
-                SampleModel::Contaminated {
-                    likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
-                        1.0 - contamination.fraction,
-                    ),
-                    by: contamination.by,
+    pub(crate) fn new(
+        contaminations: grammar::SampleInfo<Option<Contamination>>,
+        conversions: grammar::SampleInfo<Option<Conversion>>,
+    ) -> Self {
+        let sample_models = contaminations
+            .zip(&conversions)
+            .map(|(contamination, conversion)| {
+                if let Some(contamination) = contamination {
+                    SampleModel::Contaminated {
+                        likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
+                            1.0 - contamination.fraction,
+                        ),
+                        by: contamination.by,
+                        conversion: (*conversion).clone(),
+                    }
+                } else {
+                    SampleModel::Normal {
+                        likelihood_model: likelihood::SampleLikelihoodModel::new(),
+                        conversion: (*conversion).clone(),
+                    }
                 }
-            } else {
-                SampleModel::Normal(likelihood::SampleLikelihoodModel::new())
-            }
-        });
+            });
 
-        GenericLikelihood { inner }
+        GenericLikelihood { sample_models }
     }
 }
 
@@ -511,45 +537,83 @@ impl Likelihood<Cache> for GenericLikelihood {
         let mut p = LogProb::ln_one();
 
         // Step 2: Calculate joint likelihood of sample VAFs.
-        for (((sample, event), pileup), inner) in operands
+        for (((sample, event), pileup), sample_model) in operands
             .events
             .iter()
             .zip(data.pileups.iter())
-            .zip(self.inner.iter())
+            .zip(self.sample_models.iter())
         {
-            p += match *inner {
+            let lp = match sample_model {
                 SampleModel::Contaminated {
                     ref likelihood_model,
                     by,
+                    conversion,
                 } => {
-                    if let CacheEntry::ContaminatedSample(ref mut cache) =
-                        cache.entry(sample).or_insert_with(|| CacheEntry::new(true))
-                    {
-                        likelihood_model.compute(
-                            &likelihood::ContaminatedSampleEvent {
-                                primary: event.clone(),
-                                secondary: operands.events[by].clone(),
-                            },
-                            pileup,
-                            cache,
-                        )
-                    } else {
-                        unreachable!();
-                    }
-                }
-                SampleModel::Normal(ref likelihood_model) => {
-                    if let CacheEntry::SingleSample(ref mut cache) = cache
-                        .entry(sample)
-                        .or_insert_with(|| CacheEntry::new(false))
-                    {
-                        likelihood_model.compute(event, pileup, cache)
-                    } else {
-                        unreachable!();
-                    }
-                }
-            }
-        }
+                    let cache_entry = cache.entry(sample).or_insert_with(|| CacheEntry::new(true));
 
+                    let CacheEntry::ContaminatedSample(ref mut sample_cache) = cache_entry else {
+                        unreachable!();
+                    };
+
+                    let contaminated_event = likelihood::ContaminatedSampleEvent {
+                        primary: event.clone(),
+                        secondary: operands.events[*by].clone(),
+                    };
+
+                    match (conversion, &data.snv) {
+                        (Some(conversion), Some(snv))
+                            if snv.refbase == conversion.from && snv.altbase == conversion.to =>
+                        {
+                            let density = |_, conversion_rate| {
+                                let mut ev = contaminated_event.clone();
+                                ev.primary.allele_freq += conversion_rate;
+
+                                likelihood_model.compute(&ev, pileup, sample_cache)
+                            };
+                            LogProb::ln_simpsons_integrate_exp(
+                                density,
+                                0.0,
+                                1.0 - contaminated_event.primary.allele_freq.into_inner(),
+                                11,
+                            )
+                        }
+                        _ => likelihood_model.compute(&contaminated_event, pileup, sample_cache),
+                    }
+                }
+                SampleModel::Normal {
+                    ref likelihood_model,
+                    conversion,
+                } => {
+                    let cache_entry = cache
+                        .entry(sample)
+                        .or_insert_with(|| CacheEntry::new(false));
+
+                    let CacheEntry::SingleSample(ref mut sample_cache) = cache_entry else {
+                        unreachable!();
+                    };
+                    match (conversion, &data.snv) {
+                        (Some(conversion), Some(snv))
+                            if snv.refbase == conversion.from && snv.altbase == conversion.to =>
+                        {
+                            let density = |_, conversion_rate| {
+                                let mut ev = event.clone();
+                                ev.allele_freq += conversion_rate;
+
+                                likelihood_model.compute(&ev, pileup, sample_cache)
+                            };
+                            LogProb::ln_simpsons_integrate_exp(
+                                density,
+                                0.0,
+                                1.0 - event.allele_freq.into_inner(),
+                                11,
+                            )
+                        }
+                        _ => likelihood_model.compute(event, pileup, sample_cache),
+                    }
+                }
+            };
+            p += lp;
+        }
         p
     }
 }
