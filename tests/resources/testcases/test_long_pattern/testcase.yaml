@@ -5,7 +5,7 @@
 samples:
   PaTu-S:
     path: 'PaTu-S.bam'
-    properties: '{"insert_size":{"mean":453.5,"sd":77.48417326468552},"max_del_cigar_len":21,"max_ins_cigar_len":14,"frac_max_softclip":0.8675496688741722}'
+    properties: '{"avg_depth":0,"avg_depth_per_cg_ratio":[],"insert_size":{"mean":453.5,"sd":77.48417326468552},"max_del_cigar_len":21,"max_ins_cigar_len":14,"frac_max_softclip":0.8675496688741722}'
   
 
 # candidate variant
