@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 use std::str;
 use std::sync::RwLock;
 
@@ -889,7 +889,7 @@ where
                 .enumerate()
                 .map(|(sample, (pileup, estimate))| {
                     let mut sample_builder = SampleInfoBuilder::default();
-                    sample_builder.pileup(Rc::new(pileup));
+                    sample_builder.pileup(Arc::new(pileup));
                     match estimate {
                         model::likelihood::Event {
                             artifacts: biases, ..
