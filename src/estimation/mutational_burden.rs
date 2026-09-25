@@ -126,9 +126,10 @@ pub(crate) fn collect_estimates(
             let vafs = rec.format(b"AF").float()?[*id].to_owned();
             vafmap.insert(name, vafs);
         }
-        if !is_valid_variant(&mut rec, &header)? {
-            continue;
-        }
+        // if !is_valid_variant(&mut rec, &header)? {
+        //     continue;
+        // }
+        // info!("valid variant at {}:{}", contig, vcfpos);
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
 
@@ -490,7 +491,7 @@ pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
                 Signature::Bnd
             } else if alt_allele == b"<METH>" {
                 Signature::Meth
-            } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
+            } else if ref_allele.len() == 1 && alt_allele.len() == 1 && b"ACGT".contains(&ref_allele[0]) && b"ACGT".contains(&alt_allele[0]) {
                 Signature::from_str(&format!(
                     "{}>{}",
                     str::from_utf8(ref_allele).unwrap(),
