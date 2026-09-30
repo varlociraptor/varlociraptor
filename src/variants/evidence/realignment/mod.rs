@@ -29,6 +29,7 @@ use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmi
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
 
 pub(crate) mod edit_distance;
+pub(crate) mod linear_pairhmm;
 pub(crate) mod pairhmm;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
@@ -511,6 +512,8 @@ pub(crate) trait Realigner {
 pub(crate) struct PairHMMRealigner {
     gap_params: pairhmm::GapParams,
     pairhmm: PairHMM,
+    linear_pairhmm: linear_pairhmm::LinearPairHMM,
+    allele_window: Vec<u8>,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
 }
@@ -523,9 +526,12 @@ impl PairHMMRealigner {
         max_window: u64,
     ) -> Self {
         let pairhmm = PairHMM::new(&gap_params);
+        let linear_pairhmm = linear_pairhmm::LinearPairHMM::new(&gap_params);
         PairHMMRealigner {
             gap_params,
             pairhmm,
+            linear_pairhmm,
+            allele_window: Vec::new(),
             max_window,
             ref_buffer,
         }
@@ -553,10 +559,26 @@ impl Realigner for PairHMMRealigner {
         // METHOD: Further, we run the HMM on a band around the best edit distance.
         // Just to be sure that we don't miss some ambiguity, we add some additional
         // edit operations to the band.
-        self.pairhmm.prob_related(
-            allele_params,
-            &self.gap_params,
-            Some(hit.dist_upper_bound()),
+        let max_edit_dist = hit.dist_upper_bound();
+        if max_edit_dist > linear_pairhmm::MAX_EDIT_DIST {
+            // METHOD: bands this wide could underflow in linear space (see linear_pairhmm), hence
+            // fall back to the log-space implementation.
+            return self
+                .pairhmm
+                .prob_related(allele_params, &self.gap_params, Some(max_edit_dist));
+        }
+
+        // Materialize the allele window once, so that the HMM inner loop reads plain bytes
+        // instead of going through the trait object for every cell.
+        self.allele_window.clear();
+        self.allele_window.extend(
+            (0..RefBaseEmission::len_x(allele_params))
+                .map(|i| allele_params.ref_base(i).to_ascii_uppercase()),
+        );
+        self.linear_pairhmm.prob_related(
+            allele_params.read_emission(),
+            &self.allele_window,
+            max_edit_dist,
         )
     }
 }
