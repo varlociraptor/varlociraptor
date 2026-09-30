@@ -17,9 +17,10 @@
 //! Linear space is safe because of the band: every computed cell is reached by a path with at
 //! most `max_edit_dist` edits, so its value is at least the product of that path, i.e. no smaller
 //! than `min_edit_emission^max_edit_dist * min_match_emission^len_y`. With the smallest gap
-//! probability around 1e-6, base qualities down to 2 and windows of at most 128 read bases this
-//! stays far above the smallest normal `f64` for bands of up to `MAX_EDIT_DIST` edits. Wider
-//! bands (and unbanded computations) have to use the log-space implementation.
+//! probability around 1e-6 and base qualities down to 2 this stays far above the smallest normal
+//! `f64` for bands of up to `MAX_EDIT_DIST` edits and read windows of up to `MAX_LEN_Y` bases.
+//! Wider bands, longer windows and unbanded computations have to use the log-space
+//! implementation.
 
 use std::cmp;
 
@@ -28,8 +29,13 @@ use bio::stats::LogProb;
 
 use super::pairhmm::{GapParams, ReadEmission};
 
-/// Widest band for which the linear-space forward algorithm cannot underflow.
+/// Widest band for which the linear-space forward algorithm cannot underflow (together with
+/// `MAX_LEN_Y`).
 pub(crate) const MAX_EDIT_DIST: usize = 40;
+
+/// Longest read window for which the linear-space forward algorithm cannot underflow (together
+/// with `MAX_EDIT_DIST`).
+pub(crate) const MAX_LEN_Y: usize = 128;
 
 #[derive(Debug, Clone)]
 pub(crate) struct LinearPairHMM {
@@ -92,6 +98,11 @@ impl LinearPairHMM {
         );
         let len_x = allele.len();
         let len_y = read.len();
+        assert!(
+            len_y <= MAX_LEN_Y,
+            "bug: read window of {} bases is too long for the linear-space pair HMM",
+            len_y
+        );
 
         for k in 0..2 {
             self.m[k].clear();

@@ -560,9 +560,11 @@ impl Realigner for PairHMMRealigner {
         // Just to be sure that we don't miss some ambiguity, we add some additional
         // edit operations to the band.
         let max_edit_dist = hit.dist_upper_bound();
-        if max_edit_dist > linear_pairhmm::MAX_EDIT_DIST {
-            // METHOD: bands this wide could underflow in linear space (see linear_pairhmm), hence
-            // fall back to the log-space implementation.
+        if max_edit_dist > linear_pairhmm::MAX_EDIT_DIST
+            || allele_params.read_emission().len() > linear_pairhmm::MAX_LEN_Y
+        {
+            // METHOD: bands this wide or windows this long could underflow in linear space (see
+            // linear_pairhmm), hence fall back to the log-space implementation.
             return self
                 .pairhmm
                 .prob_related(allele_params, &self.gap_params, Some(max_edit_dist));
