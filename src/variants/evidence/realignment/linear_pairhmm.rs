@@ -14,6 +14,12 @@
 //! extension probability, and cells outside the band are cleared; see rust-bio/rust-bio#700 for
 //! the corresponding deviations of the log-space implementation.
 //!
+//! Only the cells inside the band are visited: a cell can be inside the band only if its top
+//! left or left neighbour (previous column) or its top neighbour (this column) is, so each column
+//! is scanned over the ranges written in the previous column, extended by one, plus the chain of
+//! top neighbours, and cells outside of those ranges are known to be empty. An alignment is only
+//! allowed to start at columns from which the read can still be consumed within the band.
+//!
 //! Linear space is safe because of the band: every computed cell is reached by a path with at
 //! most `max_edit_dist` edits, so its value is at least the product of that path, i.e. no smaller
 //! than `min_edit_emission^max_edit_dist * min_match_emission^len_y`. With the smallest gap
@@ -45,6 +51,11 @@ pub(crate) struct LinearPairHMM {
     x: [Vec<f64>; 2],
     y: [Vec<f64>; 2],
     min_edit_dist: [Vec<usize>; 2],
+    // inclusive ranges of the cells (read position + 1) written in each of the two columns; every
+    // other cell of a column holds probability 0 and an infinite edit distance
+    live: [Vec<(usize, usize)>; 2],
+    // scratch space for the candidate ranges of a column
+    candidates: Vec<(usize, usize)>,
     // probability of the alignments ending in each column (free end gap in x)
     cols: Vec<f64>,
     no_gap: f64,
@@ -66,6 +77,8 @@ impl LinearPairHMM {
             x: [Vec::new(), Vec::new()],
             y: [Vec::new(), Vec::new()],
             min_edit_dist: [Vec::new(), Vec::new()],
+            live: [Vec::new(), Vec::new()],
+            candidates: Vec::new(),
             cols: Vec::new(),
             no_gap: lin(gap_params
                 .prob_gap_x()
@@ -113,6 +126,7 @@ impl LinearPairHMM {
             self.x[k].resize(len_y + 1, 0.0);
             self.y[k].resize(len_y + 1, 0.0);
             self.min_edit_dist[k].resize(len_y + 1, usize::MAX);
+            self.live[k].clear();
         }
         self.cols.clear();
         self.cols.reserve(len_x);
@@ -121,80 +135,127 @@ impl LinearPairHMM {
         let mut curr = 1;
         self.m[prev][0] = 1.0;
 
-        for &ref_base in allele {
-            // the alignment may start at any reference offset (free start gap in x)
-            self.m[prev][0] += 1.0;
-            self.min_edit_dist[prev][0] = 0;
-            self.min_edit_dist[curr][0] = 0;
+        // METHOD: the alignment may start at any reference offset (free start gap in x), but an
+        // alignment starting at column c has to consume the whole read within the remaining
+        // len_x - c columns, which needs at least len_y - (len_x - c) insertions. Beyond
+        // last_start it cannot stay within the band, so its cells would only be computed to be
+        // pruned: skipping those starts leaves the result unchanged.
+        let last_start = (len_x + max_edit_dist).saturating_sub(len_y);
 
-            for j in 0..len_y {
-                let j_ = j + 1;
+        for (i, &ref_base) in allele.iter().enumerate() {
+            // Clear what this buffer holds from two columns ago, so that every cell outside of
+            // the ranges written below is zero (see `live`).
+            for &(a, b) in &self.live[curr] {
+                for v in &mut self.m[curr][a..=b] {
+                    *v = 0.0;
+                }
+                for v in &mut self.x[curr][a..=b] {
+                    *v = 0.0;
+                }
+                for v in &mut self.y[curr][a..=b] {
+                    *v = 0.0;
+                }
+                for v in &mut self.min_edit_dist[curr][a..=b] {
+                    *v = usize::MAX;
+                }
+            }
+            self.live[curr].clear();
+            // cell 0 of this column: no alignment starts here (it gets its start probability
+            // once it becomes the previous column)
+            self.m[curr][0] = 0.0;
 
-                let med_topleft = self.min_edit_dist[prev][j];
-                let med_top = self.min_edit_dist[curr][j];
-                let med_left = self.min_edit_dist[prev][j_];
+            let fresh_start = i <= last_start;
+            if fresh_start {
+                self.m[prev][0] += 1.0;
+                self.min_edit_dist[prev][0] = 0;
+            } else {
+                self.m[prev][0] = 0.0;
+                self.min_edit_dist[prev][0] = usize::MAX;
+            }
+            self.min_edit_dist[curr][0] = usize::MAX;
 
-                if cmp::min(med_topleft, cmp::min(med_top, med_left)) > max_edit_dist {
-                    // outside of the band: this cell carries no probability
-                    self.m[curr][j_] = 0.0;
-                    self.x[curr][j_] = 0.0;
-                    self.y[curr][j_] = 0.0;
-                    self.min_edit_dist[curr][j_] = usize::MAX;
+            // METHOD: a cell can only be inside the band if its top left or left neighbour
+            // (previous column) or its top neighbour (this column) is. So the candidates are
+            // the ranges of the previous column extended by one to the right, cell 1 if the
+            // alignment may start here, and whatever the chain of top neighbours reaches.
+            let mut candidates = std::mem::take(&mut self.candidates);
+            candidates.clear();
+            if fresh_start {
+                candidates.push((1, 1));
+            }
+            candidates.extend(
+                self.live[prev]
+                    .iter()
+                    .map(|&(a, b)| (a, (b + 1).min(len_y))),
+            );
+            let mut next = 1;
+            for &(a, b) in &candidates {
+                let mut j_ = a.max(next);
+                if j_ > b {
                     continue;
                 }
+                loop {
+                    let j = j_ - 1;
+                    let med_topleft = self.min_edit_dist[prev][j];
+                    let med_top = self.min_edit_dist[curr][j];
+                    let med_left = self.min_edit_dist[prev][j_];
+                    let live = cmp::min(med_topleft, cmp::min(med_top, med_left)) <= max_edit_dist;
 
-                let (emit_xy, is_match) = read.prob_match_mismatch_linear(j, ref_base);
+                    if live {
+                        let (emit_xy, is_match) = read.prob_match_mismatch_linear(j, ref_base);
 
-                // match or mismatch, coming from M, X (extended with gap_y_extend) or Y
-                // (extended with gap_x_extend)
-                let m = emit_xy
-                    * (self.no_gap * self.m[prev][j]
-                        + self.no_gap_y_extend * self.x[prev][j]
-                        + self.no_gap_x_extend * self.y[prev][j]);
+                        // match or mismatch, coming from M, X (extended with gap_y_extend) or Y
+                        // (extended with gap_x_extend)
+                        let m = emit_xy
+                            * (self.no_gap * self.m[prev][j]
+                                + self.no_gap_y_extend * self.x[prev][j]
+                                + self.no_gap_x_extend * self.y[prev][j]);
 
-                // reference base emitted alone (gap in y); emission probability of x is 1
-                let mut x = self.gap_y * self.m[prev][j_];
-                if self.do_gap_y_extend {
-                    x += self.gap_y_extend * self.x[prev][j_];
+                        // reference base emitted alone (gap in y); emission probability of x is 1
+                        let mut x = self.gap_y * self.m[prev][j_];
+                        if self.do_gap_y_extend {
+                            x += self.gap_y_extend * self.x[prev][j_];
+                        }
+
+                        // read base emitted alone (gap in x)
+                        let mut y = self.gap_x * self.m[curr][j];
+                        if self.do_gap_x_extend {
+                            y += self.gap_x_extend * self.y[curr][j];
+                        }
+                        y *= read.prob_insertion_linear(j);
+
+                        self.m[curr][j_] = m;
+                        self.x[curr][j_] = x;
+                        self.y[curr][j_] = y;
+                        self.min_edit_dist[curr][j_] = cmp::min(
+                            if is_match {
+                                med_topleft
+                            } else {
+                                med_topleft.saturating_add(1)
+                            },
+                            cmp::min(med_left.saturating_add(1), med_top.saturating_add(1)),
+                        );
+                        match self.live[curr].last_mut() {
+                            Some((_, last)) if *last + 1 == j_ => *last = j_,
+                            _ => self.live[curr].push((j_, j_)),
+                        }
+                    }
+                    // outside of the band the cell already holds zero
+
+                    j_ += 1;
+                    if j_ > len_y || (j_ > b && !live) {
+                        break;
+                    }
                 }
-
-                // read base emitted alone (gap in x)
-                let mut y = self.gap_x * self.m[curr][j];
-                if self.do_gap_x_extend {
-                    y += self.gap_x_extend * self.y[curr][j];
-                }
-                y *= read.prob_insertion_linear(j);
-
-                self.m[curr][j_] = m;
-                self.x[curr][j_] = x;
-                self.y[curr][j_] = y;
-                self.min_edit_dist[curr][j_] = cmp::min(
-                    if is_match {
-                        med_topleft
-                    } else {
-                        med_topleft.saturating_add(1)
-                    },
-                    cmp::min(med_left.saturating_add(1), med_top.saturating_add(1)),
-                );
+                next = j_;
             }
+            self.candidates = candidates;
 
             // the alignment may end at any reference offset (free end gap in x)
             self.cols
                 .push(self.m[curr][len_y] + self.x[curr][len_y] + self.y[curr][len_y]);
 
             std::mem::swap(&mut curr, &mut prev);
-            for v in self.m[curr].iter_mut() {
-                *v = 0.0;
-            }
-            for v in self.x[curr].iter_mut() {
-                *v = 0.0;
-            }
-            for v in self.y[curr].iter_mut() {
-                *v = 0.0;
-            }
-            for v in self.min_edit_dist[curr].iter_mut() {
-                *v = usize::MAX;
-            }
         }
 
         let p = LogProb(self.cols.iter().sum::<f64>().ln());
