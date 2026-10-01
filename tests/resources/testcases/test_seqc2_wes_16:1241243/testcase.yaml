@@ -1,7 +1,14 @@
+# Information about testcase:
+# Called as fp variant by
+#   ukes-varlociraptor-skip-bqsr: 16:1241243-A>G-0,863
+#   ukes-varlociraptor-skip-bqsr: 16:1241246:G>A-0,863
+#   ukes-varlociraptor-skip-bqsr: 16:1241249:C>G-0,863
+
+
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor > 0.8 && tumor < 0.9
   posteriors:
     # write down a list of expressions of the form
     - PROB_SOMATIC_TUMOR <= 0.05
