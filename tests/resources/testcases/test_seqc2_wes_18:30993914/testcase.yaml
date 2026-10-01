@@ -1,7 +1,19 @@
+# Information about testcase:
+# corresponds to case 3 in benchmark analysis
+# Called as fp variant by
+#   qbic-varlociraptor-strelka:TA>T-0,1087
+#   ukes-varlociraptor:TA>T-0,0597
+
+# deletetion located inside long A homopolymer
+# 5 supporting reads in alignoth plot
+# no evidence found in 9 NovaSeq WGS samples
+# 1 read with this deletion in WGS_EA_T_1
+
+
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor > 0.05 && tumor < 0.55
   posteriors:
     # write down a list of expressions of the form
     - PROB_SOMATIC_TUMOR <= 0.05
