@@ -1,7 +1,21 @@
+# Information about testcase:
+# corresponds to case 2 in benchmark analysis, coverage >=300
+# Called as fp variant by
+#   ukes-varlociraptor:A>G-0,0815
+#   ukes-varlociraptor:G>C-0,0815
+#   ukes-varlociraptor:C>T-0,0815
+#   ukes-varlociraptor:C>A-0,0815
+#
+# - Alignoth plot shows two insertions with vg (one TP), sarek plot shows the TP insertion and not called single substitutions
+# - Calling the MNV is wrong, it is not clear if the 2 insertions are the same (bwa alignment correct) or different (pangenome alignment better, but two insertions should be called, not MNV)
+# - WGS_EA_T_1 and 9 Novaseq samples show the single substitutions, but always only at the end of reads
+
+
+
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor > 0.08 && tumor < 0.55
   posteriors:
     # write down a list of expressions of the form
     - PROB_SOMATIC_TUMOR <= 0.05
