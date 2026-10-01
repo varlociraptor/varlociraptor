@@ -1,0 +1,37 @@
+species:
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+  genome-size: 3.5e9
+expressions:
+  is_ffpe_artifact: 'false'
+samples:
+  tumor:
+    sex: male
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: true
+    contamination:
+      by: normal
+      fraction: 0.0
+  normal:
+    sex: male
+    somatic-effective-mutation-rate: 1e-6
+events:
+  somatic_tumor_high: normal:0.0 & tumor:[0.1,1.0] & !$is_ffpe_artifact
+  somatic_normal_or_ctc: (normal:]0.0,0.5[ | normal:]0.5,1.0[) & tumor:[0.0,1.0] &
+    !$is_ffpe_artifact
+  loh: normal:0.5 & tumor:1.0 & !$is_ffpe_artifact
+  loh_or_amplification: normal:0.5 & tumor:[0.9,1.0[ & !$is_ffpe_artifact
+  germline: ((normal:0.5 & tumor:[0.0,0.9[) | (normal:1.0 & tumor:[0.0,1.0])) & !$is_ffpe_artifact
+  somatic_tumor_low: normal:0.0 & tumor:]0.0,0.1[ & !$is_ffpe_artifact
