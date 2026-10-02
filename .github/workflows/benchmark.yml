@@ -57,6 +57,7 @@ jobs:
         env:
           OPENBLAS_NUM_THREADS: 1
           MKL_NUM_THREADS: 1
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           pixi run hyperfine \
@@ -65,13 +66,14 @@ jobs:
             --export-markdown /tmp/benchmark-preprocess.md \
             --reference-name "master" \
             --reference "master/target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
-            --command-name "PR (${{ github.head_ref }})" \
+            --command-name "PR ($HEAD_REF)" \
               "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
 
       - name: Run preprocess variants benchmark (realignment)
         env:
           OPENBLAS_NUM_THREADS: 1
           MKL_NUM_THREADS: 1
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           DATA=tests/resources/benchmark_realignment
           pixi run hyperfine \
@@ -80,13 +82,14 @@ jobs:
             --export-markdown /tmp/benchmark-preprocess-realignment.md \
             --reference-name "master" \
             --reference "master/target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null" \
-            --command-name "PR (${{ github.head_ref }})" \
+            --command-name "PR ($HEAD_REF)" \
               "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null"
 
       - name: Run call variants benchmark
         env:
           OPENBLAS_NUM_THREADS: 1
           MKL_NUM_THREADS: 1
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           pixi run hyperfine \
@@ -95,7 +98,7 @@ jobs:
             --export-markdown /tmp/benchmark-call.md \
             --reference-name "master" \
             --reference "master/target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
-            --command-name "PR (${{ github.head_ref }})" \
+            --command-name "PR ($HEAD_REF)" \
               "target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
       - name: Generate flamegraphs
