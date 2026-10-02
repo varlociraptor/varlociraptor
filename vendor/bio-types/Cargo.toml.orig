@@ -1,0 +1,26 @@
+[package]
+name = "bio-types"
+version = "1.0.4"
+authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
+description = "A collection of common biomedical types for use in rust-bio and rust-htslib."
+homepage = "https://rust-bio.github.io"
+repository = "https://github.com/rust-bio/rust-bio-types"
+documentation = "https://docs.rs/bio-types"
+readme = "README.md"
+license = "MIT"
+license-file = "LICENSE.md"
+edition = "2018"
+exclude = [".gitignore", ".github"]
+
+[features]
+phylogeny = ["petgraph"]
+
+[dependencies]
+serde = { version = "^1", optional = true, features=["derive"] }
+clap = { version = ">=3.2.0", optional = true, features = ["derive"] }
+thiserror = "1"
+regex = "1.10"
+lazy_static = "1.5"
+derive-new = "0.6"
+petgraph = { version = ">=0.5, <0.7", optional = true }
+strum_macros = ">=0.20, <0.27"
