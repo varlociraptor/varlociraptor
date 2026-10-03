@@ -446,6 +446,11 @@ impl<P: Clone, A: Clone> ReadObservation<P, A> {
             >= KassRaftery::Positive
     }
 
+    pub fn is_positive_alt_support(&self) -> bool {
+        BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()
+            >= KassRaftery::Positive
+    }
+
     pub fn has_homopolymer_error(&self) -> bool {
         self.homopolymer_indel_len
             .map(|indel_len| indel_len != 0)
