@@ -1,0 +1,54 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "title": "PLACEHOLDER_TITLE",
+    "data": { "values": [] },
+    "width": 800,
+    "height": 400,
+    "mark": { "type": "rect" },
+    "encoding": {
+        "x": {
+            "field": "window_start",
+            "type": "quantitative",
+            "title": "Genomic Position (bp)"
+        },
+        "x2": { "field": "window_end" },
+        "y": {
+            "field": "chrom",
+            "type": "ordinal",
+            "title": "Chromosome",
+            "sort": null
+        },
+        "color": {
+            "field": "msi_score",
+            "type": "quantitative",
+            "title": "MSI Score (%)",
+            "scale": {
+                "domain": [0, 3.5, 100],
+                "range": ["#2166ac", "#f0b800", "#d6604d"]
+            }
+        },
+        "opacity": {
+            "field": "posterior_probability",
+            "type": "quantitative",
+            "title": "Confidence",
+            "scale": { "domain": [0, 1] }
+        },
+        "stroke": {
+            "condition": {"test": "datum.msi_status === 'MSI-High'", "value": "#d62728"},
+            "value": null
+        },
+        "strokeWidth": {
+            "condition": {"test": "datum.msi_status === 'MSI-High'", "value": 1.5},
+            "value": 0
+        },
+        "tooltip": [
+            { "field": "chrom", "type": "nominal", "title": "Chromosome" },
+            { "field": "window_start", "type": "quantitative", "title": "Window Start" },
+            { "field": "window_end", "type": "quantitative", "title": "Window End" },
+            { "field": "msi_score", "type": "quantitative", "title": "MSI Score (%)", "format": ".2f" },
+            { "field": "posterior_probability", "type": "quantitative", "title": "Confidence", "format": ".3f" },
+            { "field": "regions_in_window", "type": "quantitative", "title": "Regions" },
+            { "field": "msi_status", "type": "nominal", "title": "Classification" }
+        ]
+    }
+}
