@@ -371,6 +371,7 @@ pub trait Testcase {
                                     // expressions framework does not handle
                                     // comparisons with infinity correctly
                                     let phred_prob = values[0];
+                                    eprintln!("True value for {id}: {phred_prob}");
                                     expr = expr.value(id.clone(), phred_prob);
                                     expr = expr.value(
                                         format!("PLAIN_{id}"),
