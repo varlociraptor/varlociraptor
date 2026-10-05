@@ -1,0 +1,49 @@
+
+
+
+# Information about testcase:
+# corresponds to case 9 in benchmark analysis
+# coverage >=300
+# Called as fp variant by
+#   ukes-varlociraptor:G>A-0.3541
+
+# most of the reads with very low mapq, strong signal with vg
+# mix of high and low mapq values, olny some reads show the variant
+# in this case the different mappings could be the origin
+
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - tumor > 0.3 && tumor < 0.45
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  tumor:
+    path: 'tumor.bam'
+    properties: '{"insert_size":{"mean":169.00068034234192,"sd":31.06847410037409},"max_del_cigar_len":84,"max_ins_cigar_len":50,"frac_max_softclip":0.984,"max_read_len":125,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.389855236787954,"prob_deletion_artifact":-9.668155577314758,"prob_insertion_extend_artifact":-9.389855236787954,"prob_deletion_extend_artifact":-9.668155577314758},"hop_params":{"prob_seq_homopolymer":[-7.26354420529005,-8.50850841621571,-9.124199443715897,-7.143693814638159],"prob_ref_homopolymer":[-8.081183434308953,-8.838929463793962,-9.230235821892153,-7.653210991036408],"prob_seq_extend_homopolymer":[-7.26354420529005,-8.50850841621571,-9.124199443715897,-7.143693814638159],"prob_ref_extend_homopolymer":[-8.081183434308953,-8.838929463793962,-9.230235821892153,-7.653210991036408]},"wildtype_homopolymer_error_model":{"6":1.6822382347937755e-6,"26":4.2055955869844383e-8,"28":8.411191173968877e-8,"29":1.6822382347937753e-7,"-2":1.8925180141429974e-6,"12":2.8598049991494185e-6,"11":3.8691479400256835e-6,"19":1.0513988967461096e-6,"-12":4.2055955869844383e-8,"3":7.738295880051367e-6,"-10":1.2616786760953316e-7,"22":1.093454852615954e-6,"4":7.990631615270434e-6,"25":1.2616786760953316e-7,"18":1.0093429408762653e-6,"-11":1.2616786760953316e-7,"21":1.0513988967461096e-6,"-9":1.2616786760953316e-7,"5":5.677554042428992e-6,"24":1.2616786760953316e-7,"-1":1.093454852615954e-6,"2":0.000049878363661635445,"23":4.2055955869844387e-7,"20":1.4299024995747092e-6,"-7":4.6261551456828825e-7,"-5":5.887833821778214e-7,"9":4.037371763505061e-6,"15":4.247651542854283e-6,"-6":4.2055955869844387e-7,"1":0.0001895041371495188,"0":0.9997194026624364,"7":3.364476469587551e-6,"14":3.2803645578478622e-6,"-8":5.46727426307977e-7,"-3":6.728952939175101e-7,"-13":4.2055955869844383e-8,"-4":2.523357352190663e-7,"8":4.668211101552727e-6,"10":4.12148367524475e-6,"16":3.7850360282859948e-6,"17":6.014001689387747e-6,"13":3.574756248936773e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/normal_tumor_ffpe/tumor_ffpe.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":203.0520758450445,"sd":54.53359042760715},"max_del_cigar_len":80,"max_ins_cigar_len":49,"frac_max_softclip":0.984,"max_read_len":125,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-9.348188321010825,"prob_deletion_artifact":-9.702294495475389,"prob_insertion_extend_artifact":-9.348188321010825,"prob_deletion_extend_artifact":-9.702294495475389},"hop_params":{"prob_seq_homopolymer":[-6.726780175485363,-8.370464344159645,-8.694800291256911,-6.790257368847264],"prob_ref_homopolymer":[-7.36822927207752,-8.676872718850092,-8.725172869902824,-7.071429731828155],"prob_seq_extend_homopolymer":[-6.726780175485363,-8.370464344159645,-8.694800291256911,-6.790257368847264],"prob_ref_extend_homopolymer":[-7.36822927207752,-8.676872718850092,-8.725172869902824,-7.071429731828155]},"wildtype_homopolymer_error_model":{"28":1.2304411131390605e-7,"5":0.000010171646535282898,"4":0.000013370793429444456,"24":8.613087791973423e-7,"25":4.101470377130201e-7,"26":2.871029263991141e-7,"-10":8.202940754260402e-8,"15":5.126837971412751e-6,"21":2.7889998564485368e-6,"-7":3.691323339417181e-7,"17":8.57207308820212e-6,"29":8.202940754260402e-8,"19":2.0917498923364025e-6,"-14":4.101470377130201e-8,"23":1.8866763734798925e-6,"-12":8.202940754260402e-8,"-2":1.8046469659372886e-6,"6":3.814367450731087e-6,"12":6.029161454381396e-6,"22":2.7069704489059327e-6,"-1":2.0917498923364025e-6,"-9":8.202940754260402e-8,"16":6.890470233578738e-6,"8":0.000010253675942825502,"35":4.101470377130201e-8,"0":0.9996398088714804,"-33":4.101470377130201e-8,"-6":5.331911490269261e-7,"-4":4.5116174148432215e-7,"1":0.00020847773926952812,"-5":1.6405881508520804e-7,"9":3.978426265816295e-6,"10":6.070176158152698e-6,"13":5.5779997128970735e-6,"18":2.2147940036503086e-6,"20":2.2147940036503086e-6,"-11":4.101470377130201e-8,"-3":8.613087791973423e-7,"-8":3.691323339417181e-7,"27":1.6405881508520804e-7,"31":8.202940754260402e-8,"2":0.0000632036585115764,"14":7.095543752435248e-6,"34":4.101470377130201e-8,"11":9.597440682484671e-6,"7":2.6249410413633286e-6,"3":0.000012509484650247113},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/normal_tumor_ffpe/normal_ffpe.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
