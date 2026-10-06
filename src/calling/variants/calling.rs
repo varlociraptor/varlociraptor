@@ -104,13 +104,7 @@ where
         remove_observation_header_entries(&mut header);
 
         // register version
-        header.push_record(
-            format!(
-                "##varlociraptor_call_version={}",
-                VERSION
-            )
-            .as_bytes(),
-        );
+        header.push_record(format!("##varlociraptor_call_version={}", VERSION).as_bytes());
 
         // register samples
         for sample_name in self.samplenames.iter() {

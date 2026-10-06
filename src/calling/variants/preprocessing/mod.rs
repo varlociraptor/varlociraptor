@@ -88,13 +88,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut header = bcf::Header::new();
 
         // register version
-        header.push_record(
-            format!(
-                "##varlociraptor_preprocess_version={}",
-                VERSION
-            )
-            .as_bytes(),
-        );
+        header.push_record(format!("##varlociraptor_preprocess_version={}", VERSION).as_bytes());
 
         // register tags
         header.push_record(
