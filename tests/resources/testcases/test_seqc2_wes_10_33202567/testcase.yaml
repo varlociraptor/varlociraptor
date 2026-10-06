@@ -10,15 +10,17 @@
 # Novaseq tumor samples show a mix of G substitution and GGG insertion at that FP position
 
 # JK:
-# The T>G variant is a pretty clear and well supported germline variant. When the candidates are atomized,
-# it is properly recognized as germline/somatic in the normal (the normal VAF is at 27%). However, 
-# the composition of indels that are called by freebayes together with the T>G as complex replacements
-# is a union of those occurring in the normal and those occurring in the tumor. Those occurring only 
-# in the tumor are called as somatic in the tumor. Those occurring in the normal are called constitutive
-# in the normal (somatic_normal).
-# Conclusion: the individual items of the replacement are all either part of the germline variants of
-# the benchmark or systematic and abundant artifacts that occur in both samples. What is somatic 
-# (i.e. occurs only in the tumor) is the recombination of the individual variants.
+# The T>G variant is a pretty clear and well supported germline variant. When the candidates
+# are atomized, it is properly recognized as germline/somatic in the normal (the normal VAF 
+# is at 27%). Next to it, there are a couple of further mismatches and indels, all of which
+# are in the normal sample in one or the other way as well. The compositions are called by
+# freebayes together with the T>G as complex replacements is a union of recombinations
+# occurring in the normal and occurring in the tumor. Those occurring only in the tumor
+# are called as somatic in the tumor. Those occurring in the normal are called constitutive
+# in the normal (somatic_normal). Conclusion: the individual items of the replacement are
+# all either part of the germline variants of the benchmark or systematic and abundant
+# artifacts that occur in both samples. What is somatic (i.e. occurs only in the tumor)
+# is the recombination of the individual variants.
 
 # Caveat: there is no way to validate whether this recombination is actually true.
 # Thus, we cannot really judge whether the call is valid or not and don't set an expectation below.
