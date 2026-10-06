@@ -52,6 +52,7 @@ pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
 
 use crate::variants::evidence::observations::read_observation::adjust_singleton_evidence;
+use crate::VERSION;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -101,6 +102,15 @@ where
         let mut header = bcf::Header::from_template(reader.header());
 
         remove_observation_header_entries(&mut header);
+
+        // register version
+        header.push_record(
+            format!(
+                "##varlociraptor_call_version={}",
+                VERSION
+            )
+            .as_bytes(),
+        );
 
         // register samples
         for sample_name in self.samplenames.iter() {

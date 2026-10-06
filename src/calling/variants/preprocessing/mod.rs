@@ -46,6 +46,7 @@ use crate::variants::types::{breakends::Breakend, Loci};
 pub(crate) mod haplotype_feature_index;
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+use crate::VERSION;
 
 #[derive(TypedBuilder)]
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
@@ -85,6 +86,15 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 {
     fn writer(&self, aux_info_collector: &AuxInfoCollector) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
+
+        // register version
+        header.push_record(
+            format!(
+                "##varlociraptor_preprocess_version={}",
+                VERSION
+            )
+            .as_bytes(),
+        );
 
         // register tags
         header.push_record(

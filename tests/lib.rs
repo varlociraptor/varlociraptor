@@ -195,6 +195,7 @@ testcase!(test_uzuner_only_N, exact);
 testcase!(test_moelder_floatisnan, exact);
 testcase!(test_alt_locus_mapq_only, exact);
 testcase!(test_single_value_afd, exact);
+testcase!(test_seqc2_wes_10_33202567, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

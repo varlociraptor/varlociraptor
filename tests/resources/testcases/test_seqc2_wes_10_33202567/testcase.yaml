@@ -1,5 +1,5 @@
 # Information about testcase:
-# corresponds to case 6 in benchmark analysis
+# corresponds to case 6 in PM4Onco benchmark analysis
 # coverage 50..100
 # Called as fp variant by
 #   qbic-freebayes:T>G-0,3387
@@ -9,15 +9,19 @@
 # Normal sample with vg has also low signal of G substitution, in two cases followed by GG insertion
 # Novaseq tumor samples show a mix of G substitution and GGG insertion at that FP position
 
+# JK:
+# The T>G variant is a pretty clear and well supported germline variant. When the candidates are atomized,
+# it is properly recognized as germline/somatic in the normal (the normal VAF is at 27%). However, 
+# the composition of indels that are called by freebayes together with the T>G as complex replacements
+# is a union of those occurring in the normal and those occurring in the tumor. Those occurring only 
+# in the tumor are called as somatic in the tumor. Those occurring in the normal are called constitutive
+# in the normal (somatic_normal).
+# Conclusion: the individual items of the replacement are all either part of the germline variants of
+# the benchmark or systematic and abundant artifacts that occur in both samples. What is somatic 
+# (i.e. occurs only in the tumor) is the recombination of the individual variants.
 
-expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - tumor > 0.04 && tumor < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+# Caveat: there is no way to validate whether this recombination is actually true.
+# Thus, we cannot really judge whether the call is valid or not and don't set an expectation below.
 
 # necessary bam files
 samples:
@@ -31,13 +35,11 @@ samples:
     options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/normal_tumor/normal_wes.json","output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}'
   
 
-# candidate variant
+# candidate variant (switch to variants of this file in the testcase dir to inspect e.g. the
+# classification of atomized variants)
 candidate: 'candidates.vcf'
 
 scenario: 'scenario.yaml'
-
-
-
 
 # reference sequence
 reference:
