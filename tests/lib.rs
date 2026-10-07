@@ -195,6 +195,19 @@ testcase!(test_uzuner_only_N, exact);
 testcase!(test_moelder_floatisnan, exact);
 testcase!(test_alt_locus_mapq_only, exact);
 testcase!(test_single_value_afd, exact);
+testcase!(test_seqc2_wes_10_33202567, exact);
+testcase!(test_seqc2_wes_10_33202567_1, exact);
+testcase!(test_seqc2_wes_10_33202567_2, exact);
+testcase!(test_seqc2_wes_10_33202567_3, exact);
+testcase!(test_seqc2_wes_10_33202567_4, exact);
+testcase!(test_seqc2_wes_10_33202567_5, exact);
+testcase!(test_seqc2_wes_10_33202567_6, exact);
+testcase!(test_seqc2_wes_10_33202567_7, exact);
+testcase!(test_seqc2_wes_10_33202567_8, exact);
+testcase!(test_seqc2_wes_10_33202567_9, exact);
+testcase!(test_seqc2_wes_10_33202567_10, exact);
+testcase!(test_seqc2_wes_10_33202567_11, exact);
+testcase!(test_seqc2_wes_10_33202567_12, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

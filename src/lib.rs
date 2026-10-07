@@ -45,6 +45,8 @@ pub mod testcase;
 pub mod utils;
 pub mod variants;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Event to call.
 pub trait Event {
     fn name(&self) -> &str;
