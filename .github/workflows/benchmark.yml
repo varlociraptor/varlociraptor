@@ -57,6 +57,7 @@ jobs:
         env:
           OPENBLAS_NUM_THREADS: 1
           MKL_NUM_THREADS: 1
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           pixi run hyperfine \
@@ -65,13 +66,30 @@ jobs:
             --export-markdown /tmp/benchmark-preprocess.md \
             --reference-name "master" \
             --reference "master/target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null" \
-            --command-name "PR (${{ github.head_ref }})" \
+            --command-name "PR ($HEAD_REF)" \
               "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam --methylation-read-type annotated > /dev/null"
+
+      - name: Run preprocess variants benchmark (realignment)
+        env:
+          OPENBLAS_NUM_THREADS: 1
+          MKL_NUM_THREADS: 1
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          DATA=tests/resources/benchmark_realignment
+          pixi run hyperfine \
+            --warmup 2 \
+            --show-output \
+            --export-markdown /tmp/benchmark-preprocess-realignment.md \
+            --reference-name "master" \
+            --reference "master/target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null" \
+            --command-name "PR ($HEAD_REF)" \
+              "target/profiling/varlociraptor preprocess variants $DATA/ref.fa --candidates $DATA/candidates.vcf --bam $DATA/alignment.bam > /dev/null"
 
       - name: Run call variants benchmark
         env:
           OPENBLAS_NUM_THREADS: 1
           MKL_NUM_THREADS: 1
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           DATA=master/tests/resources/flamegraph_profiling
           pixi run hyperfine \
@@ -80,7 +98,7 @@ jobs:
             --export-markdown /tmp/benchmark-call.md \
             --reference-name "master" \
             --reference "master/target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null" \
-            --command-name "PR (${{ github.head_ref }})" \
+            --command-name "PR ($HEAD_REF)" \
               "target/profiling/varlociraptor call variants generic --scenario $DATA/scenario.yaml --obs normal=$DATA/normal.bcf > /dev/null"
 
       - name: Generate flamegraphs
@@ -123,13 +141,18 @@ jobs:
           script: |
             const fs = require('fs');
             const preprocessTable = fs.readFileSync('/tmp/benchmark-preprocess.md', 'utf8');
+            const realignmentTable = fs.readFileSync('/tmp/benchmark-preprocess-realignment.md', 'utf8');
             const callTable = fs.readFileSync('/tmp/benchmark-call.md', 'utf8');
             const body = [
               '## Benchmark Results',
               '',
-              '### `preprocess variants`',
+              '### `preprocess variants` (methylation)',
               '',
               preprocessTable,
+              '',
+              '### `preprocess variants` (SNV/indel realignment)',
+              '',
+              realignmentTable,
               '',
               '### `call variants`',
               '',
@@ -139,7 +162,7 @@ jobs:
               '',
               `Flamegraph SVGs (master and PR, for both subcommands) are available as artifacts on the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
               '',
-              '<sub>Data: `tests/resources/flamegraph_profiling`</sub>',
+              '<sub>Data: `tests/resources/flamegraph_profiling` and `tests/resources/benchmark_realignment`</sub>',
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({

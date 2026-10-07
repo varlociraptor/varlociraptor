@@ -368,14 +368,20 @@ pub trait Testcase {
                             let id = values.get("ID").unwrap().clone();
                             if id.starts_with("PROB_") {
                                 if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
-                                    // expressions framework does not handle
-                                    // comparisons with infinity correctly
                                     let phred_prob = values[0];
-                                    expr = expr.value(id.clone(), phred_prob);
+                                    let plain_prob = Prob::from(PHREDProb(phred_prob as f64));
+                                    // expressions framework does not handle
+                                    // comparisons with infinity correctly, thus we store a very
+                                    // high value instead.
                                     expr = expr.value(
-                                        format!("PLAIN_{id}"),
-                                        Prob::from(PHREDProb(phred_prob as f64)),
+                                        id.clone(),
+                                        if phred_prob.is_infinite() {
+                                            f32::MAX
+                                        } else {
+                                            phred_prob
+                                        },
                                     );
+                                    expr = expr.value(format!("PLAIN_{id}"), plain_prob);
                                 }
                             }
                         }

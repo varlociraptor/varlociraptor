@@ -194,7 +194,7 @@ fn default_log_mode() -> String {
 }
 
 fn default_min_bam_refetch_distance() -> u64 {
-    1
+    10000
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -276,13 +276,14 @@ pub enum PreprocessKind {
         reference_buffer_size: usize,
         #[structopt(
             long = "min-bam-refetch-distance",
-            default_value = "1",
+            default_value = "10000",
             help = "Base pair distance to last fetched BAM interval such that a refetching is performed \
                   instead of reading through until the next interval is reached. Making this too small \
-                  can cause unnecessary random access. Making this too large can lead to unneccessary \
-                  iteration over irrelevant records. Benchmarking has shown that at least for short reads, \
-                  a value of 1 (e.g. always refetch) does not incur additional costs and is a reasonable \
-                  default."
+                  causes unnecessary random access: every refetch discards htslib's read-ahead and \
+                  decompresses the block at the new position again, which with dense candidates can \
+                  cost several times a single pass over the file. Making this too large can lead to \
+                  unnecessary iteration over irrelevant records. Reading through gaps of up to 10 kb \
+                  is at least as fast as refetching for short reads."
         )]
         #[serde(default = "default_min_bam_refetch_distance")]
         min_bam_refetch_distance: u64,
