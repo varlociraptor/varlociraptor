@@ -47,9 +47,6 @@ use crate::utils::stats::phred_to_prob;
 /// Returns error if:
 /// - RID is missing in record
 /// - Chromosome name resolution fails
-///
-/// # Example
-/// assert_eq!(get_chrom(&record).unwrap(), "chr1");
 pub(crate) fn get_chrom(record: &bcf::Record) -> Result<String> {
     let rid = record.rid().ok_or_else(|| Error::VcfRecordChromMissing {
         pos: record.pos() + 1,
@@ -223,9 +220,6 @@ pub(crate) fn get_sample_af(
 /// * `Ok(true)` if probabilities are PHRED-scaled
 /// * `Ok(false)` if probabilities are linear
 /// * `Err` if file cannot be opened
-///
-/// # Example
-/// assert!(is_phred_scaled_from_path(Path::new("variants.vcf")).is_ok());
 pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
     let vcf = bcf::Reader::from_path(vcf_path)?;
     Ok(is_phred_scaled(&vcf))
@@ -254,9 +248,6 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
 ///
 /// # Returns
 /// `true` if allele is reference, `false` otherwise
-///
-/// # Example
-/// assert!(is_reference_allele(b"."));
 pub(crate) fn is_reference_allele(allele: &[u8]) -> bool {
     allele == b"." || allele == b"<REF>"
 }
@@ -268,9 +259,6 @@ pub(crate) fn is_reference_allele(allele: &[u8]) -> bool {
 ///
 /// # Returns
 /// `true` if allele is symbolic, `false` otherwise
-///
-/// Examples
-///  assert!(is_symbolic(b"<DEL>"));
 pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
     allele.len() >= 3 && allele.starts_with(b"<") && allele.ends_with(b">")
 }
@@ -282,9 +270,6 @@ pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
 ///
 /// # Returns
 /// `true` if allele is a breakend, `false` otherwise
-///
-/// # Examples
-/// assert!(is_breakend(b"A[chr2:100["));
 pub(crate) fn is_breakend(allele: &[u8]) -> bool {
     allele.iter().any(|&c| c == b'[' || c == b']')
 }
@@ -296,9 +281,6 @@ pub(crate) fn is_breakend(allele: &[u8]) -> bool {
 ///
 /// # Returns
 /// `true` if allele is a spanning deletion, `false` otherwise
-///
-/// # Example
-/// assert!(is_spanning_deletion(b"*"));
 pub(crate) fn is_spanning_deletion(allele: &[u8]) -> bool {
     allele == b"*"
 }
@@ -317,10 +299,6 @@ pub(crate) fn is_spanning_deletion(allele: &[u8]) -> bool {
 ///
 /// # Returns
 /// `true` if field exists and has at least one value, `false` otherwise
-///
-/// # Example
-/// assert!(record_has_info_string(&record, b"REGION_ID"));
-/// assert!(!record_has_info_string(&record, b"MISSING_FIELD"));
 pub fn record_has_info_string(record: &bcf::Record, field: &[u8]) -> bool {
     record.info(field).string().ok().flatten().is_some()
 }
@@ -339,9 +317,6 @@ pub fn record_has_info_string(record: &bcf::Record, field: &[u8]) -> bool {
 /// * `None` - If field is absent
 /// * Panics if a present value is not valid UTF-8 - callers should only use
 ///   this on fields where UTF-8 validity is guaranteed by construction.
-///
-/// # Example
-/// assert_eq!(get_info_strings(&record, b"REGION_ID").unwrap(), vec!["chr1:100-130".to_string()]);
 pub fn get_info_strings(record: &bcf::Record, field: &[u8]) -> Option<Vec<String>> {
     record.info(field).string().ok().flatten().map(|v| {
         v.iter()
@@ -361,10 +336,6 @@ pub fn get_info_strings(record: &bcf::Record, field: &[u8]) -> Option<Vec<String
 ///
 /// # Returns
 /// `true` if flag is present, `false` if absent or on error
-///
-/// # Example
-/// assert!(record_has_info_flag(&record, b"MSI_DUMMY"));
-/// assert!(!record_has_info_flag(&record, b"NONEXISTENT"));
 pub fn record_has_info_flag(record: &bcf::Record, field: &[u8]) -> bool {
     record.info(field).flag().unwrap_or(false)
 }
@@ -380,10 +351,6 @@ pub fn record_has_info_flag(record: &bcf::Record, field: &[u8]) -> bool {
 /// # Returns
 /// * `Ok(Vec<bcf::Record>)` - All records in file order
 /// * `Err` - If file cannot be opened or any record fails to parse
-///
-/// # Example
-/// let records = read_bcf_records(Path::new("output.vcf")).unwrap();
-/// assert_eq!(records.len(), 3);
 pub fn read_bcf_records(path: &Path) -> Result<Vec<bcf::Record>> {
     let mut reader = bcf::Reader::from_path(path).map_err(|_| Error::VcfFileInvalid {
         path: path.to_path_buf(),
@@ -423,9 +390,6 @@ pub fn read_bcf_records(path: &Path) -> Result<Vec<bcf::Record>> {
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if reading source or writing destination fails
-///
-/// # Example
-/// assert!(copy_info_fields(&source_record, &mut dest_record, &["SVLEN", "SVTYPE"]).is_ok());
 pub(crate) fn copy_info_fields(
     source: &bcf::Record,
     dest: &mut bcf::Record,
@@ -527,9 +491,6 @@ fn validate_vcf_header_field(
 /// # Errors
 /// Returns error if any requested INFO field is not declared in the VCF header.
 /// Error message includes comma-separated list of missing fields.
-///
-/// # Example
-/// assert!(validate_info_fields_exist(&header, &vec!["HETEROZYGOSITY".to_string()]).is_ok());
 pub(crate) fn validate_info_fields_exist(header: &HeaderView, fields: &[String]) -> Result<()> {
     let missing: Vec<String> = fields
         .iter()
@@ -562,9 +523,6 @@ pub(crate) fn validate_info_fields_exist(header: &HeaderView, fields: &[String])
 /// # Errors
 /// Returns error if any sample name is not found in VCF header.
 /// Error message includes comma-separated list of missing samples.
-///
-/// # Example
-/// assert!(validate_samples_exist(&header, &vec!["tumor".to_string()]).is_ok());
 pub(crate) fn validate_samples_exist(
     header: &HeaderView,
     required_samples: &[String],
@@ -615,9 +573,6 @@ pub(crate) fn validate_samples_exist(
 /// Event name          -> INFO field checked
 /// "somatic_tumor"     -> INFO/PROB_SOMATIC_TUMOR
 /// "germline_normal"   -> INFO/PROB_GERMLINE_NORMAL
-///
-/// # Example
-/// assert!(validate_events_exist(&header, &vec!["somatic_tumor".to_string()]).is_ok());
 pub(crate) fn validate_events_exist(header: &HeaderView, event_names: &[String]) -> Result<()> {
     let mut missing_events = Vec::new();
 
@@ -1327,11 +1282,6 @@ pub(crate) mod tests {
     /// # Returns
     /// Tuple of `(tmp_file, writer)` - caller writes records via writer,
     /// then drops writer.
-    ///
-    /// # Example
-    /// let (tmp, mut writer) = create_info_test_vcf(&[
-    ///     br##"##INFO=<ID=REGION_ID,Number=1,Type=String,Description="Region">"##
-    /// ]);
     fn create_info_test_vcf(info_records: &[&[u8]]) -> (NamedTempFile, bcf::Writer) {
         let tmp = NamedTempFile::new().unwrap();
         let mut header = bcf::Header::new();
