@@ -4,7 +4,7 @@ expected:
     - normal == 0.0
     - tumor > 0.15 && tumor < 0.25
   posteriors:
-    - PROB_ARTIFACT == inf
+    - PLAIN_PROB_ARTIFACT == 0.0
     - PROB_SOMATIC_TUMOR < 0.08
 
 # necessary bam files
