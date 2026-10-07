@@ -21,9 +21,6 @@ samples:
       clonal:
         from: normal
         somatic: true
-    contamination:
-      by: normal
-      fraction: 0.0
   normal:
     sex: male
     somatic-effective-mutation-rate: 1e-6

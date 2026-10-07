@@ -185,6 +185,8 @@ testcase!(test_prinz_pacbio_zero, exact);
 testcase!(test_imprecise_fusion, exact);
 testcase!(test_imprecise_fusion_absent, exact);
 
+testcase!(test_seqc2_wes_fn_17_29286060, exact);
+
 testcase!(test_uzuner_clonal_1, exact);
 testcase!(test_uzuner_clonal_2, exact);
 testcase!(test_uzuner_clonal_3, exact);
