@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn test_process_and_annotate_invalid_motif_skipped() {
-        // BED: chr1:100-160 20xCAGCAGCAG (invalid: motif >6bp)
+        // BED: chr1:100-181 9xCAGCAGCAG (invalid: motif >6bp)
         // BED: chr1:200-221 7xCAG (valid, but no overlap with variant at pos 99)
         // Expected: 2 total regions, 1 valid processed, 1 dummy (invalid skipped, valid gets dummy indel)
 
@@ -850,8 +850,8 @@ mod tests {
         let aux = make_aux_collector(tmp_vcf.path(), &[]);
 
         let tmp_bed = create_bed_file(&[
-            ("chr1", 100, 180, "20xCAGCAGCAG"), // Invalid (motif >6bp)
-            ("chr1", 200, 221, "7xCAG"),        // Valid but no variant overlap
+            ("chr1", 100, 181, "9xCAGCAGCAG"), // Invalid (motif >6bp)
+            ("chr1", 200, 221, "7xCAG"),       // Valid but no variant overlap
         ]);
         let tmp_output = NamedTempFile::new().unwrap();
 

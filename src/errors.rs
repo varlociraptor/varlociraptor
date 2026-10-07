@@ -64,7 +64,9 @@ use std::path::PathBuf;
 
 use thiserror::Error;
 
-use crate::constants::{MIN_THREAD_COUNT, MSI_DEFAULT_THRESHOLD, MSI_MIN_THRESHOLD};
+use crate::constants::{
+    MIN_THREAD_COUNT, MSI_DEFAULT_THRESHOLD, MSI_MAX_MOTIF_LENGTH, MSI_MIN_THRESHOLD,
+};
 
 #[derive(Error, Debug, PartialEq)]
 pub(crate) enum Error {
@@ -80,7 +82,7 @@ pub(crate) enum Error {
     #[error("invalid BED record at {chrom}:{pos}: {msg}")]
     BedRecordInvalid {
         chrom: String,
-        pos: i64,
+        pos: u64,
         msg: String,
     },
     #[error("failed to read BED record at line {line}: {details}")]
@@ -245,8 +247,9 @@ pub(crate) enum Error {
     /* -------------------- BED File Errors -------------------------- */
     #[error(
         "invalid microsatellite motif specification '{motif}' in BED record - expected \
-        format 'NxMOTIF' with a 1-6 base motif of unambiguous bases only \
-        (A/C/G/T, no N or other ambiguity codes), e.g. '15xCAG'"
+        format 'NxMOTIF' where N is a positive integer and MOTIF is 1-{} unambiguous \
+        bases (A/C/G/T, no N or other ambiguity codes), e.g. '15xCAG'",
+        MSI_MAX_MOTIF_LENGTH
     )]
     MsiBedMotifInvalid { motif: String },
     #[error("BED record missing required name field (4th column) containing motif information")]

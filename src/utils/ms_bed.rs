@@ -3,9 +3,13 @@
 //! BED file parsing utilities for microsatellite instability analysis.
 //!
 //! This module provides utilities for:
-//! 1. Parsing BED records with microsatellite motif information
-//! 2. Validating BED file format and content
+//! 1. `BedRegion` - a parsed microsatellite region (chrom/start/end/motif)
+//! 2. `parse_motif_from_name` - extract motif from a BED name field (<count>x<motif>)
+//! 3. `parse_bed_record` - parse and validate a BED record into a `BedRegion`
+//! 4. `collect_bed_chromosomes` - scan a BED file for its unique chromosome names
+//! 5. `validate_bed_file` - quick sanity check on a BED file's first record
 //!
+//! Note:
 //! Expected BED format: chrom, start, end, name
 //! where name follows the pattern `<count>x<motif>` (e.g., "15xCAG")
 
@@ -16,6 +20,7 @@ use anyhow::{Context, Result};
 use bio::io::bed;
 use log::info;
 
+use crate::constants::MSI_MAX_MOTIF_LENGTH;
 use crate::errors::Error;
 
 /// Microsatellite region from BED file.
@@ -24,10 +29,10 @@ use crate::errors::Error;
 /// parsed from BED format with motif information in the name field.
 #[derive(Debug)]
 pub(crate) struct BedRegion {
-    pub chrom: String,
-    pub start: u64,
-    pub end: u64,
-    pub motif: String,
+    pub(crate) chrom: String,
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+    pub(crate) motif: String,
 }
 
 impl BedRegion {
@@ -44,20 +49,16 @@ impl BedRegion {
         self.motif.len()
     }
 
-    /// Returns true if motif length is valid for MSI analysis (1-6 bases).
+    /// Returns true if motif length is valid for MSI analysis (1 to `MSI_MAX_MOTIF_LENGTH` bases).
     pub(crate) fn is_valid_motif(&self) -> bool {
-        (1..=6).contains(&self.motif_length())
+        (1..=MSI_MAX_MOTIF_LENGTH).contains(&self.motif_length())
     }
-
-    /*  NOTE: flexible is_valid_motif can be implemented if later need
-        for MS regions to be greater than length 6.
-    */
 
     /// Computes the fixed genomic position of a synthesized dummy indel
     /// for this region: the last base of the region's first repeat span.
     ///
     /// # Example
-    /// region { start: 100, motif: "CAG" } -> 100 + 3 - 1 = 102
+    /// start=100, motif="CAG" -> 100 + 3 - 1 = 102
     pub(crate) fn dummy_indel_position(&self) -> u64 {
         self.start + self.motif.len() as u64 - 1
     }
@@ -80,9 +81,6 @@ impl BedRegion {
 /// - Non-numeric repeat count
 /// - Zero repeat count
 /// - Empty motif
-///
-/// # Example
-/// assert_eq!(parse_motif_from_name("5xCAG").unwrap(), "CAG");
 pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
     let (repeat_str, motif) = name
         .split_once('x')
@@ -120,9 +118,9 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
     }
 }
 
-/*  NOTE: Other utility function(s) can be added that returns the repeat count
-    of the motif togather with the motif or separately, if needed in the future,
-    for extending the BedRegion struct.
+/*  NOTE: if the repeat count is needed later, parse_motif_from_name could
+    return it together with the motif, and BedRegion could gain a
+    repeat_count field.
 */
 
 /// Parse a BED record into a BedRegion.
@@ -133,11 +131,9 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
 /// # Returns
 /// * `Ok(BedRegion)` - Parsed region with motif
 /// * `Err`
-///     - Invalid coordinates or missing/invalid name
 ///     - Empty chromosome field
-///
-/// # Example
-/// assert!(parse_bed_record(&record).is_ok());
+///     - Missing or invalid name field
+///     - Region span is non-positive, or not an exact multiple of motif length
 pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
     let chrom = record.chrom().to_string();
     let start = record.start();
@@ -146,27 +142,28 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
     if chrom.is_empty() {
         return Err(Error::BedRecordInvalid {
             chrom: "(empty)".to_string(),
-            pos: start as i64,
+            pos: start,
             msg: "Chromosome field is empty".to_string(),
-        }
-        .into());
-    }
-
-    if start >= end {
-        return Err(Error::BedRecordInvalid {
-            chrom,
-            // Note: `start as i64` casts an unsigned u64 to a signed i64.
-            // In practice this is safe generally for real genomic coordinates, but it's
-            // technically not infallible - if `start` ever exceeded i64::MAX,
-            // the cast would wrap into a negative number rather than erroring.
-            pos: start as i64,
-            msg: "Invalid region coordinates: start >= end".to_string(),
         }
         .into());
     }
 
     let name = record.name().ok_or(Error::MsiBedMotifNameMissing)?;
     let motif = parse_motif_from_name(name)?;
+
+    if end <= start || (end - start) % motif.len() as u64 != 0 {
+        return Err(Error::BedRecordInvalid {
+            chrom,
+            pos: start,
+            msg: format!(
+                "invalid region (start={}, end={}): span must be positive and an exact multiple of motif length ({})",
+                start,
+                end,
+                motif.len()
+            ),
+        }
+        .into());
+    }
 
     Ok(BedRegion {
         chrom,
@@ -192,9 +189,6 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
 /// # Returns
 /// * `Ok(HashSet<String>)` - Set of unique chromosome names from BED
 /// * `Err` if BED file cannot be read or contains invalid records
-///
-/// # Example
-/// assert!(collect_bed_chromosomes(Path::new("regions.bed")).is_ok().size() == 3);
 pub(crate) fn collect_bed_chromosomes(bed_path: &Path) -> Result<HashSet<String>> {
     let mut bed_reader = bed::Reader::from_file(bed_path)
         .context("Failed to open BED file for chromosome collection")?;
@@ -222,14 +216,12 @@ pub(crate) fn collect_bed_chromosomes(bed_path: &Path) -> Result<HashSet<String>
 /// # Arguments
 /// * `bed_path` - Path to BED file
 ///
-/// # Errors
-/// Returns error if:
-/// - File cannot be opened
-/// - File is empty
-/// - First record is invalid
-///
-/// # Example
-/// assert!(validate_bed_file(&path).is_ok());
+/// # Returns
+/// * `Ok(())` if the file is readable and its first record is valid
+/// * `Err` if:
+///     - File cannot be opened
+///     - File is empty
+///     - First record is invalid
 pub(crate) fn validate_bed_file(bed_path: &Path) -> Result<()> {
     info!("Validating BED file: {}", bed_path.display());
 
@@ -263,18 +255,18 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    /* ============ BedRegion Tests ================== */
+    /* ============ BedRegion tests ================== */
 
     #[test]
     fn test_bed_region_methods() {
         let region = BedRegion {
             chrom: "chr1".into(),
             start: 100,
-            end: 200,
+            end: 202,
             motif: "CAG".into(),
         };
 
-        assert_eq!(region.region_id(), "chr1:100-200");
+        assert_eq!(region.region_id(), "chr1:100-202");
         assert_eq!(region.motif_length(), 3);
         assert!(region.is_valid_motif());
         assert_eq!(region.dummy_indel_position(), 102);
@@ -287,7 +279,7 @@ mod tests {
             let region = BedRegion {
                 chrom: "chr1".into(),
                 start: 0,
-                end: 10,
+                end: 10 * len as u64,
                 motif: "A".repeat(len),
             };
             assert!(region.is_valid_motif());
@@ -305,7 +297,7 @@ mod tests {
         let too_long = BedRegion {
             chrom: "chr1".into(),
             start: 0,
-            end: 10,
+            end: 14,
             motif: "AAAAAAA".into(),
         };
         assert!(!too_long.is_valid_motif());
@@ -314,14 +306,14 @@ mod tests {
     /* ==== parse_motif_from_name tests ============== */
 
     #[test]
-    fn test_parse_motif_valid() {
+    fn test_parse_motif_from_name_valid() {
         assert_eq!(parse_motif_from_name("5xCAG").unwrap(), "CAG");
         assert_eq!(parse_motif_from_name("1xA").unwrap(), "A");
         assert_eq!(parse_motif_from_name("100xATCG").unwrap(), "ATCG");
     }
 
     #[test]
-    fn test_parse_motif_invalid() {
+    fn test_parse_motif_from_name_invalid() {
         assert!(parse_motif_from_name("5CAG").is_err()); // Missing separator
         assert!(parse_motif_from_name("0xCAG").is_err()); // Zero count
         assert!(parse_motif_from_name("5x").is_err()); // Empty motif
@@ -329,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_motif_invalid_chars() {
+    fn test_parse_motif_from_name_invalid_chars() {
         // Motifs with ambiguous or invalid DNA letters should fail
         assert!(parse_motif_from_name("5xCAGN").is_err());
         assert!(parse_motif_from_name("3xXYZ").is_err());
@@ -369,6 +361,20 @@ mod tests {
 
         // start == end
         let record = bed_record_from_str("chr1\t100\t100\t1xC");
+        assert!(parse_bed_record(&record).is_err());
+    }
+
+    #[test]
+    fn test_parse_bed_record_span_shorter_than_motif() {
+        // Span (1bp) fits no full copy of a 3bp motif.
+        let record = bed_record_from_str("chr1\t100\t101\t3xCAG");
+        assert!(parse_bed_record(&record).is_err());
+    }
+
+    #[test]
+    fn test_parse_bed_record_span_not_exact_multiple_of_motif() {
+        // Span (4bp) fits one motif copy but leaves a stray extra base.
+        let record = bed_record_from_str("chr1\t100\t104\t3xCAG");
         assert!(parse_bed_record(&record).is_err());
     }
 

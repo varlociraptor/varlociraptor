@@ -43,6 +43,10 @@ pub(crate) const MSI_DEFAULT_THRESHOLD: &str = "3.5";
 /// are not meaningful for MSI classification.
 pub(crate) const MSI_MIN_THRESHOLD: f32 = 0.0;
 
+/// Maximum supported microsatellite motif length (bases).
+/// The minimum is 1.
+pub(crate) const MSI_MAX_MOTIF_LENGTH: usize = 6;
+
 /// Default AF thresholds for MSI evolution analysis.
 /// This list is used to generate pseudo-time series of MSI evolution at
 /// different allele frequency cutoffs. Also, this list is used to validate
