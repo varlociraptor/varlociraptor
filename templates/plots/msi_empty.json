@@ -1,0 +1,33 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "MSI Analysis",
+    "data": {
+        "values": [
+            {
+                "x": 0,
+                "y": 0
+            }
+        ]
+    },
+    "mark": {
+        "type": "text",
+        "text": "PLACEHOLDER_MESSAGE",
+        "size": 14,
+        "color": "#666",
+        "fontStyle": "italic"
+    },
+    "encoding": {
+        "x": {
+            "field": "x",
+            "type": "quantitative",
+            "axis": null
+        },
+        "y": {
+            "field": "y",
+            "type": "quantitative",
+            "axis": null
+        }
+    },
+    "width": 500,
+    "height": 350
+}

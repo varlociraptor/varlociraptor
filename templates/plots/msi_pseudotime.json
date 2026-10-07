@@ -1,0 +1,137 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "MSI score evolution across AF thresholds.",
+    "title": "MSI Evolution Across AF Thresholds",
+    "data": {
+        "values": []
+    },
+    "width": 500,
+    "height": 350,
+    "layer": [
+        {
+            "mark": {
+                "type": "area",
+                "opacity": 0.2
+            },
+            "encoding": {
+                "x": {
+                    "field": "af_threshold",
+                    "type": "quantitative",
+                    "title": "AF Threshold",
+                    "scale": {
+                        "domain": [0.0, 1.0],
+                        "reverse": true
+                    }
+                },
+                "y": {
+                    "field": "lower_bound",
+                    "type": "quantitative",
+                    "title": "MSI Score (%)"
+                },
+                "y2": {
+                    "field": "upper_bound"
+                },
+                "color": {
+                    "field": "sample",
+                    "type": "nominal",
+                    "scale": {
+                        "scheme": "category10"
+                    },
+                    "legend": {
+                        "title": "Sample"
+                    }
+                }
+            }
+        },
+        {
+            "mark": {
+                "type": "line",
+                "point": true
+            },
+            "encoding": {
+                "x": {
+                    "field": "af_threshold",
+                    "type": "quantitative",
+                    "scale": {
+                        "domain": [0.0, 1.0],
+                        "reverse": true
+                    }
+                },
+                "y": {
+                    "field": "msi_score",
+                    "type": "quantitative"
+                },
+                "color": {
+                    "field": "sample",
+                    "type": "nominal",
+                    "scale": {
+                        "scheme": "category10"
+                    }
+                },
+                "tooltip": [
+                    {
+                        "field": "sample",
+                        "type": "nominal",
+                        "title": "Sample"
+                    },
+                    {
+                        "field": "af_threshold",
+                        "type": "quantitative",
+                        "title": "AF Threshold",
+                        "format": ".1f"
+                    },
+                    {
+                        "field": "msi_score",
+                        "type": "quantitative",
+                        "title": "MSI Score (%)",
+                        "format": ".2f"
+                    },
+                    {
+                        "field": "lower_bound",
+                        "type": "quantitative",
+                        "title": "Lower Bound",
+                        "format": ".2f"
+                    },
+                    {
+                        "field": "upper_bound",
+                        "type": "quantitative",
+                        "title": "Upper Bound",
+                        "format": ".2f"
+                    }
+                ]
+            }
+        },
+        {
+            "mark": {
+                "type": "rule",
+                "color": "#d62728",
+                "strokeDash": [
+                    5,
+                    5
+                ],
+                "strokeWidth": 2
+            },
+            "encoding": {
+                "y": {
+                    "datum": 3.5
+                }
+            }
+        },
+        {
+            "mark": {
+                "type": "text",
+                "align": "right",
+                "dx": -5,
+                "dy": -5,
+                "fontSize": 11,
+                "color": "#d62728"
+            },
+            "encoding": {
+                "y": {
+                    "datum": 3.5
+                },
+                "text": { "value": "MSI Threshold" }
+            }
+        }
+    ]
+}
