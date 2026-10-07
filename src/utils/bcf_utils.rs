@@ -15,7 +15,6 @@
 //! 3. Function to get combined probability that variant is absent (artifact): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L161
 //! 4. Function to extract per-sample allele frequencies for a specific ALT allele: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L258
 //! 5. Function to get SVLEN from INFO field or calculate dynamically: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L98
-//!
 
 use std::path::Path;
 
@@ -41,12 +40,10 @@ use crate::utils::stats::phred_to_prob;
 /// * `record` - VCF record
 ///
 /// # Returns
-/// Chromosome name as String
-///
-/// # Errors
-/// Returns error if:
-/// - RID is missing in record
-/// - Chromosome name resolution fails
+/// * `Ok(chrom)` - Chromosome name as String
+/// * `Err`
+///     - RID is missing in record
+///     - Chromosome name resolution fails
 pub(crate) fn get_chrom(record: &bcf::Record) -> Result<String> {
     let rid = record.rid().ok_or_else(|| Error::VcfRecordChromMissing {
         pos: record.pos() + 1,
@@ -69,6 +66,10 @@ pub(crate) fn get_chrom(record: &bcf::Record) -> Result<String> {
 
 /// Get a sample's index in the VCF/BCF header.
 ///
+/// # Arguments
+/// * `header` - VCF/BCF header to search
+/// * `sample` - Sample name to look up
+///
 /// # Returns
 /// * `Ok(idx)` if the sample exists
 /// * `Err(Error::VcfSamplesNotFound)` if it does not
@@ -88,7 +89,7 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 /// Varlociraptor, these events are assigned to each ALT
 /// allele separately (Number=A). See method, fn header(&self)
 /// of Caller in src/variants/calling.rs for details. Therefore,
-/// if in future implemenation changes this function may need to
+/// if in future implementation changes this function may need to
 /// be updated to handle different Number types (e.g. Number=1 or Number=G).
 /// Also it considers float type probabilities, based on the current
 /// implementation.
@@ -916,7 +917,7 @@ pub(crate) mod tests {
     /// * `alt_alleles` - Slice of ALT allele byte slices (e.g. `&[b"ACAGCAG", b"A"]`)
     ///
     /// # Returns
-    /// Configured BCF record ready for testing.
+    /// Configured BCF record ready for testing
     pub(crate) fn create_test_record_multi_alt(
         writer: &bcf::Writer,
         rid: u32,
@@ -956,7 +957,7 @@ pub(crate) mod tests {
 
     /// Minimal multi-record VCF builder for position/overlap-driven tests.
     ///
-    /// # Note:
+    /// # Note
     /// Unlike [`create_test_vcf`], which builds exactly one feature-rich
     /// record (samples, AF, PROB_*, extra INFO) from a [`TestVcfConfig`],
     /// this builds a header + N bare records (chrom/pos/REF/ALT only, no
