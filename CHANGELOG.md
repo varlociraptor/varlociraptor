@@ -7,14 +7,13 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Features
 
-* Add fn testcase from pm4onco seqc2 wes benchmark for 17:29286060 ([#576](https://github.com/varlociraptor/varlociraptor/issues/576)) ([5ebc6c7](https://github.com/varlociraptor/varlociraptor/commit/5ebc6c7cfe441c606f5a3fd80e2169189651241b))
-* Add testcase from pm4onco seqc2 wes benchmark for 10:33202567 ([#568](https://github.com/varlociraptor/varlociraptor/issues/568)) ([8105668](https://github.com/varlociraptor/varlociraptor/commit/8105668063d5990ef3cfb5fcaa1281c84607dcd6))
 * **grammar:** verify pairwise event disjointness at scenario compilation ([#558](https://github.com/varlociraptor/varlociraptor/issues/558)) ([7fae288](https://github.com/varlociraptor/varlociraptor/commit/7fae288288ae284cf35e945ec277218e2b6e5fb5))
 
 
 ### Bug Fixes
 
 * correct borders for vaf splitting ([#545](https://github.com/varlociraptor/varlociraptor/issues/545)) ([6126679](https://github.com/varlociraptor/varlociraptor/commit/6126679abc9463b90922c6d8ea9450632f99bfff))
+* properly respect left exclusiveness of VAF ranges when shortcutting on integration over such intervals in case of clear reference allele evidence ([#576](https://github.com/varlociraptor/varlociraptor/issues/576)) ([5ebc6c7](https://github.com/varlociraptor/varlociraptor/commit/5ebc6c7cfe441c606f5a3fd80e2169189651241b))
 
 
 ### Performance Improvements
