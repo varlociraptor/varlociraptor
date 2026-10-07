@@ -1,0 +1,46 @@
+[package]
+name = "jemalloc-sys"
+version = "0.5.4+5.3.0-patched"
+authors = [
+    "Alex Crichton <alex@alexcrichton.com>",
+    "Gonzalo Brito Gadeschi <gonzalobg88@gmail.com>",
+    "The TiKV Project Developers",
+]
+build = "build.rs"
+links = "jemalloc"
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/tikv/jemallocator"
+homepage = "https://github.com/tikv/jemallocator"
+documentation = "https://docs.rs/jemallocator-sys"
+keywords = ["allocator", "jemalloc"]
+description = """
+Rust FFI bindings to jemalloc
+"""
+edition = "2018"
+
+[badges]
+codecov = { repository = "tikv/jemallocator" }
+is-it-maintained-issue-resolution = { repository = "tikv/jemallocator" }
+is-it-maintained-open-issues = { repository = "tikv/jemallocator" }
+maintenance = { status = "actively-developed" }
+
+[dependencies]
+libc = { version = "^0.2.8", default-features = false }
+
+[build-dependencies]
+cc = "^1.0.13"
+
+[features]
+default = ["background_threads_runtime_support"]
+profiling = []
+debug = []
+background_threads_runtime_support = []
+background_threads = [ "background_threads_runtime_support" ]
+stats = []
+unprefixed_malloc_on_supported_platforms = []
+disable_initial_exec_tls = []
+disable_cache_oblivious = []
+
+[package.metadata.docs.rs]
+rustdoc-args = [ "--cfg",  "jemallocator_docs" ]

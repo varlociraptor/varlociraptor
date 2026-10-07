@@ -1,0 +1,57 @@
+[package]
+name = "curl-sys"
+version = "0.4.89+curl-8.20.0"
+authors = ["Alex Crichton <alex@alexcrichton.com>"]
+links = "curl"
+build = "build.rs"
+license = "MIT"
+repository = "https://github.com/alexcrichton/curl-rust"
+description = "Native bindings to the libcurl library"
+documentation = "https://docs.rs/curl-sys"
+categories = ["external-ffi-bindings"]
+edition = "2018"
+exclude = ["curl/docs/", "curl/tests/"]
+
+[lib]
+name = "curl_sys"
+path = "lib.rs"
+
+[dependencies]
+libz-sys = { version = "1.0.18", default-features = false, features = ["libc"] }
+libc = "0.2.2"
+libnghttp2-sys = { optional = true, version = "0.1.3" }
+
+[dependencies.rustls-ffi]
+version = "0.15"
+optional = true
+features = ["no_log_capture"]
+
+[target.'cfg(all(unix))'.dependencies]
+openssl-sys = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Networking_WinSock"] }
+
+[target.'cfg(target_env = "msvc")'.build-dependencies]
+vcpkg = "0.2"
+
+[build-dependencies]
+cc.workspace = true
+pkg-config = "0.3.3"
+
+[features]
+default = ["ssl"]
+ssl = ["openssl-sys"]
+http2 = ["libnghttp2-sys"]
+mesalink = []
+rustls = ["rustls-ffi"]
+static-curl = []
+windows-static-ssl = []
+static-ssl = ["openssl-sys/vendored"]
+spnego = []
+force-system-lib-on-osx = []
+protocol-ftp = []
+zlib-ng-compat = ["libz-sys/zlib-ng", "static-curl"]
+upkeep_7_62_0 = []
+poll_7_68_0 = []
+ntlm = []

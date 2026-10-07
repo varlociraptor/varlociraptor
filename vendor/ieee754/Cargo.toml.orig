@@ -1,0 +1,31 @@
+[package]
+name = "ieee754"
+version = "0.2.6"
+authors = ["Huon Wilson <dbau.pp@gmail.com>"]
+
+homepage = "https://github.com/huonw/ieee754"
+repository = "https://github.com/huonw/ieee754"
+documentation = "http://docs.rs/ieee754"
+license = "MIT/Apache-2.0"
+keywords = ["floating-point", "mathematics", "numerics", "float", "no_std"]
+categories = ["no-std", "science"]
+
+description = """
+Low-level manipulations of IEEE754 floating-point numbers.
+"""
+
+readme = "README.md"
+
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "iter"
+harness = false
+
+[[bench]]
+name = "cmp"
+harness = false
+
+[features]
+unstable = []

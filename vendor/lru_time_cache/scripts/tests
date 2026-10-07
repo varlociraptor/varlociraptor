@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -x -e
+
+cargo test "$@" --release --verbose
+cargo test "$@" --features sn_fake_clock --release --verbose

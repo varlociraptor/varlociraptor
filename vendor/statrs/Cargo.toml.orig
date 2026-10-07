@@ -1,0 +1,62 @@
+[package]
+name = "statrs"
+version = "0.18.0"
+authors = ["Michael Ma"]
+description = "Statistical computing library for Rust"
+license = "MIT"
+keywords = ["probability", "statistics", "stats", "distribution", "math"]
+categories = ["science"]
+homepage = "https://github.com/statrs-dev/statrs"
+repository = "https://github.com/statrs-dev/statrs"
+edition = "2021"
+
+include = ["CHANGELOG.md", "LICENSE.md", "src/", "tests/"]
+
+# When changing MSRV: Also update the README
+rust-version = "1.65.0"
+
+[lib]
+name = "statrs"
+path = "src/lib.rs"
+
+[[bench]]
+name = "order_statistics"
+harness = false
+required-features = ["rand"]
+
+[features]
+default = ["nalgebra", "rand"]
+nalgebra = ["dep:nalgebra"]
+rand = ["dep:rand", "nalgebra?/rand"]
+
+[dependencies]
+approx = "0.5.0"
+num-traits = "0.2.14"
+
+[dependencies.rand]
+version = "0.8"
+optional = true
+
+[dependencies.nalgebra]
+version = "0.33"
+optional = true
+default-features = false
+features = ["std"]
+
+[dev-dependencies]
+criterion = "0.5"
+anyhow = "1.0"
+
+[dev-dependencies.nalgebra]
+version = "0.33"
+default-features = false
+features = ["macros"]
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+# Set by cargo-llvm-cov when running on nightly
+check-cfg = ['cfg(coverage_nightly)']
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

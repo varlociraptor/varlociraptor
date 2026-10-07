@@ -1,0 +1,171 @@
+# Standard environment setup.
+env_template: &ENVIRONMENT
+  environment:
+    LC_ALL: C
+    CIRRUS_CLONE_DEPTH: 1
+  timeout_in: 10m
+
+# Standard compilation and testing rules
+compile_template: &COMPILE
+  compile_script:
+    - autoreconf -i
+    - ./configure
+    - make -j4
+
+  test_script:
+    - make check
+
+#  on_failure:
+#    - cat tests/test-suite.log
+
+# ----------
+# Linux
+
+task:
+  << : *ENVIRONMENT
+  name: linux-gcc
+  container:
+    memory: 1G
+    image: gcc:latest
+
+  # Base environment already includes the packages we need.
+
+  # One system with more excessive validation
+  compile_script:
+    - autoreconf -i
+    - ./configure CC="gcc -fsanitize=address,undefined"
+    - make -j4 CFLAGS="-g -O3 -Wall -Werror"
+
+  test_script:
+    - make check CFLAGS="-g -O3 -Wall -Werror"
+    - make distcheck
+
+task:
+  << : *ENVIRONMENT
+  name: linux-arm
+  arm_container:
+    image: ubuntu:latest
+    cpu: 2
+    memory: 1G
+
+  # Base environment already includes the packages we need.
+
+  # NB: we could consider building a docker image with these
+  # preinstalled and specifying that instead, to speed up testing.
+  install_script: |
+    apt-get update
+    apt-get install -y --no-install-suggests --no-install-recommends     \
+        ca-certificates clang libc-dev make git autoconf automake libtool \
+        libbz2-dev
+
+  compile_script:
+    - autoreconf -i
+    - ./configure CC="clang" --disable-shared
+    - make -j4 CFLAGS="-g -O3 -Wall -Werror"
+
+  test_script:
+    - make check CFLAGS="-g -O3 -Wall -Werror"
+    - make distcheck
+
+# Rocky Linux
+rocky_task:
+  << : *ENVIRONMENT
+  name: rockylinux-gcc
+  container:
+    image: rockylinux:9
+    cpu: 2
+    memory: 1G
+
+#  # See https://cirrus-ci.org/guide/writing-tasks/#cache-instruction
+#  # Not worth it as it takes longer to unpack the /usr updates than
+#  # to just install the bits we need.  No easy way to install elsewhere
+#  # either. :/
+#  install_cache:
+#    folder: /usr # Will this work!? It's ~150Mb.  Yes, but don't bother
+#    populate_script: |
+#      yum install -y \
+#          autoconf automake libtool make gcc zlib-devel \
+#          bzip2 bzip2-devel git diffutils
+
+  install_script: |
+    yum install -y autoconf automake libtool make gcc zlib-devel \
+        bzip2 bzip2-devel git diffutils
+
+  << : *COMPILE
+
+# ----------
+# MacOS X
+task:
+  << : *ENVIRONMENT
+  name: macosx
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-ventura-base:latest
+
+  package_install_script:
+    - brew install autoconf automake libtool
+
+  # Try building and testing a multiarch library
+  compile_script:
+    - autoreconf -i
+    - ./configure CFLAGS="-g -O3 -Wall -Werror -arch arm64 -arch x86_64"
+    - make -j4
+
+  test_script:
+    - make check
+
+# # ----------
+# # Windows MINGW.
+# # A work in progress which doesn't yet work.  It looks slow to install
+# # although *_cache can help a bit.  Maybe just stick with AppVeyor.
+# task:
+#   << : *ENVIRONMENT
+#   name: windows-1
+#   windows_container:
+#     image: cirrusci/windowsservercore:2019
+#     os_version: 2019
+# 
+#   # See https://cirrus-ci.org/guide/writing-tasks/#cache-instruction
+#   mingw_cache:
+#     # The entirety of chocholatey is heavyweight, but this is still
+#     # under half the time of installing mingw.
+#     folder: C:\Tools
+# 
+#     # default fingerprint is task name (windows-X above)
+#     populate_script:
+#       # Maybe choco install msys2 and then msys2 pacman to install
+#       # mingw, meaning we can archive the entire C:\tools dir?
+#       # - choco install -y --no-progress msys2 mingw 
+#       # - set PATH=%PATH%;\C:\tools\msys64\usr\bin
+#       # - pacman -S --noconfirm --needed automake libtool autoconf 
+# 
+#       # Msys is glacial, and installs its own broken compiler automatically
+#       # which we then replace with mingw-w64-x86_64-toolchain.
+#       # We a better way of downloading just the packages we need and running
+#       # pacman on the files directly.
+#       - choco install -y --no-progress msys2
+#       - set PATH=%PATH%;\C:\tools\msys64\usr\bin
+#       - pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-toolchain mingw-w64-x86_64-zlib mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz
+# 
+#   compile_script:
+#     - c:\tools\msys64\usr\bin\bash --login "autoreconf -i"
+#     - c:\tools\msys64\usr\bin\bash "./configure"
+#     - c:\tools\msys64\usr\bin\bash "make -j4"
+
+# ----------
+# FreeBSD
+task:
+  name: freebsd
+  freebsd_instance:
+    image_family: freebsd-13-2
+
+  pkginstall_script:
+    - pkg update -f
+    - pkg install -y gcc autoconf automake libdeflate libtool
+
+  compile_script:
+    - autoreconf -i
+    - ./configure
+    - make -j4 CFLAGS="-g -O3 -Wall -Werror"
+
+  test_script:
+    - make check CFLAGS="-g -O3 -Wall -Werror"

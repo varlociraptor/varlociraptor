@@ -1,0 +1,31 @@
+[package]
+name = "askama_derive"
+version = "0.11.2"
+description = "Procedural macro package for Askama"
+homepage = "https://github.com/djc/askama"
+repository = "https://github.com/djc/askama"
+license = "MIT/Apache-2.0"
+workspace = ".."
+readme = "README.md"
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[features]
+config = ["askama_shared/config"]
+json = ["askama_shared/json"]
+yaml = ["askama_shared/yaml"]
+
+actix-web = []
+axum = []
+gotham = []
+mendes = []
+rocket = []
+tide = []
+warp = []
+
+[dependencies]
+askama_shared = { version = "0.12.1", path = "../askama_shared", default-features = false }
+proc-macro2 = "1"
+syn = "1"
