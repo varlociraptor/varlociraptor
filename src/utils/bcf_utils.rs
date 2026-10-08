@@ -670,20 +670,20 @@ pub(crate) mod tests {
 
     /// Configuration for test VCF creation.
     pub(crate) struct TestVcfConfig<'a> {
-        pub ref_allele: &'a [u8],
-        pub alt_alleles: Vec<&'a [u8]>,
-        pub af_values: Option<Vec<f32>>,
-        pub prob_absent: Option<Vec<f32>>,
-        pub prob_artifact: Option<Vec<f32>>,
-        pub prob_somatic: Option<Vec<f32>>,
-        pub prob_high_vaf: Option<Vec<f32>>,
-        pub num_samples: usize,
-        pub use_phred: bool,
+        pub(crate) ref_allele: &'a [u8],
+        pub(crate) alt_alleles: Vec<&'a [u8]>,
+        pub(crate) af_values: Option<Vec<f32>>,
+        pub(crate) prob_absent: Option<Vec<f32>>,
+        pub(crate) prob_artifact: Option<Vec<f32>>,
+        pub(crate) prob_somatic: Option<Vec<f32>>,
+        pub(crate) prob_high_vaf: Option<Vec<f32>>,
+        pub(crate) num_samples: usize,
+        pub(crate) use_phred: bool,
         /// Extra INFO fields: (id, number, type, description, value)
         /// e.g. (b"COSMIC_ID", b"1", b"String", b"COSMIC ID", b"COSM123")
-        pub extra_info_fields: Vec<(&'a [u8], &'a [u8], &'a [u8], &'a [u8], &'a [u8])>,
-        pub write_prob_somatic: bool,
-        pub write_prob_high_vaf: bool,
+        pub(crate) extra_info_fields: Vec<(&'a [u8], &'a [u8], &'a [u8], &'a [u8], &'a [u8])>,
+        pub(crate) write_prob_somatic: bool,
+        pub(crate) write_prob_high_vaf: bool,
     }
 
     impl<'a> Default for TestVcfConfig<'a> {
@@ -912,7 +912,7 @@ pub(crate) mod tests {
     ///
     /// # Returns
     /// bcf::Record for testing
-    pub fn read_first_record(path: &Path) -> bcf::Record {
+    pub(crate) fn read_first_record(path: &Path) -> bcf::Record {
         let mut reader = bcf::Reader::from_path(path).unwrap();
         reader.records().next().unwrap().unwrap()
     }
@@ -955,7 +955,7 @@ pub(crate) mod tests {
     ///
     /// # Returns
     /// Configured VCF record ready for testing
-    pub fn create_test_record(
+    pub(crate) fn create_test_record(
         writer: &bcf::Writer,
         rid: u32,
         pos: i64,
