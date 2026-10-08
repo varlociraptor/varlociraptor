@@ -15,6 +15,7 @@
 //! 3. Function to get combined probability that variant is absent (artifact): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L161
 //! 4. Function to extract per-sample allele frequencies for a specific ALT allele: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L258
 //! 5. Function to get SVLEN from INFO field or calculate dynamically: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L98
+//! 6. Function to check if all alleles are SNVs (all same length as REF), removed from this file: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L319
 
 use std::path::Path;
 
@@ -34,7 +35,7 @@ use crate::utils::stats::phred_to_prob;
 
 /* ========= BCF Extraction Functions ============= */
 
-/// Get chromosome name from a VCF record
+/// Get chromosome name from a VCF record.
 ///
 /// # Arguments
 /// * `record` - VCF record
@@ -85,7 +86,28 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 /// Combine probabilities for user-specified events into
 /// P(at least one specified event) for one ALT allele.
 ///
-/// Note: As per current variant calling implementation in
+/// # Algorithm
+/// 1. For each event name, read `INFO/PROB_{EVENT}` (uppercased) at `alt_idx`
+/// 2. Convert to log-space
+/// 3. Sum via `LogProb::ln_sum_exp`
+/// 4. Return the result as a linear probability
+///
+/// # Arguments
+/// * `record` - VCF record
+/// * `alt_idx` - ALT allele index (0-based into the ALT array, not alleles array)
+/// * `events` - Event names (e.g. `["somatic", "germline_het"]`)
+/// * `is_phred` - Whether `INFO/PROB_*` values are PHRED-scaled
+///
+/// # Returns
+/// * `Ok(Some(p))` - P(at least one event) in [0.0, 1.0]
+/// * `Ok(None)`
+///     - Any `PROB_{EVENT}` field is absent or missing at `alt_idx`, because partial
+///       data is treated as unusable rather than silently summing incomplete evidence
+///     - `events` is empty
+/// * `Err` - NaN value in a probability field
+///
+/// # Note
+/// As per current variant calling implementation in
 /// Varlociraptor, these events are assigned to each ALT
 /// allele separately (Number=A). See method, fn header(&self)
 /// of Caller in src/variants/calling.rs for details. Therefore,
@@ -93,25 +115,6 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 /// be updated to handle different Number types (e.g. Number=1 or Number=G).
 /// Also it considers float type probabilities, based on the current
 /// implementation.
-///
-/// For each event name, reads `INFO/PROB_{EVENT}` (uppercased),
-/// converts to log-space, and sums via `LogProb::ln_sum_exp`.
-/// Returns the result as a linear probability.
-///
-/// Returns `None` if any event field is absent or missing at `alt_idx`.
-/// Partial data is treated as unusable rather than silently summing
-/// incomplete evidence.
-///
-/// # Arguments
-/// * `record`   - VCF record
-/// * `alt_idx`  - ALT allele index (0-based into the ALT array, not alleles array)
-/// * `events`   - Event names (e.g. `["somatic", "germline_het"]`)
-/// * `is_phred` - Whether `INFO/PROB_*` values are PHRED-scaled
-///
-/// # Returns
-/// * `Ok(Some(p))` - P(at least one event) in [0.0, 1.0]
-/// * `Ok(None)`    - Any `PROB_{EVENT}` field absent or missing at `alt_idx`
-/// * `Err`         - NaN value in a probability field
 pub(crate) fn get_events_probability(
     record: &bcf::Record,
     alt_idx: usize,
@@ -165,14 +168,14 @@ pub(crate) fn get_events_probability(
 /// Reads `FORMAT/AF` at `sample_idx` and `alt_idx`.
 ///
 /// # Arguments
-/// * `record`     - VCF record
+/// * `record` - VCF record
 /// * `sample_idx` - Sample index in FORMAT columns
-/// * `alt_idx`    - ALT allele index (0-based into the ALT array)
+/// * `alt_idx` - ALT allele index (0-based into the ALT array)
 ///
 /// # Returns
 /// * `Ok(Some(af))` - AF in [0.0, 1.0]
-/// * `Ok(None)`     - Field absent or value missing
-/// * `Err`          - AF outside [0.0, 1.0] or NaN
+/// * `Ok(None)` - Field absent or value missing
+/// * `Err` - AF outside [0.0, 1.0] or NaN
 pub(crate) fn get_sample_af(
     record: &bcf::Record,
     sample_idx: usize,
@@ -230,15 +233,7 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
 
 /* ======== BCF Allele Type Check Functions ======= */
 
-// /// Check if all alleles are SNVs (all same length as ref)
-// /// Example: REF=A, ALT=T,G -> all length 1
-// NOTE: Not required, can be toggled on if required in other utilities.
-// pub fn all_alleles_snv(ref_allele: &[u8], alt_alleles: &[&[u8]]) -> bool {
-//     let ref_allele_len = ref_allele.len();
-//     alt_alleles.iter().all(|alt| alt.len() == ref_allele_len)
-// }
-
-/// Check if allele represents no variant (reference)
+/// Check if allele represents no variant (reference).
 ///
 /// Matches alleles that indicate "no alternative allele":
 /// - `.` - Missing/no ALT allele (VCF spec)
@@ -253,7 +248,7 @@ pub(crate) fn is_reference_allele(allele: &[u8]) -> bool {
     allele == b"." || allele == b"<REF>"
 }
 
-/// Check if allele is symbolic (starts with <)
+/// Check if allele is symbolic (starts with <).
 ///
 /// # Arguments
 /// * `allele` - Allele sequence as byte slice
@@ -264,7 +259,7 @@ pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
     allele.len() >= 3 && allele.starts_with(b"<") && allele.ends_with(b">")
 }
 
-/// Check if allele is a breakend (contains [ or ])
+/// Check if allele is a breakend (contains `[` or `]`).
 ///
 /// # Arguments
 /// * `allele` - Allele sequence as byte slice
@@ -275,7 +270,7 @@ pub(crate) fn is_breakend(allele: &[u8]) -> bool {
     allele.iter().any(|&c| c == b'[' || c == b']')
 }
 
-/// Check if allele is a spanning deletion (*)
+/// Check if allele is a spanning deletion (*).
 ///
 /// # Arguments
 /// * `allele` - Allele sequence as byte slice
@@ -316,8 +311,10 @@ pub fn record_has_info_string(record: &bcf::Record, field: &[u8]) -> bool {
 /// # Returns
 /// * `Some(Vec<String>)` - All values if field present
 /// * `None` - If field is absent
-/// * Panics if a present value is not valid UTF-8 - callers should only use
-///   this on fields where UTF-8 validity is guaranteed by construction.
+///
+/// # Panics
+/// Panics if a present value is not valid UTF-8 - callers should only use
+/// this on fields where UTF-8 validity is guaranteed by construction.
 pub fn get_info_strings(record: &bcf::Record, field: &[u8]) -> Option<Vec<String>> {
     record.info(field).string().ok().flatten().map(|v| {
         v.iter()
@@ -565,15 +562,17 @@ pub(crate) fn validate_samples_exist(
 /// * `Err` if any event field is missing, or exists with the wrong type/shape
 ///
 /// # Errors
-/// * `VcfEventsMissing` if any INFO/PROB_{EVENT} field is not found. Error
-///   message includes comma-separated list of missing events.
+/// * `VcfEventsMissing` if any INFO/PROB_{EVENT} field is not found, with the
+///   missing events listed comma-separated in the error message
 /// * `VcfHeaderFieldTypeInvalid` if a PROB_{EVENT} field is found but isn't
-///   `Type=Float, Number=A`.
+///   `Type=Float, Number=A`
 ///
 /// # Event Field Mapping
+/// ```text
 /// Event name          -> INFO field checked
 /// "somatic_tumor"     -> INFO/PROB_SOMATIC_TUMOR
 /// "germline_normal"   -> INFO/PROB_GERMLINE_NORMAL
+/// ```
 pub(crate) fn validate_events_exist(header: &HeaderView, event_names: &[String]) -> Result<()> {
     let mut missing_events = Vec::new();
 
@@ -669,7 +668,7 @@ pub(crate) mod tests {
     use crate::constants::test_constants::{TEST_EPSILON, TEST_EPSILON_F32, TEST_EPSILON_LOOSE};
     use crate::utils::genomics::is_indel;
 
-    /// Configuration for test VCF creation
+    /// Configuration for test VCF creation.
     pub(crate) struct TestVcfConfig<'a> {
         pub ref_allele: &'a [u8],
         pub alt_alleles: Vec<&'a [u8]>,
@@ -706,6 +705,13 @@ pub(crate) mod tests {
         }
     }
 
+    /// Create a one-record VCF from a [`TestVcfConfig`].
+    ///
+    /// # Arguments
+    /// * `config` - Alleles, probabilities, AF values, samples and extra INFO fields to write
+    ///
+    /// # Returns
+    /// `(tmp_file, sample_names)` - keep `tmp_file` alive for the duration of the test, names are `sample1..sampleN`
     pub(crate) fn create_test_vcf(config: TestVcfConfig) -> (NamedTempFile, Vec<String>) {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path();
@@ -881,6 +887,7 @@ pub(crate) mod tests {
         (tmp, sample_names)
     }
 
+    /// Build a header view with a `chr1` contig plus the given extra header lines.
     fn create_header_view(header_lines: &[&[u8]]) -> HeaderView {
         let mut header = bcf::Header::new();
         header.push_record(br"##fileformat=VCFv4.2");
@@ -900,6 +907,9 @@ pub(crate) mod tests {
 
     /// Read the first record from a VCF/BCF file (without header).
     ///
+    /// # Arguments
+    /// * `path` - Path to VCF/BCF file
+    ///
     /// # Returns
     /// bcf::Record for testing
     pub fn read_first_record(path: &Path) -> bcf::Record {
@@ -910,10 +920,10 @@ pub(crate) mod tests {
     /// Create a test VCF record with one or more ALT alleles.
     ///
     /// # Arguments
-    /// * `writer`      - BCF writer
-    /// * `rid`         - Reference ID (chromosome index in header)
-    /// * `pos`         - Position (0-based)
-    /// * `ref_allele`  - Reference allele bytes (e.g. `b"ACAG"`)
+    /// * `writer` - BCF writer
+    /// * `rid` - Reference ID (chromosome index in header)
+    /// * `pos` - Position (0-based)
+    /// * `ref_allele` - Reference allele bytes (e.g. `b"ACAG"`)
     /// * `alt_alleles` - Slice of ALT allele byte slices (e.g. `&[b"ACAGCAG", b"A"]`)
     ///
     /// # Returns
@@ -966,14 +976,14 @@ pub(crate) mod tests {
     ///
     /// # Arguments
     /// * `header_lines` - Extra `##...` header lines (e.g. `##contig=<...>`)
-    ///   to push after `##fileformat=VCFv4.2`. Caller is responsible for
-    ///   declaring any contigs referenced by `records`.
+    ///   to push after `##fileformat=VCFv4.2`, which must declare any contigs
+    ///   referenced by `records`
     /// * `records` - `(rid, pos, ref_allele, alt_alleles)` tuples, written
-    ///   in the given order. `rid` indexes into the contigs declared via
-    ///   `header_lines`, in declaration order.
+    ///   in the given order, with `rid` indexing into the contigs declared via
+    ///   `header_lines`, in declaration order
     ///
     /// # Returns
-    /// A `NamedTempFile` containing the resulting VCF.
+    /// A `NamedTempFile` containing the resulting VCF
     pub(crate) fn create_minimal_vcf(
         header_lines: &[&[u8]],
         records: &[(u32, i64, &[u8], &[&[u8]])],
@@ -1282,7 +1292,7 @@ pub(crate) mod tests {
     ///
     /// # Returns
     /// Tuple of `(tmp_file, writer)` - caller writes records via writer,
-    /// then drops writer.
+    /// then drops writer
     fn create_info_test_vcf(info_records: &[&[u8]]) -> (NamedTempFile, bcf::Writer) {
         let tmp = NamedTempFile::new().unwrap();
         let mut header = bcf::Header::new();
