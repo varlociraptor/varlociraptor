@@ -14,6 +14,7 @@ use crate::variants::types::{
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use getset::Getters;
 use log::warn;
 use rust_htslib::bam;
 use rust_htslib::bam::record::Aux;
@@ -121,14 +122,42 @@ fn mm_tag_exists(record: &Arc<bam::Record>) -> bool {
 fn is_5mc_header(header: &str) -> bool {
     header.starts_with("C+m") || header.starts_with("C-m")
 }
+
+/// Methylation information of a read extracted from the MM and ML tags.
+#[derive(Debug, Clone, Getters)]
+pub struct MethylationInfo {
+    /// Positions of listed bases and their probability of methylation.
+    #[getset(get = "pub")]
+    pos_to_prob: HashMap<usize, LogProb>,
+    /// Probability of methylation for cytosines that are not listed in the MM tag.
+    #[getset(get = "pub")]
+    prob_skipped: LogProb,
+}
+
+/// Probability of methylation for skipped bases, given the header of an MM block
+/// (e.g. `C+m.`, `C+m?` or `C+m`).
+/// Skip flag '.' or no flag: skipped bases have a low probability of being modified (`prob_skipped_methylated` given by the user).
+/// Skip flag '?': there is no information about skipped bases (0.5).
+fn prob_skipped_from_header(header: &str, prob_skipped_methylated: LogProb) -> LogProb {
+    if header.ends_with('?') {
+        LogProb::from(Prob(0.5))
+    } else {
+        prob_skipped_methylated
+    }
+}
+
 /// Computes the positions and probabilities of methylated bases in reads annotated with MM and ML tags for 5mC methylation.
 /// Handles multiple MM blocks (e.g. A+a., C+h., etc.)
 ///
 /// # Returns
-/// pos_methylated_bases: Vector of positions (0-based read indices) of methylated bases
+/// MethylationInfo: positions (0-based read indices) of methylated bases with their probabilities
+/// and the probability of methylation for skipped bases (from the skip flag of the 5mC block).
+/// If there is no 5mC block, skipped bases get a probability of 0.5 (no information).
 ///
-///
-pub fn extract_mm_ml_5mc(read: &Arc<Record>) -> Option<HashMap<usize, LogProb>> {
+pub fn extract_mm_ml_5mc(
+    read: &Arc<Record>,
+    prob_skipped_methylated: LogProb,
+) -> Option<MethylationInfo> {
     let mm_tag = match (read.aux(b"Mm"), read.aux(b"MM")) {
         (Ok(tag), _) => tag,
         (_, Ok(tag)) => tag,
@@ -157,6 +186,8 @@ pub fn extract_mm_ml_5mc(read: &Arc<Record>) -> Option<HashMap<usize, LogProb>> 
 
     let mut pos_to_prob: HashMap<usize, LogProb> = HashMap::new();
     let mut ml_index = 0;
+    // If there is no 5mC block, we have no information about the methylation of the read.
+    let mut prob_skipped = LogProb::from(Prob(0.5));
 
     for block in mm.split(';') {
         if block.is_empty() {
@@ -176,6 +207,7 @@ pub fn extract_mm_ml_5mc(read: &Arc<Record>) -> Option<HashMap<usize, LogProb>> 
             .collect();
 
         if is_5mc_header(header) {
+            prob_skipped = prob_skipped_from_header(header, prob_skipped_methylated);
             // Positions of 'C' bases in the read
             let mut pos_read_base: Vec<usize> = read_seq
                 .iter()
@@ -218,7 +250,10 @@ pub fn extract_mm_ml_5mc(read: &Arc<Record>) -> Option<HashMap<usize, LogProb>> 
             ml_index += methylated_bases.len();
         }
     }
-    Some(pos_to_prob)
+    Some(MethylationInfo {
+        pos_to_prob,
+        prob_skipped,
+    })
 }
 
 /// Returns the complement base for a given base
@@ -250,7 +285,7 @@ fn complement_base(base: u8) -> u8 {
 /// Returns `Some((meth, unmeth))` on success, or `None` if the read should be skipped.
 fn process_read(
     read: &Arc<Record>,
-    meth_info: &Option<Rc<HashMap<usize, LogProb>>>,
+    meth_info: &Option<Rc<MethylationInfo>>,
     qpos: u32,
     annotated_read: bool,
 ) -> Option<(LogProb, LogProb)> {
@@ -281,20 +316,12 @@ fn process_read(
 ///
 /// prob_alt: Probability of methylation (alternative)
 /// prob_ref: Probability of no methylation (reference)
-fn compute_probs_annotated_read(
-    pos_to_probs: &HashMap<usize, LogProb>,
-    qpos: u32,
-) -> (LogProb, LogProb) {
-    // let pos_in_read = qpos ;
-    let prob_alt;
-    let prob_ref;
-    if let Some(value) = pos_to_probs.get(&(qpos as usize)) {
-        prob_alt = value.to_owned();
-        prob_ref = LogProb::from(Prob(1_f64 - prob_alt.0.exp()));
-    } else {
-        prob_alt = LogProb::from(Prob(0.0));
-        prob_ref = LogProb::from(Prob(1.0));
-    }
+fn compute_probs_annotated_read(meth_info: &MethylationInfo, qpos: u32) -> (LogProb, LogProb) {
+    let prob_alt = *meth_info
+        .pos_to_prob()
+        .get(&(qpos as usize))
+        .unwrap_or(meth_info.prob_skipped());
+    let prob_ref = LogProb::from(Prob(1_f64 - prob_alt.0.exp()));
     (prob_alt, prob_ref)
 }
 
@@ -473,16 +500,16 @@ impl ToVariantRepresentation for Methylation {
     }
 }
 
-/// Determines the orientation of a read based on its flags.  
+/// Determines the orientation of a read based on its flags.
 ///
-/// For single-end reads: returns true if the read is reverse-complemented.  
-/// For paired-end reads: returns true if the read is from the reverse strand  
-/// (either first-in-pair and reverse, or second-in-pair and forward).  
-///  
-/// # Arguments  
-/// * `read` - The sequencing read to check  
-///  
-/// # Returns  
+/// For single-end reads: returns true if the read is reverse-complemented.
+/// For paired-end reads: returns true if the read is from the reverse strand
+/// (either first-in-pair and reverse, or second-in-pair and forward).
+///
+/// # Arguments
+/// * `read` - The sequencing read to check
+///
+/// # Returns
 /// * `true` if the read is from the reverse strand, `false` otherwise
 pub(crate) fn read_reverse_orientation(read: &Arc<Record>) -> bool {
     let read_paired = read.is_paired();
@@ -492,5 +519,102 @@ pub(crate) fn read_reverse_orientation(read: &Arc<Record>) -> bool {
         read_reverse && read_first || !read_reverse && !read_first
     } else {
         read_reverse
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_htslib::bam::record::AuxArray;
+
+    const PROB_SKIPPED: f64 = 0.001;
+
+    /// Creates a forward read with sequence `ACGTCCGA` (C at 1, 4, 5) and the given MM/ML tags
+    /// and extracts its methylation information.
+    fn extract(mm: &str, ml: &[u8]) -> MethylationInfo {
+        let mut rec = Record::new();
+        rec.set(b"read1", None, b"ACGTCCGA", &[30; 8]);
+        rec.push_aux(b"MM", Aux::String(mm)).unwrap();
+        let ml = ml.to_vec();
+        let ml_array: AuxArray<u8> = (&ml).into();
+        rec.push_aux(b"ML", Aux::ArrayU8(ml_array)).unwrap();
+        extract_mm_ml_5mc(&Arc::new(rec), LogProb::from(Prob(PROB_SKIPPED))).unwrap()
+    }
+
+    fn assert_prob_eq(a: LogProb, b: f64) {
+        assert!((a.exp() - b).abs() < 1e-9, "{} != {}", a.exp(), b);
+    }
+
+    #[test]
+    fn test_extract_skip_flag_dot() {
+        let info = extract("C+m.,1;", &[255]);
+        assert_prob_eq(*info.prob_skipped(), PROB_SKIPPED);
+        assert_eq!(info.pos_to_prob().len(), 1);
+        assert_prob_eq(info.pos_to_prob()[&4], 255.5 / 256.0);
+    }
+
+    #[test]
+    fn test_extract_skip_flag_question_mark() {
+        let info = extract("C+m?,0,1;", &[10, 200]);
+        assert_prob_eq(*info.prob_skipped(), 0.5);
+        assert_prob_eq(info.pos_to_prob()[&1], 10.5 / 256.0);
+        assert_prob_eq(info.pos_to_prob()[&5], 200.5 / 256.0);
+    }
+
+    #[test]
+    fn test_extract_no_skip_flag() {
+        let info = extract("C+m,0;", &[128]);
+        assert_prob_eq(*info.prob_skipped(), PROB_SKIPPED);
+        assert!(info.pos_to_prob().contains_key(&1));
+    }
+
+    #[test]
+    fn test_extract_block_without_positions() {
+        let info = extract("C+h?,0;C+m?;", &[50]);
+        assert_prob_eq(*info.prob_skipped(), 0.5);
+        assert!(info.pos_to_prob().is_empty());
+
+        let info = extract("C+m.;", &[]);
+        assert_prob_eq(*info.prob_skipped(), PROB_SKIPPED);
+        assert!(info.pos_to_prob().is_empty());
+    }
+
+    #[test]
+    fn test_extract_no_5mc_block() {
+        let info = extract("C+h.,0;", &[50]);
+        assert_prob_eq(*info.prob_skipped(), 0.5);
+        assert!(info.pos_to_prob().is_empty());
+    }
+
+    #[test]
+    fn test_compute_probs_annotated_read() {
+        let mut pos_to_prob = HashMap::new();
+        pos_to_prob.insert(4, LogProb::from(Prob(0.9)));
+
+        let low = MethylationInfo {
+            pos_to_prob: pos_to_prob.clone(),
+            prob_skipped: LogProb::from(Prob(PROB_SKIPPED)),
+        };
+        let unknown = MethylationInfo {
+            pos_to_prob,
+            prob_skipped: LogProb::from(Prob(0.5)),
+        };
+
+        // listed position
+        for info in [&low, &unknown] {
+            let (alt, reference) = compute_probs_annotated_read(info, 4);
+            assert_prob_eq(alt, 0.9);
+            assert_prob_eq(reference, 0.1);
+        }
+
+        // skipped position, flag '.'
+        let (alt, reference) = compute_probs_annotated_read(&low, 1);
+        assert_prob_eq(alt, PROB_SKIPPED);
+        assert_prob_eq(reference, 1.0 - PROB_SKIPPED);
+
+        // skipped position, flag '?': must be exactly equal, so that no strand info is retained
+        let (alt, reference) = compute_probs_annotated_read(&unknown, 1);
+        assert_prob_eq(alt, 0.5);
+        assert_eq!(alt, reference);
     }
 }
