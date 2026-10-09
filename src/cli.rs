@@ -186,7 +186,7 @@ fn default_reference_buffer_size() -> usize {
 }
 
 fn default_methylation_prob_skipped_bases() -> f64 {
-    0.001
+    0.05
 }
 
 fn default_pairhmm_mode() -> String {
@@ -376,12 +376,8 @@ pub enum PreprocessKind {
         methylation_readtype: Option<MethylationReadtype>,
         #[structopt(
             long = "methylation-prob-skipped-bases",
-            default_value = "0.001",
-            help = "Methylation probability assumed for cytosines skipped in the MM tag of annotated reads (MM/ML tags). \
-                    Applies when the MM skip flag is '.' or absent, which means skipped bases have a \
-                    low probability of modification. Basecallers typically omit calls below an internal threshold, so \
-                    the appropriate value depends on the basecaller. Ignored if the flag is '?', where the modification \
-                    status of skipped bases is unknown."
+            default_value = "0.05",
+            help = "Upper bound on the methylation probability of cytosines omitted from the MM tag (MM/ML annotated reads). Only applies when the MM skip mode is ‘.’ or absent, which means omitted bases are presumed unmodified (Dorado typically omits calls below 0.05). Ignored for skip mode ‘?’, where the status of omitted bases is unknown."
         )]
         #[serde(default = "default_methylation_prob_skipped_bases")]
         methylation_prob_skipped_bases: f64,
