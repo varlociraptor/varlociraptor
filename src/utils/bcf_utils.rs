@@ -9,7 +9,8 @@
 //! 4. VCF/BCF fields validation
 //! 5. VCF file validation
 //!
-//! NOTE: Helpful General Data Structs or functions (that can be copied) can be found in following PR:
+//! Note:
+//! Helpful General Data Structs or functions (that can be copied) can be found in following PR:
 //! 1. SampleInfo Struct for samples and their indexes map: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L34
 //! 2. Function to extract sample names from VCF header: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L55
 //! 3. Function to get combined probability that variant is absent (artifact): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L161
@@ -484,11 +485,8 @@ fn validate_vcf_header_field(
 ///
 /// # Returns
 /// * `Ok(())` if all fields exist
-/// * `Err` if any field is missing
-///
-/// # Errors
-/// Returns error if any requested INFO field is not declared in the VCF header.
-/// Error message includes comma-separated list of missing fields.
+/// * `Err` if any field is missing, with the missing fields listed
+///   comma-separated in the error message
 pub(crate) fn validate_info_fields_exist(header: &HeaderView, fields: &[String]) -> Result<()> {
     let missing: Vec<String> = fields
         .iter()
@@ -516,11 +514,8 @@ pub(crate) fn validate_info_fields_exist(header: &HeaderView, fields: &[String])
 ///
 /// # Returns
 /// * `Ok(())` if all samples exist
-/// * `Err` if any sample is missing
-///
-/// # Errors
-/// Returns error if any sample name is not found in VCF header.
-/// Error message includes comma-separated list of missing samples.
+/// * `Err` if any sample is missing, with the missing samples listed
+///   comma-separated in the error message
 pub(crate) fn validate_samples_exist(
     header: &HeaderView,
     required_samples: &[String],
