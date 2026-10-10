@@ -331,7 +331,7 @@ mod tests {
 
     /* ========= parse_bed_record tests ============== */
 
-    /// Helper to create BED record from string
+    /// Helper to create BED record from string.
     fn bed_record_from_str(line: &str) -> bed::Record {
         let mut reader = bed::Reader::new(line.as_bytes());
         reader.records().next().unwrap().unwrap()
