@@ -5,7 +5,7 @@
 //! This module provides:
 //! 1. Sample information extraction
 //! 2. Record field extraction (chromosome, SVLEN, probabilities, allele frequencies)
-//! 3. Allele type classification (indel, symbolic, breakend, reference, spanning deletion)
+//! 3. Allele type classification (symbolic, breakend, reference, spanning deletion)
 //! 4. VCF/BCF fields validation
 //! 5. VCF file validation
 //!
@@ -283,7 +283,7 @@ pub(crate) fn is_spanning_deletion(allele: &[u8]) -> bool {
 
 /* ================================================ */
 
-/* ======= BCF Record Query Function tests ======== */
+/* ======= BCF Record Query Functions ============= */
 
 /// Check if a VCF record has a specific INFO string field present.
 ///
@@ -368,7 +368,7 @@ pub fn read_bcf_records(path: &Path) -> Result<Vec<bcf::Record>> {
 
 /* ================================================ */
 
-/* ======= BCF Record INFO Copy Function ========= */
+/* ======= BCF Record INFO Copy Function ========== */
 
 /// Copy specified INFO fields from source to destination BCF record.
 ///
@@ -666,7 +666,6 @@ pub(crate) mod tests {
     use tempfile::NamedTempFile;
 
     use crate::constants::test_constants::{TEST_EPSILON, TEST_EPSILON_F32, TEST_EPSILON_LOOSE};
-    use crate::utils::genomics::is_indel;
 
     /// Configuration for test VCF creation.
     pub(crate) struct TestVcfConfig<'a> {
@@ -1002,7 +1001,7 @@ pub(crate) mod tests {
         tmp
     }
 
-    /* ==== BCF Extraction Function(s) tests ========= */
+    /* ========== get_chrom tests ==================== */
 
     #[test]
     fn test_get_chrom() {
@@ -1012,6 +1011,8 @@ pub(crate) mod tests {
         let chrom = get_chrom(&record).unwrap();
         assert_eq!(chrom, "chr1");
     }
+
+    /* ========== get_sample_index tests ============= */
 
     #[test]
     fn test_get_sample_index_found() {
@@ -1045,6 +1046,8 @@ pub(crate) mod tests {
         let err_msg = format!("{}", result.unwrap_err());
         assert!(err_msg.contains("nonexistent_sample"));
     }
+
+    /* ======== get_events_probability tests ========= */
 
     #[test]
     fn test_get_events_probability_single_event() {
@@ -1136,6 +1139,8 @@ pub(crate) mod tests {
         );
     }
 
+    /* ========== get_sample_af tests ================ */
+
     #[test]
     fn test_get_sample_af_valid_two_samples() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
@@ -1151,7 +1156,6 @@ pub(crate) mod tests {
 
     #[test]
     fn test_get_sample_af_missing_returns_none() {
-        use rust_htslib::bcf::record::Numeric;
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
             af_values: Some(vec![f32::missing()]),
             num_samples: 1,
@@ -1216,7 +1220,7 @@ pub(crate) mod tests {
         assert!(get_sample_af(&record, 5, 0).unwrap().is_none());
     }
 
-    /* ====== BCF Specification check tests ===== ==== */
+    /* ====== is_phred_scaled_from_path tests ======== */
 
     #[test]
     fn test_is_phred_scaled_from_path_linear() {
@@ -1248,18 +1252,13 @@ pub(crate) mod tests {
         assert!(result.is_err(), "Should fail for nonexistent file");
     }
 
-    /* ====== BCF ALLELE Type tests ================== */
+    /* ========== allele type check tests ============ */
 
     #[test]
     fn test_allele_type_checks() {
         // Reference allele
         assert!(is_reference_allele(b"."));
         assert!(is_reference_allele(b"<REF>"));
-
-        // Indel
-        assert!(is_indel(b"AC", b"ACG")); // insertion
-        assert!(is_indel(b"ACG", b"AC")); // deletion
-        assert!(!is_indel(b"AC", b"AG"));
 
         // Symbolic
         assert!(is_symbolic(b"<DEL>"));
@@ -1275,7 +1274,7 @@ pub(crate) mod tests {
         assert!(!is_spanning_deletion(b"AC"));
     }
 
-    /* ======= BCF Record Query Function tests ======== */
+    /* ======== record_has_info_string tests ========= */
 
     /// Create a minimal VCF writer for testing INFO field operations.
     ///
@@ -1323,6 +1322,8 @@ pub(crate) mod tests {
         assert!(record_has_info_string(&record, b"REGION_ID"));
         assert!(!record_has_info_string(&record, b"NONEXISTENT"));
     }
+
+    /* ========== get_info_strings tests ============= */
 
     #[test]
     fn test_get_info_strings_single_value() {
@@ -1377,6 +1378,20 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "FromUtf8Error")]
+    fn test_get_info_strings_invalid_utf8_panics() {
+        // Non-UTF-8 bytes in a String field trigger the documented panic
+        let (_tmp, writer) =
+            create_info_test_vcf(&[br##"##INFO=<ID=BAD,Number=1,Type=String,Description="Bad">"##]);
+        let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
+        record.push_info_string(b"BAD", &[b"\xff\xfe"]).unwrap();
+
+        get_info_strings(&record, b"BAD");
+    }
+
+    /* ========= record_has_info_flag tests ========== */
+
+    #[test]
     fn test_record_has_info_flag_present_and_absent() {
         // Present: MSI_DUMMY set - true
         // Absent:  NONEXISTENT   - false
@@ -1406,6 +1421,8 @@ pub(crate) mod tests {
         let record = read_first_record(tmp.path());
         assert!(!record_has_info_flag(&record, b"MSI_DUMMY"));
     }
+
+    /* ========== read_bcf_records tests ============= */
 
     #[test]
     fn test_read_bcf_records_multiple() {
@@ -1442,7 +1459,7 @@ pub(crate) mod tests {
         assert!(result.unwrap_err().to_string().contains("invalid"));
     }
 
-    /* ======= BCF Record INFO Copy Functions ========= */
+    /* ========== copy_info_fields tests ============= */
 
     #[test]
     fn test_copy_info_fields_integer() {
@@ -1638,7 +1655,7 @@ pub(crate) mod tests {
         assert_eq!(result.info(b"SVTYPE").string().unwrap().unwrap()[0], b"INS");
     }
 
-    /* ======== validate_vcf_file tests ============== */
+    /* ====== validate_vcf_header_field tests ======== */
 
     #[test]
     fn test_validate_vcf_header_field_correct() {
@@ -1682,6 +1699,8 @@ pub(crate) mod tests {
         assert!(result.is_err());
     }
 
+    /* ====== validate_info_fields_exist tests ======= */
+
     #[test]
     fn test_validate_info_fields_exist_all_present() {
         let header = create_header_view(&[
@@ -1714,6 +1733,8 @@ pub(crate) mod tests {
         let msg = format!("{}", result.unwrap_err());
         assert!(msg.contains("MISSING") && !msg.contains("OK"));
     }
+
+    /* ======== validate_samples_exist tests ========= */
 
     #[test]
     fn test_validate_samples_exist_single_sample() {
@@ -1801,6 +1822,8 @@ pub(crate) mod tests {
 
         assert!(result.is_err(), "Sample names are case-sensitive");
     }
+
+    /* ======== validate_events_exist tests ========== */
 
     #[test]
     fn test_validate_events_exist_single_event() {
@@ -1927,8 +1950,10 @@ pub(crate) mod tests {
         assert!(result.is_err());
     }
 
+    /* === validate_required_vcf_fields_msi tests ==== */
+
     #[test]
-    fn test_validate_required_vcf_fields_all_valid() {
+    fn test_validate_required_vcf_fields_msi_all_valid() {
         let header =
             create_header_view(&[br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##]);
 
@@ -1936,7 +1961,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_validate_required_vcf_fields_missing_field() {
+    fn test_validate_required_vcf_fields_msi_missing_field() {
         let header = create_header_view(&[
             br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Test">"##,
         ]);
@@ -1948,7 +1973,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_validate_required_vcf_fields_wrong_type() {
+    fn test_validate_required_vcf_fields_msi_wrong_type() {
         let header = create_header_view(&[
             br##"##FORMAT=<ID=AF,Number=A,Type=Integer,Description="Test">"##,
         ]);
@@ -1958,6 +1983,8 @@ pub(crate) mod tests {
         let err_msg = format!("{}", result.unwrap_err());
         assert!(err_msg.contains("incorrect type"));
     }
+
+    /* ========= validate_vcf_file tests ============= */
 
     #[test]
     fn test_validate_vcf_file_with_variant() {
