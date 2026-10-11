@@ -581,19 +581,20 @@ pub(crate) fn validate_events_exist(header: &HeaderView, event_names: &[String])
 
     for event_name in event_names {
         let field_name = format!("PROB_{}", event_name.to_uppercase());
+        let field_result = header.info_type(field_name.as_bytes());
 
-        match header.info_type(field_name.as_bytes()) {
-            Err(_) => missing_events.push(event_name.clone()),
-            Ok(_) => {
-                validate_vcf_header_field(
-                    header.info_type(field_name.as_bytes()),
-                    "INFO",
-                    &field_name,
-                    MSI_INFO_PROB_EVENT_FIELD_TYPE,
-                    MSI_INFO_PROB_EVENT_FIELD_LENGTH,
-                )?;
-            }
+        if field_result.is_err() {
+            missing_events.push(event_name.clone());
+            continue;
         }
+
+        validate_vcf_header_field(
+            field_result,
+            "INFO",
+            &field_name,
+            MSI_INFO_PROB_EVENT_FIELD_TYPE,
+            MSI_INFO_PROB_EVENT_FIELD_LENGTH,
+        )?;
     }
 
     if !missing_events.is_empty() {
