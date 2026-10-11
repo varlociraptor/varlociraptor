@@ -151,7 +151,7 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
     let name = record.name().ok_or(Error::MsiBedMotifNameMissing)?;
     let motif = parse_motif_from_name(name)?;
 
-    if end <= start || (end - start) % motif.len() as u64 != 0 {
+    if end <= start || !(end - start).is_multiple_of(motif.len() as u64) {
         return Err(Error::BedRecordInvalid {
             chrom,
             pos: start,
