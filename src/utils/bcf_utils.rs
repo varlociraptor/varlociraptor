@@ -1103,11 +1103,14 @@ pub(crate) mod tests {
         let vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = vcf.header();
 
-        let result = get_sample_index(header, "nonexistent_sample");
+        let err = get_sample_index(header, "nonexistent_sample").unwrap_err();
 
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("nonexistent_sample"));
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfSamplesNotFound {
+                sample: "nonexistent_sample".to_string()
+            })
+        );
     }
 
     /* ======== get_events_probability tests ========= */
@@ -1623,9 +1626,14 @@ pub(crate) mod tests {
     #[test]
     fn test_read_bcf_records_nonexistent_file() {
         // Nonexistent path - VcfFileInvalid error
-        let result = read_bcf_records(Path::new("/nonexistent/file.vcf"));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("invalid"));
+        let path = Path::new("/nonexistent/file.vcf");
+        let err = read_bcf_records(path).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfFileInvalid {
+                path: path.to_path_buf()
+            })
+        );
     }
 
     /* ========== copy_info_fields tests ============= */
@@ -1881,9 +1889,13 @@ pub(crate) mod tests {
     #[test]
     fn test_validate_info_fields_exist_missing() {
         let header = create_header_view(&[]);
-        let result = validate_info_fields_exist(&header, &["TEST".to_string()]);
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("TEST"));
+        let err = validate_info_fields_exist(&header, &["TEST".to_string()]).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfInfoFieldsMissing {
+                fields: "TEST".to_string()
+            })
+        );
     }
 
     #[test]
@@ -1896,11 +1908,14 @@ pub(crate) mod tests {
     fn test_validate_info_fields_exist_partial_missing() {
         let header =
             create_header_view(&[br##"##INFO=<ID=OK,Number=1,Type=String,Description="Test">"##]);
-        let result =
-            validate_info_fields_exist(&header, &["OK".to_string(), "MISSING".to_string()]);
-        assert!(result.is_err());
-        let msg = format!("{}", result.unwrap_err());
-        assert!(msg.contains("MISSING") && !msg.contains("OK"));
+        let err = validate_info_fields_exist(&header, &["OK".to_string(), "MISSING".to_string()])
+            .unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfInfoFieldsMissing {
+                fields: "MISSING".to_string()
+            })
+        );
     }
 
     /* ======== validate_samples_exist tests ========= */
@@ -1947,11 +1962,14 @@ pub(crate) mod tests {
         let vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = vcf.header();
 
-        let result = validate_samples_exist(header, &["nonexistent_sample".to_string()]);
+        let err = validate_samples_exist(header, &["nonexistent_sample".to_string()]).unwrap_err();
 
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("nonexistent_sample"));
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfSamplesNotFound {
+                sample: "nonexistent_sample".to_string()
+            })
+        );
     }
 
     #[test]
@@ -1964,13 +1982,15 @@ pub(crate) mod tests {
         let vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = vcf.header();
 
-        let result =
-            validate_samples_exist(header, &["missing1".to_string(), "missing2".to_string()]);
+        let err = validate_samples_exist(header, &["missing1".to_string(), "missing2".to_string()])
+            .unwrap_err();
 
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("missing1"));
-        assert!(err_msg.contains("missing2"));
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfSamplesNotFound {
+                sample: "missing1, missing2".to_string()
+            })
+        );
     }
 
     #[test]
@@ -1984,12 +2004,19 @@ pub(crate) mod tests {
         let header = vcf.header();
 
         // Sample is "sample1" (lowercase)
-        let result = validate_samples_exist(
+        let err = validate_samples_exist(
             header,
             &["Sample1".to_string()], // Uppercase S
-        );
+        )
+        .unwrap_err();
 
-        assert!(result.is_err(), "Sample names are case-sensitive");
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfSamplesNotFound {
+                sample: "Sample1".to_string()
+            }),
+            "Sample names are case-sensitive"
+        );
     }
 
     /* ======== validate_events_exist tests ========== */
@@ -2035,12 +2062,14 @@ pub(crate) mod tests {
         let vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = vcf.header();
 
-        let result = validate_events_exist(header, &["nonexistent_event".to_string()]);
+        let err = validate_events_exist(header, &["nonexistent_event".to_string()]).unwrap_err();
 
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("nonexistent_event"));
-        assert!(err_msg.contains("PROB_"));
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfEventsMissing {
+                events: "nonexistent_event".to_string()
+            })
+        );
     }
 
     #[test]
@@ -2070,13 +2099,15 @@ pub(crate) mod tests {
         let vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
         let header = vcf.header();
 
-        let result =
-            validate_events_exist(header, &["missing1".to_string(), "missing2".to_string()]);
+        let err = validate_events_exist(header, &["missing1".to_string(), "missing2".to_string()])
+            .unwrap_err();
 
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("missing1"));
-        assert!(err_msg.contains("missing2"));
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfEventsMissing {
+                events: "missing1, missing2".to_string()
+            })
+        );
     }
 
     #[test]
@@ -2090,15 +2121,19 @@ pub(crate) mod tests {
         let header = vcf.header();
 
         // One valid, one missing
-        let result = validate_events_exist(
+        let err = validate_events_exist(
             header,
             &["somatic".to_string(), "missing_event".to_string()],
-        );
+        )
+        .unwrap_err();
 
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("missing_event"));
-        assert!(!err_msg.contains("somatic")); // Valid one not in error
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfEventsMissing {
+                events: "missing_event".to_string()
+            }),
+            "Valid event must not be listed as missing"
+        );
     }
 
     #[test]
@@ -2223,11 +2258,9 @@ pub(crate) mod tests {
 
         let mut vcf = bcf::Reader::from_path(tmp.path()).unwrap();
 
-        let result = validate_vcf_file(&mut vcf);
-        assert!(result.is_err());
+        let err = validate_vcf_file(&mut vcf).unwrap_err();
 
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("empty") || err_msg.contains("no variant"));
+        assert_eq!(err.downcast_ref::<Error>(), Some(&Error::VcfFileEmpty));
     }
 
     #[test]
