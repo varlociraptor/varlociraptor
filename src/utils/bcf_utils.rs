@@ -105,7 +105,9 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 ///     - Any `PROB_{EVENT}` field is absent or missing at `alt_idx`, because partial
 ///       data is treated as unusable rather than silently summing incomplete evidence
 ///     - `events` is empty
-/// * `Err` - NaN value in a probability field
+/// * `Err`
+///     - Any `PROB_{EVENT}` value is invalid (NaN, non-finite or negative PHRED, or linear outside [0.0, 1.0])
+///     - A `PROB_{EVENT}` field is not declared in the header or is declared with a non-Float type
 ///
 /// # Note
 /// As per current variant calling implementation in
@@ -137,7 +139,13 @@ pub(crate) fn get_events_probability(
             return Ok(None);
         }
 
-        if raw.is_nan() {
+        let invalid = if is_phred {
+            !raw.is_finite() || raw < 0.0
+        } else {
+            !(0.0..=1.0).contains(&raw)
+        };
+
+        if invalid {
             return Err(Error::VcfProbabilityValueInvalid {
                 field: field_name,
                 value: raw,
@@ -153,7 +161,7 @@ pub(crate) fn get_events_probability(
             raw as f64
         };
 
-        log_probs.push(LogProb::from(Prob(linear.clamp(0.0, 1.0))));
+        log_probs.push(LogProb::from(Prob(linear)));
     }
 
     if log_probs.is_empty() {
@@ -1134,6 +1142,88 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn test_get_events_probability_negative_phred_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            use_phred: true,
+            prob_somatic: Some(vec![-5.0]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        let result = get_events_probability(&record, 0, &["somatic".to_string()], true);
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("PROB_SOMATIC"));
+    }
+
+    #[test]
+    fn test_get_events_probability_infinite_phred_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            use_phred: true,
+            prob_somatic: Some(vec![f32::INFINITY]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        let result = get_events_probability(&record, 0, &["somatic".to_string()], true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_events_probability_linear_above_one_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            prob_somatic: Some(vec![1.5]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        let result = get_events_probability(&record, 0, &["somatic".to_string()], false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_events_probability_nan_linear_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            prob_somatic: Some(vec![f32::NAN]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        let result = get_events_probability(&record, 0, &["somatic".to_string()], false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_events_probability_nan_phred_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            use_phred: true,
+            prob_somatic: Some(vec![f32::NAN]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        let result = get_events_probability(&record, 0, &["somatic".to_string()], true);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_events_probability_undefined_field_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        // PROB_NOT_IN_HEADER is not declared in the vcf header
+        let result = get_events_probability(&record, 0, &["not_in_header".to_string()], false);
+        assert!(result.is_err());
+    }
+
     /* ========== get_sample_af tests ================ */
 
     #[test]
@@ -1213,6 +1303,30 @@ pub(crate) mod tests {
 
         // sample_idx=5 doesn't exist — should return None not panic
         assert!(get_sample_af(&record, 5, 0).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_sample_af_nan_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            af_values: Some(vec![f32::NAN]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        assert!(get_sample_af(&record, 0, 0).is_err());
+    }
+
+    #[test]
+    fn test_get_sample_af_negative_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            af_values: Some(vec![-0.5]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        assert!(get_sample_af(&record, 0, 0).is_err());
     }
 
     /* ====== is_phred_scaled_from_path tests ======== */
