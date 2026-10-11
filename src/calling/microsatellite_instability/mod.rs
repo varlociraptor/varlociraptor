@@ -118,7 +118,8 @@ impl MSIConfig {
     /// Responsibilities:
     /// 1. `calls`: validates file extension, opens the file, checks it
     ///    contains at least one variant record, and that its header declares
-    ///    FORMAT/AF with the correct type/shape (Float, one value per ALT allele).
+    ///    FORMAT/AF (Float, one value per ALT allele) and the preprocessing
+    ///    fields INFO/REGION_ID (String) and INFO/MSI_DUMMY (Flag).
     /// 2. `sample`: validates the calls file contains the specified sample.
     /// 3. `events`: validates the calls file contains the specified events in
     ///    the header, with each INFO/PROB_{EVENT} field having the correct

@@ -27,8 +27,10 @@ use rust_htslib::bcf::header::{HeaderView, TagLength, TagType};
 use rust_htslib::bcf::{self, record::Numeric, Read};
 
 use crate::constants::{
-    MSI_FORMAT_AF_FIELD_LENGTH, MSI_FORMAT_AF_FIELD_TYPE, MSI_INFO_PROB_EVENT_FIELD_LENGTH,
-    MSI_INFO_PROB_EVENT_FIELD_TYPE,
+    MSI_DUMMY_TAG, MSI_FORMAT_AF_FIELD_LENGTH, MSI_FORMAT_AF_FIELD_TYPE,
+    MSI_INFO_DUMMY_FIELD_LENGTH, MSI_INFO_DUMMY_FIELD_TYPE, MSI_INFO_PROB_EVENT_FIELD_LENGTH,
+    MSI_INFO_PROB_EVENT_FIELD_TYPE, MSI_INFO_REGION_ID_FIELD_LENGTH, MSI_INFO_REGION_ID_FIELD_TYPE,
+    MSI_REGION_ID_TAG,
 };
 use crate::errors::Error;
 use crate::utils::is_phred_scaled;
@@ -612,6 +614,8 @@ pub(crate) fn validate_events_exist(header: &HeaderView, event_names: &[String])
 ///
 /// Validates that mandatory INFO or FORMAT fields exist with correct types:
 /// - FORMAT:AF (Type=Float, Number=A)
+/// - INFO:REGION_ID (Type=String, Number=A), written by `preprocess`
+/// - INFO:MSI_DUMMY (Type=Flag, Number=0), written by `preprocess`
 ///
 /// # Arguments
 /// * `header` - VCF header to validate
@@ -626,6 +630,20 @@ pub(crate) fn validate_required_vcf_fields_msi(header: &HeaderView) -> Result<()
         "AF",
         MSI_FORMAT_AF_FIELD_TYPE,
         MSI_FORMAT_AF_FIELD_LENGTH,
+    )?;
+    validate_vcf_header_field(
+        header.info_type(MSI_REGION_ID_TAG),
+        "INFO",
+        &String::from_utf8_lossy(MSI_REGION_ID_TAG),
+        MSI_INFO_REGION_ID_FIELD_TYPE,
+        MSI_INFO_REGION_ID_FIELD_LENGTH,
+    )?;
+    validate_vcf_header_field(
+        header.info_type(MSI_DUMMY_TAG),
+        "INFO",
+        &String::from_utf8_lossy(MSI_DUMMY_TAG),
+        MSI_INFO_DUMMY_FIELD_TYPE,
+        MSI_INFO_DUMMY_FIELD_LENGTH,
     )?;
 
     Ok(())
@@ -670,6 +688,7 @@ pub(crate) mod tests {
     use tempfile::NamedTempFile;
 
     use crate::constants::test_constants::{TEST_EPSILON, TEST_EPSILON_F32, TEST_EPSILON_LOOSE};
+    use crate::constants::{MSI_DUMMY_HEADER, MSI_REGION_ID_HEADER};
 
     /// Configuration for test VCF creation.
     pub(crate) struct TestVcfConfig<'a> {
@@ -755,6 +774,8 @@ pub(crate) mod tests {
         header.push_record(
             br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">"##,
         );
+        header.push_record(MSI_REGION_ID_HEADER.as_bytes());
+        header.push_record(MSI_DUMMY_HEADER.as_bytes());
 
         let mut sample_names = Vec::new();
         for i in 0..config.num_samples {
@@ -2102,17 +2123,19 @@ pub(crate) mod tests {
 
     #[test]
     fn test_validate_required_vcf_fields_msi_all_valid() {
-        let header =
-            create_header_view(&[br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##]);
+        let header = create_header_view(&[
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##,
+            MSI_REGION_ID_HEADER.as_bytes(),
+            MSI_DUMMY_HEADER.as_bytes(),
+        ]);
 
         assert!(validate_required_vcf_fields_msi(&header).is_ok());
     }
 
     #[test]
     fn test_validate_required_vcf_fields_msi_missing_field() {
-        let header = create_header_view(&[
-            br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Test">"##,
-        ]);
+        let header =
+            create_header_view(&[MSI_REGION_ID_HEADER.as_bytes(), MSI_DUMMY_HEADER.as_bytes()]);
 
         let result = validate_required_vcf_fields_msi(&header);
         assert!(result.is_err());
@@ -2124,12 +2147,48 @@ pub(crate) mod tests {
     fn test_validate_required_vcf_fields_msi_wrong_type() {
         let header = create_header_view(&[
             br##"##FORMAT=<ID=AF,Number=A,Type=Integer,Description="Test">"##,
+            MSI_REGION_ID_HEADER.as_bytes(),
+            MSI_DUMMY_HEADER.as_bytes(),
         ]);
 
         let result = validate_required_vcf_fields_msi(&header);
         assert!(result.is_err());
         let err_msg = format!("{}", result.unwrap_err());
         assert!(err_msg.contains("incorrect type"));
+    }
+
+    #[test]
+    fn test_validate_required_vcf_fields_msi_missing_region_id() {
+        let header = create_header_view(&[
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##,
+            MSI_DUMMY_HEADER.as_bytes(),
+        ]);
+
+        let err = validate_required_vcf_fields_msi(&header).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldMissing {
+                field: String::from_utf8_lossy(MSI_REGION_ID_TAG).to_string(),
+                location: "INFO".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_required_vcf_fields_msi_missing_msi_dummy() {
+        let header = create_header_view(&[
+            br##"##FORMAT=<ID=AF,Number=A,Type=Float,Description="Test">"##,
+            MSI_REGION_ID_HEADER.as_bytes(),
+        ]);
+
+        let err = validate_required_vcf_fields_msi(&header).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldMissing {
+                field: String::from_utf8_lossy(MSI_DUMMY_TAG).to_string(),
+                location: "INFO".to_string(),
+            })
+        );
     }
 
     /* ========= validate_vcf_file tests ============= */

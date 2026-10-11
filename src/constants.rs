@@ -85,6 +85,16 @@ pub(crate) const MSI_INFO_PROB_EVENT_FIELD_LENGTH: TagLength = TagLength::AltAll
 pub(crate) const MSI_FORMAT_AF_FIELD_TYPE: TagType = TagType::Float;
 pub(crate) const MSI_FORMAT_AF_FIELD_LENGTH: TagLength = TagLength::AltAlleles;
 
+/// Shape of the preprocessing-emitted INFO/REGION_ID field
+/// (one BED region ID per ALT allele).
+pub(crate) const MSI_INFO_REGION_ID_FIELD_TYPE: TagType = TagType::String;
+pub(crate) const MSI_INFO_REGION_ID_FIELD_LENGTH: TagLength = TagLength::AltAlleles;
+
+/// Shape of the preprocessing-emitted INFO/MSI_DUMMY flag
+/// (`Number=0`, presence only).
+pub(crate) const MSI_INFO_DUMMY_FIELD_TYPE: TagType = TagType::Flag;
+pub(crate) const MSI_INFO_DUMMY_FIELD_LENGTH: TagLength = TagLength::Fixed(0);
+
 lazy_static! {
     /// Full VCF header declaration for REGION_ID INFO field.
     /// Derived from MSI_REGION_ID_TAG.
