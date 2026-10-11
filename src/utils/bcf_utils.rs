@@ -1007,12 +1007,50 @@ pub(crate) mod tests {
     /* ========== get_chrom tests ==================== */
 
     #[test]
-    fn test_get_chrom() {
+    fn test_get_chrom_valid() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig::default());
 
         let record = read_first_record(tmp_vcf.path());
         let chrom = get_chrom(&record).unwrap();
         assert_eq!(chrom, "chr1");
+    }
+
+    #[test]
+    fn test_get_chrom_missing_rid_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            num_samples: 1,
+            ..Default::default()
+        });
+        let mut record = read_first_record(tmp_vcf.path());
+        record.set_rid(None);
+        record.set_pos(41);
+
+        let err = get_chrom(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfRecordChromMissing { pos: 42 })
+        );
+    }
+
+    #[test]
+    fn test_get_chrom_unresolvable_rid_errors() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            num_samples: 1,
+            ..Default::default()
+        });
+        let mut record = read_first_record(tmp_vcf.path());
+        record.set_rid(Some(99)); // header does not have 99 contigs
+        record.set_pos(41);
+
+        let err = get_chrom(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfRecordChromResolveFailed {
+                pos: 42,
+                rid: 99,
+                details: "Failed to resolve chromosome name".to_string(),
+            })
+        );
     }
 
     /* ========== get_sample_index tests ============= */
