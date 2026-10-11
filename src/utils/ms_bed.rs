@@ -314,19 +314,36 @@ mod tests {
 
     #[test]
     fn test_parse_motif_from_name_invalid() {
-        assert!(parse_motif_from_name("5CAG").is_err()); // Missing separator
-        assert!(parse_motif_from_name("0xCAG").is_err()); // Zero count
-        assert!(parse_motif_from_name("5x").is_err()); // Empty motif
-        assert!(parse_motif_from_name("fivexCAG").is_err()); // Non-numeric count
+        for name in [
+            "5CAG",     // Missing separator
+            "0xCAG",    // Zero count
+            "5x",       // Empty motif
+            "fivexCAG", // Non-numeric count
+        ] {
+            let err = parse_motif_from_name(name).unwrap_err();
+            assert_eq!(
+                err.downcast_ref::<Error>(),
+                Some(&Error::MsiBedMotifInvalid {
+                    motif: name.to_string()
+                }),
+                "unexpected error for {name}"
+            );
+        }
     }
 
     #[test]
     fn test_parse_motif_from_name_invalid_chars() {
         // Motifs with ambiguous or invalid DNA letters should fail
-        assert!(parse_motif_from_name("5xCAGN").is_err());
-        assert!(parse_motif_from_name("3xXYZ").is_err());
-        assert!(parse_motif_from_name("2xA-T").is_err());
-        assert!(parse_motif_from_name("4x123").is_err());
+        for name in ["5xCAGN", "3xXYZ", "2xA-T", "4x123"] {
+            let err = parse_motif_from_name(name).unwrap_err();
+            assert_eq!(
+                err.downcast_ref::<Error>(),
+                Some(&Error::MsiBedMotifInvalid {
+                    motif: name.to_string()
+                }),
+                "unexpected error for {name}"
+            );
+        }
     }
 
     /* ========= parse_bed_record tests ============== */
@@ -357,37 +374,81 @@ mod tests {
     fn test_parse_bed_record_invalid_coords() {
         // start > end
         let record = bed_record_from_str("chr1\t109\t100\t3xCAG");
-        assert!(parse_bed_record(&record).is_err());
+        let err = parse_bed_record(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedRecordInvalid {
+                chrom: "chr1".to_string(),
+                pos: 109,
+                msg: "invalid region (start=109, end=100): span must be positive and an exact multiple of motif length (3)".to_string(),
+            })
+        );
 
         // start == end
         let record = bed_record_from_str("chr1\t100\t100\t1xC");
-        assert!(parse_bed_record(&record).is_err());
+        let err = parse_bed_record(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedRecordInvalid {
+                chrom: "chr1".to_string(),
+                pos: 100,
+                msg: "invalid region (start=100, end=100): span must be positive and an exact multiple of motif length (1)".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_parse_bed_record_span_shorter_than_motif() {
         // Span (1bp) fits no full copy of a 3bp motif.
         let record = bed_record_from_str("chr1\t100\t101\t3xCAG");
-        assert!(parse_bed_record(&record).is_err());
+        let err = parse_bed_record(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedRecordInvalid {
+                chrom: "chr1".to_string(),
+                pos: 100,
+                msg: "invalid region (start=100, end=101): span must be positive and an exact multiple of motif length (3)".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_parse_bed_record_span_not_exact_multiple_of_motif() {
         // Span (4bp) fits one motif copy but leaves a stray extra base.
         let record = bed_record_from_str("chr1\t100\t104\t3xCAG");
-        assert!(parse_bed_record(&record).is_err());
+        let err = parse_bed_record(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedRecordInvalid {
+                chrom: "chr1".to_string(),
+                pos: 100,
+                msg: "invalid region (start=100, end=104): span must be positive and an exact multiple of motif length (3)".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_parse_bed_record_missing_name() {
         let record = bed_record_from_str("chr1\t100\t200");
-        assert!(parse_bed_record(&record).is_err());
+        let err = parse_bed_record(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiBedMotifNameMissing)
+        );
     }
 
     #[test]
     fn test_parse_bed_record_empty_chrom() {
         let record = bed_record_from_str("\t100\t200");
-        assert!(parse_bed_record(&record).is_err());
+        let err = parse_bed_record(&record).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedRecordInvalid {
+                chrom: "(empty)".to_string(),
+                pos: 100,
+                msg: "Chromosome field is empty".to_string(),
+            })
+        );
     }
 
     /* ===== collect_bed_chromosomes tests =========== */
@@ -450,13 +511,18 @@ mod tests {
     #[test]
     fn test_validate_bed_file_empty() {
         let tmp = NamedTempFile::new().unwrap();
-        assert!(validate_bed_file(tmp.path()).is_err());
+        let err = validate_bed_file(tmp.path()).unwrap_err();
+        assert_eq!(err.downcast_ref::<Error>(), Some(&Error::BedFileEmpty));
     }
 
     #[test]
     fn test_validate_bed_file_invalid_record() {
         let tmp = NamedTempFile::new().unwrap();
         writeln!(tmp.as_file(), "chr1\t100\t200").unwrap(); // Missing name
-        assert!(validate_bed_file(tmp.path()).is_err());
+        let err = validate_bed_file(tmp.path()).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiBedMotifNameMissing)
+        );
     }
 }
