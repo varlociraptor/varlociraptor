@@ -1215,9 +1215,16 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        let result = get_events_probability(&record, 0, &["somatic".to_string()], true);
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("PROB_SOMATIC"));
+        let err = get_events_probability(&record, 0, &["somatic".to_string()], true).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfProbabilityValueInvalid {
+                field: "PROB_SOMATIC".to_string(),
+                value: -5.0,
+                chrom: "chr1".to_string(),
+                pos: 100,
+            })
+        );
     }
 
     #[test]
@@ -1230,8 +1237,16 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        let result = get_events_probability(&record, 0, &["somatic".to_string()], true);
-        assert!(result.is_err());
+        let err = get_events_probability(&record, 0, &["somatic".to_string()], true).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfProbabilityValueInvalid {
+                field: "PROB_SOMATIC".to_string(),
+                value: f32::INFINITY,
+                chrom: "chr1".to_string(),
+                pos: 100,
+            })
+        );
     }
 
     #[test]
@@ -1243,8 +1258,16 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        let result = get_events_probability(&record, 0, &["somatic".to_string()], false);
-        assert!(result.is_err());
+        let err = get_events_probability(&record, 0, &["somatic".to_string()], false).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfProbabilityValueInvalid {
+                field: "PROB_SOMATIC".to_string(),
+                value: 1.5,
+                chrom: "chr1".to_string(),
+                pos: 100,
+            })
+        );
     }
 
     #[test]
@@ -1323,7 +1346,16 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        assert!(get_sample_af(&record, 0, 0).is_err());
+        let err = get_sample_af(&record, 0, 0).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfAlleleFrequencyInvalid {
+                sample: "sample_idx=0".to_string(),
+                af: 1.5,
+                chrom: "chr1".to_string(),
+                pos: 100,
+            })
+        );
     }
 
     #[test]
@@ -1389,7 +1421,16 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        assert!(get_sample_af(&record, 0, 0).is_err());
+        let err = get_sample_af(&record, 0, 0).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfAlleleFrequencyInvalid {
+                sample: "sample_idx=0".to_string(),
+                af: -0.5,
+                chrom: "chr1".to_string(),
+                pos: 100,
+            })
+        );
     }
 
     /* ====== is_phred_scaled_from_path tests ======== */
@@ -1853,27 +1894,43 @@ pub(crate) mod tests {
         let header = create_header_view(&[
             br##"##INFO=<ID=TEST,Number=A,Type=Integer,Description="Test">"##,
         ]);
-        let result = validate_vcf_header_field(
+        let err = validate_vcf_header_field(
             header.info_type(b"TEST"),
             "INFO",
             "TEST",
             TagType::Float,
             TagLength::AltAlleles,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldTypeInvalid {
+                location: "INFO".to_string(),
+                field: "TEST".to_string(),
+                expected: "Type=Float, Number=AltAlleles".to_string(),
+                found: "Type=Integer, Number=AltAlleles".to_string(),
+            })
         );
-        assert!(result.is_err());
     }
 
     #[test]
     fn test_validate_vcf_header_field_missing() {
         let header = create_header_view(&[]);
-        let result = validate_vcf_header_field(
+        let err = validate_vcf_header_field(
             header.info_type(b"TEST"),
             "INFO",
             "TEST",
             TagType::Float,
             TagLength::AltAlleles,
+        )
+        .unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldMissing {
+                field: "TEST".to_string(),
+                location: "INFO".to_string(),
+            })
         );
-        assert!(result.is_err());
     }
 
     /* ====== validate_info_fields_exist tests ======= */
@@ -2141,8 +2198,16 @@ pub(crate) mod tests {
         let header = create_header_view(&[
             br##"##INFO=<ID=PROB_FOO,Number=A,Type=Integer,Description="Test">"##,
         ]);
-        let result = validate_events_exist(&header, &["foo".to_string()]);
-        assert!(result.is_err());
+        let err = validate_events_exist(&header, &["foo".to_string()]).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldTypeInvalid {
+                location: "INFO".to_string(),
+                field: "PROB_FOO".to_string(),
+                expected: "Type=Float, Number=AltAlleles".to_string(),
+                found: "Type=Integer, Number=AltAlleles".to_string(),
+            })
+        );
     }
 
     #[test]
@@ -2150,8 +2215,16 @@ pub(crate) mod tests {
         let header = create_header_view(&[
             br##"##INFO=<ID=PROB_FOO,Number=1,Type=Float,Description="Test">"##,
         ]);
-        let result = validate_events_exist(&header, &["foo".to_string()]);
-        assert!(result.is_err());
+        let err = validate_events_exist(&header, &["foo".to_string()]).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldTypeInvalid {
+                location: "INFO".to_string(),
+                field: "PROB_FOO".to_string(),
+                expected: "Type=Float, Number=AltAlleles".to_string(),
+                found: "Type=Float, Number=Fixed(1)".to_string(),
+            })
+        );
     }
 
     /* === validate_required_vcf_fields_msi tests ==== */
@@ -2172,10 +2245,14 @@ pub(crate) mod tests {
         let header =
             create_header_view(&[MSI_REGION_ID_HEADER.as_bytes(), MSI_DUMMY_HEADER.as_bytes()]);
 
-        let result = validate_required_vcf_fields_msi(&header);
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("AF") && err_msg.contains("missing"));
+        let err = validate_required_vcf_fields_msi(&header).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldMissing {
+                field: "AF".to_string(),
+                location: "FORMAT".to_string(),
+            })
+        );
     }
 
     #[test]
@@ -2186,10 +2263,16 @@ pub(crate) mod tests {
             MSI_DUMMY_HEADER.as_bytes(),
         ]);
 
-        let result = validate_required_vcf_fields_msi(&header);
-        assert!(result.is_err());
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("incorrect type"));
+        let err = validate_required_vcf_fields_msi(&header).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldTypeInvalid {
+                location: "FORMAT".to_string(),
+                field: "AF".to_string(),
+                expected: "Type=Float, Number=AltAlleles".to_string(),
+                found: "Type=Integer, Number=AltAlleles".to_string(),
+            })
+        );
     }
 
     #[test]
