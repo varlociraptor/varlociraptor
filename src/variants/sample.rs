@@ -12,7 +12,7 @@ use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
     major_read_position, Observable, ReadObservation,
 };
-use crate::variants::types::methylation::extract_mm_ml_5mc;
+use crate::variants::types::methylation::{extract_mm_ml_5mc, MethylationInfo};
 use crate::variants::types::Loci;
 use crate::variants::types::Variant;
 use anyhow::Result;
@@ -31,8 +31,7 @@ use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 
-type MethylationPosToProbs = HashMap<usize, LogProb>;
-type MethylationOfRead = HashMap<ByAddress<Arc<Record>>, Option<Rc<MethylationPosToProbs>>>;
+type MethylationOfRead = HashMap<ByAddress<Arc<Record>>, Option<Rc<MethylationInfo>>>;
 
 #[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -46,6 +45,8 @@ pub(crate) struct RecordBuffer {
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
     failed_reads: Option<HashSet<ByAddress<Arc<Record>>>>,
+    // Probability of methylation for cytosines skipped in the MM tag. None if reads are not annotated with MM/ML tags.
+    methylation_prob_skipped_bases: Option<LogProb>,
 }
 
 impl RecordBuffer {
@@ -53,22 +54,23 @@ impl RecordBuffer {
         inner: bam::RecordBuffer,
         single_read_window: u64,
         read_pair_window: u64,
-        methylation_mm_ml_tag: bool,
+        methylation_prob_skipped_bases: Option<LogProb>,
     ) -> Self {
         RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
-            methylation_probs: if methylation_mm_ml_tag {
+            methylation_probs: if methylation_prob_skipped_bases.is_some() {
                 Some(HashMap::new())
             } else {
                 None
             },
-            failed_reads: if methylation_mm_ml_tag {
+            failed_reads: if methylation_prob_skipped_bases.is_some() {
                 Some(HashSet::new())
             } else {
                 None
             },
+            methylation_prob_skipped_bases,
         }
     }
 
@@ -85,7 +87,7 @@ impl RecordBuffer {
     pub(crate) fn get_read_specific_meth_probs(
         &self,
         rec: &Arc<Record>,
-    ) -> Option<Rc<HashMap<usize, LogProb>>> {
+    ) -> Option<Rc<MethylationInfo>> {
         self.methylation_probs.as_ref().and_then(|meth_probs| {
             meth_probs
                 .get(&ByAddress(Arc::clone(rec)))
@@ -115,7 +117,9 @@ impl RecordBuffer {
                     // If the read has been processed in a previous fetch we skip it.
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         // Extract methylation probs out of MM and ML tag and save in methylation_probs
-                        let pos_to_probs = extract_mm_ml_5mc(rec).map(Rc::new);
+                        let pos_to_probs =
+                            extract_mm_ml_5mc(rec, self.methylation_prob_skipped_bases.unwrap())
+                                .map(Rc::new);
                         // If extraction failed we add the read to the failed reads set to avoid reprocessing it in future fetches.
                         if pos_to_probs.is_none() {
                             failed_reads.insert(rec_id);
@@ -252,7 +256,7 @@ impl SampleBuilder {
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
-        methylation_mm_ml_tag: bool,
+        methylation_prob_skipped_bases: Option<LogProb>,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -274,7 +278,7 @@ impl SampleBuilder {
                 record_buffer,
                 single_read_window,
                 read_pair_window,
-                methylation_mm_ml_tag,
+                methylation_prob_skipped_bases,
             ))
     }
 }

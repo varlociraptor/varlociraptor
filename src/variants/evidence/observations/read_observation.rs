@@ -4,13 +4,13 @@
 // except according to those terms.
 
 use std::char;
-use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 
+use crate::variants::types::methylation::MethylationInfo;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb};
@@ -708,13 +708,13 @@ pub struct AlignmentRecord {
     #[deref]
     record: Arc<bam::Record>,
     #[getset(get = "pub")]
-    prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+    prob_methylation: Option<Rc<MethylationInfo>>,
 }
 
 impl AlignmentRecord {
     pub(crate) fn new(
         record: Arc<bam::Record>,
-        prob_methylation: Option<Rc<HashMap<usize, LogProb>>>,
+        prob_methylation: Option<Rc<MethylationInfo>>,
     ) -> Self {
         AlignmentRecord {
             record,

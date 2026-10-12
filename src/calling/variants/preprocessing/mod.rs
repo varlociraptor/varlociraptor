@@ -11,6 +11,7 @@ use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{bail, Context, Result};
+use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
@@ -77,6 +78,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     adjust_prob_mapping: bool,
     atomic_candidate_variants: bool,
     methylation_readtype: Option<MethylationReadtype>,
+    methylation_prob_skipped_bases: LogProb,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
@@ -224,10 +226,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 ),
             )
             .context("Unable to read reference FASTA")?;
-        let methylation_mm_ml_tag = matches!(
-            self.methylation_readtype,
-            Some(MethylationReadtype::Annotated)
-        );
+        // Only reads annotated with MM/ML tags need the probability for skipped bases
+        let methylation_prob_skipped_bases = match self.methylation_readtype {
+            Some(MethylationReadtype::Annotated) => Some(self.methylation_prob_skipped_bases),
+            _ => None,
+        };
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
@@ -237,7 +240,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 bam_reader,
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
-                methylation_mm_ml_tag,
+                methylation_prob_skipped_bases,
             )
             .build()
             .unwrap();
