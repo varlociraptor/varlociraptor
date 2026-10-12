@@ -1206,6 +1206,36 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_get_events_probability_empty_events_returns_none() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        assert!(get_events_probability(&record, 0, &[], false)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn test_get_events_probability_alt_idx_out_of_bounds_returns_none() {
+        // One ALT allele, so alt_idx=1 is past the end of PROB_SOMATIC
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            prob_somatic: Some(vec![0.9]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        assert!(
+            get_events_probability(&record, 1, &["somatic".to_string()], false)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn test_get_events_probability_negative_phred_errors() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
             use_phred: true,
