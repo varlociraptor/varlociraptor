@@ -77,11 +77,11 @@ pub(crate) fn get_chrom(record: &bcf::Record) -> Result<String> {
 ///
 /// # Returns
 /// * `Ok(idx)` if the sample exists
-/// * `Err(Error::VcfSamplesNotFound)` if it does not
+/// * `Err(Error::VcfSamplesMissing)` if it does not
 pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usize> {
     header.sample_id(sample.as_bytes()).ok_or_else(|| {
-        Error::VcfSamplesNotFound {
-            sample: sample.to_string(),
+        Error::VcfSamplesMissing {
+            samples: sample.to_string(),
         }
         .into()
     })
@@ -540,8 +540,8 @@ pub(crate) fn validate_samples_exist(
     }
 
     if !missing.is_empty() {
-        return Err(Error::VcfSamplesNotFound {
-            sample: missing.join(", "),
+        return Err(Error::VcfSamplesMissing {
+            samples: missing.join(", "),
         }
         .into());
     }
@@ -766,7 +766,7 @@ pub(crate) mod tests {
             );
         }
 
-        // Conditionally set PROB_ABSENT, PROB_ARTIFACT and PROB_SOMATIC headers based on use_phred
+        // Conditionally set PROB_ABSENT, PROB_ARTIFACT, PROB_SOMATIC and PROB_HIGH_VAF headers based on use_phred
         if config.use_phred {
             header.push_record(br##"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Probability absent (PHRED)">"##);
             header.push_record(br##"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Probability artifact (PHRED)">"##);
@@ -849,9 +849,9 @@ pub(crate) mod tests {
             Some(pa) => pa,
             None => {
                 if config.use_phred {
-                    vec![20.0; config.alt_alleles.len()]
+                    vec![10.0; config.alt_alleles.len()]
                 } else {
-                    vec![0.005; config.alt_alleles.len()]
+                    vec![0.1; config.alt_alleles.len()]
                 }
             }
         };
@@ -862,9 +862,9 @@ pub(crate) mod tests {
             Some(pa) => pa,
             None => {
                 if config.use_phred {
-                    vec![10.0; config.alt_alleles.len()]
+                    vec![6.9897; config.alt_alleles.len()]
                 } else {
-                    vec![0.005; config.alt_alleles.len()]
+                    vec![0.2; config.alt_alleles.len()]
                 }
             }
         };
@@ -877,9 +877,9 @@ pub(crate) mod tests {
                 Some(ps) => ps,
                 None => {
                     if config.use_phred {
-                        vec![30.0; config.alt_alleles.len()]
+                        vec![5.2288; config.alt_alleles.len()]
                     } else {
-                        vec![0.001; config.alt_alleles.len()]
+                        vec![0.3; config.alt_alleles.len()]
                     }
                 }
             };
@@ -892,9 +892,9 @@ pub(crate) mod tests {
                 Some(phv) => phv,
                 None => {
                     if config.use_phred {
-                        vec![40.0; config.alt_alleles.len()]
+                        vec![3.9794; config.alt_alleles.len()]
                     } else {
-                        vec![0.0001; config.alt_alleles.len()]
+                        vec![0.4; config.alt_alleles.len()]
                     }
                 }
             };
@@ -1144,8 +1144,8 @@ pub(crate) mod tests {
 
         assert_eq!(
             err.downcast_ref::<Error>(),
-            Some(&Error::VcfSamplesNotFound {
-                sample: "nonexistent_sample".to_string()
+            Some(&Error::VcfSamplesMissing {
+                samples: "nonexistent_sample".to_string()
             })
         );
     }
@@ -2062,8 +2062,8 @@ pub(crate) mod tests {
 
         assert_eq!(
             err.downcast_ref::<Error>(),
-            Some(&Error::VcfSamplesNotFound {
-                sample: "nonexistent_sample".to_string()
+            Some(&Error::VcfSamplesMissing {
+                samples: "nonexistent_sample".to_string()
             })
         );
     }
@@ -2083,8 +2083,8 @@ pub(crate) mod tests {
 
         assert_eq!(
             err.downcast_ref::<Error>(),
-            Some(&Error::VcfSamplesNotFound {
-                sample: "missing1, missing2".to_string()
+            Some(&Error::VcfSamplesMissing {
+                samples: "missing1, missing2".to_string()
             })
         );
     }
@@ -2108,8 +2108,8 @@ pub(crate) mod tests {
 
         assert_eq!(
             err.downcast_ref::<Error>(),
-            Some(&Error::VcfSamplesNotFound {
-                sample: "Sample1".to_string()
+            Some(&Error::VcfSamplesMissing {
+                samples: "Sample1".to_string()
             }),
             "Sample names are case-sensitive"
         );
