@@ -3,11 +3,12 @@
 //! Utilities for VCF/BCF file handling and parsing.
 //!
 //! This module provides:
-//! 1. Sample information extraction
-//! 2. Record field extraction (chromosome, SVLEN, probabilities, allele frequencies)
+//! 1. Record field extraction (chromosome, sample index, events probability, allele frequency)
+//! 2. VCF specification checks (PHRED-scaled probabilities)
 //! 3. Allele type classification (symbolic, breakend, reference, spanning deletion)
-//! 4. VCF/BCF fields validation
-//! 5. VCF file validation
+//! 4. Record queries (INFO string and flag fields, reading all records of a file)
+//! 5. INFO field copying between records
+//! 6. Header and file validation (samples, INFO fields, events, MSI-required fields, non-empty file)
 //!
 //! Note:
 //! Helpful General Data Structs or functions (that can be copied) can be found in following PR:
@@ -185,7 +186,7 @@ pub(crate) fn get_events_probability(
 ///
 /// # Returns
 /// * `Ok(Some(af))` - AF in [0.0, 1.0]
-/// * `Ok(None)` - Field absent or value missing
+/// * `Ok(None)` - Field absent, value missing, or `sample_idx`/`alt_idx` out of range
 /// * `Err` - AF outside [0.0, 1.0] or NaN
 pub(crate) fn get_sample_af(
     record: &bcf::Record,
@@ -571,6 +572,8 @@ pub(crate) fn validate_samples_exist(
 ///   missing events listed comma-separated in the error message
 /// * `VcfHeaderFieldTypeInvalid` if a PROB_{EVENT} field is found but isn't
 ///   `Type=Float, Number=A`
+/// * A wrong-type field returns immediately, so any missing events are not
+///   reported in that case
 ///
 /// # Event Field Mapping
 /// ```text
@@ -658,7 +661,7 @@ pub(crate) fn validate_required_vcf_fields_msi(header: &HeaderView) -> Result<()
 ///
 /// # Returns
 /// * `Ok(())` if file has at least one variant
-/// * `Err` if file is empty or read fails
+/// * `Err` if file is empty, a record cannot be read, or its chromosome cannot be resolved
 ///
 /// # Note
 /// Advances the reader past the first record - reopen the file before
@@ -1024,6 +1027,34 @@ pub(crate) mod tests {
             wtr.write(&rec).unwrap();
         }
         tmp
+    }
+
+    /// Create a minimal VCF writer for testing INFO field operations.
+    ///
+    /// Creates a temporary VCF file with a minimal header containing
+    /// only `fileformat` and `chr1` contig, plus any additional header
+    /// records provided by the caller (e.g., INFO field definitions).
+    ///
+    /// The returned `NamedTempFile` must be kept alive for the duration
+    /// of the test - dropping it deletes the file.
+    ///
+    /// # Arguments
+    /// * `info_records` - Additional header lines to include
+    ///   (e.g., `br##"##INFO=<ID=REGION_ID,Number=1,Type=String,Description="Region">"##`)
+    ///
+    /// # Returns
+    /// Tuple of `(tmp_file, writer)` - caller writes records via writer,
+    /// then drops writer
+    fn create_info_test_vcf(info_records: &[&[u8]]) -> (NamedTempFile, bcf::Writer) {
+        let tmp = NamedTempFile::new().unwrap();
+        let mut header = bcf::Header::new();
+        header.push_record(br"##fileformat=VCFv4.2");
+        header.push_record(br"##contig=<ID=chr1,length=1000000>");
+        for record in info_records {
+            header.push_record(record);
+        }
+        let writer = bcf::Writer::from_path(tmp.path(), &header, true, bcf::Format::Vcf).unwrap();
+        (tmp, writer)
     }
 
     /* ========== get_chrom tests ==================== */
@@ -1518,34 +1549,6 @@ pub(crate) mod tests {
     }
 
     /* ======== record_has_info_string tests ========= */
-
-    /// Create a minimal VCF writer for testing INFO field operations.
-    ///
-    /// Creates a temporary VCF file with a minimal header containing
-    /// only `fileformat` and `chr1` contig, plus any additional header
-    /// records provided by the caller (e.g., INFO field definitions).
-    ///
-    /// The returned `NamedTempFile` must be kept alive for the duration
-    /// of the test - dropping it deletes the file.
-    ///
-    /// # Arguments
-    /// * `info_records` - Additional header lines to include
-    ///   (e.g., `br##"##INFO=<ID=REGION_ID,Number=1,Type=String,Description="Region">"##`)
-    ///
-    /// # Returns
-    /// Tuple of `(tmp_file, writer)` - caller writes records via writer,
-    /// then drops writer
-    fn create_info_test_vcf(info_records: &[&[u8]]) -> (NamedTempFile, bcf::Writer) {
-        let tmp = NamedTempFile::new().unwrap();
-        let mut header = bcf::Header::new();
-        header.push_record(br"##fileformat=VCFv4.2");
-        header.push_record(br"##contig=<ID=chr1,length=1000000>");
-        for record in info_records {
-            header.push_record(record);
-        }
-        let writer = bcf::Writer::from_path(tmp.path(), &header, true, bcf::Format::Vcf).unwrap();
-        (tmp, writer)
-    }
 
     #[test]
     fn test_record_has_info_string_present_and_absent() {
