@@ -260,7 +260,7 @@ pub(crate) fn is_reference_allele(allele: &[u8]) -> bool {
     allele == b"." || allele == b"<REF>"
 }
 
-/// Check if allele is symbolic (starts with <).
+/// Check if allele is symbolic (enclosed in `<` and `>`, e.g. `<DEL>`).
 ///
 /// # Arguments
 /// * `allele` - Allele sequence as byte slice
@@ -616,9 +616,9 @@ pub(crate) fn validate_events_exist(header: &HeaderView, event_names: &[String])
 /// Validate VCF header contains required fields for MSI analysis.
 ///
 /// Validates that mandatory INFO or FORMAT fields exist with correct types:
-/// - FORMAT:AF (Type=Float, Number=A)
-/// - INFO:REGION_ID (Type=String, Number=A), written by `preprocess`
-/// - INFO:MSI_DUMMY (Type=Flag, Number=0), written by `preprocess`
+/// - FORMAT/AF (Type=Float, Number=A)
+/// - INFO/REGION_ID (Type=String, Number=A), written by `preprocess`
+/// - INFO/MSI_DUMMY (Type=Flag, Number=0), written by `preprocess`
 ///
 /// # Arguments
 /// * `header` - VCF header to validate
