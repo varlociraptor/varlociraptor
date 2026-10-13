@@ -17,7 +17,7 @@
 //! 3. Function to get combined probability that variant is absent (artifact): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L161
 //! 4. Function to extract per-sample allele frequencies for a specific ALT allele: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L258
 //! 5. Function to get SVLEN from INFO field or calculate dynamically: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L98
-//! 6. Function to check if all alleles are SNVs (all same length as REF), removed from this file: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L319
+//! 6. Function to check if all alleles are SNVs (all same length as REF): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L319
 
 use std::path::Path;
 
@@ -731,6 +731,12 @@ pub(crate) mod tests {
     }
 
     /// Create a one-record VCF from a [`TestVcfConfig`].
+    ///
+    /// The record is always at `chr1:100` (0-based position 99) with genotype `0/1`
+    /// for every sample. The header declares `INFO/SVLEN`, the four `INFO/PROB_*`
+    /// fields (`Number=A`, `Type=Float`), `FORMAT/GT`, `FORMAT/AF`, `INFO/REGION_ID`
+    /// and `INFO/MSI_DUMMY` and each of `extra_info_fields`, whose values are written
+    /// to the record.
     ///
     /// # Arguments
     /// * `config` - Alleles, probabilities, AF values, samples and extra INFO fields to write
