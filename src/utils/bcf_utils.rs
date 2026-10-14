@@ -187,7 +187,7 @@ pub(crate) fn get_events_probability(
 ///
 /// # Returns
 /// * `Ok(Some(af))` - AF in [0.0, 1.0]
-/// * `Ok(None)` - Field absent, value missing, or `sample_idx`/`alt_idx` out of range
+/// * `Ok(None)` - Field absent or unreadable, value missing, or `sample_idx`/`alt_idx` out of range
 /// * `Err` - AF outside [0.0, 1.0] or NaN
 pub(crate) fn get_sample_af(
     record: &bcf::Record,
@@ -208,7 +208,7 @@ pub(crate) fn get_sample_af(
         return Ok(None);
     }
 
-    if af.is_nan() || !(0.0..=1.0).contains(&af) {
+    if !(0.0..=1.0).contains(&af) {
         return Err(Error::VcfAlleleFrequencyInvalid {
             sample: format!("sample_idx={}", sample_idx),
             af,
@@ -248,9 +248,7 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
 
 /// Check if allele represents no variant (reference).
 ///
-/// Matches alleles that indicate "no alternative allele":
-/// - `.` - Missing/no ALT allele (VCF spec)
-/// - `<REF>` - Explicit reference allele (rare)
+/// Matches the missing ALT allele `.`.
 ///
 /// # Arguments
 /// * `allele` - Allele sequence as byte slice
@@ -258,7 +256,7 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
 /// # Returns
 /// `true` if allele is reference, `false` otherwise
 pub(crate) fn is_reference_allele(allele: &[u8]) -> bool {
-    allele == b"." || allele == b"<REF>"
+    allele == b"."
 }
 
 /// Check if allele is symbolic (enclosed in `<` and `>`, e.g. `<DEL>`).
@@ -272,7 +270,8 @@ pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
     allele.len() >= 3 && allele.starts_with(b"<") && allele.ends_with(b">")
 }
 
-/// Check if allele is a breakend (contains `[` or `]`).
+/// Check if allele is a breakend: paired (contains `[` or `]`) or single
+/// (a `.` before or after the bases, e.g. `G.` or `.A`).
 ///
 /// # Arguments
 /// * `allele` - Allele sequence as byte slice
@@ -281,6 +280,7 @@ pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
 /// `true` if allele is a breakend, `false` otherwise
 pub(crate) fn is_breakend(allele: &[u8]) -> bool {
     allele.iter().any(|&c| c == b'[' || c == b']')
+        || (allele.len() > 1 && (allele.starts_with(b".") || allele.ends_with(b".")))
 }
 
 /// Check if allele is a spanning deletion (*).
@@ -1515,7 +1515,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_get_sample_af_sample_idx_out_of_bounds() {
+    fn test_get_sample_af_sample_idx_out_of_bounds_returns_none() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
             af_values: Some(vec![0.5]),
             num_samples: 1,
@@ -1523,8 +1523,21 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        // sample_idx=5 doesn't exist — should return None not panic
+        // sample_idx=5 doesn't exist - should return None not panic
         assert!(get_sample_af(&record, 5, 0).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_get_sample_af_alt_idx_out_of_bounds_returns_none() {
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            af_values: Some(vec![0.5]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        // One ALT allele, so alt_idx=1 doesn't exist - should return None not panic
+        assert!(get_sample_af(&record, 0, 1).unwrap().is_none());
     }
 
     #[test]
@@ -1598,16 +1611,21 @@ pub(crate) mod tests {
     fn test_allele_type_checks() {
         // Reference allele
         assert!(is_reference_allele(b"."));
-        assert!(is_reference_allele(b"<REF>"));
+        assert!(!is_reference_allele(b"A"));
 
         // Symbolic
         assert!(is_symbolic(b"<DEL>"));
         assert!(is_symbolic(b"<DUP:TANDEM>"));
         assert!(!is_symbolic(b"ACG"));
+        assert!(!is_symbolic(b"<>"));
 
         // Breakend
         assert!(is_breakend(b"A[chr2:100["));
+        assert!(is_breakend(b"]chr2:100]A"));
         assert!(!is_breakend(b"ACG"));
+        assert!(is_breakend(b"G.")); // single breakend, dot after
+        assert!(is_breakend(b".A")); // single breakend, dot before
+        assert!(!is_breakend(b".")); // missing ALT is not a breakend
 
         // Spanning deletion
         assert!(is_spanning_deletion(b"*"));
