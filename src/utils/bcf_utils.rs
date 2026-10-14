@@ -92,9 +92,10 @@ pub(crate) fn get_sample_index(header: &HeaderView, sample: &str) -> Result<usiz
 ///
 /// # Algorithm
 /// 1. For each event name, read `INFO/PROB_{EVENT}` (uppercased) at `alt_idx`
-/// 2. Convert to log-space
-/// 3. Sum via `LogProb::ln_sum_exp`
-/// 4. Return the result as a linear probability
+/// 2. Validate the value (linear in [0.0, 1.0]; PHRED finite and >= 0.0)
+/// 3. Convert to a linear probability if PHRED-scaled, then to log-space
+/// 4. Sum via `LogProb::ln_sum_exp`
+/// 5. Return the linear result, clamped to [0.0, 1.0]
 ///
 /// # Arguments
 /// * `record` - VCF record
@@ -1243,6 +1244,65 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn test_get_events_probability_missing_value_returns_none() {
+        // PROB_SOMATIC is on the record but set to '.' (missing)
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            prob_somatic: Some(vec![f32::missing()]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        assert!(
+            get_events_probability(&record, 0, &["somatic".to_string()], false)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_get_events_probability_one_event_absent_returns_none() {
+        // Partial data: PROB_SOMATIC is valid but PROB_HIGH_VAF is not on the record
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            write_prob_high_vaf: false,
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        assert!(get_events_probability(
+            &record,
+            0,
+            &["somatic".to_string(), "high_vaf".to_string()],
+            false
+        )
+        .unwrap()
+        .is_none());
+    }
+
+    #[test]
+    fn test_get_events_probability_sum_above_one_is_clamped() {
+        // 0.6 + 0.6 = 1.2 in log-space, clamped to 1.0
+        let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
+            prob_somatic: Some(vec![0.6]),
+            prob_high_vaf: Some(vec![0.6]),
+            num_samples: 1,
+            ..Default::default()
+        });
+        let record = read_first_record(tmp_vcf.path());
+
+        let p = get_events_probability(
+            &record,
+            0,
+            &["somatic".to_string(), "high_vaf".to_string()],
+            false,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(p, 1.0);
+    }
+
+    #[test]
     fn test_get_events_probability_empty_events_returns_none() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
             num_samples: 1,
@@ -1317,7 +1377,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_get_events_probability_linear_above_one_errors() {
+    fn test_get_events_probability_above_one_linear_errors() {
         let (tmp_vcf, _) = create_test_vcf(TestVcfConfig {
             prob_somatic: Some(vec![1.5]),
             num_samples: 1,
