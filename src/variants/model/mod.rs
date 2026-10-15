@@ -262,8 +262,8 @@ pub(crate) enum Variant {
 impl fmt::Display for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let fmt_allele = |mut allele: &[u8]| {
-            if allele.len() > 10 {
-                allele = &allele[..10];
+            if allele.len() > 30 {
+                allele = &allele[..30];
             }
             String::from_utf8_lossy(allele).into_owned()
         };
