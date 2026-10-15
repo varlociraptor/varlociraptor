@@ -11,14 +11,12 @@
 # mix of high and low mapq values, olny some reads show the variant
 # in this case the different mappings could be the origin
 
+# The observed VAF (30%) is in principle too high for an FFPE artifact.
+# Maybe a pangenome induced alignment artifact is more likely.
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - tumor > 0.3 && tumor < 0.45
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - tumor == 0.0
 
 # necessary bam files
 samples:
