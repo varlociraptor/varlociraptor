@@ -385,10 +385,11 @@ pub fn read_bcf_records(path: &Path) -> Result<Vec<bcf::Record>> {
 
 /// Copy specified INFO fields from source to destination BCF record.
 ///
-/// Silently skips fields not declared in the source header. A field that
-/// is declared but fails to read (e.g. a value not matching its declared
-/// type or count) returns an `Err` rather than being silently dropped.
-/// Handles all VCF INFO field types: Integer, Float, String, Flag.
+/// Silently skips fields not declared in the source header, or declared but
+/// not set on the record. Returns an `Err` if a field cannot be read from the
+/// source or written to the destination, e.g. because the destination header
+/// does not declare it. Handles all VCF INFO field types:
+/// Integer, Float, String, Flag.
 ///
 /// Designed for use in preprocessing pipelines where a fresh output
 /// record needs selected INFO fields carried over from the input.
@@ -1867,7 +1868,7 @@ pub(crate) mod tests {
         let (tmp_src, mut writer) = create_info_test_vcf(&[
             br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
         ]);
-        let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
+        let mut record = create_test_record(&writer, 0, 100, b"A", b"ATTT");
         record.push_info_integer(b"SVLEN", &[3]).unwrap();
         writer.write(&record).unwrap();
         drop(writer);
@@ -1877,7 +1878,7 @@ pub(crate) mod tests {
             br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
         ]);
         let src = read_first_record(tmp_src.path());
-        let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
+        let mut dst = create_test_record(&writer, 0, 100, b"A", b"ATTT");
         copy_info_fields(&src, &mut dst, &["SVLEN"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
@@ -1958,7 +1959,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_copy_info_fields_absent_silently_skipped() {
+    fn test_copy_info_fields_undeclared_silently_skipped() {
         // Source has no SVLEN - copy should succeed, dest field absent
         let (tmp_src, mut writer) = create_info_test_vcf(&[]);
         let record = create_test_record(&writer, 0, 100, b"A", b"AT");
@@ -1980,51 +1981,45 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_copy_info_fields_number_mismatch_errors() {
-        // Header declares Number=1 (exactly one value expected)
+    fn test_copy_info_fields_declared_but_unset_silently_skipped() {
+        // Source declares SVLEN but the record doesn't set it - copy succeeds, dest field absent
         let (tmp_src, mut writer) = create_info_test_vcf(&[
-            br##"##INFO=<ID=BADCOUNT,Number=1,Type=Integer,Description="Test">"##,
+            br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
         ]);
-        let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
-        // Write 3 values where the header says exactly 1 is expected
-        record.push_info_integer(b"BADCOUNT", &[1, 2, 3]).unwrap();
+        let record = create_test_record(&writer, 0, 100, b"A", b"AT");
         writer.write(&record).unwrap();
         drop(writer);
 
-        let (_tmp_dst, writer) = create_info_test_vcf(&[]);
+        let (tmp_dst, mut writer) = create_info_test_vcf(&[
+            br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
+        ]);
         let src = read_first_record(tmp_src.path());
         let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
 
-        let result = copy_info_fields(&src, &mut dst, &["BADCOUNT"]);
-        assert!(
-            result.is_err(),
-            "Number=1 field with 3 stored values should error, got {:?}",
-            result
-        );
+        assert!(copy_info_fields(&src, &mut dst, &["SVLEN"]).is_ok());
+        writer.write(&dst).unwrap();
+        drop(writer);
+
+        let result = read_first_record(tmp_dst.path());
+        assert!(result.info(b"SVLEN").integer().unwrap().is_none());
     }
 
     #[test]
-    fn test_copy_info_fields_type_mismatch_errors() {
-        // Header declares Type=Integer
+    fn test_copy_info_fields_dest_undeclared_errors() {
+        // Source has SVLEN set, but the destination header does not declare it - write fails
         let (tmp_src, mut writer) = create_info_test_vcf(&[
-            br##"##INFO=<ID=BADTYPE,Number=1,Type=Integer,Description="Test">"##,
+            br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
         ]);
-        let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
-        // But actually write it as a Float
-        record.push_info_float(b"BADTYPE", &[1.5]).unwrap();
+        let mut record = create_test_record(&writer, 0, 100, b"A", b"ATTT");
+        record.push_info_integer(b"SVLEN", &[3]).unwrap();
         writer.write(&record).unwrap();
         drop(writer);
 
         let (_tmp_dst, writer) = create_info_test_vcf(&[]);
         let src = read_first_record(tmp_src.path());
-        let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
+        let mut dst = create_test_record(&writer, 0, 100, b"A", b"ATTT");
 
-        let result = copy_info_fields(&src, &mut dst, &["BADTYPE"]);
-        assert!(
-            result.is_err(),
-            "Integer-declared field actually stored as Float should error, got {:?}",
-            result
-        );
+        assert!(copy_info_fields(&src, &mut dst, &["SVLEN"]).is_err());
     }
 
     #[test]
@@ -2034,7 +2029,7 @@ pub(crate) mod tests {
             br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##,
             br##"##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">"##,
         ]);
-        let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
+        let mut record = create_test_record(&writer, 0, 100, b"A", b"ATTT");
         record.push_info_integer(b"SVLEN", &[3]).unwrap();
         record.push_info_string(b"SVTYPE", &[b"INS"]).unwrap();
         writer.write(&record).unwrap();
@@ -2045,7 +2040,7 @@ pub(crate) mod tests {
             br##"##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">"##,
         ]);
         let src = read_first_record(tmp_src.path());
-        let mut dst = create_test_record(&writer, 0, 100, b"A", b"AT");
+        let mut dst = create_test_record(&writer, 0, 100, b"A", b"ATTT");
         copy_info_fields(&src, &mut dst, &["SVLEN", "SVTYPE"]).unwrap();
         writer.write(&dst).unwrap();
         drop(writer);
