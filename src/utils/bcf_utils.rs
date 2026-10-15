@@ -2114,10 +2114,16 @@ pub(crate) mod tests {
 
     #[test]
     fn test_validate_info_fields_exist_all_present() {
+        // Fields of different types all pass - only presence is checked
         let header = create_header_view(&[
             br##"##INFO=<ID=CUSTOM1,Number=1,Type=String,Description="Test">"##,
+            br##"##INFO=<ID=CUSTOM2,Number=A,Type=Integer,Description="Test">"##,
         ]);
-        assert!(validate_info_fields_exist(&header, &["CUSTOM1".to_string()]).is_ok());
+        assert!(validate_info_fields_exist(
+            &header,
+            &["CUSTOM1".to_string(), "CUSTOM2".to_string()]
+        )
+        .is_ok());
     }
 
     #[test]
@@ -2148,6 +2154,19 @@ pub(crate) mod tests {
             err.downcast_ref::<Error>(),
             Some(&Error::VcfInfoFieldsMissing {
                 fields: "MISSING".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_info_fields_exist_multiple_missing() {
+        let header = create_header_view(&[]);
+        let err =
+            validate_info_fields_exist(&header, &["A".to_string(), "B".to_string()]).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfInfoFieldsMissing {
+                fields: "A, B".to_string()
             })
         );
     }
@@ -2253,6 +2272,32 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn test_validate_samples_exist_partial_missing() {
+        let (tmp_vcf, sample_names) = create_test_vcf(TestVcfConfig {
+            num_samples: 2,
+            ..Default::default()
+        });
+        let vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
+        let header = vcf.header();
+
+        let err = validate_samples_exist(header, &[sample_names[0].clone(), "missing".to_string()])
+            .unwrap_err();
+
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfSamplesMissing {
+                samples: "missing".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_samples_exist_empty_list() {
+        let header = create_header_view(&[]);
+        assert!(validate_samples_exist(&header, &[]).is_ok());
+    }
+
     /* ======== validate_events_exist tests ========== */
 
     #[test]
@@ -2317,8 +2362,8 @@ pub(crate) mod tests {
         let header = vcf.header();
 
         // Event field is PROB_SOMATIC (uppercase)
-        // User provides lowercase
-        let result = validate_events_exist(header, &["somatic".to_string()]);
+        // User provides mix case
+        let result = validate_events_exist(header, &["SoMaTiC".to_string()]);
 
         assert!(result.is_ok(), "Should handle case conversion");
     }
@@ -2400,6 +2445,25 @@ pub(crate) mod tests {
                 field: "PROB_FOO".to_string(),
                 expected: "Type=Float, Number=AltAlleles".to_string(),
                 found: "Type=Float, Number=Fixed(1)".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_events_exist_wrong_type_wins_over_missing() {
+        // "bar" is missing, "foo" has the wrong type - the type error returns
+        let header = create_header_view(&[
+            br##"##INFO=<ID=PROB_FOO,Number=A,Type=Integer,Description="Test">"##,
+        ]);
+        let err =
+            validate_events_exist(&header, &["bar".to_string(), "foo".to_string()]).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldTypeInvalid {
+                location: "INFO".to_string(),
+                field: "PROB_FOO".to_string(),
+                expected: "Type=Float, Number=AltAlleles".to_string(),
+                found: "Type=Integer, Number=AltAlleles".to_string(),
             })
         );
     }
@@ -2540,10 +2604,9 @@ pub(crate) mod tests {
 
         let mut vcf = bcf::Reader::from_path(tmp.path()).unwrap();
 
-        let result = validate_vcf_file(&mut vcf);
-        assert!(result.is_err());
-
-        let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("read") || err_msg.contains("parse"));
+        let err = validate_vcf_file(&mut vcf).unwrap_err();
+        assert!(err
+            .to_string()
+            .starts_with("failed to read VCF/BCF record:"));
     }
 }
