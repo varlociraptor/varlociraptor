@@ -1002,13 +1002,6 @@ pub(crate) mod tests {
 
     /// Minimal multi-record VCF builder for position/overlap-driven tests.
     ///
-    /// # Note
-    /// Unlike [`create_test_vcf`], which builds exactly one feature-rich
-    /// record (samples, AF, PROB_*, extra INFO) from a [`TestVcfConfig`],
-    /// this builds a header + N bare records (chrom/pos/REF/ALT only, no
-    /// samples/FORMAT). Use this when a test needs several records at
-    /// once and doesn't care about sample/format.
-    ///
     /// # Arguments
     /// * `header_lines` - Extra `##...` header lines (e.g. `##contig=<...>`)
     ///   to push after `##fileformat=VCFv4.2`, which must declare any contigs
@@ -1019,6 +1012,13 @@ pub(crate) mod tests {
     ///
     /// # Returns
     /// A `NamedTempFile` containing the resulting VCF
+    ///
+    /// # Note
+    /// Unlike [`create_test_vcf`], which builds exactly one feature-rich
+    /// record (samples, AF, PROB_*, extra INFO) from a [`TestVcfConfig`],
+    /// this builds a header + N bare records (chrom/pos/REF/ALT only, no
+    /// samples/FORMAT). Use this when a test needs several records at
+    /// once and doesn't care about sample/format.
     pub(crate) fn create_minimal_vcf(
         header_lines: &[&[u8]],
         records: &[(u32, i64, &[u8], &[&[u8]])],
