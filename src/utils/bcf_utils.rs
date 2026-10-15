@@ -307,7 +307,7 @@ pub(crate) fn is_spanning_deletion(allele: &[u8]) -> bool {
 /// * `field` - INFO field name as bytes (e.g., b"REGION_ID")
 ///
 /// # Returns
-/// `true` if field exists and has at least one value, `false` otherwise
+/// `true` if the field is set on this record, `false` otherwise
 pub fn record_has_info_string(record: &bcf::Record, field: &[u8]) -> bool {
     record.info(field).string().ok().flatten().is_some()
 }
@@ -322,8 +322,8 @@ pub fn record_has_info_string(record: &bcf::Record, field: &[u8]) -> bool {
 /// * `field` - INFO field name as bytes (e.g., b"REGION_ID")
 ///
 /// # Returns
-/// * `Some(Vec<String>)` - All values if field present
-/// * `None` - If field is absent
+/// * `Some(Vec<String>)` - All values if the field is set on this record
+/// * `None` - If the field is not set, undeclared, or declared with another type
 ///
 /// # Panics
 /// Panics if a present value is not valid UTF-8 - callers should only use
@@ -1643,7 +1643,7 @@ pub(crate) mod tests {
         ]);
         let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
         record
-            .push_info_string(b"REGION_ID", &[b"chr1:100-130"])
+            .push_info_string(b"REGION_ID", &[b"chr1:101-130"])
             .unwrap();
         writer.write(&record).unwrap();
         drop(writer);
@@ -1651,6 +1651,20 @@ pub(crate) mod tests {
         let record = read_first_record(tmp.path());
         assert!(record_has_info_string(&record, b"REGION_ID"));
         assert!(!record_has_info_string(&record, b"NONEXISTENT"));
+    }
+
+    #[test]
+    fn test_record_has_info_string_declared_but_unset() {
+        // REGION_ID declared in header but not set on the record
+        let (tmp, mut writer) = create_info_test_vcf(&[
+            br##"##INFO=<ID=REGION_ID,Number=1,Type=String,Description="Region">"##,
+        ]);
+        let record = create_test_record(&writer, 0, 100, b"A", b"AT");
+        writer.write(&record).unwrap();
+        drop(writer);
+
+        let record = read_first_record(tmp.path());
+        assert!(!record_has_info_string(&record, b"REGION_ID"));
     }
 
     /* ========== get_info_strings tests ============= */
@@ -1663,7 +1677,7 @@ pub(crate) mod tests {
         ]);
         let mut record = create_test_record(&writer, 0, 100, b"A", b"AT");
         record
-            .push_info_string(b"REGION_ID", &[b"chr1:100-130"])
+            .push_info_string(b"REGION_ID", &[b"chr1:101-130"])
             .unwrap();
         writer.write(&record).unwrap();
         drop(writer);
@@ -1671,7 +1685,7 @@ pub(crate) mod tests {
         let record = read_first_record(tmp.path());
         assert_eq!(
             get_info_strings(&record, b"REGION_ID"),
-            Some(vec!["chr1:100-130".to_string()])
+            Some(vec!["chr1:101-130".to_string()])
         );
     }
 
@@ -1705,6 +1719,40 @@ pub(crate) mod tests {
 
         let record = read_first_record(tmp.path());
         assert_eq!(get_info_strings(&record, b"NONEXISTENT"), None);
+    }
+
+    #[test]
+    fn test_get_info_strings_declared_but_unset_returns_none() {
+        // REGION_ID declared in header but not set on the record
+        let (tmp, mut writer) = create_info_test_vcf(&[
+            br##"##INFO=<ID=REGION_ID,Number=1,Type=String,Description="Region">"##,
+        ]);
+        let record = create_test_record(&writer, 0, 100, b"A", b"AT");
+        writer.write(&record).unwrap();
+        drop(writer);
+
+        let record = read_first_record(tmp.path());
+        assert_eq!(get_info_strings(&record, b"REGION_ID"), None);
+    }
+
+    #[test]
+    fn test_get_info_strings_keeps_dot_for_unmatched_alt() {
+        // Number=A, two ALTs, second has no region - "." is kept so values stay aligned to ALT index
+        let (tmp, mut writer) = create_info_test_vcf(&[
+            br##"##INFO=<ID=REGION_ID,Number=A,Type=String,Description="Region">"##,
+        ]);
+        let mut record = create_test_record_multi_alt(&writer, 0, 100, b"A", &[b"AT", b"AAA"]);
+        record
+            .push_info_string(b"REGION_ID", &[b"chr1:101-130", b"."])
+            .unwrap();
+        writer.write(&record).unwrap();
+        drop(writer);
+
+        let record = read_first_record(tmp.path());
+        assert_eq!(
+            get_info_strings(&record, b"REGION_ID"),
+            Some(vec!["chr1:101-130".to_string(), ".".to_string()])
+        );
     }
 
     #[test]
@@ -1792,6 +1840,23 @@ pub(crate) mod tests {
                 path: path.to_path_buf()
             })
         );
+    }
+
+    #[test]
+    fn test_read_bcf_records_corrupted_record_errors() {
+        // Valid header, record with non-numeric POS - file opens, record read fails
+        let tmp = NamedTempFile::new().unwrap();
+        std::fs::write(
+            tmp.path(),
+            "##fileformat=VCFv4.2\n\
+            ##contig=<ID=chr1,length=1000000>\n\
+            #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n\
+            chr1\tINVALID_POS\t.\tA\tT\t.\t.\t.\n",
+        )
+        .unwrap();
+
+        let err = read_bcf_records(tmp.path()).unwrap_err();
+        assert!(err.to_string().contains("failed to read VCF/BCF record"));
     }
 
     /* ========== copy_info_fields tests ============= */

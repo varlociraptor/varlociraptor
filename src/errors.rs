@@ -89,7 +89,7 @@ pub(crate) enum Error {
     BedRecordReadFailed { line: usize, details: String },
     /* 2. VCF/BCF File Errors */
     #[error(
-        "invalid VCF/BCF file path (expected .vcf, .vcf.gz, .bcf, or .bcf.gz extension): {path}"
+        "invalid or unreadable VCF/BCF file (expected .vcf, .vcf.gz, .vcf.bgz, .bcf, or .bcf.gz): {path}"
     )]
     VcfFileInvalid { path: PathBuf },
     #[error("VCF/BCF file does not contain sample(s): {samples}")]
