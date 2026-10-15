@@ -3,16 +3,9 @@
 # Called as fp variant by
 #   ukes-varlociraptor:G>T-0.100
 
-# both mappings show the same low evidence for the variant at the end of reads
+# only three reads, but one with very strong consistent support from both mates (overlap)
+# Unclear whether this might be real or not at this point.
 
-expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - tumor > 0.1 && tumor < 0.2
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
 
 # necessary bam files
 samples:
