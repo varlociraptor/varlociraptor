@@ -5,6 +5,7 @@
 
 # only three reads, but one with very strong consistent support from both mates (overlap)
 # Unclear whether this might be real or not at this point.
+# TODO revisit and add constraints in case we find out the truth
 
 
 # necessary bam files
