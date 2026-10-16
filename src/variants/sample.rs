@@ -319,6 +319,7 @@ impl Sample {
             &mut observation_id_factory,
         )?;
         // Process for each observation whether it is from the major read position or not.
+        // TODO: is it fine to do this before eventual filtering of the observations afterwards?
         let major_pos = major_read_position(&observations);
         let major_fragment_end = major_fragment_end(&observations);
         let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
