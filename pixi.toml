@@ -28,3 +28,6 @@ zstd = ">=1.5.7,<2"
 clangdev = ">=21.1.8,<22"
 hyperfine = ">=1.20.0,<2"
 rust-src = ">=1.92.0,<2"
+
+[tasks]
+gen-single-read-bam = { cmd = "bash -c 'cd {{pixi.init_cwd}} && samtools view -b <(samtools view -H {{bamfile}} && samtools view {{bamfile}} | grep {{readname}}) > {{readname}}.bam && samtools index {{readname}}.bam'", args = ["bamfile", "readname"]}
