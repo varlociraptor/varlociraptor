@@ -33,7 +33,7 @@ use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    AltLocus, ReadObservationBuilder, ReadPosition, Strand,
+    AltLocus, FragmentEnd, ReadObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
@@ -46,6 +46,7 @@ use crate::variants::types::{breakends::Breakend, Loci};
 pub(crate) mod haplotype_feature_index;
 
 use crate::calling::variants::preprocessing::haplotype_feature_index::HaplotypeFeatureIndex;
+use crate::VERSION;
 
 #[derive(TypedBuilder)]
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
@@ -85,6 +86,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 {
     fn writer(&self, aux_info_collector: &AuxInfoCollector) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
+
+        // register version
+        header.push_record(format!("##varlociraptor_preprocess_version={}", VERSION).as_bytes());
 
         // register tags
         header.push_record(
@@ -143,6 +147,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "STRAND",
             "READ_ORIENTATION",
             "READ_POSITION",
+            "FRAGMENT_END",
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
@@ -807,7 +812,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "15";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "16";
 
 pub struct Observations {
     pub pileup: Pileup,
@@ -858,6 +863,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
     let read_orientation: Vec<SequenceReadPairOrientation> =
         read_values(record, b"READ_ORIENTATION", false)?;
     let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION", false)?;
+    let fragment_end: Vec<FragmentEnd> = read_values(record, b"FRAGMENT_END", false)?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
     let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
@@ -887,6 +893,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
                 .strand(strand[i])
                 .read_orientation(read_orientation[i])
                 .read_position(read_position[i])
+                .fragment_end(fragment_end[i])
                 .softclipped(softclipped[i as u64])
                 .paired(paired[i as u64])
                 .is_max_mapq(is_max_mapq[i as u64])
@@ -935,6 +942,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut paired: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut read_position = Vec::with_capacity(read_observations.len());
+    let mut fragment_end = Vec::with_capacity(read_observations.len());
     let mut prob_hit_base = vec();
     let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
         Vec::with_capacity(read_observations.len());
@@ -960,6 +968,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         softclipped.push(obs.softclipped);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
+        fragment_end.push(obs.fragment_end);
         is_max_mapq.push(obs.is_max_mapq);
         alt_locus.push(obs.alt_locus);
         third_allele_evidence.push(obs.third_allele_evidence);
@@ -1011,6 +1020,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
     push_values(record, b"PAIRED", &paired)?;
     push_values(record, b"READ_POSITION", &read_position)?;
+    push_values(record, b"FRAGMENT_END", &fragment_end)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
     push_values(record, b"IS_MAX_MAPQ", &is_max_mapq)?;
     push_values(record, b"ALT_LOCUS", &alt_locus)?;
@@ -1051,6 +1061,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
+    header.remove_info(b"FRAGMENT_END");
     header.remove_info(b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE");
     header.remove_info(b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE");
     header.remove_info(b"HOMOPOLYMER_INDEL_LEN");

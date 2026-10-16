@@ -52,6 +52,7 @@ pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
 
 use crate::variants::evidence::observations::read_observation::adjust_singleton_evidence;
+use crate::VERSION;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -69,6 +70,7 @@ where
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
+    fragment_end_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     aux_info_fields: Vec<Vec<u8>>,
@@ -101,6 +103,9 @@ where
         let mut header = bcf::Header::from_template(reader.header());
 
         remove_observation_header_entries(&mut header);
+
+        // register version
+        header.push_record(format!("##varlociraptor_call_version={}", VERSION).as_bytes());
 
         // register samples
         for sample_name in self.samplenames.iter() {
@@ -179,7 +184,7 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBDTASOPXI, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBDTASOPXIE, with C being a count, \
               and B being the posterior odds for the alt or the reference allele. \
               The latter are given as a two letter code. The first letter (`A` or `R`) \
               defines whether the odds favor the alt allele (`A`) or any other allele including the reference allele `R`. \
@@ -196,9 +201,10 @@ where
               S being the strand that supports the observation (+, -, or * for both), \
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
-              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
+              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), \
               I denoting indel operations in the respective alignments against the alt allele \
-              (* = some indel, . = no indel or information irrelevant for variant type).\">".as_slice(),
+              (* = some indel, . = no indel or information irrelevant for variant type), and \
+              E denoting the concordance of the fragment ends with other observations (F = major fragment end, . = other).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
@@ -257,6 +263,13 @@ where
               This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
               a homology, a distant variant allele, or a CNV). \
               Probability for alt locus bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">".as_slice(),
+        );
+        header.push_record(
+            b"##FORMAT=<ID=FEB,Number=A,Type=String,\
+              Description=\"Fragment end bias estimate: F indicates that ALT allele is systematically associated \
+              with major fragment ends, . indicates other. \
+              Probability for fragment end bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(
@@ -453,6 +466,7 @@ where
                     work_item.check_read_orientation_bias,
                     work_item.check_strand_bias,
                     work_item.check_read_position_bias,
+                    work_item.check_fragment_end_bias,
                     work_item.check_softclip_bias,
                     work_item.check_homopolymer_artifact_detection,
                     work_item.check_alt_locus_bias,
@@ -577,6 +591,7 @@ where
                 && is_precise,
             check_strand_bias: !self.omit_strand_bias && is_precise,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias && is_precise,
+            check_fragment_end_bias: self.fragment_end_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias && is_precise,
             check_homopolymer_artifact_detection: false,
             check_alt_locus_bias: !self.omit_alt_locus_bias,
@@ -658,6 +673,7 @@ where
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
+        consider_fragment_end_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
         consider_alt_locus_bias: bool,
@@ -686,6 +702,7 @@ where
                     consider_read_orientation_bias,
                     consider_strand_bias,
                     consider_read_position_bias,
+                    consider_fragment_end_bias,
                     consider_softclip_bias,
                     consider_homopolymer_error,
                     consider_alt_locus_bias,
@@ -1018,6 +1035,7 @@ pub(crate) struct WorkItem {
     check_read_orientation_bias: bool,
     check_strand_bias: bool,
     check_read_position_bias: bool,
+    check_fragment_end_bias: bool,
     check_softclip_bias: bool,
     check_homopolymer_artifact_detection: bool,
     check_alt_locus_bias: bool,
@@ -1090,6 +1108,7 @@ pub(crate) fn call_generic<CP, CF>(
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
+    fragment_end_bias: bool,
     output: Option<PathBuf>,
     log_each_record: bool,
     call_processor: CP,
@@ -1158,6 +1177,7 @@ where
         .omit_softclip_bias(omit_softclip_bias)
         .omit_homopolymer_artifact_detection(omit_homopolymer_artifact_detection)
         .omit_alt_locus_bias(omit_alt_locus_bias)
+        .fragment_end_bias(fragment_end_bias)
         .scenario(scenario)
         .prior(prior)
         .contaminations(sample_infos.contaminations)
