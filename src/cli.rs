@@ -1066,7 +1066,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .omit_read_orientation_bias(omit_read_orientation_bias)
                                     .omit_read_position_bias(omit_read_position_bias)
                                     .omit_softclip_bias(omit_softclip_bias)
-                                    .omit_homopolymer_artifact_detection(omit_homopolymer_artifact_detection)
+                                    .omit_homopolymer_artifact_detection(
+                                        omit_homopolymer_artifact_detection,
+                                    )
                                     .omit_alt_locus_bias(omit_alt_locus_bias)
                                     .fragment_end_bias(fragment_end_bias)
                                     .locus(&testcase_locus)?,
