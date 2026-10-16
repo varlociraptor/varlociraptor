@@ -208,10 +208,13 @@ impl<R: Realigner> Variant for Replacement<R> {
                     alt_variants,
                     alignment_properties,
                 )?;
+                dbg!(&left_support, &right_support);
 
                 let mut support = left_support;
 
                 support.merge(&right_support);
+
+                dbg!(&support);
 
                 Ok(Some(support))
             }

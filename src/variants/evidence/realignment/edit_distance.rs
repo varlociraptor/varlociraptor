@@ -41,6 +41,16 @@ pub(crate) fn is_explainable_by_error_rates(
     let expected_n_ins = expected_count(alignment_properties.gap_params.prob_insertion_artifact);
     let expected_n_del = expected_count(alignment_properties.gap_params.prob_deletion_artifact);
 
+    dbg!(
+        n_subs,
+        n_ins,
+        n_del,
+        alignment_len,
+        expected_n_subs,
+        expected_n_ins,
+        expected_n_del
+    );
+
     n_subs as f64 <= expected_n_subs
         && n_ins as f64 <= expected_n_ins
         && n_del as f64 <= expected_n_del
@@ -286,8 +296,8 @@ impl EditDistanceCalculation {
 
                             EditOperationCounts::new(
                                 n_subst,
-                                n_del,
                                 n_ins,
+                                n_del,
                                 pos_start as usize,
                                 pos as usize,
                                 in_range_alignment,

@@ -61,23 +61,38 @@ pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
     })
 }
 
+pub enum RecordsToTest {
+    Indices(Vec<usize>),
+    All,
+}
+
 pub trait Testcase {
     fn inner(&self) -> &[Yaml];
 
     fn path(&self) -> &PathBuf;
 
-    /// Index of record in the candidates.vcf to evaluate expressions for.
-    fn test_record_index(&self) -> usize {
-        self.yaml()
+    /// Records in the output to evaluate expressions for.
+    /// The `record-index` entry may be an integer, a list of integers, or the string `all`.
+    /// Defaults to the first record.
+    fn records_to_test(&self) -> RecordsToTest {
+        let as_index = |value: &Yaml| {
+            value
+                .as_i64()
+                .expect("Invalid record index, expected integer") as usize
+        };
+        match self
+            .yaml()
             .as_hash()
             .unwrap()
             .get(&Yaml::String("record-index".to_owned()))
-            .map(|value| {
-                value
-                    .as_i64()
-                    .expect("Invalid record index, expected integer") as usize
-            })
-            .unwrap_or(0)
+        {
+            None => RecordsToTest::Indices(vec![0]),
+            Some(Yaml::String(value)) if value == "all" => RecordsToTest::All,
+            Some(Yaml::Array(values)) => {
+                RecordsToTest::Indices(values.iter().map(as_index).collect())
+            }
+            Some(value) => RecordsToTest::Indices(vec![as_index(value)]),
+        }
     }
 
     fn preprocess_options(&self, sample_name: &str) -> String {
@@ -333,12 +348,20 @@ pub trait Testcase {
         let mut reader = bcf::Reader::from_path(self.output()).unwrap();
         let mut calls = reader.records().map(|r| r.unwrap()).collect_vec();
 
-        let calls: Box<dyn Iterator<Item = &mut bcf::Record>> =
+        let records_to_test =
             if utils::is_bnd(&mut calls[0]).expect("bug: failed to check for breakend") {
-                Box::new(calls.iter_mut())
+                RecordsToTest::All
             } else {
-                Box::new(calls.iter_mut().skip(self.test_record_index()).take(1))
+                self.records_to_test()
             };
+        let calls = calls
+            .iter_mut()
+            .enumerate()
+            .filter(|(i, _)| match &records_to_test {
+                RecordsToTest::All => true,
+                RecordsToTest::Indices(indices) => indices.contains(i),
+            })
+            .map(|(_, call)| call);
 
         for call in calls {
             let afs = call.format(b"AF").float().unwrap();
