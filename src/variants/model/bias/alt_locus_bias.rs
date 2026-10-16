@@ -3,7 +3,7 @@ use bio::stats::probs::LogProb;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    AltLocus, ProcessedReadObservation, ReadObservation, ReadPosition,
+    AltLocus, FragmentEnd, ProcessedReadObservation, ReadObservation, ReadPosition,
 };
 use crate::variants::model::bias::Bias;
 
@@ -19,7 +19,7 @@ pub(crate) enum AltLocusBias {
 impl AltLocusBias {
     fn get_counts<F>(pileups: &[Pileup], filterfunc: F) -> (usize, usize)
     where
-        F: Fn(&ReadObservation<ReadPosition, AltLocus>) -> bool,
+        F: Fn(&ReadObservation<ReadPosition, AltLocus, FragmentEnd>) -> bool,
     {
         let n: usize = pileups
             .iter()
