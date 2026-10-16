@@ -365,7 +365,8 @@ impl Variant {
 #[cfg(test)]
 mod tests {
     use crate::variants::evidence::observations::read_observation::{
-        AltLocus, ProcessedReadObservation, ReadObservationBuilder, ReadPosition, Strand,
+        AltLocus, FragmentEnd, ProcessedReadObservation, ReadObservationBuilder, ReadPosition,
+        Strand,
     };
     use bio_types::sequence::SequenceReadPairOrientation;
 
@@ -387,6 +388,7 @@ mod tests {
             .prob_overlap(LogProb::ln_one())
             .read_orientation(SequenceReadPairOrientation::None)
             .read_position(ReadPosition::Some)
+            .fragment_end(FragmentEnd::Some)
             .strand(Strand::Both)
             .softclipped(false)
             .prob_observable_at_homopolymer_artifact(None)
