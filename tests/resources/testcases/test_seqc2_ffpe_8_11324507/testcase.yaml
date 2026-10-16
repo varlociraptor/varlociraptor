@@ -8,15 +8,12 @@
 
 # homopolymer A region in ref, no TP variant there
 # Alignoth plot shows deletions and insertions of A in the region of the FP variant
+# Somatic is here at most a recombination of the alleles.
+# The individual variants are all non-somatic.
 
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - tumor > 0.1 && tumor < 0.2
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - (PLAIN_PROB_SOMATIC_TUMOR_HIGH + PLAIN_PROB_SOMATIC_TUMOR_LOW) < 0.5
 
 # necessary bam files
 samples:
@@ -31,12 +28,11 @@ samples:
   
 
 # candidate variant
-candidate: 'candidates.vcf'
+candidate: 'candidates_atomized.vcf'
 
 scenario: 'scenario.yaml'
 
-
-
+record-index: all
 
 # reference sequence
 reference:
