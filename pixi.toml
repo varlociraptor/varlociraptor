@@ -31,3 +31,4 @@ rust-src = ">=1.92.0,<2"
 
 [tasks]
 gen-single-read-bam = { cmd = "bash -c 'cd {{pixi.init_cwd}} && samtools view -b <(samtools view -H {{bamfile}} && samtools view {{bamfile}} | grep {{readname}}) > {{readname}}.bam && samtools index {{readname}}.bam'", args = ["bamfile", "readname"]}
+testcase = "cargo test $(basename {{pixi.init_cwd}})"
