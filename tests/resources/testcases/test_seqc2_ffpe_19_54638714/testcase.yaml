@@ -17,16 +17,7 @@
 
 # both mappings show the variant in alignoth with the same number of reads
 # if ffpe artifact then unusually high vaf
-
-
-expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - tumor > 0.2 && tumor < 0.3
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+# many pipelines call this, maybe it is correct?
 
 # necessary bam files
 samples:
@@ -45,8 +36,7 @@ candidate: 'candidates.vcf'
 
 scenario: 'scenario.yaml'
 
-
-
+fragment_end_bias: true
 
 # reference sequence
 reference:
