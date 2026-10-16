@@ -27,8 +27,8 @@ use crate::utils;
 use crate::utils::aux_info::AuxInfo;
 use crate::utils::bayes_factor_to_letter;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::{FragmentEnd, expected_depth};
 use crate::variants::evidence::observations::read_observation::AltLocus;
+use crate::variants::evidence::observations::read_observation::{expected_depth, FragmentEnd};
 use crate::variants::evidence::observations::read_observation::{ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::bias::{AltLocusBias, FragmentEndBias};
@@ -550,7 +550,10 @@ impl Call {
             let alb = alt_locus_bias.values().map(|alb| vec![*alb]).collect_vec();
             record.push_format_string(b"ALB", &alb)?;
 
-            let feb = fragment_end_bias.values().map(|feb| vec![*feb]).collect_vec();
+            let feb = fragment_end_bias
+                .values()
+                .map(|feb| vec![*feb])
+                .collect_vec();
             record.push_format_string(b"FEB", &feb)?;
 
             let vaf_densities = vaf_densities

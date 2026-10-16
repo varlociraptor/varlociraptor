@@ -349,8 +349,8 @@ impl ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions> {
                 }
             }),
             fragment_end: if let Some(major_fragment_end) = major_fragment_end {
-                if self.fragment_end.left == major_fragment_end ||
-                    self.fragment_end.right == major_fragment_end
+                if self.fragment_end.left == major_fragment_end
+                    || self.fragment_end.right == major_fragment_end
                 {
                     FragmentEnd::Major
                 } else {
@@ -600,37 +600,30 @@ pub(crate) fn major_read_position(
         } else {
             None
         }
-    })).map(|(feature, _count)| feature)
+    }))
+    .map(|(feature, _count)| feature)
 }
 
 pub(crate) fn major_fragment_end(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions>],
 ) -> Option<u64> {
-    let major_left = calc_major_feature(
-        pileup
-            .iter()
-            .filter_map(|obs| {
-                if obs.prob_alt > obs.prob_ref {
-                    // yield both ends of the fragment
-                    Some(obs.fragment_end.left)
-                } else {
-                    None
-                }
-            }),
-    );
+    let major_left = calc_major_feature(pileup.iter().filter_map(|obs| {
+        if obs.prob_alt > obs.prob_ref {
+            // yield both ends of the fragment
+            Some(obs.fragment_end.left)
+        } else {
+            None
+        }
+    }));
 
-    let major_right = calc_major_feature(
-        pileup
-            .iter()
-            .filter_map(|obs| {
-                if obs.prob_alt > obs.prob_ref {
-                    // yield both ends of the fragment
-                    Some(obs.fragment_end.right)
-                } else {
-                    None
-                }
-            }),
-    );
+    let major_right = calc_major_feature(pileup.iter().filter_map(|obs| {
+        if obs.prob_alt > obs.prob_ref {
+            // yield both ends of the fragment
+            Some(obs.fragment_end.right)
+        } else {
+            None
+        }
+    }));
 
     match (major_left, major_right) {
         (Some((major_left, count_left)), Some((major_right, count_right))) => {
@@ -660,7 +653,8 @@ pub(crate) fn major_alt_locus(
                     .iter()
                     .map(|locus| locus_to_bucket(locus, alignment_properties))
             }),
-    ).map(|(feature, _count)| feature)
+    )
+    .map(|(feature, _count)| feature)
 }
 
 pub(crate) fn locus_to_bucket(
