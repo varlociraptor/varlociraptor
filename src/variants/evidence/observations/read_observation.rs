@@ -358,7 +358,11 @@ impl ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions> {
                 }
             }),
             fragment_end: if let Some(major_fragment_end) = major_fragment_end {
-                if self.fragment_end.into_iter().any(|end| end == major_fragment_end) {
+                if self
+                    .fragment_end
+                    .into_iter()
+                    .any(|end| end == major_fragment_end)
+                {
                     FragmentEnd::Major
                 } else {
                     FragmentEnd::Some
@@ -613,14 +617,19 @@ pub(crate) fn major_read_position(
 pub(crate) fn major_fragment_end(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions>],
 ) -> Option<u64> {
-    calc_major_feature(pileup.iter().filter_map(|obs| {
-        if obs.prob_alt > obs.prob_ref {
-            // yield both ends of the fragment
-            Some(obs.fragment_end.into_iter())
-        } else {
-            None
-        }
-    }).flatten())
+    calc_major_feature(
+        pileup
+            .iter()
+            .filter_map(|obs| {
+                if obs.prob_alt > obs.prob_ref {
+                    // yield both ends of the fragment
+                    Some(obs.fragment_end.into_iter())
+                } else {
+                    None
+                }
+            })
+            .flatten(),
+    )
 }
 
 pub(crate) fn major_alt_locus(
@@ -798,11 +807,16 @@ impl Evidence {
                 let end = read.record().reference_end() as u64;
                 // subtract eventual clips at the left from start, and add eventual clips at the right to end
                 let cigar = read.cigar_cached().unwrap();
-                let leading_softclips = cigar.leading_softclips() as u64 + cigar.leading_hardclips() as u64;
-                let trailing_softclips = cigar.trailing_softclips() as u64 + cigar.trailing_hardclips() as u64;
+                let leading_softclips =
+                    cigar.leading_softclips() as u64 + cigar.leading_hardclips() as u64;
+                let trailing_softclips =
+                    cigar.trailing_softclips() as u64 + cigar.trailing_hardclips() as u64;
                 let start = start.saturating_sub(leading_softclips);
                 let end = end + trailing_softclips;
-                FragmentEndPositions { left: start, right: end }
+                FragmentEndPositions {
+                    left: start,
+                    right: end,
+                }
             }
             Evidence::PairedEndSequencingRead { left, right } => {
                 let start = left.record().pos() as u64;
@@ -810,11 +824,16 @@ impl Evidence {
                 // subtract eventual clips at the left from start, and add eventual clips at the right to end
                 let left_cigar = left.cigar_cached().unwrap();
                 let right_cigar = right.cigar_cached().unwrap();
-                let leading_softclips = left_cigar.leading_softclips() as u64 + left_cigar.leading_hardclips() as u64;
-                let trailing_softclips = right_cigar.trailing_softclips() as u64 + right_cigar.trailing_hardclips() as u64;
+                let leading_softclips =
+                    left_cigar.leading_softclips() as u64 + left_cigar.leading_hardclips() as u64;
+                let trailing_softclips = right_cigar.trailing_softclips() as u64
+                    + right_cigar.trailing_hardclips() as u64;
                 let start = start.saturating_sub(leading_softclips);
                 let end = end + trailing_softclips;
-                FragmentEndPositions { left: start, right: end }
+                FragmentEndPositions {
+                    left: start,
+                    right: end,
+                }
             }
         }
     }

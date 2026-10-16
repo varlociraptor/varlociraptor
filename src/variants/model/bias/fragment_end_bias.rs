@@ -16,9 +16,7 @@ impl Bias for FragmentEndBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.fragment_end) {
             (FragmentEndBias::None, FragmentEnd::Major) => LogProb::ln_one(),
-            (FragmentEndBias::None, FragmentEnd::Some) => {
-                LogProb::ln_one()
-            }
+            (FragmentEndBias::None, FragmentEnd::Some) => LogProb::ln_one(),
             (FragmentEndBias::Some, FragmentEnd::Major) => LogProb::ln_one(), // bias
             (FragmentEndBias::Some, FragmentEnd::Some) => LogProb::ln_zero(), // no bias
         }

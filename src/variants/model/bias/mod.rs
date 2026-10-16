@@ -10,18 +10,18 @@ use crate::variants::evidence::observations::{
 };
 
 pub(crate) mod alt_locus_bias;
+pub(crate) mod fragment_end_bias;
 pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
-pub(crate) mod fragment_end_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
 
 pub(crate) use alt_locus_bias::AltLocusBias;
+pub(crate) use fragment_end_bias::FragmentEndBias;
 pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
-pub(crate) use fragment_end_bias::FragmentEndBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 

@@ -10,7 +10,7 @@ use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    Observable, ReadObservation, major_fragment_end, major_read_position,
+    major_fragment_end, major_read_position, Observable, ReadObservation,
 };
 use crate::variants::types::methylation::extract_mm_ml_5mc;
 use crate::variants::types::Loci;
@@ -324,7 +324,14 @@ impl Sample {
         let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
         let mut observations: Vec<_> = observations
             .iter()
-            .map(|obs| obs.process(major_pos, major_fragment_end, &major_alt_locus, &self.alignment_properties))
+            .map(|obs| {
+                obs.process(
+                    major_pos,
+                    major_fragment_end,
+                    &major_alt_locus,
+                    &self.alignment_properties,
+                )
+            })
             .collect();
         if self.adjust_prob_mapping {
             ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
