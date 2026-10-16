@@ -593,6 +593,15 @@ pub enum CallKind {
         #[serde(default)]
         omit_alt_locus_bias: bool,
         #[structopt(
+            long = "fragment-end-bias",
+            help = "Consider fragment end bias when calculating the probability of an \
+                    artifact. Use this to avoid false positives caused by FFPE artifacts. \
+                    If all reads supporting the variant share at least one fragment end, \
+                    the variant can more likely be an FFPE induced artifact."
+        )]
+        #[serde(default)]
+        fragment_end_bias: bool,
+        #[structopt(
             long = "full-prior",
             help = "Compute the full prior distribution for any allele frequency combination. \
                     This is in contrast to the default behavior, where the prior is only used to \
@@ -1037,6 +1046,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_softclip_bias,
                     omit_homopolymer_artifact_detection,
                     omit_alt_locus_bias,
+                    fragment_end_bias,
                     testcase_locus,
                     testcase_prefix,
                     testcase_anonymous,
@@ -1111,6 +1121,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     omit_softclip_bias,
                                     omit_homopolymer_artifact_detection,
                                     omit_alt_locus_bias,
+                                    fragment_end_bias,
                                     output,
                                     log_each_record,
                                     CallWriter::new(),
@@ -1196,6 +1207,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 omit_softclip_bias,
                                 omit_homopolymer_artifact_detection,
                                 omit_alt_locus_bias,
+                                fragment_end_bias,
                                 output,
                                 log_each_record,
                                 CallWriter::new(),

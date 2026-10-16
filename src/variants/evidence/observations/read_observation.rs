@@ -20,6 +20,7 @@ use counter::Counter;
 
 use rust_htslib::bam;
 
+use rust_htslib::bam::ext::BamRecordExtensions;
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
@@ -129,6 +130,28 @@ pub enum ReadPosition {
     Some,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FragmentEnd {
+    Major,
+    #[default]
+    Some,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FragmentEndPositions {
+    pub left: u64,
+    pub right: u64,
+}
+
+impl IntoIterator for FragmentEndPositions {
+    type Item = u64;
+    type IntoIter = std::array::IntoIter<u64, 2>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::IntoIterator::into_iter([self.left, self.right])
+    }
+}
+
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Ok(bam::record::Aux::String(ro)) = record.aux(b"RO") {
         let orientations = ro.as_bytes().split(|e| *e == b',').collect_vec();
@@ -219,10 +242,11 @@ pub enum AltLocus {
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default, Serialize)]
-pub struct ReadObservation<P = Option<u32>, A = ExactAltLoci>
+pub struct ReadObservation<P = Option<u32>, A = ExactAltLoci, E = FragmentEndPositions>
 where
     P: Clone,
     A: Clone,
+    E: Clone,
 {
     pub name: Option<String>,
     pub fragment_id: Option<u64>,
@@ -266,6 +290,8 @@ where
     pub paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub read_position: P,
+    /// Tuple of the putative fragment end positions (start, end)
+    pub fragment_end: E,
     /// Probability to make this observation at a homopolymer artifact
     pub prob_observable_at_homopolymer_artifact: Option<LogProb>,
     pub prob_observable_at_homopolymer_variant: Option<LogProb>,
@@ -278,9 +304,9 @@ where
     pub third_allele_evidence: Option<u32>,
 }
 
-pub type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
+pub type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus, FragmentEnd>;
 
-impl<P: Clone, A: Clone> ReadObservationBuilder<P, A> {
+impl<P: Clone, A: Clone, E: Clone> ReadObservationBuilder<P, A, E> {
     pub fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
@@ -292,13 +318,14 @@ impl<P: Clone, A: Clone> ReadObservationBuilder<P, A> {
     }
 }
 
-impl ReadObservation<Option<u32>, ExactAltLoci> {
+impl ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions> {
     pub(crate) fn process(
         &self,
         major_read_position: Option<u32>,
+        major_fragment_end: Option<u64>,
         major_alt_locus: &Option<genome::Locus>,
         alignment_properties: &AlignmentProperties,
-    ) -> ReadObservation<ReadPosition, AltLocus> {
+    ) -> ReadObservation<ReadPosition, AltLocus, FragmentEnd> {
         ReadObservation {
             name: self.name.clone(),
             fragment_id: self.fragment_id,
@@ -330,6 +357,15 @@ impl ReadObservation<Option<u32>, ExactAltLoci> {
                     ReadPosition::Some
                 }
             }),
+            fragment_end: if let Some(major_fragment_end) = major_fragment_end {
+                if self.fragment_end.into_iter().any(|end| end == major_fragment_end) {
+                    FragmentEnd::Major
+                } else {
+                    FragmentEnd::Some
+                }
+            } else {
+                FragmentEnd::Some
+            },
             prob_observable_at_homopolymer_artifact: self.prob_observable_at_homopolymer_artifact,
             prob_observable_at_homopolymer_variant: self.prob_observable_at_homopolymer_variant,
             homopolymer_indel_len: self.homopolymer_indel_len,
@@ -372,7 +408,7 @@ impl std::fmt::Display for MaxBayesFactor {
     }
 }
 
-impl<P: Clone, A: Clone> ReadObservation<P, A> {
+impl<P: Clone, A: Clone, E: Clone> ReadObservation<P, A, E> {
     // Represent evidence as bayes factor, returning either the one for ref against alt
     // or alt against ref, depending on which is higher
     pub(crate) fn max_bayes_factor(&self) -> MaxBayesFactor {
@@ -547,7 +583,7 @@ where
 /// are set to 0.5 (PROB_05) to reflect the increased uncertainty that the variant could be
 /// an artifact like a PCR error.
 pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
-    let mut alt_observations: Vec<&mut ReadObservation<_, _>> = pileups
+    let mut alt_observations: Vec<&mut ReadObservation<_, _, _>> = pileups
         .iter_mut()
         .flat_map(|pileup| pileup.read_observations_mut().iter_mut())
         .filter(|obs| obs.prob_alt > obs.prob_ref)
@@ -563,7 +599,7 @@ pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
 }
 
 pub(crate) fn major_read_position(
-    pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
+    pileup: &[ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions>],
 ) -> Option<u32> {
     calc_major_feature(pileup.iter().filter_map(|obs| {
         if obs.prob_alt > obs.prob_ref {
@@ -574,8 +610,21 @@ pub(crate) fn major_read_position(
     }))
 }
 
+pub(crate) fn major_fragment_end(
+    pileup: &[ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions>],
+) -> Option<u64> {
+    calc_major_feature(pileup.iter().filter_map(|obs| {
+        if obs.prob_alt > obs.prob_ref {
+            // yield both ends of the fragment
+            Some(obs.fragment_end.into_iter())
+        } else {
+            None
+        }
+    }).flatten())
+}
+
 pub(crate) fn major_alt_locus(
-    pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
+    pileup: &[ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions>],
     alignment_properties: &AlignmentProperties,
 ) -> Option<genome::Locus> {
     calc_major_feature(
@@ -664,6 +713,7 @@ pub(crate) trait Observable: Variant {
                         .read_orientation(evidence.read_orientation()?)
                         .softclipped(evidence.softclipped())
                         .read_position(allele_support.read_position())
+                        .fragment_end(evidence.fragment_end_positions())
                         .paired(evidence.is_paired())
                         .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
                         .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
@@ -741,6 +791,34 @@ pub(crate) enum Evidence {
 }
 
 impl Evidence {
+    fn fragment_end_positions(&self) -> FragmentEndPositions {
+        match self {
+            Evidence::SingleEndSequencingRead(read) => {
+                let start = read.record().pos() as u64;
+                let end = read.record().reference_end() as u64;
+                // subtract eventual clips at the left from start, and add eventual clips at the right to end
+                let cigar = read.cigar_cached().unwrap();
+                let leading_softclips = cigar.leading_softclips() as u64 + cigar.leading_hardclips() as u64;
+                let trailing_softclips = cigar.trailing_softclips() as u64 + cigar.trailing_hardclips() as u64;
+                let start = start.saturating_sub(leading_softclips);
+                let end = end + trailing_softclips;
+                FragmentEndPositions { left: start, right: end }
+            }
+            Evidence::PairedEndSequencingRead { left, right } => {
+                let start = left.record().pos() as u64;
+                let end = right.record().reference_end() as u64;
+                // subtract eventual clips at the left from start, and add eventual clips at the right to end
+                let left_cigar = left.cigar_cached().unwrap();
+                let right_cigar = right.cigar_cached().unwrap();
+                let leading_softclips = left_cigar.leading_softclips() as u64 + left_cigar.leading_hardclips() as u64;
+                let trailing_softclips = right_cigar.trailing_softclips() as u64 + right_cigar.trailing_hardclips() as u64;
+                let start = start.saturating_sub(leading_softclips);
+                let end = end + trailing_softclips;
+                FragmentEndPositions { left: start, right: end }
+            }
+        }
+    }
+
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
             Evidence::SingleEndSequencingRead(read) => read_orientation(read.as_ref()),

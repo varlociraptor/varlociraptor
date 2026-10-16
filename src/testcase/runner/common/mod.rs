@@ -145,6 +145,14 @@ pub trait Testcase {
         }
     }
 
+    fn fragment_end_bias(&self) -> bool {
+        if self.yaml()["fragment_end_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["fragment_end_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -265,6 +273,7 @@ pub trait Testcase {
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
+                        fragment_end_bias: self.fragment_end_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
@@ -310,6 +319,7 @@ pub trait Testcase {
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
+                        fragment_end_bias: self.fragment_end_bias(),
                         output: Some(self.output()),
                         propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::TumorNormal {
