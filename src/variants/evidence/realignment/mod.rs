@@ -329,19 +329,6 @@ pub(crate) trait Realigner {
                 alt_params.clear_ref_offset_override();
                 alt_params.clear_ref_end_override();
 
-                dbg!(
-                    prob_ref,
-                    prob_alt,
-                    &alt_hit,
-                    edit_dist_calc
-                        .derive_allele_from_read(alt_params, &alt_hit)
-                        .is_some(),
-                    alt_hit
-                        .edit_operation_counts()
-                        .as_ref()
-                        .map_or(false, |opcounts| !opcounts.is_explainable_by_error_rates())
-                );
-
                 if let Some(mut read_inferred_allele) =
                     edit_dist_calc.derive_allele_from_read(alt_params, &alt_hit)
                 {
