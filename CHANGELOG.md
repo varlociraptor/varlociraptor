@@ -2,6 +2,22 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.11.0](https://github.com/varlociraptor/varlociraptor/compare/v8.10.0...v8.11.0) (2026-10-16)
+
+
+### Features
+
+* Add testcase from pm4onco seqc2 ffpe  benchmark for 1:154466505 ([#575](https://github.com/varlociraptor/varlociraptor/issues/575)) ([ad0e263](https://github.com/varlociraptor/varlociraptor/commit/ad0e263b6743ef71b518fa957bd0ec95211fabd6))
+* Add testcase from pm4onco seqc2 ffpe  benchmark for 19:54638714 ([#573](https://github.com/varlociraptor/varlociraptor/issues/573)) ([c8c54ef](https://github.com/varlociraptor/varlociraptor/commit/c8c54ef9fda00c055f58170a9ab162166f797fa6))
+* Add testcase from pm4onco seqc2 ffpe  benchmark for 8:11324507 ([#571](https://github.com/varlociraptor/varlociraptor/issues/571)) ([4348b1f](https://github.com/varlociraptor/varlociraptor/commit/4348b1fe807b861a1a61f8008281dc36aacc4b78))
+* report fragment end bias in output BCF; obtain major fragment end independently for left and right side of fragments; add testcase from pm4onco seqc2 ffpe benchmark for 3:195784926 ([#572](https://github.com/varlociraptor/varlociraptor/issues/572)) ([f576840](https://github.com/varlociraptor/varlociraptor/commit/f57684017bc10b6420e255fd459a1993b3f5ce29))
+* support for optional fragment end bias detection (identifies likely FFPE artifacts) ([#580](https://github.com/varlociraptor/varlociraptor/issues/580)) ([f167749](https://github.com/varlociraptor/varlociraptor/commit/f167749a22a05588ec91dd547c10ab20f2fda0ab))
+
+
+### Bug Fixes
+
+* fixed expected error rate calculation; added ability to test all records in a testcase; confirmed that atomized variants are correctly not called as somatic in testcase test_seqc2_ffpe_1_3900324 ([#574](https://github.com/varlociraptor/varlociraptor/issues/574)) ([42d85a1](https://github.com/varlociraptor/varlociraptor/commit/42d85a1a1c990dc1d9bb1ca66ff06fcedff92dec))
+
 ## [8.10.0](https://github.com/varlociraptor/varlociraptor/compare/v8.9.5...v8.10.0) (2026-10-07)
 
 
