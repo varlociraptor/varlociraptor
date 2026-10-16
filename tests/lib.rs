@@ -213,6 +213,7 @@ testcase!(test_seqc2_wes_10_33202567_9, exact);
 testcase!(test_seqc2_wes_10_33202567_10, exact);
 testcase!(test_seqc2_wes_10_33202567_11, exact);
 testcase!(test_seqc2_wes_10_33202567_12, exact);
+testcase!(test_seqc2_ffpe_8_11324507, exact);
 testcase!(test_seqc2_ffpe_1_154466505, exact);
 
 fn basedir(test: &str) -> String {
