@@ -70,6 +70,7 @@ where
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
+    fragment_end_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     aux_info_fields: Vec<Vec<u8>>,
@@ -457,6 +458,7 @@ where
                     work_item.check_read_orientation_bias,
                     work_item.check_strand_bias,
                     work_item.check_read_position_bias,
+                    work_item.check_fragment_end_bias,
                     work_item.check_softclip_bias,
                     work_item.check_homopolymer_artifact_detection,
                     work_item.check_alt_locus_bias,
@@ -581,6 +583,7 @@ where
                 && is_precise,
             check_strand_bias: !self.omit_strand_bias && is_precise,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias && is_precise,
+            check_fragment_end_bias: self.fragment_end_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias && is_precise,
             check_homopolymer_artifact_detection: false,
             check_alt_locus_bias: !self.omit_alt_locus_bias,
@@ -662,6 +665,7 @@ where
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
+        consider_fragment_end_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
         consider_alt_locus_bias: bool,
@@ -690,6 +694,7 @@ where
                     consider_read_orientation_bias,
                     consider_strand_bias,
                     consider_read_position_bias,
+                    consider_fragment_end_bias,
                     consider_softclip_bias,
                     consider_homopolymer_error,
                     consider_alt_locus_bias,
@@ -1022,6 +1027,7 @@ pub(crate) struct WorkItem {
     check_read_orientation_bias: bool,
     check_strand_bias: bool,
     check_read_position_bias: bool,
+    check_fragment_end_bias: bool,
     check_softclip_bias: bool,
     check_homopolymer_artifact_detection: bool,
     check_alt_locus_bias: bool,
@@ -1094,6 +1100,7 @@ pub(crate) fn call_generic<CP, CF>(
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
+    fragment_end_bias: bool,
     output: Option<PathBuf>,
     log_each_record: bool,
     call_processor: CP,
@@ -1162,6 +1169,7 @@ where
         .omit_softclip_bias(omit_softclip_bias)
         .omit_homopolymer_artifact_detection(omit_homopolymer_artifact_detection)
         .omit_alt_locus_bias(omit_alt_locus_bias)
+        .fragment_end_bias(fragment_end_bias)
         .scenario(scenario)
         .prior(prior)
         .contaminations(sample_infos.contaminations)

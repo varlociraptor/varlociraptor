@@ -10,6 +10,7 @@ use crate::variants::evidence::observations::{
 };
 
 pub(crate) mod alt_locus_bias;
+pub(crate) mod fragment_end_bias;
 pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
@@ -17,6 +18,7 @@ pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
 
 pub(crate) use alt_locus_bias::AltLocusBias;
+pub(crate) use fragment_end_bias::FragmentEndBias;
 pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
@@ -120,6 +122,8 @@ pub struct Artifacts {
     #[getset(get = "pub(crate)")]
     read_position_bias: ReadPositionBias,
     #[getset(get = "pub(crate)")]
+    fragment_end_bias: FragmentEndBias,
+    #[getset(get = "pub(crate)")]
     softclip_bias: SoftclipBias,
     #[getset(get = "pub(crate)")]
     homopolymer_error: HomopolymerError,
@@ -132,6 +136,7 @@ impl Artifacts {
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
+        consider_fragment_end_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
         consider_alt_locus_bias: bool,
@@ -139,6 +144,7 @@ impl Artifacts {
         if !consider_strand_bias
             && !consider_read_orientation_bias
             && !consider_read_position_bias
+            && !consider_fragment_end_bias
             && !consider_softclip_bias
             && !consider_homopolymer_error
             && !consider_alt_locus_bias
@@ -166,6 +172,11 @@ impl Artifacts {
         } else {
             vec![SoftclipBias::None]
         };
+        let fragment_end_biases = if consider_fragment_end_bias {
+            FragmentEndBias::iter().collect_vec()
+        } else {
+            vec![FragmentEndBias::default()]
+        };
         let homopolymer_error = if consider_homopolymer_error {
             HomopolymerError::values()
         } else {
@@ -182,15 +193,17 @@ impl Artifacts {
                 .into_iter()
                 .cartesian_product(read_orientation_biases)
                 .cartesian_product(read_position_biases)
+                .cartesian_product(fragment_end_biases)
                 .cartesian_product(softclip_biases)
                 .cartesian_product(homopolymer_error)
                 .cartesian_product(alt_locus_bias)
-                .filter_map(|(((((sb, rob), rpb), scb), dib), alb)| {
+                .filter_map(|((((((sb, rob), rpb), feb), scb), dib), alb)| {
                     if [
                         sb.is_artifact(),
                         rob.is_artifact(),
                         rpb.is_artifact(),
                         scb.is_artifact(),
+                        feb.is_artifact(),
                         dib.is_artifact(),
                         alb.is_artifact(),
                     ]
@@ -205,6 +218,7 @@ impl Artifacts {
                                 .read_orientation_bias(rob)
                                 .read_position_bias(rpb)
                                 .softclip_bias(scb)
+                                .fragment_end_bias(feb)
                                 .homopolymer_error(dib)
                                 .alt_locus_bias(alb)
                                 .build()
@@ -222,6 +236,7 @@ impl Artifacts {
             .strand_bias(StrandBias::default())
             .read_orientation_bias(ReadOrientationBias::None)
             .read_position_bias(ReadPositionBias::default())
+            .fragment_end_bias(FragmentEndBias::default())
             .softclip_bias(SoftclipBias::None)
             .homopolymer_error(HomopolymerError::default())
             .alt_locus_bias(AltLocusBias::None)
@@ -233,6 +248,7 @@ impl Artifacts {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
+            && self.fragment_end_bias.is_possible(pileups)
             && self.softclip_bias.is_possible(pileups)
             && self.homopolymer_error.is_possible(pileups)
             && self.alt_locus_bias.is_possible(pileups)
@@ -242,6 +258,7 @@ impl Artifacts {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
+            && self.fragment_end_bias.is_informative(pileups)
             && self.softclip_bias.is_informative(pileups)
             && self.homopolymer_error.is_informative(pileups)
             && self.alt_locus_bias.is_informative(pileups)
@@ -251,6 +268,7 @@ impl Artifacts {
         self.strand_bias.is_likely(pileups)
             && self.read_orientation_bias.is_likely(pileups)
             && self.read_position_bias.is_likely(pileups)
+            && self.fragment_end_bias.is_likely(pileups)
             && self.softclip_bias.is_likely(pileups)
             && self.homopolymer_error.is_likely(pileups)
             && self.alt_locus_bias.is_likely(pileups)
@@ -260,6 +278,7 @@ impl Artifacts {
         self.strand_bias.prob_alt(observation)
             + self.read_orientation_bias.prob_alt(observation)
             + self.read_position_bias.prob_alt(observation)
+            + self.fragment_end_bias.prob_alt(observation)
             + self.softclip_bias.prob_alt(observation)
             + self.homopolymer_error.prob_alt(observation)
             + self.alt_locus_bias.prob_alt(observation)
@@ -269,6 +288,7 @@ impl Artifacts {
         self.strand_bias.prob_ref(observation)
             + self.read_orientation_bias.prob_ref(observation)
             + self.read_position_bias.prob_ref(observation)
+            + self.fragment_end_bias.prob_ref(observation)
             + self.softclip_bias.prob_ref(observation)
             + self.homopolymer_error.prob_ref(observation)
             + self.alt_locus_bias.prob_ref(observation)
@@ -278,6 +298,7 @@ impl Artifacts {
         self.strand_bias.prob_any(observation)
             + self.read_orientation_bias.prob_any(observation)
             + self.read_position_bias.prob_any(observation)
+            + self.fragment_end_bias.prob_any(observation)
             + self.softclip_bias.prob_any(observation)
             + self.homopolymer_error.prob_any(observation)
             + self.alt_locus_bias.prob_any(observation)
@@ -287,6 +308,7 @@ impl Artifacts {
         self.strand_bias.is_artifact()
             || self.read_orientation_bias.is_artifact()
             || self.read_position_bias.is_artifact()
+            || self.fragment_end_bias.is_artifact()
             || self.softclip_bias.is_artifact()
             || self.homopolymer_error.is_artifact()
             || self.alt_locus_bias.is_artifact()
@@ -296,6 +318,7 @@ impl Artifacts {
         self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
         self.read_position_bias.learn_parameters(pileups);
+        self.fragment_end_bias.learn_parameters(pileups);
         self.alt_locus_bias.learn_parameters(pileups);
     }
 }
