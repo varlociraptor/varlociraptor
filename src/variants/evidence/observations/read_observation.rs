@@ -143,15 +143,6 @@ pub struct FragmentEndPositions {
     pub right: u64,
 }
 
-impl IntoIterator for FragmentEndPositions {
-    type Item = u64;
-    type IntoIter = std::array::IntoIter<u64, 2>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        std::iter::IntoIterator::into_iter([self.left, self.right])
-    }
-}
-
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Ok(bam::record::Aux::String(ro)) = record.aux(b"RO") {
         let orientations = ro.as_bytes().split(|e| *e == b',').collect_vec();
@@ -358,10 +349,8 @@ impl ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions> {
                 }
             }),
             fragment_end: if let Some(major_fragment_end) = major_fragment_end {
-                if self
-                    .fragment_end
-                    .into_iter()
-                    .any(|end| end == major_fragment_end)
+                if self.fragment_end.left == major_fragment_end
+                    || self.fragment_end.right == major_fragment_end
                 {
                     FragmentEnd::Major
                 } else {
@@ -543,10 +532,10 @@ impl ProcessedReadObservation {
     }
 }
 
-fn calc_major_feature<F, I>(feature: I) -> Option<F>
+fn calc_major_feature<F, I>(feature: I) -> Option<(F, usize)>
 where
     I: Iterator<Item = F>,
-    F: Clone + Eq + Hash,
+    F: std::fmt::Debug + Clone + Eq + Hash,
 {
     let counter: Counter<_> = feature.collect();
     let most_common = counter.most_common();
@@ -559,12 +548,12 @@ where
             None
         } else if most_common.len() == 1 {
             // all the same
-            Some(most_common_feature.clone())
+            Some((most_common_feature.clone(), most_common_count))
         } else {
             let (ref _second_most_common_feature, second_most_common_count) = most_common[1];
             if most_common_count > second_most_common_count {
                 // clear winner
-                Some(most_common_feature.clone())
+                Some((most_common_feature.clone(), most_common_count))
             } else {
                 // tie
                 None
@@ -612,24 +601,42 @@ pub(crate) fn major_read_position(
             None
         }
     }))
+    .map(|(feature, _count)| feature)
 }
 
 pub(crate) fn major_fragment_end(
     pileup: &[ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions>],
 ) -> Option<u64> {
-    calc_major_feature(
-        pileup
-            .iter()
-            .filter_map(|obs| {
-                if obs.prob_alt > obs.prob_ref {
-                    // yield both ends of the fragment
-                    Some(obs.fragment_end.into_iter())
-                } else {
-                    None
-                }
-            })
-            .flatten(),
-    )
+    let major_left = calc_major_feature(pileup.iter().filter_map(|obs| {
+        if obs.prob_alt > obs.prob_ref {
+            // yield both ends of the fragment
+            Some(obs.fragment_end.left)
+        } else {
+            None
+        }
+    }));
+
+    let major_right = calc_major_feature(pileup.iter().filter_map(|obs| {
+        if obs.prob_alt > obs.prob_ref {
+            // yield both ends of the fragment
+            Some(obs.fragment_end.right)
+        } else {
+            None
+        }
+    }));
+
+    match (major_left, major_right) {
+        (Some((major_left, count_left)), Some((major_right, count_right))) => {
+            if count_left >= count_right {
+                Some(major_left)
+            } else {
+                Some(major_right)
+            }
+        }
+        (Some((major, _)), None) => Some(major),
+        (None, Some((major, _))) => Some(major),
+        (None, None) => None,
+    }
 }
 
 pub(crate) fn major_alt_locus(
@@ -647,6 +654,7 @@ pub(crate) fn major_alt_locus(
                     .map(|locus| locus_to_bucket(locus, alignment_properties))
             }),
     )
+    .map(|(feature, _count)| feature)
 }
 
 pub(crate) fn locus_to_bucket(

@@ -184,7 +184,7 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBDTASOPXI, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBDTASOPXIE, with C being a count, \
               and B being the posterior odds for the alt or the reference allele. \
               The latter are given as a two letter code. The first letter (`A` or `R`) \
               defines whether the odds favor the alt allele (`A`) or any other allele including the reference allele `R`. \
@@ -201,9 +201,10 @@ where
               S being the strand that supports the observation (+, -, or * for both), \
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
-              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
+              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), \
               I denoting indel operations in the respective alignments against the alt allele \
-              (* = some indel, . = no indel or information irrelevant for variant type).\">".as_slice(),
+              (* = some indel, . = no indel or information irrelevant for variant type), and \
+              E denoting the concordance of the fragment ends with other observations (F = major fragment end, . = other).\">".as_slice(),
         );
         header.push_record(
             b"##FORMAT=<ID=OOBS,Number=A,Type=Integer,\
@@ -262,6 +263,13 @@ where
               This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
               a homology, a distant variant allele, or a CNV). \
               Probability for alt locus bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">".as_slice(),
+        );
+        header.push_record(
+            b"##FORMAT=<ID=FEB,Number=A,Type=String,\
+              Description=\"Fragment end bias estimate: F indicates that ALT allele is systematically associated \
+              with major fragment ends, . indicates other. \
+              Probability for fragment end bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">".as_slice(),
         );
         header.push_record(

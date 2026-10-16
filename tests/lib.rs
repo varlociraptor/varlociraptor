@@ -199,6 +199,7 @@ testcase!(test_seqc2_ffpe_1_3900324, exact);
 testcase!(test_seqc2_ffpe_19_54638714, exact);
 testcase!(test_alt_locus_mapq_only, exact);
 testcase!(test_single_value_afd, exact);
+testcase!(test_seqc2_ffpe_3_195784926, exact);
 testcase!(test_seqc2_wes_10_33202567, exact);
 testcase!(test_seqc2_wes_10_33202567_1, exact);
 testcase!(test_seqc2_wes_10_33202567_2, exact);
