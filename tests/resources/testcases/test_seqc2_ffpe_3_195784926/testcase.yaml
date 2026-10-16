@@ -8,15 +8,17 @@
 #   ukes-varlociraptor:G>A-0.3541
 
 # most of the reads with very low mapq, strong signal with vg
-# mix of high and low mapq values, olny some reads show the variant
-# in this case the different mappings could be the origin
+# mix of high and low mapq values, only some reads show the variant
 
 # The observed VAF (30%) is in principle too high for an FFPE artifact.
-# Maybe a pangenome induced alignment artifact is more likely.
-
-expected:
-  allelefreqs:
-    - tumor == 0.0
+# The question is whether the low MAPQ reads are right or wrong at this locus.
+# Statistically, it is unlikely that all of them are wrong at the same time, thus
+# indicating that the variant is true. If the reported MAPQs are however still overestimated
+# the decision might be wrong as well.
+# TODO METHOD revisit this at some point: should we consider reads group wise, in strata of the same MAPQ?
+# Then, one would consider all reads with the same MAPQ to be either all correctly or all incorrectly mapped.
+# This way, higher coverage would not that fast lead to calls while the individual evidence is overall weak.
+# This would model that in some cases reads sahre a common source of ambiguity (e.g. a true similar locus of origin)
 
 # necessary bam files
 samples:
@@ -36,7 +38,7 @@ candidate: 'candidates.vcf'
 scenario: 'scenario.yaml'
 
 
-
+fragment_end_bias: true
 
 # reference sequence
 reference:
