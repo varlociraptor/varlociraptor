@@ -110,7 +110,7 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
         .into()),
         (_, 0) => Err(Error::MsiBedMotifInvalid {
             // Guarantees BedRegion.motif is never empty for variant_analysis.rs (fn is_perfect_repeat)
-            // and writer.rs (fn inject_dummy_deletion), which both skip their own check as a result.
+            // and writer.rs (fn inject_dummy_indels), which both skip their own check as a result.
             motif: name.to_string(),
         }
         .into()),
