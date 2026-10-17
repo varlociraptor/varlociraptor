@@ -2,6 +2,18 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.12.0](https://github.com/varlociraptor/varlociraptor/compare/v8.11.0...v8.12.0) (2026-10-17)
+
+
+### Features
+
+* support fragment end bias setting per sample in scenario ([#581](https://github.com/varlociraptor/varlociraptor/issues/581)) ([5b5d41c](https://github.com/varlociraptor/varlociraptor/commit/5b5d41cc8ab99b31bee23eeb1f32134b4cb90c3e))
+
+
+### Bug Fixes
+
+* handle skipped cytosines in methylation MM tag according to skip flag ([#578](https://github.com/varlociraptor/varlociraptor/issues/578)) ([25d6b21](https://github.com/varlociraptor/varlociraptor/commit/25d6b214152f58cc1d17575171a57a5c32845690))
+
 ## [8.11.0](https://github.com/varlociraptor/varlociraptor/compare/v8.10.0...v8.11.0) (2026-10-16)
 
 
