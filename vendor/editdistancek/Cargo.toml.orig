@@ -1,0 +1,28 @@
+[package]
+name = "editdistancek"
+version = "1.0.2"
+authors = ["Nikolai Karpov <kimaska@gmail.com>"]
+description = "Fast algorithm for computing edit distance"
+repository = "https://github.com/nkkarpov/editdistancek"
+documentation = "https://github.com/nkkarpov/editdistancek"
+rust-version = "1.62"
+readme = "README.md"
+license = "MIT"
+keywords = ["text", "distance", "edit"]
+edition = "2018"
+
+
+[dev-dependencies]
+quickcheck = { version = "^1.0.3" }
+levenshtein = { version = "^1.0.5" }
+rand = { version = "^0.8.5" }
+criterion = { version = "^0.5.1" }
+triple_accel = { version = "^0.4.0" }
+
+[[bench]]
+harness = false
+name = "benchmarks"
+
+[profile.release]
+codegen-units = 1
+opt-level = 3

@@ -1,0 +1,19 @@
+language: rust
+sudo: false
+matrix:
+  include:
+    - rust: stable
+      env: FEATURES="serde_impl"
+    - rust: nightly
+      env: FEATURES="serde_impl nightly"
+script:
+    - cargo build --features "$FEATURES"
+    - cargo test --features "$FEATURES"
+    - cargo doc --no-deps
+after_success: |
+    [ "$TRAVIS_RUST_VERSION" = nightly ] &&
+    [ "$TRAVIS_BRANCH" = master ] &&
+    [ "$TRAVIS_PULL_REQUEST" = false ] &&
+    bash deploy-docs.sh
+notifications:
+    webhooks: http://huon.me:54857/travis

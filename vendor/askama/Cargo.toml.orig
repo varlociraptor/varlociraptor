@@ -1,0 +1,45 @@
+[package]
+name = "askama"
+version = "0.11.1"
+description = "Type-safe, compiled Jinja-like templates for Rust"
+documentation = "https://docs.rs/askama"
+keywords = ["markup", "template", "jinja2", "html"]
+categories = ["template-engine"]
+homepage = "https://github.com/djc/askama"
+repository = "https://github.com/djc/askama"
+license = "MIT OR Apache-2.0"
+workspace = ".."
+readme = "../README.md"
+edition = "2018"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[features]
+default = ["config", "humansize", "num-traits", "urlencode"]
+config = ["askama_derive/config", "askama_shared/config"]
+humansize = ["askama_shared/humansize"]
+markdown = ["askama_shared/markdown"]
+urlencode = ["askama_shared/percent-encoding"]
+serde-json = ["askama_derive/json", "askama_shared/json"]
+serde-yaml = ["askama_derive/yaml", "askama_shared/yaml"]
+num-traits = ["askama_shared/num-traits"]
+with-actix-web = ["askama_derive/actix-web"]
+with-axum = ["askama_derive/axum"]
+with-gotham = ["askama_derive/gotham"]
+with-mendes = ["askama_derive/mendes"]
+with-rocket = ["askama_derive/rocket"]
+with-tide = ["askama_derive/tide"]
+with-warp = ["askama_derive/warp"]
+
+# deprecated
+mime = []
+mime_guess = []
+
+[dependencies]
+askama_derive = { version = "0.11.2", path = "../askama_derive" }
+askama_escape = { version = "0.10", path = "../askama_escape" }
+askama_shared = { version = "0.12.1", path = "../askama_shared", default-features = false }
+
+[package.metadata.docs.rs]
+features = ["config", "humansize", "num-traits", "serde-json", "serde-yaml"]

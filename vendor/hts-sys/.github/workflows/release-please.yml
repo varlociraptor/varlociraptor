@@ -1,0 +1,43 @@
+on:
+  push:
+    branches:
+      - main
+
+name: release-please
+
+jobs:
+  release-please:
+    if: github.repository_owner == 'rust-bio'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: GoogleCloudPlatform/release-please-action@v3
+        id: release_sys
+        with:
+          release-type: rust
+          package-name: hts-sys
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        if: ${{ steps.release_sys.outputs.release_created }}
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install system dependencies
+        if: ${{ steps.release_sys.outputs.release_created }}
+        run: |
+          sudo apt-get install --yes zlib1g-dev libbz2-dev musl musl-dev musl-tools clang libc6-dev
+
+      - uses: Swatinem/rust-cache@v1.3.0
+        if: ${{ steps.release_sys.outputs.release_created }}
+
+      - name: Publish hts-sys
+        if: ${{ steps.release_sys.outputs.release_created }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: publish
+          args: --manifest-path Cargo.toml --token ${{ secrets.CRATES_IO_TOKEN }}

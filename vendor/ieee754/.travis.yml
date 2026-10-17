@@ -1,0 +1,44 @@
+language: rust
+matrix:
+  fast_finish: true
+
+  include:
+      - rust: nightly
+        env: COVERAGE=1
+        sudo: required
+
+      - rust: stable
+        services: docker
+        env: TARGET=i686-unknown-linux-gnu
+        sudo: required
+        addons:
+          apt:
+            packages:
+              - gcc-multilib
+
+      - rust: beta
+
+      - rust: 1.23.0
+
+      - rust: stable
+        services: docker
+        env: TARGET=mips64-unknown-linux-gnuabi64
+        sudo: required
+
+      - rust: stable
+        env: COVERAGE=1
+        sudo: required
+
+cache: cargo
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+
+before_script:
+  - export PATH=$HOME/.cargo/bin:$PATH
+
+script:
+  - ./ci/script.sh

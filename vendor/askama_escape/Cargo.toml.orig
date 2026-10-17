@@ -1,0 +1,25 @@
+[package]
+name = "askama_escape"
+version = "0.10.3"
+description = "Optimized HTML escaping code, extracted from Askama"
+documentation = "https://docs.rs/askama_escape"
+keywords = ["html", "escaping"]
+homepage = "https://github.com/djc/askama"
+repository = "https://github.com/djc/askama"
+license = "MIT OR Apache-2.0"
+workspace = ".."
+readme = "README.md"
+edition = "2018"
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[dev-dependencies]
+criterion = "0.3"
+
+[features]
+json = []
+
+[[bench]]
+name = "all"
+harness = false

@@ -1,0 +1,125 @@
+[package]
+
+name = "ndarray"
+version = "0.16.1"
+edition = "2018"
+rust-version = "1.64"
+authors = [
+  "Ulrik Sverdrup \"bluss\"",
+  "Jim Turner"
+]
+license = "MIT OR Apache-2.0"
+readme = "README-crates.io.md"
+
+repository = "https://github.com/rust-ndarray/ndarray"
+documentation = "https://docs.rs/ndarray/"
+
+description = "An n-dimensional array for general elements and for numerics. Lightweight array views and slicing; views support chunking and splitting."
+
+keywords = ["array", "data-structure", "multidimensional", "matrix", "blas"]
+categories = ["data-structures", "science"]
+
+exclude = ["docgen/images/*"]
+resolver = "2"
+
+[lib]
+name = "ndarray"
+bench = false
+test = true
+
+[dependencies]
+num-integer = { workspace = true }
+num-traits = { workspace = true }
+num-complex = { workspace = true }
+
+approx = { workspace = true, optional = true }
+rayon = { version = "1.10.0", optional = true }
+
+# Use via the `blas` crate feature
+cblas-sys = { workspace = true, optional = true }
+libc = { version = "0.2.82", optional = true }
+
+matrixmultiply = { version = "0.3.2", default-features = false, features=["cgemm"] }
+
+serde = { version = "1.0", optional = true, default-features = false, features = ["alloc"] }
+rawpointer = { version = "0.2" }
+
+[dev-dependencies]
+defmac = "0.2"
+quickcheck = { workspace = true }
+approx = { workspace = true, default-features = true }
+itertools = { workspace = true }
+ndarray-gen = { workspace = true }
+
+[features]
+default = ["std"]
+
+# Enable blas usage
+# See README for more instructions
+blas = ["dep:cblas-sys", "dep:libc"]
+
+serde = ["dep:serde"]
+# Old name for the serde feature
+serde-1 = ["dep:serde"]
+
+# These features are used for testing
+test = []
+
+# This feature is used for docs
+docs = ["approx", "serde", "rayon"]
+
+std = ["num-traits/std", "matrixmultiply/std"]
+rayon = ["dep:rayon", "std"]
+
+matrixmultiply-threading = ["matrixmultiply/threading"]
+
+portable-atomic-critical-section = ["portable-atomic/critical-section"]
+
+
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic = { version = "1.6.0" }
+portable-atomic-util = { version = "0.2.0", features = [ "alloc" ] }
+
+[workspace]
+members = [
+    "ndarray-rand",
+    "crates/*",
+]
+default-members = [
+    ".",
+    "ndarray-rand",
+    "crates/ndarray-gen",
+    "crates/numeric-tests",
+    "crates/serialization-tests",
+    # exclude blas-tests and blas-mock-tests that activate "blas" feature
+]
+
+[workspace.dependencies]
+ndarray = { version = "0.16", path = ".", default-features = false }
+ndarray-rand = { path = "ndarray-rand" }
+ndarray-gen = { path = "crates/ndarray-gen" }
+
+num-integer = { version = "0.1.39", default-features = false }
+num-traits = { version = "0.2", default-features = false }
+num-complex = { version = "0.4", default-features = false }
+approx = { version = "0.5", default-features = false }
+quickcheck = { version = "1.0", default-features = false }
+rand = { version = "0.8.0", features = ["small_rng"] }
+rand_distr = { version = "0.4.0" }
+itertools = { version = "0.13.0", default-features = false, features = ["use_std"] }
+cblas-sys = { version = "0.1.4", default-features = false }
+
+[profile.bench]
+debug = true
+
+[profile.test.package.numeric-tests]
+opt-level = 2
+[profile.test.package.blas-tests]
+opt-level = 2
+
+[package.metadata.release]
+no-dev-version = true
+tag-name = "{{version}}"
+
+[package.metadata.docs.rs]
+features = ["docs"]

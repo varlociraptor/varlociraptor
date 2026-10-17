@@ -1,0 +1,46 @@
+[package]
+name = "sysinfo"
+version = "0.15.9"
+authors = ["Guillaume Gomez <guillaume1.gomez@gmail.com>"]
+
+description = "Library to get system information such as processes, processors, disks, components and networks"
+repository = "https://github.com/GuillaumeGomez/sysinfo"
+license = "MIT"
+readme = "README.md"
+
+categories = ["filesystem", "os", "api-bindings"]
+
+build = "build.rs"
+
+[dependencies]
+cfg-if = "1.0"
+rayon = { version = "^1.5", optional = true }
+doc-comment = "0.3"
+once_cell = "1.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["fileapi", "handleapi", "ifdef", "ioapiset", "minwindef", "pdh", "psapi", "synchapi", "sysinfoapi", "winbase", "winerror", "winioctl", "winnt", "oleauto", "wbemcli", "rpcdce", "combaseapi", "objidl", "powerbase", "netioapi", "lmcons", "lmaccess", "lmapibuf", "memoryapi", "shellapi"] }
+ntapi = "0.3"
+
+[target.'cfg(not(any(target_os = "unknown", target_arch = "wasm32")))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+core-foundation-sys = "0.8"
+
+[build-dependencies]
+# This is required in all targets, even though it is only used when `--target`
+# is an Apple system, since the build script must be built for the compilation
+# system no matter what the target of the library is.
+cc = "1.0"
+
+[lib]
+name = "sysinfo"
+crate_type = ["rlib", "cdylib"]
+path = "src/sysinfo.rs"
+
+[features]
+default = ["multithread"]
+c-interface = []
+multithread = ["rayon"]
+debug = ["libc/extra_traits"]

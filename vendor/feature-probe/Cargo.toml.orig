@@ -1,0 +1,10 @@
+[package]
+name = "feature-probe"
+version = "0.1.1"
+authors = ["Jesse A. Tov <jesse.tov@gmail.com>"]
+description = "Probe for rustc features from build.rs"
+repository = "https://github.com/tov/feature-probe-rs"
+readme = "README.md"
+license = "MIT/Apache-2.0"
+keywords = ["rustc", "features", "probe", "autoconf"]
+categories = ["development-tools"]

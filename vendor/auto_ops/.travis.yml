@@ -1,0 +1,34 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+  - 1.31.0
+matrix:
+  allow_failures:
+    - rust: nightly
+before_script:
+  - rustup component add rustfmt
+script:
+  - cargo fmt -- --check
+  - cargo test --verbose
+cache: cargo
+before_cache:
+  - chmod -R a+r $HOME/.cargo
+deploy:
+  - provider: cargo
+    token:
+      secure: A3xDWK9zvsCOnAH4mK00c8Uy9kMKMLLEXbDP8TPWBWm78Eoki2AG64Ym9FXPq9LXhJz3hbT3Amm/DcjqKXMCZrBZ8DY0pZCS0KSAdkwMFsXeHkGva6Fvy7DbL73VB1QvQDQAqV0QnrDMQfcAiyl1VxJpkwXfsGqAfzVYRdRjV8c3JFN7cVjI3x+52zrRtCqJfdxfY427KvMAj6YdZCENfRJUKLVNMg6RTQFWzjgdzDuViYfT254tRrJc+VaeWHDfjNadH4kLXyFpnxHQUhbGVNfE4v+YQUH8+0in/9LanLCSHTA/lObetgynCNzlfJjLVGMjpR+D/+D3FbUzfWCZ8fx5mXIJ3dVgHTOqvWfSNfKOEv83QFw1HAi27peYdIhoFLOVPHBCnh38lriEqfaBDEN2um2EDRvssFB37Bvo6zOWEj/kl+XMulYlaRw6mIw9O0anezLxzctGBI+807Zdo37Ne9wVcebPaP2VJO9Ig4Lap/r6vpmAagO++VoWtWgOo895jU/K7bANDRMTwBFe4SVoxiGBk6j8EhZLgAEJdkGLOPnClWvcemuS7fRPv4c3mLhwTEcVV883NOmQ2mAoqIRr/UNZELfM7hU62bQzdgxqQqVUpPd8pPdq4tJlPeAtZd0FmR/VSYUliJq2id/27cnvDgQuwRK1A1LbNRYrJkE=
+    edge: true
+    skip_cleanup: true
+    on:
+      condition: $TRAVIS_RUST_VERSION = stable
+      tags: true
+  - provider: releases
+    draft: true
+    token:
+      secure: M/doJ7lx5P4O4slmIRw0iSYd5Hs/q8aWrH3raBdc07aVlixPuFQ1q8jGaLZ2R2E5V3vzahxV0qAciqyKwjvd0iksO4ZnpAvdlGmzzqRI10KXo6VqA4xS7AurVfqiTz95d4pZMdAEQszc+U3CJwKaa5yiTfbCC/lDcn9L3JGDOlvJc9vNysYHLOBSNhHeD2nkPgL86Ka1cAyvIGLVS5EEotSqamdgLpDIRwivz7F6NrAI29m9dO2JBTPV2UwsAhuCl9YV9alTvB+fju0RVoORoRPkbH3xS8eM8F5sexF6gHO7KF5UfpVtf2FhnA0AN4sX2imt4pqxLso40FcJ9odUqksgBgmkmCHR3Q0eRB6MVrfn658vqomZCsswo4oBjIYP2gzzBbVNDrKMxemh+PzSeI+pisAqcmtSGcK/I5XrBP0iO+ZriPh2Xh9dWhgTeotsSjnxQNrDIi7Y96IIHuUWETyLTZkA2OXYRbvcaEc9hafrgDnfqVZwR3Cad3FLNk6xVO0mOxGj4JWdqLsZ0S0RYcj503l+EntNSwJ7C9k7yLbImi41JG2gGzT4GfBcmRElhYCVPeRI6ATZMKAtjdwaq6rS1DH4sSjUxDQsgI5QL8NImV7Iw42m66Q9MAsqE2/RBQEC1tzzlgJzeIa0ht52UoJHgqmTTH9kJPwzgvwoGR4=
+    edge: true
+    on:
+      condition: $TRAVIS_RUST_VERSION = stable
+      tags: true

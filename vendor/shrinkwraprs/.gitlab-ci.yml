@@ -1,0 +1,25 @@
+image: rust:1.31
+
+stages:
+  - build
+  - test
+
+build-lib:
+  stage: build
+  script:
+    - cargo build --lib --features strict
+
+build-examples:
+  stage: build
+  script:
+    - cargo build --examples
+
+test:
+  stage: test
+  script:
+    # with default feature std
+    - cargo test
+
+    # without default feature std
+    # don’t try to build examples (rust-lang/cargo#5387)
+    - cargo test --no-default-features --lib --tests
