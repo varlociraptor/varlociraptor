@@ -685,8 +685,6 @@ pub(crate) fn validate_vcf_file(vcf: &mut bcf::Reader) -> Result<()> {
     }
 }
 
-/* ================================================ */
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
