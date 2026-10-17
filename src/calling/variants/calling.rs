@@ -70,12 +70,12 @@ where
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
-    fragment_end_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     aux_info_fields: Vec<Vec<u8>>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
+    fragment_end_bias: grammar::SampleInfo<bool>,
     prior: Pr,
     haplotype_feature_index: HaplotypeFeatureIndex,
     #[builder(default)]
@@ -328,6 +328,7 @@ where
             .prior(self.prior.clone())
             .contaminations(self.contaminations.clone())
             .resolutions(self.resolutions.clone())
+            .fragment_end_bias(self.fragment_end_bias.clone())
             .build()
             .unwrap()
     }
@@ -591,7 +592,7 @@ where
                 && is_precise,
             check_strand_bias: !self.omit_strand_bias && is_precise,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias && is_precise,
-            check_fragment_end_bias: self.fragment_end_bias,
+            check_fragment_end_bias: self.fragment_end_bias.iter().any(|enabled| *enabled),
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias && is_precise,
             check_homopolymer_artifact_detection: false,
             check_alt_locus_bias: !self.omit_alt_locus_bias,
@@ -785,7 +786,7 @@ where
                 // By this, we can avoid marginalization of them, which is
                 // unnecessarily expensive.
                 for bias in &mut event.biases {
-                    bias.learn_parameters(data.pileups());
+                    bias.learn_parameters(data.pileups(), &self.fragment_end_bias);
                 }
             }
 
@@ -1121,6 +1122,13 @@ where
     CF: CandidateFilter,
 {
     let sample_infos = SampleInfos::try_from(&scenario)?;
+    // METHOD: the CLI flag enables fragment end bias for all samples,
+    // otherwise it is controlled per sample in the scenario.
+    let fragment_end_bias = if fragment_end_bias {
+        sample_infos.fragment_end_bias.map(|_| true)
+    } else {
+        sample_infos.fragment_end_bias
+    };
 
     // record observation paths
     let mut sample_observations = scenario.sample_info();
@@ -1177,11 +1185,11 @@ where
         .omit_softclip_bias(omit_softclip_bias)
         .omit_homopolymer_artifact_detection(omit_homopolymer_artifact_detection)
         .omit_alt_locus_bias(omit_alt_locus_bias)
-        .fragment_end_bias(fragment_end_bias)
         .scenario(scenario)
         .prior(prior)
         .contaminations(sample_infos.contaminations)
         .resolutions(sample_infos.resolutions)
+        .fragment_end_bias(fragment_end_bias)
         .haplotype_feature_index(haplotype_feature_index)
         .outbcf(output)
         .aux_info_fields(propagate_info_fields)
@@ -1203,6 +1211,7 @@ pub(crate) struct SampleInfos {
     uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<grammar::Resolution>,
+    fragment_end_bias: grammar::SampleInfo<bool>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
@@ -1215,6 +1224,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
     fn try_from(scenario: &grammar::Scenario) -> Result<Self> {
         let mut contaminations = scenario.sample_info();
         let mut resolutions = scenario.sample_info();
+        let mut fragment_end_bias = scenario.sample_info();
         let mut sample_names = scenario.sample_info();
         let mut germline_mutation_rates = scenario.sample_info();
         let mut somatic_effective_mutation_rates = scenario.sample_info();
@@ -1238,6 +1248,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
             resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
+            fragment_end_bias = fragment_end_bias.push(sample_name, *sample.fragment_end_bias());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
             germline_mutation_rates = germline_mutation_rates.push(
                 sample_name,
@@ -1286,6 +1297,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             uniform_prior: uniform_prior.build(),
             contaminations: contaminations.build(),
             resolutions: resolutions.build(),
+            fragment_end_bias: fragment_end_bias.build(),
             germline_mutation_rates: germline_mutation_rates.build(),
             somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),
             inheritance: inheritance.build(),

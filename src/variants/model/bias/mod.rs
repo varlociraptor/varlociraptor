@@ -37,11 +37,15 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn is_artifact(&self) -> bool;
 
     fn is_possible(&self, pileups: &[Pileup]) -> bool {
+        self.is_possible_in(pileups.iter())
+    }
+
+    fn is_possible_in<'a>(&self, pileups: impl Iterator<Item = &'a Pileup>) -> bool {
         if !self.is_artifact() {
             return true;
         }
 
-        pileups.iter().any(|pileup| {
+        pileups.into_iter().any(|pileup| {
             pileup
                 .read_observations()
                 .iter()
@@ -49,7 +53,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
         })
     }
 
-    fn is_informative(&self, _pileups: &[Pileup]) -> bool {
+    fn is_informative(&self, pileups: &[Pileup]) -> bool {
+        self.is_informative_in(pileups.iter())
+    }
+
+    fn is_informative_in<'a>(&self, _pileups: impl Iterator<Item = &'a Pileup>) -> bool {
         true
     }
 
@@ -62,10 +70,14 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     fn is_likely(&self, pileups: &[Pileup]) -> bool {
+        self.is_likely_in(pileups.iter())
+    }
+
+    fn is_likely_in<'a>(&self, pileups: impl Iterator<Item = &'a Pileup>) -> bool {
         if !self.is_artifact() {
             true
         } else {
-            pileups.iter().any(|pileup| {
+            pileups.into_iter().any(|pileup| {
                 let strong_all = pileup
                     .read_observations()
                     .iter()
@@ -106,7 +118,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     /// Learn parameters needed for estimation on current pileup.
-    fn learn_parameters(&mut self, _pileups: &[Pileup]) {
+    fn learn_parameters(&mut self, pileups: &[Pileup]) {
+        self.learn_parameters_in(pileups.iter());
+    }
+
+    fn learn_parameters_in<'a>(&mut self, _pileups: impl Iterator<Item = &'a Pileup>) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
@@ -231,6 +247,16 @@ impl Artifacts {
         )
     }
 
+    /// Reset all biases that are not applicable to a sample (currently only fragment end bias,
+    /// which can be configured per sample).
+    pub(crate) fn for_sample(&self, fragment_end_bias: bool) -> Self {
+        let mut artifacts = self.clone();
+        if !fragment_end_bias {
+            artifacts.fragment_end_bias = FragmentEndBias::default();
+        }
+        artifacts
+    }
+
     pub(crate) fn none() -> Self {
         ArtifactsBuilder::default()
             .strand_bias(StrandBias::default())
@@ -244,31 +270,48 @@ impl Artifacts {
             .unwrap()
     }
 
-    pub(crate) fn is_possible(&self, pileups: &[Pileup]) -> bool {
+    /// Iterate over the pileups of those samples for which fragment end bias is considered.
+    fn fragment_end_pileups<'a>(
+        pileups: &'a [Pileup],
+        fragment_end_samples: &'a [bool],
+    ) -> impl Iterator<Item = &'a Pileup> {
+        pileups
+            .iter()
+            .zip(fragment_end_samples)
+            .filter_map(|(pileup, enabled)| enabled.then_some(pileup))
+    }
+
+    pub(crate) fn is_possible(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
-            && self.fragment_end_bias.is_possible(pileups)
+            && self
+                .fragment_end_bias
+                .is_possible_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
             && self.softclip_bias.is_possible(pileups)
             && self.homopolymer_error.is_possible(pileups)
             && self.alt_locus_bias.is_possible(pileups)
     }
 
-    pub(crate) fn is_informative(&self, pileups: &[Pileup]) -> bool {
+    pub(crate) fn is_informative(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
-            && self.fragment_end_bias.is_informative(pileups)
+            && self
+                .fragment_end_bias
+                .is_informative_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
             && self.softclip_bias.is_informative(pileups)
             && self.homopolymer_error.is_informative(pileups)
             && self.alt_locus_bias.is_informative(pileups)
     }
 
-    pub(crate) fn is_likely(&self, pileups: &[Pileup]) -> bool {
+    pub(crate) fn is_likely(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
         self.strand_bias.is_likely(pileups)
             && self.read_orientation_bias.is_likely(pileups)
             && self.read_position_bias.is_likely(pileups)
-            && self.fragment_end_bias.is_likely(pileups)
+            && self
+                .fragment_end_bias
+                .is_likely_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
             && self.softclip_bias.is_likely(pileups)
             && self.homopolymer_error.is_likely(pileups)
             && self.alt_locus_bias.is_likely(pileups)
@@ -314,11 +357,12 @@ impl Artifacts {
             || self.alt_locus_bias.is_artifact()
     }
 
-    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) {
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup], fragment_end_samples: &[bool]) {
         self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
         self.read_position_bias.learn_parameters(pileups);
-        self.fragment_end_bias.learn_parameters(pileups);
+        self.fragment_end_bias
+            .learn_parameters_in(Self::fragment_end_pileups(pileups, fragment_end_samples));
         self.alt_locus_bias.learn_parameters(pileups);
     }
 }
