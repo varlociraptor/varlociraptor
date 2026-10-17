@@ -7,8 +7,6 @@
 //! 2. `inject_dummy_indels` - Creates dummy deletion + insertion pair for
 //!    regions without perfect repeats
 //! 3. `write_variant` - Writes variants with REGION_ID annotations if applicable
-//! 4.  Unit tests for both (2,3) functions, covering typical and edge cases
-//!
 
 use anyhow::Result;
 use rust_htslib::bcf::{self, Writer};
@@ -23,10 +21,10 @@ use crate::utils::ms_bed::BedRegion;
 
 /// Variant in sliding window with accumulated region annotations.
 pub(super) struct VariantInWindow {
-    /// The VCF record
-    pub record: bcf::Record,
-    /// Chromosome name
-    pub chrom: String,
+    /// The VCF record.
+    pub(super) record: bcf::Record,
+    /// Chromosome name.
+    pub(super) chrom: String,
     /// Region IDs matched per ALT allele (Number=A).
     ///
     /// Key: ALT index (0-based into the ALT array).
@@ -39,12 +37,12 @@ pub(super) struct VariantInWindow {
     ///
     /// Invariant: each ALT index maps to at most one region.
     /// Assigning a second region to the same ALT is an error.
-    pub matching_regions: HashMap<usize, String>,
+    pub(super) matching_regions: HashMap<usize, String>,
     /// User-specified INFO fields collected from input record.
     /// Written to output via aux_info.write() during write_variant.
     /// Fields in MSI_OMIT_AUX are excluded to prevent
     /// double-writing with copy_info_fields().
-    pub aux_info: AuxInfo,
+    pub(super) aux_info: AuxInfo,
 }
 
 /* ============ Functions ========================= */
@@ -59,7 +57,7 @@ pub(super) struct VariantInWindow {
 /// has coverage (or both) contributes to the DP model; if neither does,
 /// both remain uninformative.
 ///
-/// Output records contains only REGION_ID and MSI_DUMMY INFO fields.
+/// Output records contain only REGION_ID and MSI_DUMMY INFO fields.
 /// No FORMAT or sample data is written.
 ///
 /// # Arguments
@@ -68,17 +66,14 @@ pub(super) struct VariantInWindow {
 ///
 /// # Returns
 /// * `Ok(())` on success
-/// * `Err` if chromosome not found or motif is empty
+/// * `Err` if setting the alleles, pushing an INFO field or writing a record fails
 ///
-/// # Note:
+/// # Panics
 /// Panics if `region.chrom` is not present in the writer's header.
 /// This is expected to never happen when called from the real pipeline:
 /// `prepare_header` (header.rs) guarantees every BED chromosome is added
 /// to the header before this writer is constructed - see
 /// `header.rs::test_prepare_header_adds_missing_contigs`.
-///
-/// # Example
-/// assert!(inject_dummy_indels(&mut writer, &region).is_ok());
 pub(super) fn inject_dummy_indels(writer: &mut Writer, region: &BedRegion) -> Result<()> {
     // Guaranteed non-empty by ms_bed.rs's parse_motif_from_name.
     // Re-enable if that changes.
@@ -144,6 +139,16 @@ pub(super) fn inject_dummy_indels(writer: &mut Writer, region: &BedRegion) -> Re
 /// * `writer` - VCF writer
 /// * `variant_info` - Variant with accumulated region annotation and aux info
 /// * `counter` - Counter for annotated MS indels (incremented if annotations present)
+///
+/// # Returns
+/// * `Ok(())` if the record was written
+/// * `Err` if setting the alleles, copying INFO fields, writing aux info,
+///   pushing REGION_ID or writing the record fails
+///
+/// # Panics
+/// Panics if `variant_info.chrom` is not present in the writer's header.
+/// The header holds every contig declared in the input VCF and every BED
+/// chromosome, see `prepare_header`.
 pub(super) fn write_variant(
     writer: &mut Writer,
     variant_info: VariantInWindow,
@@ -187,13 +192,11 @@ pub(super) fn write_variant(
     Ok(())
 }
 
-/* =============== Tests ========================== */
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use rust_htslib::bcf::{self, Read};
+    use rust_htslib::bcf::Read;
     use tempfile::NamedTempFile;
 
     use crate::constants::{MSI_DUMMY_HEADER, MSI_REGION_ID_HEADER};
@@ -204,9 +207,7 @@ mod tests {
         TestVcfConfig,
     };
 
-    /* ============ VCF Helpers  ======================= */
-
-    /// Create minimal VCF header for dummy indel tests
+    /// Create a minimal VCF header (chr1 contig, REGION_ID and MSI_DUMMY declarations).
     fn create_minimal_vcf_header() -> bcf::Header {
         let mut header = bcf::Header::new();
         header.push_record(br"##fileformat=VCFv4.2");
@@ -362,7 +363,7 @@ mod tests {
         let record = create_test_record(&writer, 0, 1000, b"ACAG", b"ACAGCAG");
 
         let mut matching_regions = HashMap::new();
-        matching_regions.insert(0, "chr1:1000-1020".to_string());
+        matching_regions.insert(0, "chr1:1001-1022".to_string());
 
         let variant_info = VariantInWindow {
             record,
@@ -380,8 +381,7 @@ mod tests {
         let record = read_first_record(tmp.path());
 
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap();
-        assert!(region_id.is_some());
-        assert_eq!(region_id.unwrap()[0], b"chr1:1000-1020");
+        assert_eq!(region_id.unwrap()[0], b"chr1:1001-1022");
     }
 
     #[test]
@@ -442,6 +442,7 @@ mod tests {
 
         let record = read_first_record(tmp.path());
 
+        assert_eq!(record.pos(), 2000);
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap();
         assert!(region_id.is_none(), "REGION_ID should be removed");
     }
@@ -462,7 +463,7 @@ mod tests {
             chrom: "chr1".to_string(),
             matching_regions: {
                 let mut m = HashMap::new();
-                m.insert(0, "chr1:1000-1020".to_string());
+                m.insert(0, "chr1:1001-1022".to_string());
                 m
             },
             aux_info: AuxInfo::default(),
@@ -478,7 +479,31 @@ mod tests {
 
         let region_id = record.info(MSI_REGION_ID_TAG).string().unwrap().unwrap();
         assert_eq!(region_id.len(), 1);
-        assert_eq!(region_id[0], b"chr1:1000-1020");
+        assert_eq!(region_id[0], b"chr1:1001-1022");
+    }
+
+    #[test]
+    fn test_write_variant_copies_standard_info_field() {
+        let tmp = NamedTempFile::new().unwrap();
+        let mut header = create_minimal_vcf_header();
+        header.push_record(br##"##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="SV length">"##);
+        let mut writer = Writer::from_path(tmp.path(), &header, false, bcf::Format::Vcf).unwrap();
+
+        let mut record = create_test_record(&writer, 0, 1000, b"ACAG", b"ACAGCAG");
+        record.push_info_integer(b"SVLEN", &[3]).unwrap();
+        let variant_info = VariantInWindow {
+            record,
+            chrom: "chr1".to_string(),
+            matching_regions: HashMap::new(),
+            aux_info: AuxInfo::default(),
+        };
+
+        let mut counter = 0;
+        write_variant(&mut writer, variant_info, &mut counter).unwrap();
+        drop(writer);
+
+        let record = read_first_record(tmp.path());
+        assert_eq!(record.info(b"SVLEN").integer().unwrap().unwrap()[0], 3);
     }
 
     #[test]
@@ -502,13 +527,13 @@ mod tests {
         );
         let mut writer = Writer::from_path(tmp.path(), &header, false, bcf::Format::Vcf).unwrap();
 
-        let record = create_test_record(&writer, 0, 1000, b"ACAG", b"ACAGCAG");
+        let record = create_test_record(&writer, 0, 99, b"ACAG", b"ACAGCAG");
         let variant_info = VariantInWindow {
             record,
             chrom: "chr1".to_string(),
             matching_regions: {
                 let mut m = HashMap::new();
-                m.insert(0, "chr1:1000-1020".to_string());
+                m.insert(0, "chr1:100-121".to_string());
                 m
             },
             aux_info,
@@ -520,7 +545,6 @@ mod tests {
 
         let record = read_first_record(tmp.path());
         let cosmic = record.info(b"COSMIC_ID").string().unwrap();
-        assert!(cosmic.is_some(), "COSMIC_ID propagated via aux_info");
         assert_eq!(cosmic.unwrap()[0], b"COSM123");
     }
 
@@ -530,12 +554,12 @@ mod tests {
         let header = create_minimal_vcf_header();
         let mut writer = Writer::from_path(tmp.path(), &header, false, bcf::Format::Vcf).unwrap();
 
-        // Two ALTs: ALT0=ACAGCAG (overlaps Region1), ALT1=A (overlaps Region2)
-        let record = create_test_record_multi_alt(&writer, 0, 997, b"ACAG", &[b"ACAGCAG", b"A"]);
+        // Two ALTs: ALT0=GCAGCAG (overlaps Region1), ALT1=G (overlaps Region2)
+        let record = create_test_record_multi_alt(&writer, 0, 997, b"GCAG", &[b"GCAGCAG", b"G"]);
 
         let mut matching_regions = HashMap::new();
-        matching_regions.insert(0, "chr1:1001-1030".to_string()); // ALT0
-        matching_regions.insert(1, "chr1:994-1001".to_string()); // ALT1
+        matching_regions.insert(0, "chr1:1001-1028".to_string()); // ALT0
+        matching_regions.insert(1, "chr1:995-1001".to_string()); // ALT1
 
         let variant_info = VariantInWindow {
             record,
@@ -554,8 +578,8 @@ mod tests {
         let region_ids = record.info(MSI_REGION_ID_TAG).string().unwrap().unwrap();
 
         assert_eq!(region_ids.len(), 2);
-        assert_eq!(region_ids[0], b"chr1:1001-1030");
-        assert_eq!(region_ids[1], b"chr1:994-1001");
+        assert_eq!(region_ids[0], b"chr1:1001-1028");
+        assert_eq!(region_ids[1], b"chr1:995-1001");
     }
 
     #[test]
@@ -594,5 +618,24 @@ mod tests {
             chrom, "chr2",
             "should use VariantInWindow.chrom, not record's raw rid"
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "chromosome missing from output header")]
+    fn test_write_variant_chromosome_not_found() {
+        let tmp = NamedTempFile::new().unwrap();
+        let header = create_minimal_vcf_header();
+        let mut writer = Writer::from_path(tmp.path(), &header, false, bcf::Format::Vcf).unwrap();
+
+        let record = create_test_record(&writer, 0, 99, b"A", b"AT");
+        let variant_info = VariantInWindow {
+            record,
+            chrom: "1".to_string(), // Not in header by this name!
+            matching_regions: HashMap::new(),
+            aux_info: AuxInfo::default(),
+        };
+
+        let mut counter = 0;
+        let _ = write_variant(&mut writer, variant_info, &mut counter);
     }
 }
