@@ -59,6 +59,7 @@ where
 {
     resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
+    fragment_end_bias: Option<grammar::SampleInfo<bool>>,
     prior: P,
 }
 
@@ -84,6 +85,15 @@ where
         self
     }
 
+    pub(crate) fn fragment_end_bias(
+        mut self,
+        fragment_end_bias: grammar::SampleInfo<bool>,
+    ) -> Self {
+        self.fragment_end_bias = Some(fragment_end_bias);
+
+        self
+    }
+
     pub(crate) fn prior(mut self, prior: P) -> Self {
         self.prior = prior;
 
@@ -96,6 +106,8 @@ where
         let posterior = GenericPosterior::new(
             self.resolutions
                 .expect("GenericModelBuilder: need to call resolutions() before build()"),
+            self.fragment_end_bias
+                .expect("GenericModelBuilder: need to call fragment_end_bias() before build()"),
         );
         let likelihood = GenericLikelihood::new(
             self.contaminations
@@ -185,6 +197,7 @@ impl Index<usize> for LikelihoodOperands {
 #[derive(new, Clone, Debug, Default)]
 pub(crate) struct GenericPosterior {
     resolutions: grammar::SampleInfo<grammar::Resolution>,
+    fragment_end_bias: grammar::SampleInfo<bool>,
 }
 
 impl GenericPosterior {
@@ -251,7 +264,7 @@ impl GenericPosterior {
                             *sample,
                             likelihood::Event {
                                 allele_freq,
-                                artifacts: biases.clone(),
+                                artifacts: biases.for_sample(self.fragment_end_bias[*sample]),
                                 is_discrete,
                             },
                         );
@@ -442,9 +455,9 @@ impl Posterior for GenericPosterior {
 
         // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
         let possible_biases = event.biases.iter().filter(|bias| {
-            bias.is_possible(&data.pileups)
-                && bias.is_informative(&data.pileups)
-                && bias.is_likely(&data.pileups)
+            bias.is_possible(&data.pileups, &self.fragment_end_bias)
+                && bias.is_informative(&data.pileups, &self.fragment_end_bias)
+                && bias.is_likely(&data.pileups, &self.fragment_end_bias)
         });
 
         LogProb::ln_sum_exp(
