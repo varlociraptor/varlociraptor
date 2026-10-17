@@ -3,8 +3,7 @@
 //! Output VCF header preparation for MSI preprocessing.
 //!
 //! This module provides:
-//! 1. `prepare_header` function to create a modified VCF header for MSI preprocessing output.
-//!
+//! 1. `prepare_header` function to create a modified VCF header for MSI preprocessing output
 
 use std::path::Path;
 
@@ -18,12 +17,12 @@ use crate::utils::ms_bed::collect_bed_chromosomes;
 
 /// Prepare output VCF header for MSI preprocessing.
 ///
-/// Creates a modified header from the input VCF by:
-/// 1. Collecting contig names (input header + any BED-only chromosomes) and
-///    standard INFO field declarations from the input header
-/// 2. Adding INFO/REGION_ID and INFO/MSI_DUMMY field definitions
-/// 3. Writing all contigs in lexicographically sorted order, followed by
-///    the collected INFO field declarations & aux info fields
+/// # Algorithm
+/// 1. Collect contig names and the standard INFO field declarations (`MSI_COPY_FIELDS`) from the input header
+/// 2. Collect the BED chromosomes and add those missing from the input header
+/// 3. Write all contigs in lexicographically sorted order
+/// 4. Write the INFO/REGION_ID and INFO/MSI_DUMMY declarations
+/// 5. Write the collected standard INFO declarations, then the aux info fields
 ///
 /// # Arguments
 /// * `input_header` - HeaderView from input VCF reader
@@ -32,12 +31,14 @@ use crate::utils::ms_bed::collect_bed_chromosomes;
 ///
 /// # Returns
 /// * `Ok(Header)` - Prepared header ready for writer creation
-/// * `Err` if BED file cannot be read or has no valid regions, or a standard
-///   INFO field is declared in the input header without all of
-///   Number/Type/Description
+/// * `Err` if:
+///     - BED file cannot be opened or read, or a record in it is invalid
+///     - BED file has no valid regions (`Error::BedFileNoValidRegions`)
+///     - A copied INFO field lacks Number, Type or Description (`Error::VcfHeaderFieldMissing`)
 ///
-/// # Example
-/// assert!(prepare_header(&input_vcf.header(), Path::new("ms_regions.bed"), &aux_info_collector).is_ok());
+/// # Note
+/// Only the contig ID is kept for each contig (length and other attributes are dropped),
+/// and header records other than the contig & INFO fields listed in the Algorithm are not carried over.
 pub(super) fn prepare_header(
     input_header: &bcf::header::HeaderView,
     bed_path: &Path,
@@ -46,8 +47,6 @@ pub(super) fn prepare_header(
     let mut header = bcf::Header::new();
 
     // Copy Contigs & standard INFO field declarations from input header into vectors for later processing
-    // NOTE: Type, Number, Description are required by VCF spec so None case should not occur
-    // with well-formed input.
     let mut all_contigs: Vec<String> = Vec::new();
     let mut standard_info_fields: Vec<(String, String, String, String)> = Vec::new();
 
@@ -75,6 +74,7 @@ pub(super) fn prepare_header(
                                 ));
                             }
                             _ => {
+                                // Number, Type and Description are required by the VCF spec
                                 return Err(Error::VcfHeaderFieldMissing {
                                     field: id.clone(),
                                     location: "INFO".to_string(),
@@ -138,7 +138,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    use rust_htslib::bcf::{self, Format, Read};
+    use rust_htslib::bcf::{Format, Read};
     use tempfile::NamedTempFile;
 
     use crate::utils::aux_info::tests::make_aux_collector;
@@ -146,7 +146,7 @@ mod tests {
     /// Helper: Create minimal test VCF file with given contigs and INFO header lines
     fn create_test_vcf(contigs: &[&str], info_records: &[&str]) -> NamedTempFile {
         let mut tmp = NamedTempFile::new().unwrap();
-        write!(tmp, "##fileformat=VCFv4.2\n").unwrap();
+        writeln!(tmp, "##fileformat=VCFv4.2").unwrap();
         for contig in contigs {
             writeln!(tmp, "##contig=<ID={}>", contig).unwrap();
         }
@@ -177,6 +177,8 @@ mod tests {
         drop(writer);
         std::fs::read_to_string(tmp.path()).unwrap()
     }
+
+    /* ====== prepare_header tests =================== */
 
     #[test]
     fn test_prepare_header_adds_region_id_field() {
@@ -212,9 +214,12 @@ mod tests {
         let aux = make_aux_collector(vcf_file.path(), &[]);
 
         let reader = bcf::Reader::from_path(vcf_file.path()).unwrap();
-        let result = prepare_header(reader.header(), empty_bed.path(), &aux);
+        let err = prepare_header(reader.header(), empty_bed.path(), &aux).unwrap_err();
 
-        assert!(result.is_err());
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedFileNoValidRegions)
+        );
     }
 
     #[test]
@@ -290,5 +295,46 @@ mod tests {
         let content = header_to_string(&result);
         assert!(content.contains("ID=COSMIC_ID"));
         assert!(content.contains("ID=REGION_ID"));
+    }
+
+    #[test]
+    fn test_prepare_header_copies_standard_info_field() {
+        let vcf_file = create_test_vcf(
+            &["chr1"],
+            &[
+                r##"##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description="Prior heterozygosity">"##,
+            ],
+        );
+        let bed_file = create_test_bed(&["chr1"]);
+        let aux = make_aux_collector(vcf_file.path(), &[]);
+
+        let reader = bcf::Reader::from_path(vcf_file.path()).unwrap();
+        let result = prepare_header(reader.header(), bed_file.path(), &aux).unwrap();
+
+        let content = header_to_string(&result);
+        assert!(content.contains(
+            r#"ID=HETEROZYGOSITY,Number=A,Type=Float,Description="Prior heterozygosity""#
+        ));
+    }
+
+    #[test]
+    fn test_prepare_header_errors_on_info_field_missing_description() {
+        let vcf_file = create_test_vcf(
+            &["chr1"],
+            &["##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float>"],
+        );
+        let bed_file = create_test_bed(&["chr1"]);
+        let aux = make_aux_collector(vcf_file.path(), &[]);
+
+        let reader = bcf::Reader::from_path(vcf_file.path()).unwrap();
+        let err = prepare_header(reader.header(), bed_file.path(), &aux).unwrap_err();
+
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfHeaderFieldMissing {
+                field: "HETEROZYGOSITY".to_string(),
+                location: "INFO".to_string(),
+            })
+        );
     }
 }
