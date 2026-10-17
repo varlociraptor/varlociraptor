@@ -418,6 +418,13 @@ pub(crate) struct ReadEmission<'a> {
     any_miscall: Vec<LogProb>,
     #[getset(get = "pub(crate)")]
     no_miscall: Vec<LogProb>,
+    /// Decoded (upper case) read bases of the window.
+    bases: Vec<u8>,
+    /// Linear-space counterparts of `any_miscall`, `no_miscall` and the particular miscall
+    /// probability, for the linear pair HMM.
+    any_miscall_linear: Vec<f64>,
+    no_miscall_linear: Vec<f64>,
+    particular_miscall_linear: Vec<f64>,
     #[getset(get = "pub(crate)")]
     read_offset: usize,
     #[getset(get = "pub(crate)")]
@@ -435,22 +442,61 @@ impl<'a> ReadEmission<'a> {
     ) -> Self {
         let read_offset = read_offset.unwrap_or(0);
         let read_end = read_end.unwrap_or(qual.len());
-        let mut any_miscall = vec![LogProb::ln_zero(); read_end - read_offset];
+        let n = read_end - read_offset;
+        let mut any_miscall = vec![LogProb::ln_zero(); n];
         let mut no_miscall = any_miscall.clone();
+        let mut bases = Vec::with_capacity(n);
+        let mut any_miscall_linear = Vec::with_capacity(n);
+        let mut no_miscall_linear = Vec::with_capacity(n);
+        let mut particular_miscall_linear = Vec::with_capacity(n);
         for (j, j_) in (read_offset..read_end).enumerate() {
             let prob_miscall = prob_read_base_miscall(*unsafe { qual.get_unchecked(j_) });
             any_miscall[j] = prob_miscall;
             no_miscall[j] = prob_miscall.ln_one_minus_exp();
+            let miscall = prob_miscall.exp();
+            any_miscall_linear.push(miscall);
+            no_miscall_linear.push(1.0 - miscall);
+            particular_miscall_linear.push(miscall * PROB_CONFUSION.exp());
+            bases.push(unsafe { read_seq.decoded_base_unchecked(j_) });
         }
         let error_rate = LogProb(*LogProb::ln_sum_exp(&any_miscall) - (qual.len() as f64).ln());
         ReadEmission {
             read_seq,
             any_miscall,
             no_miscall,
+            bases,
+            any_miscall_linear,
+            no_miscall_linear,
+            particular_miscall_linear,
             read_offset,
             read_end,
             error_rate,
         }
+    }
+
+    /// Number of read bases in the window.
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.read_end - self.read_offset
+    }
+
+    /// Linear-space probability of read base j given `ref_base` (upper case), and whether they
+    /// match.
+    #[inline]
+    pub(crate) fn prob_match_mismatch_linear(&self, j: usize, ref_base: u8) -> (f64, bool) {
+        unsafe {
+            if *self.bases.get_unchecked(j) == ref_base {
+                (*self.no_miscall_linear.get_unchecked(j), true)
+            } else {
+                (*self.particular_miscall_linear.get_unchecked(j), false)
+            }
+        }
+    }
+
+    /// Linear-space probability of read base j being an insertion.
+    #[inline]
+    pub(crate) fn prob_insertion_linear(&self, j: usize) -> f64 {
+        *unsafe { self.any_miscall_linear.get_unchecked(j) }
     }
 
     fn particular_miscall(&self, j: usize) -> LogProb {
