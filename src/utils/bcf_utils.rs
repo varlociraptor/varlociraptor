@@ -5,7 +5,7 @@
 //! This module provides:
 //! 1. Record field extraction (chromosome, sample index, events probability, allele frequency)
 //! 2. VCF specification checks (PHRED-scaled probabilities)
-//! 3. Allele type classification (symbolic, breakend, reference, spanning deletion)
+//! 3. Allele type classification (breakend)
 //! 4. Record queries (INFO string and flag fields, reading all records of a file)
 //! 5. INFO field copying between records
 //! 6. Header and file validation (samples, INFO fields, events, MSI-required fields, non-empty file)
@@ -18,6 +18,9 @@
 //! 4. Function to extract per-sample allele frequencies for a specific ALT allele: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L258
 //! 5. Function to get SVLEN from INFO field or calculate dynamically: https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L98
 //! 6. Function to check if all alleles are SNVs (all same length as REF): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L319
+//! 7. Function to check if allele is the missing ALT `.` (reference): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L341
+//! 8. Function to check if allele is symbolic (e.g. `<DEL>`): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L355
+//! 9. Function to check if allele is a spanning deletion (`*`): https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/utils/bcf_utils.rs#L383
 
 use std::path::Path;
 
@@ -246,30 +249,6 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
 
 /* ======== BCF Allele Type Check Functions ======= */
 
-/// Check if allele represents no variant (reference).
-///
-/// Matches the missing ALT allele `.`.
-///
-/// # Arguments
-/// * `allele` - Allele sequence as byte slice
-///
-/// # Returns
-/// `true` if allele is reference, `false` otherwise
-pub(crate) fn is_reference_allele(allele: &[u8]) -> bool {
-    allele == b"."
-}
-
-/// Check if allele is symbolic (enclosed in `<` and `>`, e.g. `<DEL>`).
-///
-/// # Arguments
-/// * `allele` - Allele sequence as byte slice
-///
-/// # Returns
-/// `true` if allele is symbolic, `false` otherwise
-pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
-    allele.len() >= 3 && allele.starts_with(b"<") && allele.ends_with(b">")
-}
-
 /// Check if allele is a breakend: paired (contains `[` or `]`) or single
 /// (a `.` before or after the bases, e.g. `G.` or `.A`).
 ///
@@ -281,17 +260,6 @@ pub(crate) fn is_symbolic(allele: &[u8]) -> bool {
 pub(crate) fn is_breakend(allele: &[u8]) -> bool {
     allele.iter().any(|&c| c == b'[' || c == b']')
         || (allele.len() > 1 && (allele.starts_with(b".") || allele.ends_with(b".")))
-}
-
-/// Check if allele is a spanning deletion (*).
-///
-/// # Arguments
-/// * `allele` - Allele sequence as byte slice
-///
-/// # Returns
-/// `true` if allele is a spanning deletion, `false` otherwise
-pub(crate) fn is_spanning_deletion(allele: &[u8]) -> bool {
-    allele == b"*"
 }
 
 /* ================================================ */
@@ -1607,28 +1575,13 @@ pub(crate) mod tests {
     /* ========== allele type check tests ============ */
 
     #[test]
-    fn test_allele_type_checks() {
-        // Reference allele
-        assert!(is_reference_allele(b"."));
-        assert!(!is_reference_allele(b"A"));
-
-        // Symbolic
-        assert!(is_symbolic(b"<DEL>"));
-        assert!(is_symbolic(b"<DUP:TANDEM>"));
-        assert!(!is_symbolic(b"ACG"));
-        assert!(!is_symbolic(b"<>"));
-
-        // Breakend
+    fn test_is_breakend() {
         assert!(is_breakend(b"A[chr2:100["));
         assert!(is_breakend(b"]chr2:100]A"));
         assert!(!is_breakend(b"ACG"));
         assert!(is_breakend(b"G.")); // single breakend, dot after
         assert!(is_breakend(b".A")); // single breakend, dot before
         assert!(!is_breakend(b".")); // missing ALT is not a breakend
-
-        // Spanning deletion
-        assert!(is_spanning_deletion(b"*"));
-        assert!(!is_spanning_deletion(b"AC"));
     }
 
     /* ======== record_has_info_string tests ========= */

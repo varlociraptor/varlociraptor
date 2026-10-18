@@ -171,7 +171,9 @@ impl WindowEntry {
 /// # Returns
 /// * `true` if clean indel position is within region (ordinary or
 ///   position-1 trailing-anchor reading)
-/// * `false` if complex variant, SNV, or outside region under both readings
+/// * `false` if complex variant, SNV, symbolic or spanning-deletion allele,
+///   or outside region under both readings (breakends can pass here,
+///   `should_include_variant` filters them)
 ///
 /// # Example
 /// VCF: POS=18630802 (0-based), REF=GCCT, ALT=G
@@ -471,6 +473,22 @@ mod tests {
         }
         tmp.flush().unwrap();
         tmp
+    }
+
+    // Helper: assert variant_overlaps_region rejects `ref -> alt` at pos 102 inside region [100, 121)
+    fn assert_not_overlapping(ref_allele: &[u8], alt_allele: &[u8]) {
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 102, ref_allele, &[alt_allele])],
+        );
+        let record = read_first_record(tmp_vcf.path());
+        let region = BedRegion {
+            chrom: "chr1".to_string(),
+            start: 100,
+            end: 121,
+            motif: "CAG".to_string(),
+        };
+        assert!(!variant_overlaps_region(&record, &region, 0));
     }
 
     /* ====== WindowEntry tests ======================= */
@@ -773,6 +791,34 @@ mod tests {
             },
             0
         ));
+    }
+
+    #[test]
+    fn test_variant_overlaps_region_symbolic_allele() {
+        assert_not_overlapping(b"G", b"<DEL>");
+    }
+
+    #[test]
+    fn test_variant_overlaps_region_spanning_deletion() {
+        assert_not_overlapping(b"G", b"*");
+    }
+
+    #[test]
+    fn test_variant_overlaps_region_breakend_passes_gate() {
+        // Anchor A + non-empty tail looks like a clean insertion at 100, so the
+        // gate lets it through; should_include_variant is what filters breakends
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"A]chr1:5000]"])],
+        );
+        let record = read_first_record(tmp_vcf.path());
+        let region = BedRegion {
+            chrom: "chr1".to_string(),
+            start: 100,
+            end: 121,
+            motif: "CAG".to_string(),
+        };
+        assert!(variant_overlaps_region(&record, &region, 0));
     }
 
     /* ====== process_and_annotate tests ============= */
