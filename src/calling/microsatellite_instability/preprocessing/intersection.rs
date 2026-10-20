@@ -4,8 +4,8 @@
 //!
 //! This module provides:
 //! 1. `variant_overlaps_region` function to determine if a variant's indel overlaps a BED region,
-//!    accounting for VCF anchor bases and filtering out complex variants and SNVs.
-//! 2. `process_and_annotate` function as a core streaming algorithm for MSI preprocessing:
+//!    accounting for VCF anchor bases and filtering out complex variants and SNVs
+//! 2. `process_and_annotate` function as a core streaming algorithm for MSI preprocessing
 //!    - Maintains a sliding window of VCF variants for memory efficiency
 //!    - Coordinates variant analysis (via variant_analysis module)
 //!    - Coordinates VCF output (via writer module)
@@ -17,14 +17,12 @@
 //!
 //! Note: This module assumes that both the BED and VCF files are sorted by chromosome
 //! (lexicographically) and position, which is a common requirement for genomic analyses.
-//!
 
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use bio::io::bed;
-use log::debug;
 use rust_htslib::bcf::{self, Read};
 
 use crate::errors::Error;
@@ -73,7 +71,7 @@ impl PreprocessingStats {
 enum WindowEntry {
     /// A variant read from the input VCF.
     Real(VariantInWindow),
-    /// A synthesized deletion representing an MS region with no
+    /// A synthesized deletion and insertion pair representing an MS region with no
     /// observed perfect indel.
     Dummy(BedRegion),
 }
@@ -101,6 +99,11 @@ impl WindowEntry {
     /// never fires too early. At pos == 0, also tries each allele's
     /// trailing-anchor reading (see `variant_overlaps_region`) so a
     /// position-1 allele isn't silently dropped from the max.
+    ///
+    /// # Returns
+    /// * `Some(position)` - largest indel position across all ALT alleles of a real
+    ///   variant (ordinary or position-1 trailing reading)
+    /// * `None` - for a dummy, or when no ALT allele is a clean indel
     fn max_safe_pos(&self) -> Option<u64> {
         match self {
             WindowEntry::Real(v) => {
@@ -126,7 +129,7 @@ impl WindowEntry {
     }
 }
 
-/* ============ Functions =========================== */
+/* ============ Functions ========================= */
 
 /// Check if a variant's indel overlaps with a BED region.
 ///
@@ -140,7 +143,7 @@ impl WindowEntry {
 /// 3. Calculate actual indel position using genomics::calculate_indel_position
 ///    - Returns None if: complex variant (both tails non-empty), SNV, or identical sequences
 ///    - Returns Some(pos) if clean indel
-/// 4. Check if indel position is within BED region:
+/// 4. Check if indel position is within BED region
 ///    - Deletions: [start, end) exclusive end per BED convention
 ///    - Insertions: [start, end] inclusive end - BED end is exclusive
 ///      so region.end equals last_tract_position + 1, making it a
@@ -153,15 +156,7 @@ impl WindowEntry {
 ///    reading's position (vcf_pos itself, not vcf_pos + anchor_len) does.
 ///    Doesn't decide which reading is correct - should_include_variant's
 ///    motif check does - only avoids wrongly excluding a variant that
-///    check might later validate.
-///
-/// # Note:
-/// We perform point-based overlap, which means we only consider the variant position.
-///
-/// # Assumption
-/// The indel position is derived from the anchor (common prefix between
-/// REF and ALT), taken directly from the VCF record's own bytes with no
-/// independent re-verification against a loaded reference FASTA.
+///    check might later validate
 ///
 /// # Arguments
 /// * `record` - BCF record representing the variant
@@ -175,13 +170,17 @@ impl WindowEntry {
 ///   or outside region under both readings (breakends can pass here,
 ///   `should_include_variant` filters them)
 ///
-/// # Example
-/// VCF: POS=18630802 (0-based), REF=GCCT, ALT=G
-/// Anchor = G (1 base)
-/// Indel position = 18630802 + 1 = 18630803
-/// Region: [18630803, 18630833) (pure CCT repeat)
-/// Result: 18630803 >= 18630803 && 18630803 < 18630833 , TRUE
-/// assert!(variant_overlaps_region(&record, &region, 0));
+/// # Note
+/// We perform point-based overlap, which means we only consider the variant position.
+///
+/// The indel position is derived from the anchor (common prefix between
+/// REF and ALT), taken directly from the VCF record's own bytes with no
+/// independent re-verification against a loaded reference FASTA.
+///
+/// BED regions are assumed to be maximal perfect-repeat tracts (e.g. from pytrf or TRF),
+/// so adjacent regions never share a motif. An insertion at a shared boundary (inclusive
+/// end of one region, start of the next) could otherwise match both and fail with
+/// `MsiBedRegionsOverlapping`.
 #[inline]
 fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: usize) -> bool {
     let vcf_pos = record.pos() as u64;
@@ -231,7 +230,7 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
 /// # Algorithm
 /// 1. Stream through BED regions sequentially (bounded memory usage)
 /// 2. Maintain sliding window of VCF variants around current region
-/// 3. For each BED region:
+/// 3. For each BED region
 ///    - Flush window entries (real or dummy), that are safe to write
 ///    - Load variants until past region end
 ///    - Check each variant for perfect repeat status (via variant_analysis::should_include_variant)
@@ -265,10 +264,14 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
 ///
 /// # Returns
 /// * `Ok(PreprocessingStats)` with processing statistics
-/// * `Err` if processing fails
-///
-/// # Example
-/// assert!(process_and_annotate(&mut input_vcf, bed_path, &mut writer, &aux_info_collector).is_ok());
+/// * `Err` if the BED file cannot be opened, or a BED record cannot be read
+///   (`BedRecordReadFailed`) or parsed (see `parse_bed_record`)
+/// * `Err` if a VCF record cannot be read (`VcfRecordReadFailed`) or its chromosome
+///   cannot be resolved (`VcfRecordChromMissing`, `VcfRecordChromResolveFailed`)
+/// * `Err` if collecting auxiliary INFO fields or writing a record fails
+/// * `Err` with `MsiBedRegionsOverlapping` if one ALT allele matches two BED regions
+/// * `Err` with `MsiVcfChromMismatch` if no VCF record is on the same chromosome as
+///   any valid BED region
 pub(super) fn process_and_annotate(
     input_vcf: &mut bcf::Reader,
     bed_path: &Path,
