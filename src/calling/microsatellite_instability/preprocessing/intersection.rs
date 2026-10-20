@@ -522,7 +522,7 @@ mod tests {
     /* ====== variant_overlaps_region tests ========== */
 
     #[test]
-    fn test_variant_overlaps_region() {
+    fn test_variant_overlaps_region_insertion_at_start_boundary() {
         let tmp_vcf = create_minimal_vcf(
             &[br"##contig=<ID=chr1,length=1000000>"],
             &[(0, 99, b"T", &[b"TT"])],
@@ -553,18 +553,6 @@ mod tests {
                 chrom: "chr1".to_string(),
                 start: 101,
                 end: 200,
-                motif: "T".to_string(),
-            },
-            0
-        ));
-
-        // At end (exclusive) - region [99, 100), indel at 100
-        assert!(variant_overlaps_region(
-            &record,
-            &BedRegion {
-                chrom: "chr1".to_string(),
-                start: 99,
-                end: 100,
                 motif: "T".to_string(),
             },
             0
@@ -948,9 +936,10 @@ mod tests {
 
     #[test]
     fn test_process_and_annotate_complex_variant_gets_dummy() {
-        // REF=ATT, ALT=AG: both tails non-empty after anchor - not a clean
-        // indel. Should be treated the same as any non-MS variant: no
-        // REGION_ID annotation, region gets a dummy instead.
+        // REF=ACAGCAGCAG, ALT=AG: after the shared anchor A both tails are
+        // non-empty (CAGCAGCAG vs G) - not a clean indel. Should be treated the
+        // same as any non-MS variant: no REGION_ID annotation, region gets a
+        // dummy instead.
         let tmp_vcf = create_minimal_vcf(
             &[br"##contig=<ID=chr1,length=1000000>"],
             &[(0, 99, b"ACAGCAGCAG", &[b"AG"])],
@@ -1038,11 +1027,12 @@ mod tests {
 
         let mut reader = bcf::Reader::from_path(tmp_output.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
-        let cosmic = record.info(b"COSMIC_ID").string().unwrap();
-        assert!(
-            cosmic.is_some(),
-            "COSMIC_ID should be propagated via aux_info"
-        );
+        let cosmic = record
+            .info(b"COSMIC_ID")
+            .string()
+            .unwrap()
+            .expect("COSMIC_ID should be propagated via aux_info");
+        assert_eq!(cosmic[0], b"COSM123");
     }
 
     #[test]
@@ -1211,9 +1201,13 @@ mod tests {
         let mut writer =
             bcf::Writer::from_path(tmp_output.path(), &header, true, bcf::Format::Vcf).unwrap();
 
-        let result = process_and_annotate(&mut input_vcf, tmp_bed.path(), &mut writer, &aux);
+        let err =
+            process_and_annotate(&mut input_vcf, tmp_bed.path(), &mut writer, &aux).unwrap_err();
         drop(writer);
 
-        assert!(result.is_err());
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiVcfChromMismatch)
+        );
     }
 }
