@@ -480,6 +480,20 @@ mod tests {
         tmp
     }
 
+    // Helper: Build a Real window entry from one chr1 record
+    fn real_entry(pos: i64, ref_allele: &[u8], alts: &[&[u8]]) -> WindowEntry {
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, pos, ref_allele, alts)],
+        );
+        WindowEntry::Real(VariantInWindow {
+            record: read_first_record(tmp_vcf.path()),
+            chrom: "chr1".to_string(),
+            matching_regions: HashMap::new(),
+            aux_info: AuxInfo::default(),
+        })
+    }
+
     // Helper: assert variant_overlaps_region rejects `ref -> alt` at pos 102 inside region [100, 121)
     fn assert_not_overlapping(ref_allele: &[u8], alt_allele: &[u8]) {
         let tmp_vcf = create_minimal_vcf(
@@ -507,18 +521,35 @@ mod tests {
         // within an ongoing tract, a full-tract deletion's trailing anchor has
         // no reason to match the motif, so max_safe_pos must not silently drop
         // this allele from consideration.
-        let tmp_vcf = create_minimal_vcf(
-            &[br"##contig=<ID=chr1,length=1000000>"],
-            &[(0, 0, b"AGAGAGAGAGAGAGAGAGAGT", &[b"T"])],
-        );
-        let record = read_first_record(tmp_vcf.path());
-        let entry = WindowEntry::Real(VariantInWindow {
-            record,
-            chrom: "chr1".to_string(),
-            matching_regions: HashMap::new(),
-            aux_info: AuxInfo::default(),
-        });
+        let entry = real_entry(0, b"AGAGAGAGAGAGAGAGAGAGT", &[b"T"]);
         assert_eq!(entry.max_safe_pos(), Some(0));
+    }
+
+    #[test]
+    fn test_max_safe_pos_dummy_is_none() {
+        let entry = WindowEntry::Dummy(BedRegion {
+            chrom: "chr1".to_string(),
+            start: 100,
+            end: 121,
+            motif: "CAG".to_string(),
+        });
+        assert_eq!(entry.max_safe_pos(), None);
+    }
+
+    #[test]
+    fn test_max_safe_pos_snv_only_is_none() {
+        // SNV is not a clean indel, so no ALT yields a position
+        let entry = real_entry(99, b"A", &[b"T"]);
+        assert_eq!(entry.max_safe_pos(), None);
+    }
+
+    #[test]
+    fn test_max_safe_pos_multi_alt_takes_max() {
+        // ALT1 GCCT -> GCCTCCT: anchor 4, indel at 103
+        // ALT2 GCCT -> G: anchor 1, indel at 100
+        // The max (103) is the first ALT, so this is not just "the last one"
+        let entry = real_entry(99, b"GCCT", &[b"GCCTCCT", b"G"]);
+        assert_eq!(entry.max_safe_pos(), Some(103));
     }
 
     /* ====== variant_overlaps_region tests ========== */
