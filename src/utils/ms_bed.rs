@@ -23,6 +23,8 @@ use log::info;
 use crate::constants::MSI_MAX_MOTIF_LENGTH;
 use crate::errors::Error;
 
+/* ============ Data Structures =================== */
+
 /// Microsatellite region from BED file.
 ///
 /// Represents a genomic region containing a microsatellite repeat,
@@ -63,6 +65,8 @@ impl BedRegion {
         self.start + self.motif.len() as u64 - 1
     }
 }
+
+/* ============ Functions ========================= */
 
 /// Parse motif from BED name field.
 ///

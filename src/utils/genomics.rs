@@ -50,7 +50,7 @@ impl std::fmt::Display for MsiStatus {
     }
 }
 
-/* ================================================ */
+/* ============ Functions ========================= */
 
 /// Check if two sequences represent an indel (different lengths).
 ///

@@ -3,8 +3,9 @@
 //! Variant Analysis Utilities for MSI preprocessing.
 //!
 //! This module provides:
-//! 1. `is_perfect_repeat` function to determine if an indel is a perfect tandem repeat of a microsatellite motif
-//! 2. `should_include_variant` function to analyze a variant-allele pair and determine if it should be included
+//! 1. `RepeatStatus` enum to classify indel as perfect tandem repeat or not
+//! 2. `is_perfect_repeat` function to determine if an indel is a perfect tandem repeat of a microsatellite motif
+//! 3. `should_include_variant` function to analyze a variant-allele pair and determine if it should be included
 //!    in the preprocessed output based on MSI relevance and perfect repeat status
 
 use anyhow::Result;

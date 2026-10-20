@@ -3,12 +3,14 @@
 //! Streaming intersection of BED regions with VCF variants.
 //!
 //! This module provides:
-//! 1. `variant_overlaps_region` function to determine if a variant's indel overlaps a BED region,
+//! 1. `PreprocessingStats` struct holding the counters returned by `process_and_annotate`, with a log summary
+//! 2. `WindowEntry` enum for an item in the sliding window, either a real variant or a synthesized dummy
+//! 3. `variant_overlaps_region` function to determine if a variant's indel overlaps a BED region,
 //!    accounting for VCF anchor bases and filtering out complex variants and SNVs
-//! 2. `process_and_annotate` function as a core streaming algorithm for MSI preprocessing
+//! 4. `process_and_annotate` function as a core streaming algorithm for MSI preprocessing
 //!    - Maintains a sliding window of VCF variants for memory efficiency
-//!    - Coordinates variant analysis (via variant_analysis module)
-//!    - Coordinates VCF output (via writer module)
+//!    - Delegates variant analysis (via variant_analysis module)
+//!    - Delegates VCF output (via writer module)
 //!    - Returns processing statistics
 //!
 //!    The streaming approach processes BED regions sequentially while maintaining
