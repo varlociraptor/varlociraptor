@@ -19,7 +19,6 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
-use log::{info, warn};
 use rayon::prelude::*;
 use serde::Serialize;
 

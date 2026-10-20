@@ -9,7 +9,6 @@
 //!    in the preprocessed output based on MSI relevance and perfect repeat status
 
 use anyhow::Result;
-use log::debug;
 use rust_htslib::bcf;
 
 use crate::utils::bcf_utils::{get_chrom, is_breakend};

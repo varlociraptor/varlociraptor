@@ -28,7 +28,6 @@ mod writer;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use log::info;
 use rust_htslib::bcf::{self, Format, Read};
 
 use crate::cli::{validate_bed_file, validate_vcf_file};

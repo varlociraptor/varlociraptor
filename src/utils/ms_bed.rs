@@ -18,7 +18,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use bio::io::bed;
-use log::info;
 
 use crate::constants::MSI_MAX_MOTIF_LENGTH;
 use crate::errors::Error;

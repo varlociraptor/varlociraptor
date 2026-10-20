@@ -28,7 +28,6 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use log::{debug, info, warn};
 use rust_htslib::bcf::{self, Read};
 
 use crate::constants::{MSI_DUMMY_TAG, MSI_REGION_ID_TAG};

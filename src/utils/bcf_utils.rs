@@ -26,7 +26,6 @@ use std::path::Path;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use log::info;
 use rust_htslib::bcf::header::{HeaderView, TagLength, TagType};
 use rust_htslib::bcf::{self, record::Numeric, Read};
 

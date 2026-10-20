@@ -27,7 +27,6 @@ pub mod preprocessing;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use log::info;
 use rust_htslib::bcf::{self, header::HeaderView, Read};
 
 use crate::cli::{validate_thread_count, validate_vcf_file};
