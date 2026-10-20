@@ -30,9 +30,13 @@ use crate::errors::Error;
 /// parsed from BED format with motif information in the name field.
 #[derive(Debug)]
 pub(crate) struct BedRegion {
+    /// Chromosome name.
     pub(crate) chrom: String,
+    /// Start position (0-based, inclusive).
     pub(crate) start: u64,
+    /// End position (exclusive).
     pub(crate) end: u64,
+    /// Repeat unit parsed from the BED name (e.g. "CAG" for "7xCAG"), not the whole name.
     pub(crate) motif: String,
 }
 
