@@ -400,7 +400,7 @@ pub(super) fn process_and_annotate(
 
                     if let Some(existing) = variant_info.matching_regions.get(&alt_idx) {
                         return Err(Error::MsiBedRegionsOverlapping {
-                            pos: variant_info.record.pos(),
+                            pos: variant_info.record.pos() + 1,
                             existing_region: existing.clone(),
                             new_region: region_id,
                         }
@@ -971,7 +971,7 @@ mod tests {
 
     #[test]
     fn test_process_and_annotate_overlapping_bed_regions_errors() {
-        // VCF: chr1:99 ACAG to ACAGCAG (perfect CAG insertion at pos 100)
+        // VCF: chr1:99 ACAG to ACAGCAG (perfect CAG insertion, anchor ACAG so the indel is at 103)
         // BED: chr1:94-106 4xCAG    (overlaps)
         //      chr1:100-121 7xCAG   (overlaps)
         //      chr1:150-158 8xA     (no overlap)
@@ -983,11 +983,13 @@ mod tests {
         );
         let aux = make_aux_collector(tmp_vcf.path(), &[]);
 
-        let tmp_bed = create_bed_file(&[
+        let regions = [
             ("chr1", 94, 106, "4xCAG"),
             ("chr1", 100, 121, "7xCAG"),
             ("chr1", 150, 158, "8xA"),
-        ]);
+        ];
+
+        let tmp_bed = create_bed_file(&regions);
         let tmp_output = NamedTempFile::new().unwrap();
 
         let mut input_vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
@@ -995,14 +997,18 @@ mod tests {
         let mut writer =
             bcf::Writer::from_path(tmp_output.path(), &header, true, bcf::Format::Vcf).unwrap();
 
-        let result = process_and_annotate(&mut input_vcf, tmp_bed.path(), &mut writer, &aux);
+        let err =
+            process_and_annotate(&mut input_vcf, tmp_bed.path(), &mut writer, &aux).unwrap_err();
         drop(writer);
 
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("overlaps multiple BED regions"));
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiBedRegionsOverlapping {
+                pos: 100, // POS 99 (0-based) + 1
+                existing_region: format!("{}:{}-{}", regions[0].0, regions[0].1, regions[0].2),
+                new_region: format!("{}:{}-{}", regions[1].0, regions[1].1, regions[1].2),
+            })
+        );
     }
 
     #[test]
