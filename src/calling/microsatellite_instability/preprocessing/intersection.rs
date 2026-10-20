@@ -574,25 +574,25 @@ mod tests {
         // Anchor = TG (2 bases)
         // Indel position = 99 + 2 = 101
 
-        // Region [101, 105): indel at 101: INSIDE
+        // Region [101, 122): indel at 101: INSIDE
         assert!(variant_overlaps_region(
             &record,
             &BedRegion {
                 chrom: "chr1".to_string(),
                 start: 101,
-                end: 105,
+                end: 122,
                 motif: "CCT".to_string(),
             },
             0
         ));
 
-        // Region [102, 105): indel at 101: OUTSIDE
+        // Region [102, 123): indel at 101: OUTSIDE
         assert!(!variant_overlaps_region(
             &record,
             &BedRegion {
                 chrom: "chr1".to_string(),
                 start: 102,
-                end: 105,
+                end: 123,
                 motif: "CCT".to_string(),
             },
             0
@@ -636,7 +636,7 @@ mod tests {
             &BedRegion {
                 chrom: "chr1".to_string(),
                 start: 99,
-                end: 100,
+                end: 110,
                 motif: "A".to_string(),
             },
             0
@@ -659,14 +659,14 @@ mod tests {
         let region1 = BedRegion {
             chrom: "chr1".to_string(),
             start: 100,
-            end: 102,
+            end: 121,
             motif: "CCT".to_string(),
         };
 
         let region2 = BedRegion {
             chrom: "chr1".to_string(),
             start: 103,
-            end: 110,
+            end: 124,
             motif: "CCT".to_string(),
         };
 
@@ -676,8 +676,8 @@ mod tests {
         // ALT1 does NOT overlap region2
         assert!(!variant_overlaps_region(&record, &region2, 0));
 
-        // ALT2 does NOT overlap region1
-        assert!(!variant_overlaps_region(&record, &region1, 1));
+        // ALT2 overlaps region1
+        assert!(variant_overlaps_region(&record, &region1, 1));
 
         // ALT2 overlaps region2 (indel at 103)
         assert!(variant_overlaps_region(&record, &region2, 1));
