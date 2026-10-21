@@ -893,6 +893,27 @@ mod tests {
     /* ====== process_and_annotate tests ============= */
 
     #[test]
+    fn test_process_and_annotate_missing_bed_file_errors() {
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"T"])],
+        );
+        let aux = make_aux_collector(tmp_vcf.path(), &[]);
+        let header_bed = create_bed_file(&[("chr1", 100, 121, "7xCAG")]);
+        let tmp_output = NamedTempFile::new().unwrap();
+
+        let mut input_vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
+        let header = prepare_header(input_vcf.header(), header_bed.path(), &aux).unwrap();
+        let mut writer =
+            bcf::Writer::from_path(tmp_output.path(), &header, true, bcf::Format::Vcf).unwrap();
+
+        let missing_bed = Path::new("/nonexistent/regions.bed");
+        let err = process_and_annotate(&mut input_vcf, missing_bed, &mut writer, &aux).unwrap_err();
+
+        assert_eq!(err.to_string(), "Failed to open BED file");
+    }
+
+    #[test]
     fn test_process_and_annotate_basic_annotation() {
         // VCF: chr1:99 ACAG to ACAGCAG (perfect CAG insertion)
         // BED: chr1:100-121 7xCAG
