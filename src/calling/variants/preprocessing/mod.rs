@@ -6,9 +6,9 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
+use std::sync::mpsc;
 
 use anyhow::{bail, Context, Result};
 use bio::stats::LogProb;
@@ -20,6 +20,7 @@ use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
+use rayon::prelude::*;
 
 use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -81,6 +82,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     methylation_prob_skipped_bases: LogProb,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
+    threads: usize,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -246,12 +248,45 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .build()
             .unwrap();
 
-        while let Some(variants) = variant_buffer.next()? {
-            let calls = self.process_variant(variants, &mut sample)?;
-            for call in calls {
+        // for calls in variant_buffer.par_bridge().map(|variants| {
+        //     self.process_variant(variants?, &mut sample)
+        // }) {
+        //     for call in calls {
+        //         call.write_preprocessed_record(&mut bcf_writer)?;
+        //     }
+        // }
+        let (tx, rx): (mpsc::Sender<Result<Vec<Call>>>, mpsc::Receiver<Result<Vec<Call>>>) = mpsc::channel();
+
+        variant_buffer.par_bridge().for_each_with(tx, |tx, variants| {
+            let calls = variants.and_then(|variants| self.process_variant(variants, &mut sample));
+            tx.send(calls).unwrap();
+        });
+
+        for calls in rx {
+            for call in calls? {
                 call.write_preprocessed_record(&mut bcf_writer)?;
             }
         }
+
+        // let mut calls_buffer = vec![None; self.threads];
+        // loop {
+        //     let mut variants_buffer = variant_buffer.take(self.threads).collect_vec();
+        //     if variants_buffer.len() == 0 {
+        //         break;
+        //     }
+        //     rayon::scope(|s| {
+        //         for (i, variants) in variants_buffer.into_iter().enumerate() {
+        //             let calls = self.process_variant(variants?, &mut sample)?;
+        //             calls_buffer[i] = Some(calls);
+        //         }
+        //     });
+        //     for calls in &mut calls_buffer {
+        //         for call in calls {
+        //             call.write_preprocessed_record(&mut bcf_writer)?;
+        //         }
+        //         *calls = None;
+        //     }
+        // }
 
         Ok(())
     }
@@ -309,7 +344,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             builder
         };
 
-        match variants.variant_of_interest() {
+        match variants.variant_of_interest().as_ref() {
             VariantInfo {
                 variant,
                 haplotype: None,
@@ -338,7 +373,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             variants.locus().pos() as usize,
                             Some(chrom_seq.as_ref()),
                         )
-                        .pileup(Some(Rc::new(pileup)))
+                        .pileup(Some(Arc::new(pileup)))
                         .build()
                         .unwrap(),
                 );
@@ -357,7 +392,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                 if let Some(pileup) = self.process_pileup(&variants, sample)? {
                                     self.write_observations(&pileup, &variants)?;
 
-                                    let pileup = Rc::new(pileup);
+                                    let pileup = Arc::new(pileup);
                                     for breakend in self
                                         .breakend_groups
                                         .read()
@@ -390,7 +425,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                                     None,
                                                 )
                                                 .precision(breakend.precision().to_owned())
-                                                .pileup(Some(Rc::clone(&pileup)))
+                                                .pileup(Some(pileup.clone()))
                                                 .build()
                                                 .unwrap(),
                                         );
@@ -408,7 +443,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         if let Some(pileup) = self.process_pileup(&variants, sample)? {
                             self.write_observations(&pileup, &variants)?;
 
-                            let pileup = Rc::new(pileup);
+                            let pileup = Arc::new(pileup);
                             {
                                 let haplotype_blocks = self.haplotype_blocks.read().unwrap();
                                 let haplotype_block = haplotype_blocks
@@ -423,7 +458,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     variant: model::Variant,
                                     reference_buffer: Arc<reference::Buffer>,
                                     haplotype: &HaplotypeIdentifier,
-                                    pileup: Rc<Pileup>,
+                                    pileup: Arc<Pileup>,
                                 ) -> Result<Call> {
                                     if let Some(contig) = loci.contig() {
                                         let mut call = CallBuilder::default()
@@ -443,7 +478,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                                     loci.first_pos() as usize,
                                                     Some(chrom_seq.as_ref()),
                                                 )
-                                                .pileup(Some(Rc::clone(&pileup)))
+                                                .pileup(Some(pileup.clone()))
                                                 .build()
                                                 .unwrap(),
                                         );
@@ -459,7 +494,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                         variant.to_variant_representation(),
                                         Arc::clone(&self.reference_buffer),
                                         haplotype,
-                                        Rc::clone(&pileup),
+                                        pileup.clone(),
                                     )?);
                                 }
                             }
