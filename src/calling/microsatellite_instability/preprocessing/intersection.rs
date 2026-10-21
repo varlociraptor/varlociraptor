@@ -42,16 +42,16 @@ use super::writer::{inject_dummy_indels, write_variant, VariantInWindow};
 #[derive(Debug)]
 pub(super) struct PreprocessingStats {
     /// Total number of BED regions processed (including invalid motifs).
-    pub total_regions: usize,
+    pub(super) total_regions: usize,
     /// Number of valid BED regions with motif length 1-6 bp.
-    pub valid_regions: usize,
+    pub(super) valid_regions: usize,
     /// VCF records annotated with REGION_ID (counted per record,
     /// not per ALT allele - a multi-ALT record counts as one).
-    pub annotated_indels: usize,
+    pub(super) annotated_indels: usize,
     /// Number of MS regions that received synthetic dummy indels. Each such
     /// region gets exactly 2 records (one deletion, one insertion) - this
     /// counts regions, not records; see writer::inject_dummy_indels.
-    pub dummy_regions: usize,
+    pub(super) dummy_regions: usize,
 }
 
 impl PreprocessingStats {
@@ -60,7 +60,7 @@ impl PreprocessingStats {
     /// - Valid regions (1-6 bp motif)
     /// - Annotated MS indels
     /// - Dummy regions (2 records each)
-    pub fn log_stats(&self) {
+    pub(super) fn log_stats(&self) {
         info!("  Total BED regions: {}", self.total_regions);
         info!("  Valid regions (1-6bp motif): {}", self.valid_regions);
         info!("  Annotated MS indels: {}", self.annotated_indels);
