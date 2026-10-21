@@ -225,9 +225,9 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
 }
 
 /// Streams through sorted VCF variants and BED regions to identify perfect microsatellite
-/// indels. Annotates matching variants with `INFO/REGION_ID` field containing
-/// comma-separated region identifiers for all overlapping regions. Injects dummy
-/// indels (deletion + insertion pair) for regions with no observed perfect indels.
+/// indels. Annotates matching variants with `INFO/REGION_ID` field holding one region
+/// identifier per ALT allele. Injects dummy indels (deletion + insertion pair) for
+/// regions with no observed perfect indels.
 ///
 /// # Algorithm
 /// 1. Stream through BED regions sequentially (bounded memory usage)
@@ -236,13 +236,13 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
 ///    - Flush window entries (real or dummy), that are safe to write
 ///    - Load variants until past region end
 ///    - Check each variant for perfect repeat status (via variant_analysis::should_include_variant)
-///    - Accumulate REGION_ID annotations for overlapping perfect MS indels
+///    - Record the region ID for each ALT allele that is a perfect MS indel in this region
 ///    - Insert dummy indel into the window (at its correct sorted position) if no perfect indel found
-/// 4. Write all remaining variants after BED exhausted
+/// 4. Write the remaining window entries, then the rest of the input VCF unannotated
 ///
 /// # Output Behavior
 /// - All input variants are written to output (preserves complete VCF)
-/// - Perfect MS indels receive `INFO/REGION_ID` annotation with overlapping region IDs
+/// - Perfect MS indels receive `INFO/REGION_ID` with the matching region ID per ALT allele
 /// - Non-MS variants are written unchanged (no annotation)
 /// - Dummy indels are injected for regions without observed perfect indels
 ///
@@ -254,8 +254,6 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
 /// # Delegation
 /// - Variant filtering: `variant_analysis::should_include_variant`
 /// - VCF writing: `writer::write_variant`, `writer::inject_dummy_indels`
-///   (the latter panics if a BED chromosome is missing from the header -
-///   guaranteed not to happen via `prepare_header`)
 ///
 /// # Arguments
 /// * `input_vcf` - Opened BCF reader for input VCF
@@ -274,6 +272,13 @@ fn variant_overlaps_region(record: &bcf::Record, region: &BedRegion, alt_idx: us
 /// * `Err` with `MsiBedRegionsOverlapping` if one ALT allele matches two BED regions
 /// * `Err` with `MsiVcfChromMismatch` if no VCF record is on the same chromosome as
 ///   any valid BED region
+///
+/// # Panics
+/// * If a BED region's chromosome is missing from the writer's header, when injecting its
+///   dummy indels
+/// * If an input record's chromosome is missing from the writer's header, when writing it
+///
+/// Neither happens when the header comes from `prepare_header` on the same VCF and BED files.
 pub(super) fn process_and_annotate(
     input_vcf: &mut bcf::Reader,
     bed_path: &Path,
@@ -437,6 +442,45 @@ pub(super) fn process_and_annotate(
                 write_variant(writer, variant, &mut total_annotated_indels)?
             }
             WindowEntry::Dummy(region) => inject_dummy_indels(writer, &region)?,
+        }
+    }
+
+    /* ========== Write remaining variants in VCF ========== */
+    loop {
+        let mut record = input_vcf.empty_record();
+        match input_vcf.read(&mut record) {
+            None => break,
+            Some(Err(e)) => {
+                return Err(Error::VcfRecordReadFailed {
+                    details: e.to_string(),
+                }
+                .into());
+            }
+            Some(Ok(())) => {
+                let chrom = get_chrom(&record)?;
+                let pos = record.pos();
+
+                if pos < 0 {
+                    debug!(
+                        "Skipping malformed VCF record with invalid position: {}:{}",
+                        chrom,
+                        pos + 1
+                    );
+                    continue;
+                }
+
+                let aux_info = aux_info_collector.collect(&record)?;
+                write_variant(
+                    writer,
+                    VariantInWindow {
+                        record,
+                        chrom,
+                        matching_regions: HashMap::new(),
+                        aux_info,
+                    },
+                    &mut total_annotated_indels,
+                )?;
+            }
         }
     }
 
@@ -1242,5 +1286,34 @@ mod tests {
             err.downcast_ref::<Error>(),
             Some(&Error::MsiVcfChromMismatch)
         );
+    }
+
+    #[test]
+    fn test_process_and_annotate_writes_variants_after_last_region() {
+        // The record at 99 matches the only region [100, 121). 5000 is read while looking for
+        // the region end, 6000 is only reached by the tail loop
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[
+                (0, 99, b"ACAG", &[b"ACAGCAG"]),
+                (0, 5000, b"A", &[b"T"]),
+                (0, 6000, b"A", &[b"T"]),
+            ],
+        );
+        let aux = make_aux_collector(tmp_vcf.path(), &[]);
+        let tmp_bed = create_bed_file(&[("chr1", 100, 121, "7xCAG")]);
+        let tmp_output = NamedTempFile::new().unwrap();
+
+        let mut input_vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
+        let header = prepare_header(input_vcf.header(), tmp_bed.path(), &aux).unwrap();
+        let mut writer =
+            bcf::Writer::from_path(tmp_output.path(), &header, true, bcf::Format::Vcf).unwrap();
+
+        process_and_annotate(&mut input_vcf, tmp_bed.path(), &mut writer, &aux).unwrap();
+        drop(writer);
+
+        let mut reader = bcf::Reader::from_path(tmp_output.path()).unwrap();
+        let positions: Vec<i64> = reader.records().map(|r| r.unwrap().pos()).collect();
+        assert_eq!(positions, vec![99, 5000, 6000]);
     }
 }
