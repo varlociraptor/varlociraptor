@@ -507,6 +507,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use crate::calling::microsatellite_instability::preprocessing::header::prepare_header;
+    use crate::constants::MSI_REGION_ID_TAG;
     use crate::utils::aux_info::tests::make_aux_collector;
     use crate::utils::aux_info::AuxInfo;
     use crate::utils::bcf_utils::get_info_strings;
@@ -1226,7 +1227,7 @@ mod tests {
             .find(|r| r.as_ref().unwrap().pos() == 499)
             .unwrap()
             .unwrap();
-        let region_ids = get_info_strings(&record, b"REGION_ID").unwrap();
+        let region_ids = get_info_strings(&record, MSI_REGION_ID_TAG).unwrap();
         assert_eq!(
             region_ids,
             vec![".".to_string(), "chr1:500-521".to_string()]
@@ -1253,7 +1254,7 @@ mod tests {
 
         let mut reader = bcf::Reader::from_path(tmp_output.path()).unwrap();
         let record = reader.records().next().unwrap().unwrap();
-        let region_ids = get_info_strings(&record, b"REGION_ID").unwrap();
+        let region_ids = get_info_strings(&record, MSI_REGION_ID_TAG).unwrap();
         assert_eq!(
             region_ids,
             vec!["chr1:100-121".to_string(), "chr1:100-121".to_string()]
@@ -1315,5 +1316,55 @@ mod tests {
         let mut reader = bcf::Reader::from_path(tmp_output.path()).unwrap();
         let positions: Vec<i64> = reader.records().map(|r| r.unwrap().pos()).collect();
         assert_eq!(positions, vec![99, 5000, 6000]);
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Result::unwrap()` on an `Err` value")]
+    fn test_process_and_annotate_bed_chromosome_missing_from_header_panics() {
+        // Header comes from a chr1-only BED, the run uses a BED that also has chr2, so
+        // injecting the chr2 dummy indel fails.
+        let tmp_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"T"])],
+        );
+        let aux = make_aux_collector(tmp_vcf.path(), &[]);
+        let header_bed = create_bed_file(&[("chr1", 100, 121, "7xCAG")]);
+        let run_bed = create_bed_file(&[("chr1", 100, 121, "7xCAG"), ("chr2", 100, 121, "7xCAG")]);
+        let tmp_output = NamedTempFile::new().unwrap();
+
+        let mut input_vcf = bcf::Reader::from_path(tmp_vcf.path()).unwrap();
+        let header = prepare_header(input_vcf.header(), header_bed.path(), &aux).unwrap();
+        let mut writer =
+            bcf::Writer::from_path(tmp_output.path(), &header, true, bcf::Format::Vcf).unwrap();
+
+        let _ = process_and_annotate(&mut input_vcf, run_bed.path(), &mut writer, &aux);
+    }
+
+    #[test]
+    #[should_panic(expected = "chromosome missing from output header")]
+    fn test_process_and_annotate_record_chromosome_missing_from_header_panics() {
+        // Header comes from a chr1-only VCF, the run VCF also has a chr2 record
+        let header_vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"T"])],
+        );
+        let run_vcf = create_minimal_vcf(
+            &[
+                br"##contig=<ID=chr1,length=1000000>",
+                br"##contig=<ID=chr2,length=1000000>",
+            ],
+            &[(1, 99, b"A", &[b"T"])],
+        );
+        let aux = make_aux_collector(header_vcf.path(), &[]);
+        let tmp_bed = create_bed_file(&[("chr1", 100, 121, "7xCAG")]);
+        let tmp_output = NamedTempFile::new().unwrap();
+
+        let header_reader = bcf::Reader::from_path(header_vcf.path()).unwrap();
+        let header = prepare_header(header_reader.header(), tmp_bed.path(), &aux).unwrap();
+        let mut writer =
+            bcf::Writer::from_path(tmp_output.path(), &header, true, bcf::Format::Vcf).unwrap();
+
+        let mut input_vcf = bcf::Reader::from_path(run_vcf.path()).unwrap();
+        let _ = process_and_annotate(&mut input_vcf, tmp_bed.path(), &mut writer, &aux);
     }
 }
