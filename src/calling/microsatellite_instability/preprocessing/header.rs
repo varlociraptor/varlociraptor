@@ -141,6 +141,7 @@ mod tests {
     use rust_htslib::bcf::{Format, Read};
     use tempfile::NamedTempFile;
 
+    use crate::constants::MSI_REGION_ID_TAG;
     use crate::utils::aux_info::tests::make_aux_collector;
 
     /// Helper: Create minimal test VCF file with given contigs and INFO header lines
@@ -178,6 +179,11 @@ mod tests {
         std::fs::read_to_string(tmp.path()).unwrap()
     }
 
+    // Helper: Field declaration fragment for REGION_ID
+    fn region_id_field() -> String {
+        format!("ID={}", String::from_utf8_lossy(MSI_REGION_ID_TAG))
+    }
+
     /* ====== prepare_header tests =================== */
 
     #[test]
@@ -190,7 +196,7 @@ mod tests {
         let result = prepare_header(reader.header(), bed_file.path(), &aux).unwrap();
 
         let content = header_to_string(&result);
-        assert!(content.contains("ID=REGION_ID"));
+        assert!(content.contains(&region_id_field()));
     }
 
     #[test]
@@ -203,7 +209,7 @@ mod tests {
         let result = prepare_header(reader.header(), bed_file.path(), &aux).unwrap();
 
         let content = header_to_string(&result);
-        assert!(content.contains("ID=REGION_ID"));
+        assert!(content.contains(&region_id_field()));
         assert!(content.contains("contig=<ID=chr2>"));
     }
 
@@ -294,7 +300,7 @@ mod tests {
 
         let content = header_to_string(&result);
         assert!(content.contains("ID=COSMIC_ID"));
-        assert!(content.contains("ID=REGION_ID"));
+        assert!(content.contains(&region_id_field()));
     }
 
     #[test]
