@@ -646,7 +646,7 @@ pub(crate) fn validate_vcf_file(vcf: &mut bcf::Reader) -> Result<()> {
             let chrom = get_chrom(&record)?;
             let pos = record.pos();
             info!("  - First variant: {}:{}", chrom, pos + 1);
-            info!("  - VCF file validated successfully");
+            info!("  - VCF file's first record validated successfully");
             Ok(())
         }
     }

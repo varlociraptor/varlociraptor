@@ -250,7 +250,7 @@ pub(crate) fn validate_bed_file(bed_path: &Path) -> Result<()> {
                 "  - First region: ({} {}-{} motif={}) valid-motif=true",
                 first_region.chrom, first_region.start, first_region.end, first_region.motif,
             );
-            info!("  - BED file validated successfully");
+            info!("  - BED file's first record validated successfully");
             Ok(())
         }
     }
