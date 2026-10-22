@@ -46,7 +46,6 @@ use intersection::process_and_annotate;
 ///
 /// Contains all parameters needed for the MSI preprocessing workflow,
 /// populated from CLI arguments.
-#[derive(Debug)]
 pub struct PreprocessMSIConfig {
     /// Path to BED file (sorted) with microsatellite regions.
     pub microsatellite_bed: PathBuf,
@@ -77,7 +76,7 @@ impl PreprocessMSIConfig {
     /// * `Err` from `ms_bed::validate_bed_file` if the BED content check fails
     /// * `Err` from `bcf_utils::validate_vcf_file` if the VCF content check fails
     /// * `Err(Error::VcfInfoFieldsMissing)` if a field in `propagate_info_fields` is not declared in the VCF header
-    pub fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         // Use existing validators from cli.rs to validate file formats.
         validate_bed_file(&self.microsatellite_bed)?;
         validate_vcf_file(&self.candidate_vcf)?;
@@ -106,7 +105,7 @@ impl PreprocessMSIConfig {
     ///
     /// # Returns
     /// Tuple of (`Format`, `uncompressed`) for writer creation, `true` means no compression is applied
-    pub fn determine_output_format(&self) -> (Format, bool) {
+    fn determine_output_format(&self) -> (Format, bool) {
         match self.output.as_deref() {
             None => (Format::Vcf, true),
             Some(path) => {
@@ -129,7 +128,7 @@ impl PreprocessMSIConfig {
     ///
     /// # Returns
     /// Nothing, as all output goes through `info!`
-    pub fn log_config(&self) {
+    fn log_config(&self) {
         info!("Input files:");
         info!("BED file: {}", self.microsatellite_bed.display());
         info!("VCF/BCF file: {}", self.candidate_vcf.display());
