@@ -237,6 +237,8 @@ pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
 mod tests {
     use super::*;
 
+    use crate::errors::Error;
+
     // Helper: Build a PreprocessMSIConfig with the given output path and dummy inputs
     fn create_test_config(output: Option<PathBuf>) -> PreprocessMSIConfig {
         PreprocessMSIConfig {
@@ -324,5 +326,43 @@ mod tests {
         let (format, uncompressed) = config.determine_output_format();
         assert_eq!(format, Format::Vcf);
         assert!(uncompressed, "No extension should default to uncompressed");
+    }
+
+    /* ====== validate tests ========================= */
+
+    #[test]
+    fn test_validate_bed_wrong_extension() {
+        let bed = PathBuf::from("regions.txt");
+        let config = PreprocessMSIConfig {
+            microsatellite_bed: bed.clone(),
+            ..create_test_config(None)
+        };
+
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::BedFileInvalid { path: bed })
+        );
+    }
+
+    #[test]
+    fn test_validate_vcf_wrong_extension() {
+        let vcf = PathBuf::from("calls.txt");
+        let config = PreprocessMSIConfig {
+            candidate_vcf: vcf.clone(),
+            ..create_test_config(None)
+        };
+
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfFileInvalid { path: vcf })
+        );
+    }
+
+    #[test]
+    fn test_validate_vcf_missing_file() {
+        let err = create_test_config(None).validate().unwrap_err();
+        assert_eq!(err.to_string(), "Failed to open candidate VCF");
     }
 }
