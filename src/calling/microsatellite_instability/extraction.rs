@@ -62,8 +62,6 @@ pub(super) struct RegionSummary {
     pub(super) variants: Vec<Variant>,
     /// True if at least one non-dummy indel record was encountered,
     /// regardless of whether prob or AF extraction succeeded.
-    /// Used to report the "real indel only" MSI score alongside
-    /// the full (real + dummy) score.
     pub(super) has_real_indel: bool,
 }
 
@@ -182,7 +180,6 @@ impl ExtractionStats {
 ///
 /// `has_real_indel` is set for regions where at least one non-dummy record
 /// was encountered, regardless of whether prob or AF extraction succeeded.
-/// This allows reporting a real-indel-only MSI score alongside the full score.
 ///
 /// # Arguments
 /// * `vcf` - Reader for the called VCF
