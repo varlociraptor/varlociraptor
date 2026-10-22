@@ -2,16 +2,18 @@
 //!
 //! VCF streaming and variant extraction for MSI calling.
 //!
-//! # This module provides:
-//! 1. Data Structures (`Variant`, `RegionSummary`, `ExtractionStats`)
-//! 2. Main Extraction (`extract_regions`)
+//! This module provides:
+//! 1. `Variant` - one ALT allele's absence probability and allele frequency
+//! 2. `RegionSummary` - all variants observed within one microsatellite region
+//! 3. `ExtractionStats` - counters collected during extraction, logged by `log_stats`
+//! 4. `extract_regions` - processes the called VCF and groups variants by region
 //!
 //! # Input Contract
 //! Input VCF must be the output of `varlociraptor preprocess msi` followed by
 //! `varlociraptor call variants`. This guarantees:
 //! - Records with `INFO/REGION_ID` are MS indels (real or dummy)
 //! - `INFO/MSI_DUMMY` marks dummy records (no real indel observed in the region)
-//! - `INFO/REGION_ID` is `Number=A` - one value per ALT allele
+//! - `INFO/REGION_ID` is `Number=A`, with one value per ALT allele
 //! - `INFO/PROB_{EVENT}` fields are expected for all user-specified events
 //!   (missing values are skipped and counted in `ExtractionStats`)
 //! - `FORMAT/AF` is expected for the sample of interest
@@ -23,7 +25,6 @@
 //! `"."` indicate unmatched ALTs in multi-allelic records and are skipped.
 //! Regions are grouped via `HashMap` for O(1) lookup and sorted by
 //! `(chrom, start)` before return.
-//!
 
 use std::collections::HashMap;
 
@@ -45,25 +46,25 @@ use crate::utils::bcf_utils::{
 #[derive(Debug)]
 pub(super) struct Variant {
     /// P(variant absent) = 1.0 - P(at least one specified event).
-    pub prob_absent: f64,
+    pub(super) prob_absent: f64,
     /// Allele frequency for the sample (FORMAT:AF).
-    pub af: f32,
+    pub(super) af: f32,
 }
 
 /// All variants observed within one microsatellite region.
 #[derive(Debug)]
 pub(super) struct RegionSummary {
     /// Chromosome — used for window assignment in heatmap analysis.
-    pub chrom: String,
+    pub(super) chrom: String,
     /// Region start (0-based) — used for window assignment in heatmap analysis.
-    pub start: u64,
+    pub(super) start: u64,
     /// Variants in this region (real or dummy, ordered by encounter).
-    pub variants: Vec<Variant>,
+    pub(super) variants: Vec<Variant>,
     /// True if at least one non-dummy indel record was encountered,
     /// regardless of whether prob or AF extraction succeeded.
     /// Used to report the "real indel only" MSI score alongside
     /// the full (real + dummy) score.
-    pub has_real_indel: bool,
+    pub(super) has_real_indel: bool,
 }
 
 impl RegionSummary {
@@ -71,11 +72,14 @@ impl RegionSummary {
     ///
     /// Returns Err if the format is invalid so the caller can warn and skip.
     ///
-    /// # Errors
-    /// Returns `Error::MsiRegionIdMalformed` if:
-    /// - No `:` separator between chrom and coordinates
-    /// - No `-` separator between start and end
-    /// - Start coordinate is not a valid integer
+    /// # Arguments
+    /// * `region_id` - Region identifier in `chrom:start-end` format
+    ///
+    /// # Returns
+    /// * `RegionSummary` with no variants and `has_real_indel` set to `false` on success
+    /// * `Error::MsiRegionIdMalformed` if the `:` separator is missing
+    /// * `Error::MsiRegionIdMalformed` if the `-` separator is missing
+    /// * `Error::MsiRegionIdMalformed` if the start is not a valid integer
     fn from_region_id(region_id: &str) -> Result<Self> {
         let (chrom, coords) =
             region_id
@@ -111,32 +115,35 @@ impl RegionSummary {
 #[derive(Debug, Default)]
 pub(super) struct ExtractionStats {
     /// Total VCF records read (MS and non-MS: one per line, regardless of ALT count).
-    pub total_records: usize,
+    total_records: usize,
     /// Records skipped — no REGION_ID, not MS-relevant.
     /// Includes SNVs and non-perfect indels that passed through preprocessing unchanged.
     /// Note: Counted per record, not per allele.
-    pub skipped_non_ms: usize,
+    skipped_non_ms: usize,
     /// Unique MS regions encountered — used as the MSI score denominator.
-    pub total_ms_regions: usize,
+    pub(super) total_ms_regions: usize,
     /// Regions with at least one non-dummy indel record, counted the moment
     /// the region is first marked real - independent of whether it later
     /// retains any variants after AF/prob filtering or heatmap-gated pruning.
-    pub regions_with_real_indel: usize,
+    regions_with_real_indel: usize,
     /// Dummy indel records processed (MSI_DUMMY flag set), counted per record.
     /// Each corresponds to a region where no perfect indel was observed in reads.
     /// Note: Each individual dummy record has one ALT by construction; since
     /// inject_dummy_indels writes a deletion+insertion pair per region, a
     /// region with no perfect indel contributes 2 to this count, not 1.
-    pub dummy_records: usize,
+    dummy_records: usize,
     /// ALT Alleles skipped — FORMAT:AF absent for the sample.
-    pub skipped_missing_af: usize,
+    skipped_missing_af: usize,
     /// ALT Alleles skipped — event probability field absent.
-    pub skipped_missing_prob: usize,
+    skipped_missing_prob: usize,
 }
 
 impl ExtractionStats {
     /// Log extraction statistics alongside region-level counts.
-    pub fn log_stats(&self) {
+    ///
+    /// # Returns
+    /// Nothing, as all output goes through `info!`
+    pub(super) fn log_stats(&self) {
         info!("Extraction statistics:");
         info!("  - Total records read:             {}", self.total_records);
         info!(
@@ -166,6 +173,8 @@ impl ExtractionStats {
     }
 }
 
+/* ============ Functions ========================= */
+
 /// Stream a preprocessed+called VCF and extract per-region variant summaries.
 ///
 /// Processes only records with `INFO/REGION_ID`, grouping variants by region
@@ -176,28 +185,28 @@ impl ExtractionStats {
 /// This allows reporting a real-indel-only MSI score alongside the full score.
 ///
 /// # Arguments
-/// * `vcf`        - Reader for the called VCF
-/// * `sample`     - Sample name (used in log messages)
+/// * `vcf` - Reader for the called VCF
+/// * `sample` - Sample name (used in log messages)
 /// * `sample_idx` - Index of this sample in FORMAT columns
-/// * `events`     - Event names to combine (e.g., `["somatic"]`)
-/// * `is_phred`   - Whether `INFO/PROB_*` values are PHRED-scaled
-/// * `needs_heatmap` - Whether heatmap output was requested; if `false`,
-///   regions with zero usable variants are pruned before returning, since
-///   heatmap's per-window denominator requires every region present, and
-///   window generation itself depends on every region's position - a
-///   pruned variant-less region could otherwise cause its whole window
-///   (or chromosome) to never appear on the heatmap at all.
-///   (distribution/pseudotime are unaffected either way - see
-///   filter_regions_by_af in dp_analysis.rs).
+/// * `events` - Event names to combine (e.g., `["somatic"]`)
+/// * `is_phred` - Whether `INFO/PROB_*` values are PHRED-scaled
+/// * `needs_heatmap` - Whether heatmap output was requested, if `false`,
+///   regions with zero usable variants are pruned before returning, because
+///   the heatmap's per-window denominator requires every region present, and
+///   window generation depends on every region's position, so a pruned
+///   variant-less region could cause its whole window (or chromosome) to
+///   never appear on the heatmap at all, while distribution and pseudotime
+///   are unaffected either way (see `filter_regions_by_af` in `dp_analysis.rs`)
 ///
 /// # Returns
-/// `(Vec<RegionSummary>, ExtractionStats)`. `stats.total_ms_regions` remains
-/// the MSI score denominator regardless of pruning. Vec length equals
-/// `stats.total_ms_regions` only when `needs_heatmap` is `true`; otherwise
-/// it may be smaller, since variant-less regions are pruned.
+/// * `(Vec<RegionSummary>, ExtractionStats)` with regions sorted by `(chrom, start)`, chrom compared as plain text
+/// * `stats.total_ms_regions` stays the MSI score denominator regardless of pruning
+/// * Vec length equals `stats.total_ms_regions` only when `needs_heatmap` is `true`, otherwise it may be smaller because variant-less regions are pruned
+/// * `Err(Error::VcfRecordReadFailed)` if a VCF record cannot be read
+/// * `Err` if `get_events_probability` or `get_sample_af` fail
 ///
-/// # Example
-/// assert!(extract_regions(&mut vcf, "sample1", 0, &["somatic".to_string()], true).is_ok());
+/// # Panics
+/// * If an `INFO/REGION_ID` value is not valid UTF-8, as `get_info_strings` panics on invalid UTF-8
 pub(super) fn extract_regions(
     vcf: &mut bcf::Reader,
     sample: &str,
