@@ -237,7 +237,9 @@ pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
 mod tests {
     use super::*;
 
+    use super::intersection::tests::create_bed_file;
     use crate::errors::Error;
+    use crate::utils::bcf_utils::tests::create_minimal_vcf;
 
     // Helper: Build a PreprocessMSIConfig with the given output path and dummy inputs
     fn create_test_config(output: Option<PathBuf>) -> PreprocessMSIConfig {
@@ -364,5 +366,75 @@ mod tests {
     fn test_validate_vcf_missing_file() {
         let err = create_test_config(None).validate().unwrap_err();
         assert_eq!(err.to_string(), "Failed to open candidate VCF");
+    }
+
+    #[test]
+    fn test_validate_bed_empty() {
+        let bed = create_bed_file(&[]);
+        let vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"T"])],
+        );
+        let config = PreprocessMSIConfig {
+            microsatellite_bed: bed.path().to_path_buf(),
+            candidate_vcf: vcf.path().to_path_buf(),
+            ..create_test_config(None)
+        };
+
+        let err = config.validate().unwrap_err();
+        assert_eq!(err.downcast_ref::<Error>(), Some(&Error::BedFileEmpty));
+    }
+
+    #[test]
+    fn test_validate_vcf_empty() {
+        let bed = create_bed_file(&[("chr1", 100, 109, "3xCAG")]);
+        let vcf = create_minimal_vcf(&[br"##contig=<ID=chr1,length=1000000>"], &[]);
+        let config = PreprocessMSIConfig {
+            microsatellite_bed: bed.path().to_path_buf(),
+            candidate_vcf: vcf.path().to_path_buf(),
+            ..create_test_config(None)
+        };
+
+        let err = config.validate().unwrap_err();
+        assert_eq!(err.downcast_ref::<Error>(), Some(&Error::VcfFileEmpty));
+    }
+
+    #[test]
+    fn test_validate_info_field_missing() {
+        let bed = create_bed_file(&[("chr1", 100, 109, "3xCAG")]);
+        let vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"T"])],
+        );
+        let config = PreprocessMSIConfig {
+            microsatellite_bed: bed.path().to_path_buf(),
+            candidate_vcf: vcf.path().to_path_buf(),
+            propagate_info_fields: vec!["MISSING_FIELD".to_string()],
+            ..create_test_config(None)
+        };
+
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfInfoFieldsMissing {
+                fields: "MISSING_FIELD".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_validate_succeeds_with_valid_inputs() {
+        let bed = create_bed_file(&[("chr1", 100, 109, "3xCAG")]);
+        let vcf = create_minimal_vcf(
+            &[br"##contig=<ID=chr1,length=1000000>"],
+            &[(0, 99, b"A", &[b"T"])],
+        );
+        let config = PreprocessMSIConfig {
+            microsatellite_bed: bed.path().to_path_buf(),
+            candidate_vcf: vcf.path().to_path_buf(),
+            ..create_test_config(None)
+        };
+
+        config.validate().unwrap();
     }
 }
