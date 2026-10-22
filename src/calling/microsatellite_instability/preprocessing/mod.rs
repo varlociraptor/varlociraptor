@@ -266,6 +266,14 @@ mod tests {
     }
 
     #[test]
+    fn test_determine_output_format_bcf_gz() {
+        let config = create_test_config(Some(PathBuf::from("output.bcf.gz")));
+        let (format, uncompressed) = config.determine_output_format();
+        assert_eq!(format, Format::Bcf);
+        assert!(!uncompressed, ".bcf.gz should be compressed");
+    }
+
+    #[test]
     fn test_determine_output_format_vcf_uncompressed() {
         let config = create_test_config(Some(PathBuf::from("output.vcf")));
         let (format, uncompressed) = config.determine_output_format();
