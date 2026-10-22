@@ -144,7 +144,7 @@ mod tests {
     use crate::constants::MSI_REGION_ID_TAG;
     use crate::utils::aux_info::tests::make_aux_collector;
 
-    /// Helper: Create minimal test VCF file with given contigs and INFO header lines
+    /// Helper: Create minimal test VCF file with given contigs and INFO header lines.
     fn create_test_vcf(contigs: &[&str], info_records: &[&str]) -> NamedTempFile {
         let mut tmp = NamedTempFile::new().unwrap();
         writeln!(tmp, "##fileformat=VCFv4.2").unwrap();
@@ -159,7 +159,7 @@ mod tests {
         tmp
     }
 
-    /// Helper: Create test BED file with given chromosomes
+    /// Helper: Create test BED file with given chromosomes.
     /// NOTE: Each region is 100-121 with a 7xCAG motif
     /// (inappropriate for MSI but good for testing header prep)
     fn create_test_bed(chroms: &[&str]) -> NamedTempFile {
@@ -171,7 +171,7 @@ mod tests {
         tmp
     }
 
-    /// Helper: Write header to file and read back as string for assertions
+    /// Helper: Write header to file and read back as string for assertions.
     fn header_to_string(header: &bcf::Header) -> String {
         let tmp = NamedTempFile::new().unwrap();
         let writer = bcf::Writer::from_path(tmp.path(), header, true, Format::Vcf).unwrap();
@@ -179,7 +179,7 @@ mod tests {
         std::fs::read_to_string(tmp.path()).unwrap()
     }
 
-    // Helper: Field declaration fragment for REGION_ID
+    /// Helper: Field declaration fragment for REGION_ID.
     fn region_id_field() -> String {
         format!("ID={}", String::from_utf8_lossy(MSI_REGION_ID_TAG))
     }

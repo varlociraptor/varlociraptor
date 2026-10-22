@@ -240,7 +240,7 @@ mod tests {
     use crate::errors::Error;
     use crate::utils::bcf_utils::tests::create_minimal_vcf;
 
-    // Helper: Build a PreprocessMSIConfig with the given output path and dummy inputs
+    /// Helper: Build a PreprocessMSIConfig with the given output path and dummy inputs.
     fn create_test_config(output: Option<PathBuf>) -> PreprocessMSIConfig {
         PreprocessMSIConfig {
             microsatellite_bed: PathBuf::from("test.bed"),

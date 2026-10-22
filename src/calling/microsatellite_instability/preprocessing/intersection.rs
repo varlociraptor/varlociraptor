@@ -533,7 +533,7 @@ pub(super) mod tests {
         tmp
     }
 
-    // Helper: Build a Real window entry from one chr1 record
+    /// Helper: Build a Real window entry from one chr1 record.
     fn real_entry(pos: i64, ref_allele: &[u8], alts: &[&[u8]]) -> WindowEntry {
         let tmp_vcf = create_minimal_vcf(
             &[br"##contig=<ID=chr1,length=1000000>"],
@@ -547,7 +547,7 @@ pub(super) mod tests {
         })
     }
 
-    // Helper: assert variant_overlaps_region rejects `ref -> alt` at pos 102 inside region [100, 121)
+    /// Helper: Assert variant_overlaps_region rejects `ref -> alt` at pos 102 inside region [100, 121).
     fn assert_not_overlapping(ref_allele: &[u8], alt_allele: &[u8]) {
         let tmp_vcf = create_minimal_vcf(
             &[br"##contig=<ID=chr1,length=1000000>"],
