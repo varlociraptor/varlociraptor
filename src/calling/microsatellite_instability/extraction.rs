@@ -338,7 +338,7 @@ pub(super) fn extract_regions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_htslib::bcf::{self, record::Numeric};
+    use rust_htslib::bcf::record::Numeric;
     use tempfile::NamedTempFile;
 
     use crate::constants::test_constants::{TEST_EPSILON_LOOSE, TEST_EPSILON_LOOSE_F32};
@@ -401,26 +401,41 @@ mod tests {
 
     #[test]
     fn test_from_region_id_missing_colon() {
-        let err = RegionSummary::from_region_id("chr1_1000-2000").unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("chr1_1000-2000"));
-        assert!(msg.contains("missing ':'"));
+        let region_id = "chr1_1000-2000";
+        let err = RegionSummary::from_region_id(region_id).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiRegionIdMalformed {
+                region_id: region_id.to_string(),
+                details: "missing ':' separator".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_from_region_id_missing_dash() {
-        let err = RegionSummary::from_region_id("chr1:10002000").unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("chr1:10002000"));
-        assert!(msg.contains("missing '-'"));
+        let region_id = "chr1:10002000";
+        let err = RegionSummary::from_region_id(region_id).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiRegionIdMalformed {
+                region_id: region_id.to_string(),
+                details: "missing '-' in coordinate part".to_string(),
+            })
+        );
     }
 
     #[test]
     fn test_from_region_id_non_numeric_start() {
-        let err = RegionSummary::from_region_id("chr1:abc-2000").unwrap_err();
-        let msg = err.to_string();
-        assert!(msg.contains("chr1:abc-2000"));
-        assert!(msg.contains("not a valid integer"));
+        let region_id = "chr1:abc-2000";
+        let err = RegionSummary::from_region_id(region_id).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiRegionIdMalformed {
+                region_id: region_id.to_string(),
+                details: "start 'abc' is not a valid integer".to_string(),
+            })
+        );
     }
 
     /* ====== extract_regions tests =============== */
