@@ -2,23 +2,23 @@
 //!
 //! Microsatellite instability (MSI) preprocessing module.
 //! Enriches candidate VCF with:
-//! - Dummy indel records for MS regions without variants
-//! - MS region annotations (INFO/MS_REGION)
+//! - Dummy indel records for MS regions without a perfect indel
+//! - MS region annotations (INFO/REGION_ID)
 //!
 //! **Note: This feature is experimental.**
 //!
 //! Owns `PreprocessMSIConfig` (CLI configuration) and
 //! `preprocess_ms_candidates` (the entry point that orchestrates header,
 //! intersection, variant analysis, writer). Declares these child submodules:
-//! 1. `header`           - builds the output header: copies INFO field
-//!    declarations, adds REGION_ID/MSI_DUMMY.
-//! 2. `intersection`     - streams BED regions against VCF variants,
-//!    matching overlaps or flagging regions that need a dummy indel.
-//! 3. `writer`           - writes unannotated/annotated real variants and synthetic
-//!    dummy deletion records to the output file.
+//! 1. `header` - builds the output header: copies INFO field
+//!    declarations, adds REGION_ID/MSI_DUMMY
+//! 2. `intersection` - streams BED regions against VCF variants,
+//!    matching variants to the regions they overlap and adding dummy
+//!    indels for regions without a perfect indel
+//! 3. `writer` - writes unannotated/annotated real variants and the
+//!    dummy deletion and insertion records to the output file
 //! 4. `variant_analysis` - classifies whether an indel is a perfect
-//!    tandem repeat of the BED region's motif.
-//!
+//!    tandem repeat of the BED region's motif
 
 mod header;
 mod intersection;
@@ -40,7 +40,7 @@ use crate::utils::ms_bed::validate_bed_file as validate_ms_bed_file;
 use header::prepare_header;
 use intersection::process_and_annotate;
 
-/* ======== CLI CONFIGURATION ===================== */
+/* ============ Data Structures =================== */
 
 /// Configuration for MS candidate preprocessing pipeline.
 ///
@@ -63,7 +63,20 @@ pub struct PreprocessMSIConfig {
 }
 
 impl PreprocessMSIConfig {
-    /// Validate PreprocessMSIConfig
+    /// Validate the configuration before preprocessing starts.
+    ///
+    /// Checks run in this order and stop at the first failure: BED extension,
+    /// VCF extension, VCF opens, BED first record, VCF first record, requested
+    /// INFO fields declared in the VCF header.
+    ///
+    /// # Returns
+    /// * `Ok(())` if every check passes
+    /// * `Err(Error::BedFileInvalid)` if the BED path has no `.bed` extension
+    /// * `Err(Error::VcfFileInvalid)` if the VCF path has no `.vcf`, `.vcf.gz`, `.vcf.bgz`, `.bcf` or `.bcf.gz` suffix
+    /// * `Err` with context `Failed to open candidate VCF` if the VCF cannot be opened
+    /// * `Err` from `ms_bed::validate_bed_file` if the BED content check fails
+    /// * `Err` from `bcf_utils::validate_vcf_file` if the VCF content check fails
+    /// * `Err(Error::VcfInfoFieldsMissing)` if a field in `propagate_info_fields` is not declared in the VCF header
     pub fn validate(&self) -> Result<()> {
         // Use existing validators from cli.rs to validate file formats.
         validate_bed_file(&self.microsatellite_bed)?;
@@ -72,7 +85,7 @@ impl PreprocessMSIConfig {
         let mut vcf =
             bcf::Reader::from_path(&self.candidate_vcf).context("Failed to open candidate VCF")?;
 
-        // Additional file specifc validators:
+        // Additional file specific validators:
         validate_ms_bed_file(&self.microsatellite_bed)?;
         info!("Validating VCF file: {}", self.candidate_vcf.display());
         validate_ms_vcf_file(&mut vcf)?;
@@ -85,14 +98,14 @@ impl PreprocessMSIConfig {
     ///
     /// # Format Detection
     /// - `.bcf` to BCF binary, compressed
-    /// - `.bcf.gz` to BCF binary, compressed - identical output to `.bcf`
+    /// - `.bcf.gz` to BCF binary, compressed (identical to `.bcf`)
     /// - `.vcf.gz` or `.vcf.bgz` to VCF text, BGZF compressed
     /// - `.vcf` to VCF text, uncompressed
     /// - Anything else to VCF text, uncompressed (safest default)
     /// - None (stdout) to VCF text, uncompressed
     ///
     /// # Returns
-    /// Tuple of (Format, uncompressed_flag) for writer creation
+    /// Tuple of (`Format`, `uncompressed`) for writer creation, `true` means no compression is applied
     pub fn determine_output_format(&self) -> (Format, bool) {
         match self.output.as_deref() {
             None => (Format::Vcf, true),
@@ -112,9 +125,10 @@ impl PreprocessMSIConfig {
         }
     }
 
-    /// Log configuration details:
-    ///   - Input file paths
-    ///   - Output file path or STDOUT
+    /// Log the input paths, the output destination and the INFO fields to propagate.
+    ///
+    /// # Returns
+    /// Nothing, as all output goes through `info!`
     pub fn log_config(&self) {
         info!("Input files:");
         info!("BED file: {}", self.microsatellite_bed.display());
@@ -140,11 +154,25 @@ impl PreprocessMSIConfig {
     }
 }
 
-/* ================================================ */
+/* ============ Functions ========================= */
 
-/* ======== Main Workflow Orchestration ============ */
-
-/// Main Orchestrator for MSI candidate preprocessing workflow.
+/// Run the MSI candidate preprocessing workflow end to end.
+///
+/// Opens the candidate VCF, builds the output header, creates the writer
+/// (STDOUT if no output path is set), streams the BED regions against the
+/// variants via `process_and_annotate`, then logs the final stats.
+/// Callers run `PreprocessMSIConfig::validate` first.
+///
+/// # Arguments
+/// * `config` - Preprocessing configuration
+///
+/// # Returns
+/// * `Ok(())` once the output has been written
+/// * `Err` with context `Failed to open input VCF` if the candidate VCF cannot be opened
+/// * `Err` if `AuxInfoCollector::new` fails
+/// * `Err` if `prepare_header` fails
+/// * `Err` if the output writer cannot be created
+/// * `Err` if `process_and_annotate` fails
 pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
     info!("----------------------------------------------");
     info!("Step 1: Configuration");
@@ -206,15 +234,11 @@ pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
     Ok(())
 }
 
-/* ================================================ */
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use rust_htslib::bcf::Format;
-
-    /// Helper function to create a test PreprocessMSIConfig with optional output path.
+    // Helper: Build a PreprocessMSIConfig with the given output path and dummy inputs
     fn create_test_config(output: Option<PathBuf>) -> PreprocessMSIConfig {
         PreprocessMSIConfig {
             microsatellite_bed: PathBuf::from("test.bed"),
@@ -223,6 +247,8 @@ mod tests {
             propagate_info_fields: vec![],
         }
     }
+
+    /* ====== determine_output_format tests ========== */
 
     #[test]
     fn test_determine_output_format_stdout() {
