@@ -524,7 +524,7 @@ pub(super) mod tests {
     ///
     /// # Returns
     /// A `NamedTempFile`, keep it alive for the duration of the test
-    pub(super) fn create_bed_file(regions: &[(&str, u64, u64, &str)]) -> NamedTempFile {
+    pub(crate) fn create_bed_file(regions: &[(&str, u64, u64, &str)]) -> NamedTempFile {
         let mut tmp = NamedTempFile::with_suffix(".bed").unwrap();
         for (chrom, start, end, motif) in regions {
             writeln!(tmp, "{}\t{}\t{}\t{}", chrom, start, end, motif).unwrap();
