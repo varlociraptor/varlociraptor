@@ -441,7 +441,7 @@ mod tests {
     /* ====== extract_regions tests =============== */
 
     #[test]
-    fn test_non_ms_record_skipped() {
+    fn test_extract_regions_non_ms_record_skipped() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -475,7 +475,7 @@ mod tests {
     }
 
     #[test]
-    fn test_two_records_same_region_grouped() {
+    fn test_extract_regions_two_records_same_region_grouped() {
         // Two records with same REGION_ID - one RegionSummary, two Variants
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
@@ -501,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn test_prob_absent_computed_correctly() {
+    fn test_extract_regions_prob_absent_computed_correctly() {
         // prob_somatic=0.9 -> prob_absent=0.1
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
@@ -525,7 +525,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dummy_counted_has_real_indel_false() {
+    fn test_extract_regions_dummy_counted_has_real_indel_false() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -570,7 +570,7 @@ mod tests {
     }
 
     #[test]
-    fn test_real_record_sets_has_real_indel() {
+    fn test_extract_regions_real_record_sets_has_real_indel() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -591,7 +591,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_regions_sorted_by_chrom_start() {
+    fn test_extract_regions_multiple_regions_sorted_by_chrom_start() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -623,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn test_non_contiguous_same_region_grouped_via_hashmap() {
+    fn test_extract_regions_non_contiguous_same_region_grouped() {
         // region1 / region2 / region1 - HashMap handles non-contiguous correctly
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
@@ -656,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn test_two_alts_different_regions_each_registered() {
+    fn test_extract_regions_two_alts_different_regions_each_registered() {
         // One record, two ALTs, each matching a different region via Number=A
         // ALT0: ACAGCAG -> indel_pos=1001 -> chr1:1001-1030
         // ALT1: A       -> indel_pos=998  -> chr1:992-1000
@@ -700,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn test_alt_with_dot_region_skipped() {
+    fn test_extract_regions_alt_with_dot_region_skipped() {
         // Two ALTs: ALT0 has region, ALT1 has "." - ALT1 skipped
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
@@ -728,7 +728,7 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_af_skipped_counted_in_stats() {
+    fn test_extract_regions_missing_af_skipped_counted_in_stats() {
         // Record has REGION_ID and PROB_SOMATIC but no FORMAT:AF
         // Region is registered but variant is skipped - skipped_missing_af increments
         let tmp = NamedTempFile::new().unwrap();
@@ -757,7 +757,7 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_prob_skipped_counted_in_stats() {
+    fn test_extract_regions_missing_prob_skipped_counted_in_stats() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -783,7 +783,7 @@ mod tests {
     }
 
     #[test]
-    fn test_two_event_prob_combined_correctly() {
+    fn test_extract_regions_two_event_prob_combined_correctly() {
         let tmp = NamedTempFile::new().unwrap();
         let mut header = make_header();
         header.push_record(
@@ -817,7 +817,7 @@ mod tests {
     }
 
     #[test]
-    fn test_variant_less_region_pruned_when_heatmap_not_needed() {
+    fn test_extract_regions_variant_less_region_pruned_without_heatmap() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -847,7 +847,7 @@ mod tests {
     }
 
     #[test]
-    fn test_regions_with_real_indel_counted_even_when_pruned() {
+    fn test_extract_regions_real_indel_count_survives_pruning() {
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
