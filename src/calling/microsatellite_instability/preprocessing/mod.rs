@@ -181,7 +181,6 @@ pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
     info!("----------------------------------------------");
     info!("Step 2: Streaming Intersection & Output Generation");
     info!("----------------------------------------------");
-    info!("Starting step 2.");
 
     info!("Opening input VCF: {}", config.candidate_vcf.display());
     let mut input_vcf =
@@ -207,13 +206,13 @@ pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
 
     info!("Creating output writer...");
     let mut writer = match config.output {
-        Some(ref path) => {
+        Some(path) => {
             bcf::Writer::from_path(path, &output_header, output_uncompressed, output_format)?
         }
         None => bcf::Writer::from_stdout(&output_header, output_uncompressed, output_format)?,
     };
 
-    info!("\nStarting streaming intersection...");
+    info!("Starting streaming intersection...");
     let stats = process_and_annotate(
         &mut input_vcf,
         &config.microsatellite_bed,
@@ -223,7 +222,7 @@ pub fn preprocess_ms_candidates(config: PreprocessMSIConfig) -> Result<()> {
     info!("Intersection finished and output generated.");
 
     info!("----------------------------------------------");
-    info!("Step 3(Final): Logging Final Stats");
+    info!("Step 3 (Final): Logging Final Stats");
     info!("----------------------------------------------");
     stats.log_stats();
     info!("==============================================");
