@@ -500,7 +500,7 @@ pub(super) fn process_and_annotate(
 /* =============== Tests ========================== */
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use std::io::Write;
 
@@ -515,9 +515,17 @@ mod tests {
         create_minimal_vcf, create_test_vcf, read_first_record, TestVcfConfig,
     };
 
-    // Helper: Create BED file
-    fn create_bed_file(regions: &[(&str, u64, u64, &str)]) -> NamedTempFile {
-        let mut tmp = NamedTempFile::new().unwrap();
+    /// Create a BED file from region tuples.
+    ///
+    /// The file has a `.bed` suffix.
+    ///
+    /// # Arguments
+    /// * `regions` - `(chrom, start, end, name)` tuples, with name as `<count>x<motif>` (e.g. `7xCAG`)
+    ///
+    /// # Returns
+    /// A `NamedTempFile`, keep it alive for the duration of the test
+    pub(super) fn create_bed_file(regions: &[(&str, u64, u64, &str)]) -> NamedTempFile {
+        let mut tmp = NamedTempFile::with_suffix(".bed").unwrap();
         for (chrom, start, end, motif) in regions {
             writeln!(tmp, "{}\t{}\t{}\t{}", chrom, start, end, motif).unwrap();
         }
