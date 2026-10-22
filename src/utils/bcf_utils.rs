@@ -976,7 +976,7 @@ pub(crate) mod tests {
     ///   `header_lines`, in declaration order
     ///
     /// # Returns
-    /// A `NamedTempFile` containing the resulting VCF
+    /// A `NamedTempFile` with a `.vcf` suffix containing the resulting VCF
     ///
     /// # Note
     /// Unlike [`create_test_vcf`], which builds exactly one feature-rich
@@ -988,7 +988,7 @@ pub(crate) mod tests {
         header_lines: &[&[u8]],
         records: &[(u32, i64, &[u8], &[&[u8]])],
     ) -> NamedTempFile {
-        let tmp = NamedTempFile::new().unwrap();
+        let tmp = NamedTempFile::with_suffix(".vcf").unwrap();
         let mut header = bcf::Header::new();
         header.push_record(br"##fileformat=VCFv4.2");
         for line in header_lines {
