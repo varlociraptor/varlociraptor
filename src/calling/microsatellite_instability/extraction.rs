@@ -671,7 +671,7 @@ mod tests {
     fn test_extract_regions_two_alts_different_regions_each_registered() {
         // One record, two ALTs, each matching a different region via Number=A
         // ALT0: AAAACAG -> indel_pos=1001 -> chr1:1001-1031
-        // ALT1: A       -> indel_pos=998  -> chr1:992-1000
+        // ALT1: A       -> indel_pos=998  -> chr1:992-1001
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
             bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
@@ -680,7 +680,7 @@ mod tests {
         r.set_rid(Some(0));
         r.set_pos(997);
         r.set_alleles(&[b"AAAA", b"AAAACAG", b"A"]).unwrap();
-        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1001-1031", b"chr1:992-1000"])
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1001-1031", b"chr1:992-1001"])
             .unwrap();
         r.push_info_float(b"PROB_SOMATIC", &[0.9_f32, 0.7_f32])
             .unwrap();
@@ -693,7 +693,7 @@ mod tests {
         assert_eq!(stats.total_ms_regions, 2);
         assert_eq!(regions.len(), 2);
 
-        // After sort by (chrom, start): chr1:992-1000 first
+        // After sort by (chrom, start): chr1:992-1001 first
         assert_eq!(regions[0].chrom, "chr1");
         assert_eq!(regions[0].start, 992);
         assert_eq!(regions[1].chrom, "chr1");
@@ -705,7 +705,7 @@ mod tests {
         assert!(regions[0].has_real_indel);
         assert!(regions[1].has_real_indel);
 
-        // ALT1 -> chr1:992-1000: prob_somatic=0.7 -> prob_absent≈0.3
+        // ALT1 -> chr1:992-1001: prob_somatic=0.7 -> prob_absent≈0.3
         assert!((regions[0].variants[0].prob_absent - 0.3).abs() < TEST_EPSILON_LOOSE);
         // ALT0 -> chr1:1001-1031: prob_somatic=0.9 -> prob_absent≈0.1
         assert!((regions[1].variants[0].prob_absent - 0.1).abs() < TEST_EPSILON_LOOSE);
