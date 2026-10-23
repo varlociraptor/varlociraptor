@@ -883,4 +883,36 @@ mod tests {
             "diagnostic count survives pruning"
         );
     }
+
+    #[test]
+    fn test_extract_regions_invalid_prob_returns_error() {
+        let invalid_prob = 1.5_f32;
+        let pos0: i64 = 999;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w =
+            bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
+
+        let mut r = w.empty_record();
+        r.set_rid(Some(0));
+        r.set_pos(pos0);
+        r.set_alleles(&[b"GCAG", b"GCAGCAG"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1000-1030"])
+            .unwrap();
+        r.push_info_float(b"PROB_SOMATIC", &[invalid_prob]).unwrap();
+        r.push_format_float(b"AF", &[0.8_f32]).unwrap();
+        w.write(&r).unwrap();
+        drop(w);
+
+        let err = try_extract(&tmp, "tumor", 0, &["somatic"], false, true).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfProbabilityValueInvalid {
+                field: "PROB_SOMATIC".to_string(),
+                value: invalid_prob,
+                chrom: "chr1".to_string(),
+                pos: pos0 + 1,
+            })
+        );
+    }
 }
