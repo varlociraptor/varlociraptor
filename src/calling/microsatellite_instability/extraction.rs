@@ -915,4 +915,37 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn test_extract_regions_invalid_af_returns_error() {
+        let invalid_af = 1.5_f32;
+        let sample_idx = 0;
+        let pos0: i64 = 999;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w =
+            bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
+
+        let mut r = w.empty_record();
+        r.set_rid(Some(0));
+        r.set_pos(pos0);
+        r.set_alleles(&[b"GCAG", b"GCAGCAG"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1000-1030"])
+            .unwrap();
+        r.push_info_float(b"PROB_SOMATIC", &[0.9_f32]).unwrap();
+        r.push_format_float(b"AF", &[invalid_af]).unwrap();
+        w.write(&r).unwrap();
+        drop(w);
+
+        let err = try_extract(&tmp, "tumor", sample_idx, &["somatic"], false, true).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfAlleleFrequencyInvalid {
+                sample: format!("sample_idx={}", sample_idx),
+                af: invalid_af,
+                chrom: "chr1".to_string(),
+                pos: pos0 + 1,
+            })
+        );
+    }
 }
