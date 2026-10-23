@@ -710,8 +710,8 @@ mod tests {
         let mut r = w.empty_record();
         r.set_rid(Some(0));
         r.set_pos(997);
-        r.set_alleles(&[b"ACAG", b"ACAGCAG", b"A"]).unwrap();
-        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1001-1030", b"."])
+        r.set_alleles(&[b"AAAA", b"AAAACAG", b"A"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1001-1031", b"."])
             .unwrap();
         r.push_info_float(b"PROB_SOMATIC", &[0.9_f32, 0.7_f32])
             .unwrap();
