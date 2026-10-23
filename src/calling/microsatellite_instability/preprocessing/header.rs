@@ -31,7 +31,7 @@ use crate::utils::ms_bed::collect_bed_chromosomes;
 ///
 /// # Returns
 /// * `Ok(Header)` - Prepared header ready for writer creation
-/// * `Err` if:
+/// * `Err`
 ///     - BED file cannot be opened or read, or a record in it is invalid
 ///     - BED file has no valid regions (`Error::BedFileNoValidRegions`)
 ///     - A copied INFO field lacks Number, Type or Description (`Error::VcfHeaderFieldMissing`)

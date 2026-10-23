@@ -207,7 +207,7 @@ mod tests {
         TestVcfConfig,
     };
 
-    /// Create a minimal VCF header (chr1 contig, REGION_ID and MSI_DUMMY declarations).
+    /// Helper: Create a minimal VCF header (chr1 contig, REGION_ID and MSI_DUMMY declarations).
     fn create_minimal_vcf_header() -> bcf::Header {
         let mut header = bcf::Header::new();
         header.push_record(br"##fileformat=VCFv4.2");
