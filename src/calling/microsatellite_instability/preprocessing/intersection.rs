@@ -103,9 +103,9 @@ impl WindowEntry {
     /// position-1 allele isn't silently dropped from the max.
     ///
     /// # Returns
-    /// * `Some(position)` - largest indel position across all ALT alleles of a real
+    /// * `Some(position)` - Largest indel position across all ALT alleles of a real
     ///   variant (ordinary or position-1 trailing reading)
-    /// * `None` - for a dummy, or when no ALT allele is a clean indel
+    /// * `None` - For a dummy, or when no ALT allele is a clean indel
     fn max_safe_pos(&self) -> Option<u64> {
         match self {
             WindowEntry::Real(v) => {
@@ -497,8 +497,6 @@ pub(super) fn process_and_annotate(
     })
 }
 
-/* =============== Tests ========================== */
-
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
@@ -563,7 +561,7 @@ pub(super) mod tests {
         assert!(!variant_overlaps_region(&record, &region, 0));
     }
 
-    /* ====== WindowEntry tests ======================= */
+    /* ====== max_safe_pos tests ===================== */
 
     #[test]
     fn test_max_safe_pos_position_1_trailing_anchor_not_silently_dropped() {
