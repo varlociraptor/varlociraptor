@@ -887,7 +887,7 @@ pub(crate) mod tests {
         (tmp, sample_names)
     }
 
-    /// Build a header view with a `chr1` contig plus the given extra header lines.
+    /// Helper: Build a header view with a `chr1` contig plus the given extra header lines.
     fn create_header_view(header_lines: &[&[u8]]) -> HeaderView {
         let mut header = bcf::Header::new();
         header.push_record(br"##fileformat=VCFv4.2");
@@ -911,7 +911,7 @@ pub(crate) mod tests {
     /// * `path` - Path to VCF/BCF file
     ///
     /// # Returns
-    /// bcf::Record for testing
+    /// `bcf::Record` for testing
     pub(crate) fn read_first_record(path: &Path) -> bcf::Record {
         let mut reader = bcf::Reader::from_path(path).unwrap();
         reader.records().next().unwrap().unwrap()

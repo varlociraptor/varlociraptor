@@ -24,7 +24,7 @@ use bio::stats::{PHREDProb, Prob};
 ///
 /// # Returns
 /// Mathematically in `(0.0, 1.0]`, linear probability for valid (non-negative)
-/// PHRED input - it only approaches but never reaches 0 as PHRED grows.
+/// PHRED input - it only approaches but never reaches 0 as PHRED grows
 ///
 /// # Panics
 /// Panics if `phred` is negative - a negative PHRED score is not meaningful
@@ -45,7 +45,7 @@ pub(crate) fn phred_to_prob(phred: f64) -> f64 {
 /// Convert a `usize` to `f64`, panicking if the value can't be represented exactly.
 ///
 /// `f64` represents integers exactly only up to 2^53. This codebase's counts
-/// (e.g region totals) never approach that scale in practice, but this
+/// (e.g. region totals) never approach that scale in practice, but this
 /// guards against silently producing a corrupted percentage/statistic if
 /// that assumption is ever violated, instead of failing loudly.
 ///
@@ -53,7 +53,7 @@ pub(crate) fn phred_to_prob(phred: f64) -> f64 {
 /// * `value` - Count to convert (e.g. a region or allele total)
 ///
 /// # Returns
-/// `value` as `f64`, exact for any input within range.
+/// `value` as `f64`, exact for any input within range
 ///
 /// # Panics
 /// Panics if `value > 2^53` (9_007_199_254_740_992), where the conversion
@@ -84,9 +84,9 @@ pub(crate) fn usize_to_f64_exact(value: usize) -> f64 {
 /// a value this function can meaningfully return.
 ///
 /// # Note
-/// usize_to_f64_exact (not a plain `as f64` cast) is used for the raw values so a
+/// `usize_to_f64_exact` (not a plain `as f64` cast) is used for the raw values so a
 /// count large enough to lose precision panics loudly here instead of silently
-/// erroring the percentage.
+/// corrupting the percentage.
 pub(crate) fn calculate_percentage(numerator: usize, denominator: usize) -> f32 {
     assert!(denominator != 0, "denominator must not be zero");
 
