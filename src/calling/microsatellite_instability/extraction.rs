@@ -969,4 +969,38 @@ mod tests {
 
         extract_somatic(&tmp);
     }
+
+    #[test]
+    fn test_extract_regions_malformed_region_id_alt_skipped() {
+        // Two ALTs: ALT0 has a malformed REGION_ID, ALT1 a valid one - only ALT0 is skipped
+        let valid_start: u64 = 992;
+        let valid_id = format!("chr1:{valid_start}-1001");
+        let valid_prob = 0.7_f32;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w =
+            bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
+
+        let mut r = w.empty_record();
+        r.set_rid(Some(0));
+        r.set_pos(997);
+        r.set_alleles(&[b"AAAA", b"AAAACAG", b"A"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:abc-1031", valid_id.as_bytes()])
+            .unwrap();
+        r.push_info_float(b"PROB_SOMATIC", &[0.9_f32, valid_prob])
+            .unwrap();
+        r.push_format_float(b"AF", &[0.6_f32, 0.4_f32]).unwrap();
+        w.write(&r).unwrap();
+        drop(w);
+
+        let (regions, stats) = extract_somatic(&tmp);
+        assert_eq!(stats.total_ms_regions, 1);
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0].start, valid_start);
+        assert_eq!(regions[0].variants.len(), 1);
+        assert!(
+            (regions[0].variants[0].prob_absent - (1.0 - f64::from(valid_prob))).abs()
+                < TEST_EPSILON_LOOSE
+        );
+    }
 }
