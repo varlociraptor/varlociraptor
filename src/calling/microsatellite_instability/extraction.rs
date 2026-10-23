@@ -69,6 +69,7 @@ impl RegionSummary {
     /// Parse a REGION_ID string ("chrom:start-end") into a RegionSummary.
     ///
     /// Returns Err if the format is invalid so the caller can warn and skip.
+    /// The chrom is assumed to contain no `:`.
     ///
     /// # Arguments
     /// * `region_id` - Region identifier in `chrom:start-end` format
@@ -130,9 +131,9 @@ pub(super) struct ExtractionStats {
     /// inject_dummy_indels writes a deletion+insertion pair per region, a
     /// region with no perfect indel contributes 2 to this count, not 1.
     dummy_records: usize,
-    /// ALT Alleles skipped — FORMAT:AF absent for the sample.
+    /// ALT alleles skipped — FORMAT:AF absent for the sample.
     skipped_missing_af: usize,
-    /// ALT Alleles skipped — event probability field absent.
+    /// ALT alleles skipped — event probability field absent.
     skipped_missing_prob: usize,
 }
 
