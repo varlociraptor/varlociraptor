@@ -1571,7 +1571,7 @@ pub(crate) mod tests {
         assert!(result.is_err(), "Should fail for nonexistent file");
     }
 
-    /* ========== allele type check tests ============ */
+    /* ========== is_breakend tests ================== */
 
     #[test]
     fn test_is_breakend() {
