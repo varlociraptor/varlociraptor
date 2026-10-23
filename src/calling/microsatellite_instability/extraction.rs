@@ -948,4 +948,25 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    #[should_panic(expected = "FromUtf8Error")]
+    fn test_extract_regions_region_id_invalid_utf8_panics() {
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w =
+            bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
+
+        let mut r = w.empty_record();
+        r.set_rid(Some(0));
+        r.set_pos(999);
+        r.set_alleles(&[b"GCAG", b"GCAGCAG"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"\xff\xfe"])
+            .unwrap();
+        r.push_info_float(b"PROB_SOMATIC", &[0.9_f32]).unwrap();
+        r.push_format_float(b"AF", &[0.8_f32]).unwrap();
+        w.write(&r).unwrap();
+        drop(w);
+
+        extract_somatic(&tmp);
+    }
 }
