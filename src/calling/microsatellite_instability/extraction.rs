@@ -659,7 +659,7 @@ mod tests {
     #[test]
     fn test_extract_regions_two_alts_different_regions_each_registered() {
         // One record, two ALTs, each matching a different region via Number=A
-        // ALT0: ACAGCAG -> indel_pos=1001 -> chr1:1001-1030
+        // ALT0: AAAACAG -> indel_pos=1001 -> chr1:1001-1031
         // ALT1: A       -> indel_pos=998  -> chr1:992-1000
         let tmp = NamedTempFile::new().unwrap();
         let mut w =
@@ -668,8 +668,8 @@ mod tests {
         let mut r = w.empty_record();
         r.set_rid(Some(0));
         r.set_pos(997);
-        r.set_alleles(&[b"GCAG", b"GCAGCAG", b"G"]).unwrap();
-        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1001-1030", b"chr1:992-1000"])
+        r.set_alleles(&[b"AAAA", b"AAAACAG", b"A"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1001-1031", b"chr1:992-1000"])
             .unwrap();
         r.push_info_float(b"PROB_SOMATIC", &[0.9_f32, 0.7_f32])
             .unwrap();
@@ -696,7 +696,7 @@ mod tests {
 
         // ALT1 -> chr1:992-1000: prob_somatic=0.7 -> prob_absent≈0.3
         assert!((regions[0].variants[0].prob_absent - 0.3).abs() < TEST_EPSILON_LOOSE);
-        // ALT0 -> chr1:1001-1030: prob_somatic=0.9 -> prob_absent≈0.1
+        // ALT0 -> chr1:1001-1031: prob_somatic=0.9 -> prob_absent≈0.1
         assert!((regions[1].variants[0].prob_absent - 0.1).abs() < TEST_EPSILON_LOOSE);
     }
 
