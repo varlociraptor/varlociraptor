@@ -245,9 +245,11 @@ pub(super) fn extract_regions(
             stats.dummy_records += 1;
         }
 
+        let chrom = get_chrom(&record)?;
+
         // Extract one Variant per ALT allele.
         let allele_count = record.allele_count() as usize;
-        let region_ids = get_info_strings(&record, MSI_REGION_ID_TAG).unwrap_or_default();
+        let region_ids = get_info_strings(&record, MSI_REGION_ID_TAG).unwrap();
         for alt_idx in 0..allele_count.saturating_sub(1) {
             let region_id = match region_ids.get(alt_idx).filter(|s| *s != ".").cloned() {
                 Some(id) => id,
@@ -255,7 +257,7 @@ pub(super) fn extract_regions(
                     debug!(
                         "ALT {} at {}:{} has no region - skipping",
                         alt_idx,
-                        get_chrom(&record).unwrap_or_default(),
+                        chrom,
                         record.pos() + 1
                     );
                     continue;
@@ -274,7 +276,7 @@ pub(super) fn extract_regions(
                         idx
                     }
                     Err(e) => {
-                        warn!("Skipping record with malformed REGION_ID: {}", e);
+                        warn!("Skipping ALT with malformed REGION_ID: {}", e);
                         continue;
                     }
                 },
@@ -295,7 +297,7 @@ pub(super) fn extract_regions(
                     stats.skipped_missing_prob += 1;
                     debug!(
                         "Event prob missing at {}:{} alt={} — skipping allele",
-                        get_chrom(&record).unwrap_or_default(),
+                        chrom,
                         record.pos() + 1,
                         alt_idx
                     );
@@ -311,7 +313,7 @@ pub(super) fn extract_regions(
                     debug!(
                         "FORMAT:AF missing for '{}' at {}:{} alt={} — skipping allele",
                         sample,
-                        get_chrom(&record).unwrap_or_default(),
+                        chrom,
                         record.pos() + 1,
                         alt_idx
                     );
