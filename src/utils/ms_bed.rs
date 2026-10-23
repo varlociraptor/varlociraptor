@@ -80,14 +80,11 @@ impl BedRegion {
 ///
 /// # Returns
 /// * `Ok(motif)` - Extracted motif string (e.g., "CAG")
-/// * `Err` - Invalid format
-///
-/// # Errors
-/// Returns error if:
-/// - Missing 'x' separator
-/// - Non-numeric repeat count
-/// - Zero repeat count
-/// - Empty motif
+/// * `Err(Error::MsiBedMotifInvalid)`
+///     - Missing 'x' separator
+///     - Non-numeric or zero repeat count
+///     - Empty motif
+///     - Motif contains a base other than A, C, G or T (case-insensitive)
 pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
     let (repeat_str, motif) = name
         .split_once('x')
@@ -225,9 +222,10 @@ pub(crate) fn collect_bed_chromosomes(bed_path: &Path) -> Result<HashSet<String>
 ///
 /// # Returns
 /// * `Ok(())` if the file is readable and its first record is valid
-/// * `Err` if:
+/// * `Err`
 ///     - File cannot be opened
 ///     - File is empty
+///     - First record cannot be read
 ///     - First record is invalid
 pub(crate) fn validate_bed_file(bed_path: &Path) -> Result<()> {
     info!("Validating BED file: {}", bed_path.display());
@@ -261,6 +259,12 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
+
+    /// Helper: Create a BED record from a string.
+    fn bed_record_from_str(line: &str) -> bed::Record {
+        let mut reader = bed::Reader::new(line.as_bytes());
+        reader.records().next().unwrap().unwrap()
+    }
 
     /* ============ BedRegion tests ================== */
 
@@ -354,12 +358,6 @@ mod tests {
     }
 
     /* ========= parse_bed_record tests ============== */
-
-    /// Helper to create BED record from string.
-    fn bed_record_from_str(line: &str) -> bed::Record {
-        let mut reader = bed::Reader::new(line.as_bytes());
-        reader.records().next().unwrap().unwrap()
-    }
 
     #[test]
     fn test_parse_bed_record_valid() {
