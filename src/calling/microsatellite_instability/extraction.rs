@@ -344,9 +344,7 @@ mod tests {
     use crate::constants::test_constants::{TEST_EPSILON_LOOSE, TEST_EPSILON_LOOSE_F32};
     use crate::constants::{MSI_DUMMY_HEADER, MSI_REGION_ID_HEADER};
 
-    /* ====== Shared header builder =============== */
-
-    /// Build a minimal BCF header for extraction tests.
+    /// Helper: Build a minimal BCF header for extraction tests.
     /// Includes REGION_ID (Number=A), MSI_DUMMY, PROB_SOMATIC, FORMAT:AF,
     /// and a single sample "tumor" on contigs chr1 and chr2.
     fn make_header() -> bcf::Header {
@@ -364,7 +362,7 @@ mod tests {
         header
     }
 
-    /// Run extraction with arbitrary event list against a test VCF.
+    /// Helper: Run extraction with arbitrary event list against a test VCF.
     fn extract_with_events(
         tmp: &NamedTempFile,
         events: &[&str],
@@ -382,13 +380,13 @@ mod tests {
         .unwrap()
     }
 
-    /// Run extraction with the single "somatic" event - covers the common case.
+    /// Helper: Run extraction with the single "somatic" event - covers the common case.
     /// Thin wrapper around [`extract_with_events`].
     fn extract_somatic(tmp: &NamedTempFile) -> (Vec<RegionSummary>, ExtractionStats) {
         extract_with_events(tmp, &["somatic"], true)
     }
 
-    /* ====== RegionSummary::from_region_id ======= */
+    /* ====== from_region_id tests =================== */
 
     #[test]
     fn test_from_region_id_valid() {
@@ -438,7 +436,7 @@ mod tests {
         );
     }
 
-    /* ====== extract_regions tests =============== */
+    /* ====== extract_regions tests ================== */
 
     #[test]
     fn test_extract_regions_non_ms_record_skipped() {
