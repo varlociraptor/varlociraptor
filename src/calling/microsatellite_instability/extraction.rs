@@ -365,22 +365,33 @@ mod tests {
         header
     }
 
+    /// Helper: Run extraction with every parameter explicit, returning the raw result.
+    fn try_extract(
+        tmp: &NamedTempFile,
+        sample: &str,
+        sample_idx: usize,
+        events: &[&str],
+        is_phred: bool,
+        needs_heatmap: bool,
+    ) -> Result<(Vec<RegionSummary>, ExtractionStats)> {
+        let mut vcf = bcf::Reader::from_path(tmp.path()).unwrap();
+        extract_regions(
+            &mut vcf,
+            sample,
+            sample_idx,
+            &events.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            is_phred,
+            needs_heatmap,
+        )
+    }
+
     /// Helper: Run extraction with arbitrary event list against a test VCF.
     fn extract_with_events(
         tmp: &NamedTempFile,
         events: &[&str],
         needs_heatmap: bool,
     ) -> (Vec<RegionSummary>, ExtractionStats) {
-        let mut vcf = bcf::Reader::from_path(tmp.path()).unwrap();
-        extract_regions(
-            &mut vcf,
-            "tumor",
-            0,
-            &events.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
-            false,
-            needs_heatmap,
-        )
-        .unwrap()
+        try_extract(tmp, "tumor", 0, events, false, needs_heatmap).unwrap()
     }
 
     /// Helper: Run extraction with the single "somatic" event - covers the common case.
