@@ -26,7 +26,7 @@
 
 /// Binary classification of microsatellite instability status.
 ///
-/// - `High`   - displays as `"MSI-High"`
+/// - `High` - displays as `"MSI-High"`
 /// - `Stable` - displays as `"MSS"`
 #[derive(Debug, PartialEq)]
 pub enum MsiStatus {
@@ -126,6 +126,13 @@ pub(crate) fn is_clean_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
 
 /// Reverse both allele sequences.
 ///
+/// # Arguments
+/// * `ref_seq` - Reference sequence
+/// * `alt_seq` - Alternate sequence
+///
+/// # Returns
+/// `(reversed ref_seq, reversed alt_seq)`
+///
 /// # Note
 /// A caller handling the position-1 trailing-anchor edge case (see this
 /// module's docs) can run this and then use `calculate_anchor_length`/
@@ -133,13 +140,6 @@ pub(crate) fn is_clean_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
 /// leading one under reversal. Sufficient for structural checks (which only
 /// depend on tail lengths, not byte order); not sufficient if a caller needs
 /// the changed content in correct real-world order.
-///
-/// # Arguments
-/// * `ref_seq` - Reference sequence
-/// * `alt_seq` - Alternate sequence
-///
-/// # Returns
-/// `(reversed ref_seq, reversed alt_seq)`
 pub(crate) fn reverse_alleles(ref_seq: &[u8], alt_seq: &[u8]) -> (Vec<u8>, Vec<u8>) {
     (
         ref_seq.iter().rev().copied().collect(),
@@ -226,7 +226,7 @@ pub(crate) fn classify_msi_status(msi_score: f32, threshold: f32) -> MsiStatus {
 mod tests {
     use super::*;
 
-    /* ========== MsiStatus tests ================== */
+    /* ========== MsiStatus tests ==================== */
 
     #[test]
     fn test_msi_status_as_str() {
@@ -234,7 +234,7 @@ mod tests {
         assert_eq!(MsiStatus::High.as_str(), "MSI-High");
     }
 
-    /* ========== is_indel tests =================== */
+    /* ========== is_indel tests ===================== */
 
     #[test]
     fn test_is_indel_insertions() {
