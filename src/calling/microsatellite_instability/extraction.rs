@@ -201,7 +201,7 @@ impl ExtractionStats {
 /// * `stats.total_ms_regions` stays the MSI score denominator regardless of pruning
 /// * Vec length equals `stats.total_ms_regions` only when `needs_heatmap` is `true`, otherwise it may be smaller because variant-less regions are pruned
 /// * `Err(Error::VcfRecordReadFailed)` if a VCF record cannot be read
-/// * `Err` if `get_events_probability` or `get_sample_af` fail
+/// * `Err` if `get_chrom`, `get_events_probability` or `get_sample_af` fail
 ///
 /// # Panics
 /// * If an `INFO/REGION_ID` value is not valid UTF-8, as `get_info_strings` panics on invalid UTF-8
