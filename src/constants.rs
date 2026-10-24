@@ -6,15 +6,14 @@
 //! Note: Constants should be defined under proper sections (e.g. MSI: CONSTANTS) with clear documentation on their purpose and usage.
 //!
 //! Sections of Constants included are:
-//! 1. Generic: Constants - General constants used across the codebase (e.g. default values, thresholds).
-//! 2. MSI: Constants - Microsatellite Instability related constants.
-//! 3. Test: Constants - Floating-point comparison tolerances used only in test code.
-//!
+//! 1. Generic: Constants - General constants used across the codebase (e.g. default values, thresholds)
+//! 2. MSI: Constants - Microsatellite Instability related constants
+//! 3. Test: Constants - Floating-point comparison tolerances used only in test code
 
 use rust_htslib::bcf::header::{TagLength, TagType};
 use std::collections::HashSet;
 
-/* =============== GENERIC: CONSTANTS ============== */
+/* ============ Generic: Constants ================ */
 
 // Standard INFO fields always propagated in varlociraptor preprocessing.
 // These fields are explicitly handled and must be omitted from aux_info.write()
@@ -29,7 +28,7 @@ pub(crate) const EPSILON: f64 = 1e-9;
 /// Minimum thread count for parallel tasks.
 pub(crate) const MIN_THREAD_COUNT: usize = 1;
 
-/* =============== MSI: CONSTANTS ================== */
+/* ============ MSI: Constants ==================== */
 
 /// Default MSI-High threshold (percentage).
 ///
@@ -54,25 +53,25 @@ pub(crate) const MSI_MAX_MOTIF_LENGTH: usize = 6;
 /// AF Thresholds.
 pub(crate) const MSI_DEFAULT_AF_THRESHOLDS: &str = msi_default_af_thresholds!();
 
-/// Sliding window size (bp) for regional MSI heatmap analysis.
+/// Default sliding window size (bp) for regional MSI heatmap analysis.
 pub(crate) const MSI_DEFAULT_SLIDING_WINDOW_SIZE: &str = "1000000";
 
 /// INFO field tag for MSI region annotation.
 /// Added to variants overlapping a microsatellite region.
 pub const MSI_REGION_ID_TAG: &[u8] = b"REGION_ID";
 
-/// INFO field tag for dummy deletion flag.
+/// INFO field tag for dummy indel flag.
 /// Set on synthetic records injected for MS regions without observed indels.
 pub const MSI_DUMMY_TAG: &[u8] = b"MSI_DUMMY";
 
 /// Default AF threshold for full distribution output.
 /// Variants with AF >= this threshold are included in the full distribution output.
-/// This AF threshold value is supported by the literature : https://pmc.ncbi.nlm.nih.gov/articles/PMC8172533/.
+/// This AF threshold value is supported by the literature: <https://pmc.ncbi.nlm.nih.gov/articles/PMC8172533/>.
 pub(crate) const MSI_DEFAULT_DISTRIBUTION_AF: &str = "0.05";
 
 /// Default AF threshold for windowed heatmap analysis.
 /// Variants with AF >= this threshold are included in the windowed heatmap analysis.
-/// This AF threshold value is supported by the literature : https://pmc.ncbi.nlm.nih.gov/articles/PMC8172533/.
+/// This AF threshold value is supported by the literature: <https://pmc.ncbi.nlm.nih.gov/articles/PMC8172533/>.
 pub(crate) const MSI_DEFAULT_WINDOWED_AF: &str = "0.05";
 
 /// Shape shared by varlociraptor-emitted per-ALT-allele Float
@@ -133,11 +132,11 @@ lazy_static! {
     };
 }
 
-/* =============== TEST: CONSTANTS ================ */
+/* ============ Test: Constants =================== */
 
 #[cfg(test)]
 pub(crate) mod test_constants {
-    /// Tolerance for floating-point comparisons in tests - f64
+    /// Tolerance for floating-point comparisons in tests - f64.
     pub(crate) const TEST_EPSILON: f64 = 1e-6;
 
     /// Looser tolerance for floating-point comparisons (f64) where accumulated
@@ -145,11 +144,11 @@ pub(crate) mod test_constants {
     /// or multi-step probability conversions.
     pub(crate) const TEST_EPSILON_LOOSE: f64 = 1e-5;
 
-    /// Tolerance for floating-point comparisons in tests - f32
+    /// Tolerance for floating-point comparisons in tests - f32.
     pub(crate) const TEST_EPSILON_F32: f32 = 1e-6;
 
     /// Looser tolerance for floating-point comparisons (f32) where accumulated
-    /// rounding error exceeds TEST_EPSILON - e.g. f32 storage round-trips,
+    /// rounding error exceeds TEST_EPSILON_F32 - e.g. f32 storage round-trips,
     /// or multi-step probability conversions.
     pub(crate) const TEST_EPSILON_LOOSE_F32: f32 = 1e-5;
 }
