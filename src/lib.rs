@@ -32,9 +32,17 @@ extern crate derefable;
 extern crate typed_builder;
 extern crate paste;
 
+#[macro_use]
+pub(crate) mod macros;
 pub mod calling;
+pub use calling::microsatellite_instability::preprocessing::{
+    preprocess_ms_candidates, PreprocessMSIConfig,
+};
+pub use calling::microsatellite_instability::{call_msi, MSIConfig};
 pub mod candidates;
 pub mod cli;
+pub(crate) mod constants;
+pub use constants::{MSI_DUMMY_TAG, MSI_REGION_ID_TAG};
 pub(crate) mod conversion;
 pub(crate) mod errors;
 pub(crate) mod estimation;
