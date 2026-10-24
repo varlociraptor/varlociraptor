@@ -1032,4 +1032,30 @@ mod tests {
         let chroms: Vec<&str> = regions.iter().map(|r| r.chrom.as_str()).collect();
         assert_eq!(chroms, vec!["chr1", "chr10", "chr2"]);
     }
+
+    #[test]
+    fn test_extract_regions_uses_sample_idx() {
+        // Two samples, one ALT: AF stored per sample (tumor first, normal second)
+        let tumor_af = 0.7_f32;
+        let normal_af = 0.2_f32;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let mut header = make_header();
+        header.push_sample(b"normal");
+        let mut w = bcf::Writer::from_path(tmp.path(), &header, true, bcf::Format::Vcf).unwrap();
+
+        let mut r = w.empty_record();
+        r.set_rid(Some(0));
+        r.set_pos(999);
+        r.set_alleles(&[b"GCAG", b"GCAGCAG"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1000-1030"])
+            .unwrap();
+        r.push_info_float(b"PROB_SOMATIC", &[0.9_f32]).unwrap();
+        r.push_format_float(b"AF", &[tumor_af, normal_af]).unwrap();
+        w.write(&r).unwrap();
+        drop(w);
+
+        let (regions, _) = try_extract(&tmp, "normal", 1, &["somatic"], false, true).unwrap();
+        assert!((regions[0].variants[0].af - normal_af).abs() < TEST_EPSILON_LOOSE_F32);
+    }
 }
