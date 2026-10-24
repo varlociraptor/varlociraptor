@@ -3,10 +3,9 @@
 //! Macros for varlociraptor.
 //!
 //! Sections of Macros included are:
-//! 1. String Constants - Macros to define string constants;
-//!
+//! 1. String Constants - Macros to define string constants
 
-/* =============== STRING CONSTANTS ================ */
+/* ============ String Constants ================== */
 
 /// Standard INFO fields always propagated in varlociraptor preprocessing.
 ///
@@ -31,10 +30,12 @@ macro_rules! msi_omit_aux_info {
     };
 }
 
+/// Default AF thresholds for MSI evolution analysis.
+///
+/// Returns a comma-separated string of AF thresholds, from highest to lowest.
 #[macro_export]
 macro_rules! msi_default_af_thresholds {
     () => {
         "1.0,0.8,0.6,0.4,0.2,0.1,0.05,0.02,0.0"
     };
 }
-/* ================================================= */
