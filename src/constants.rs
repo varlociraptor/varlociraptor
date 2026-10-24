@@ -37,7 +37,7 @@ pub(crate) const MIN_THREAD_COUNT: usize = 1;
 /// Niu et al. 2014: <https://pmc.ncbi.nlm.nih.gov/articles/PMC3967115/>.
 pub(crate) const MSI_DEFAULT_THRESHOLD: &str = "3.5";
 
-/// Minimum allowed MSI threshold (percentage).
+/// Exclusive lower bound for the MSI threshold (percentage).
 ///
 /// MSI thresholds must be positive values. Zero or negative thresholds
 /// are not meaningful for MSI classification.
@@ -110,7 +110,7 @@ lazy_static! {
     /// Full VCF header declaration for MSI_DUMMY INFO field.
     /// Derived from MSI_DUMMY_TAG.
     pub(crate) static ref MSI_DUMMY_HEADER: String = format!(
-        "##INFO=<ID={},Number=0,Type=Flag,Description=\"Dummy deletion injected for MS region with no observed indel\">",
+        "##INFO=<ID={},Number=0,Type=Flag,Description=\"Dummy indel injected for MS region with no observed indel\">",
         std::str::from_utf8(MSI_DUMMY_TAG).unwrap()
     );
 
