@@ -3,7 +3,7 @@
 //! This module defines global constants used across varlociraptor.
 //! Centralizing constants here promotes maintainability and consistency across the codebase.
 //!
-//! Note: Constants should be defined under proper sections (e.g. MSI: CONSTANTS) with clear documentation on their purpose and usage.
+//! Note: Constants should be defined under proper sections (e.g. MSI: Constants) with clear documentation on their purpose and usage.
 //!
 //! Sections of Constants included are:
 //! 1. Generic: Constants - General constants used across the codebase (e.g. default values, thresholds)
@@ -32,8 +32,9 @@ pub(crate) const MIN_THREAD_COUNT: usize = 1;
 
 /// Default MSI-High threshold (percentage).
 ///
-/// Variants with MSI score >= this threshold are classified as MSI-High.
-/// This is the standard clinical cutoff used in MSI analysis.
+/// MSI scores >= this threshold are classified as MSI-High.
+/// 3.5 is the MSIsensor score that separated MSI from MSS samples in
+/// Niu et al. 2014: <https://pmc.ncbi.nlm.nih.gov/articles/PMC3967115/>.
 pub(crate) const MSI_DEFAULT_THRESHOLD: &str = "3.5";
 
 /// Minimum allowed MSI threshold (percentage).
@@ -47,7 +48,7 @@ pub(crate) const MSI_MIN_THRESHOLD: f32 = 0.0;
 pub(crate) const MSI_MAX_MOTIF_LENGTH: usize = 6;
 
 /// Default AF thresholds for MSI evolution analysis.
-/// This list is used to generate pseudo-time series of MSI evolution at
+/// This list is used to generate pseudotime series of MSI evolution at
 /// different allele frequency cutoffs. Also, this list is used to validate
 /// the --distribution-af argument, as that needs to be from the list of
 /// AF Thresholds.
@@ -77,21 +78,25 @@ pub(crate) const MSI_DEFAULT_WINDOWED_AF: &str = "0.05";
 /// Shape shared by varlociraptor-emitted per-ALT-allele Float
 /// INFO/PROB_{event} fields.
 pub(crate) const MSI_INFO_PROB_EVENT_FIELD_TYPE: TagType = TagType::Float;
+/// Length counterpart of [`MSI_INFO_PROB_EVENT_FIELD_TYPE`].
 pub(crate) const MSI_INFO_PROB_EVENT_FIELD_LENGTH: TagLength = TagLength::AltAlleles;
 
 /// Shape shared by varlociraptor-emitted per-ALT-allele Float
 /// FORMAT/AF field.
 pub(crate) const MSI_FORMAT_AF_FIELD_TYPE: TagType = TagType::Float;
+/// Length counterpart of [`MSI_FORMAT_AF_FIELD_TYPE`].
 pub(crate) const MSI_FORMAT_AF_FIELD_LENGTH: TagLength = TagLength::AltAlleles;
 
 /// Shape of the preprocessing-emitted INFO/REGION_ID field
 /// (one BED region ID per ALT allele).
 pub(crate) const MSI_INFO_REGION_ID_FIELD_TYPE: TagType = TagType::String;
+/// Length counterpart of [`MSI_INFO_REGION_ID_FIELD_TYPE`].
 pub(crate) const MSI_INFO_REGION_ID_FIELD_LENGTH: TagLength = TagLength::AltAlleles;
 
 /// Shape of the preprocessing-emitted INFO/MSI_DUMMY flag
 /// (`Number=0`, presence only).
 pub(crate) const MSI_INFO_DUMMY_FIELD_TYPE: TagType = TagType::Flag;
+/// Length counterpart of [`MSI_INFO_DUMMY_FIELD_TYPE`].
 pub(crate) const MSI_INFO_DUMMY_FIELD_LENGTH: TagLength = TagLength::Fixed(0);
 
 lazy_static! {
