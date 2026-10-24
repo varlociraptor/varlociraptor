@@ -349,11 +349,12 @@ mod tests {
 
     /// Helper: Build a minimal BCF header for extraction tests.
     /// Includes REGION_ID (Number=A), MSI_DUMMY, PROB_SOMATIC, FORMAT:AF,
-    /// and a single sample "tumor" on contigs chr1 and chr2.
+    /// and a single sample "tumor" on contigs chr1, chr10 and chr2.
     fn make_header() -> bcf::Header {
         let mut header = bcf::Header::new();
         header.push_record(br#"##fileformat=VCFv4.2"#);
         header.push_record(br#"##contig=<ID=chr1,length=10000000>"#);
+        header.push_record(br#"##contig=<ID=chr10,length=10000000>"#);
         header.push_record(br#"##contig=<ID=chr2,length=10000000>"#);
         header.push_record(MSI_REGION_ID_HEADER.as_bytes());
         header.push_record(MSI_DUMMY_HEADER.as_bytes());
@@ -611,7 +612,7 @@ mod tests {
         for (rid, pos, region_id) in [
             (0, 2002, b"chr1:2000-2030" as &[u8]),
             (0, 999, b"chr1:1000-1030"),
-            (1, 499, b"chr2:500-530"),
+            (2, 499, b"chr2:500-530"),
         ] {
             let mut r = w.empty_record();
             r.set_rid(Some(rid));
@@ -1002,5 +1003,33 @@ mod tests {
             (regions[0].variants[0].prob_absent - (1.0 - f64::from(valid_prob))).abs()
                 < TEST_EPSILON_LOOSE
         );
+    }
+
+    #[test]
+    fn test_extract_regions_chrom_sorted_as_plain_text() {
+        // Plain-text order puts chr10 before chr2, unlike numeric order
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w =
+            bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
+
+        for (rid, pos, region_id) in [
+            (2, 499, b"chr2:500-530" as &[u8]),
+            (1, 599, b"chr10:600-630"),
+            (0, 999, b"chr1:1000-1030"),
+        ] {
+            let mut r = w.empty_record();
+            r.set_rid(Some(rid));
+            r.set_pos(pos);
+            r.set_alleles(&[b"GCAG", b"GCAGCAG"]).unwrap();
+            r.push_info_string(MSI_REGION_ID_TAG, &[region_id]).unwrap();
+            r.push_info_float(b"PROB_SOMATIC", &[0.9_f32]).unwrap();
+            r.push_format_float(b"AF", &[0.8_f32]).unwrap();
+            w.write(&r).unwrap();
+        }
+        drop(w);
+
+        let (regions, _) = extract_somatic(&tmp);
+        let chroms: Vec<&str> = regions.iter().map(|r| r.chrom.as_str()).collect();
+        assert_eq!(chroms, vec!["chr1", "chr10", "chr2"]);
     }
 }
