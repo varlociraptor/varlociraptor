@@ -1085,4 +1085,29 @@ mod tests {
         let expected_absent = 1.0 - phred_to_prob(f64::from(phred));
         assert!((regions[0].variants[0].prob_absent - expected_absent).abs() < TEST_EPSILON_LOOSE);
     }
+
+    #[test]
+    fn test_extract_regions_unreadable_record_returns_error() {
+        // Valid header, one data line with a non-numeric POS: htslib fails to parse it
+        let tmp = NamedTempFile::new().unwrap();
+        let vcf_text = format!(
+            "##fileformat=VCFv4.2\n\
+            ##contig=<ID=chr1,length=10000000>\n\
+            {}\n\
+            ##INFO=<ID=PROB_SOMATIC,Number=A,Type=Float,Description=\"P(somatic)\">\n\
+            ##FORMAT=<ID=AF,Number=A,Type=Float,Description=\"AF\">\n\
+            #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\ttumor\n\
+            chr1\tnot_a_number\t.\tGCAG\tGCAGCAG\t.\t.\tREGION_ID=chr1:1000-1030;PROB_SOMATIC=0.9\tAF\t0.8\n",
+            String::from_utf8_lossy(MSI_REGION_ID_HEADER.as_bytes())
+        );
+        std::fs::write(tmp.path(), vcf_text).unwrap();
+
+        let err = try_extract(&tmp, "tumor", 0, &["somatic"], false, true).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfRecordReadFailed {
+                details: rust_htslib::errors::Error::BcfInvalidRecord.to_string(),
+            })
+        );
+    }
 }
