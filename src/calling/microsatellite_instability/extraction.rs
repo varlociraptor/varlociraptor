@@ -23,6 +23,7 @@
 //! Records without `INFO/REGION_ID` are skipped - non-MS variants that
 //! passed through preprocessing unchanged. Per-ALT REGION_ID values of
 //! `"."` indicate unmatched ALTs in multi-allelic records and are skipped.
+//! ALTs with a malformed REGION_ID are skipped with a warning.
 //! Regions are grouped via `HashMap` for O(1) lookup and sorted by
 //! `(chrom, start)` before return.
 
