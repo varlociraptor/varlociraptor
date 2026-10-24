@@ -347,6 +347,7 @@ mod tests {
 
     use crate::constants::test_constants::{TEST_EPSILON_LOOSE, TEST_EPSILON_LOOSE_F32};
     use crate::constants::{MSI_DUMMY_HEADER, MSI_REGION_ID_HEADER};
+    use crate::utils::stats::phred_to_prob;
 
     /// Helper: Build a minimal BCF header for extraction tests.
     /// Includes REGION_ID (Number=A), MSI_DUMMY, PROB_SOMATIC, FORMAT:AF,
@@ -1058,5 +1059,30 @@ mod tests {
 
         let (regions, _) = try_extract(&tmp, "normal", 1, &["somatic"], false, true).unwrap();
         assert!((regions[0].variants[0].af - normal_af).abs() < TEST_EPSILON_LOOSE_F32);
+    }
+
+    #[test]
+    fn test_extract_regions_phred_scaled_prob() {
+        // PHRED 10 -> P(event) = 0.1 -> prob_absent = 0.9
+        let phred = 10.0_f32;
+
+        let tmp = NamedTempFile::new().unwrap();
+        let mut w =
+            bcf::Writer::from_path(tmp.path(), &make_header(), true, bcf::Format::Vcf).unwrap();
+
+        let mut r = w.empty_record();
+        r.set_rid(Some(0));
+        r.set_pos(999);
+        r.set_alleles(&[b"GCAG", b"GCAGCAG"]).unwrap();
+        r.push_info_string(MSI_REGION_ID_TAG, &[b"chr1:1000-1030"])
+            .unwrap();
+        r.push_info_float(b"PROB_SOMATIC", &[phred]).unwrap();
+        r.push_format_float(b"AF", &[0.8_f32]).unwrap();
+        w.write(&r).unwrap();
+        drop(w);
+
+        let (regions, _) = try_extract(&tmp, "tumor", 0, &["somatic"], true, true).unwrap();
+        let expected_absent = 1.0 - phred_to_prob(f64::from(phred));
+        assert!((regions[0].variants[0].prob_absent - expected_absent).abs() < TEST_EPSILON_LOOSE);
     }
 }
