@@ -190,8 +190,7 @@ pub(super) struct AnalysisConfig<'a> {
 /// Implements matrix-based approach where:
 /// - Matrix has n columns (regions 0 to n-1) and n+1 rows (unstable counts 0 to n)
 /// - Our implementation keeps only the previous and current column, each a vector of length n+1
-/// - Rows represent possible unstable region counts (0 to n)
-/// - Each cell contains P(exactly i unstable regions using first k regions)
+/// - The cell at column k and row i contains P(exactly i unstable regions among regions 0 to k)
 ///
 /// # Algorithm
 /// - **Initialize column 0**: `prev_col[0] = p_stable_0`, `prev_col[1] = p_unstable_0`
@@ -956,6 +955,22 @@ mod tests {
         assert!((dist[0] - 0.42).abs() < TEST_EPSILON);
         assert!((dist[1] - 0.46).abs() < TEST_EPSILON);
         assert!((dist[2] - 0.12).abs() < TEST_EPSILON);
+    }
+
+    #[test]
+    fn test_run_msi_dp_three_regions() {
+        let probs = vec![
+            RegionProbability { p_stable: 0.1 },
+            RegionProbability { p_stable: 0.5 },
+            RegionProbability { p_stable: 0.8 },
+        ];
+        let dist = run_msi_dp(&probs);
+
+        assert_eq!(dist.len(), 4);
+        assert!((dist[0] - 0.04).abs() < TEST_EPSILON);
+        assert!((dist[1] - 0.41).abs() < TEST_EPSILON);
+        assert!((dist[2] - 0.46).abs() < TEST_EPSILON);
+        assert!((dist[3] - 0.09).abs() < TEST_EPSILON);
     }
 
     #[test]
