@@ -1013,9 +1013,25 @@ mod tests {
     /* ========== setup_thread_pool tests ============ */
 
     #[test]
-    fn test_setup_thread_pool_default() {
+    fn test_setup_thread_pool_none_does_not_panic() {
         setup_thread_pool(None);
-        assert!(rayon::current_num_threads() >= 1);
+    }
+
+    #[test]
+    fn test_setup_thread_pool_already_configured_keeps_pool() {
+        // Run a task on the global pool so it certainly exists:
+        // build_global() fails once the pool exists
+        rayon::spawn(|| {});
+        let before = rayon::current_num_threads();
+        setup_thread_pool(Some(before + 1));
+        assert_eq!(rayon::current_num_threads(), before);
+    }
+
+    #[test]
+    fn test_setup_thread_pool_pool_created_by_thread_count_read_keeps_pool() {
+        let before = rayon::current_num_threads();
+        setup_thread_pool(Some(before + 1));
+        assert_eq!(rayon::current_num_threads(), before);
     }
 
     /* ========= filter_regions_by_af tests ========== */
