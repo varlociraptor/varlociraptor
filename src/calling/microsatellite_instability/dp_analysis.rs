@@ -165,8 +165,6 @@ pub(super) struct AnalysisConfig<'a> {
     pub windowed_af: f32,
 }
 
-/* ================================================ */
-
 /* =========== Core DP Algorithm ================== */
 /// Execute dynamic programming algorithm for MSI variant probability distribution.
 ///
@@ -263,8 +261,6 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
     prev_col // Final distribution: [P(0), P(1), ..., P(n)]
 }
 
-/* ================================================ */
-
 /* =========== Parallelization Setup ============== */
 
 /// Configure the rayon global thread pool.
@@ -300,8 +296,6 @@ fn setup_thread_pool(num_threads: Option<usize>) {
         );
     }
 }
-
-/* ================================================ */
 
 /* === FILTERING REGIONS VARIANTS BY AF============ */
 
@@ -344,8 +338,6 @@ fn filter_regions_by_af<'a>(
         region_starts,
     }
 }
-
-/* ================================================ */
 
 /* ============ DP Primitives ===================== */
 
@@ -408,8 +400,6 @@ fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
 
     (k_map, msi_score, posterior_probability)
 }
-
-/* ================================================ */
 
 /* ============ MSI Metrics ======================= */
 
@@ -533,8 +523,6 @@ fn calculate_msi_metrics(
     }
 }
 
-/* ================================================ */
-
 /* ============ Window Utilities ================== */
 
 /// Get a zero-copy sub-slice of regions falling within a genomic window.
@@ -571,8 +559,6 @@ fn get_window_slice<'a>(
 
     &regions[start_idx..end_idx]
 }
-
-/* ================================================ */
 
 /* ============ Windowed & Global Analysis ======== */
 
@@ -736,8 +722,6 @@ fn run_global_analysis(
     final_results
 }
 
-/* ================================================ */
-
 /* ============ Orchestrator ====================== */
 
 /// Run AF evolution analysis across AF thresholds for one sample.
@@ -825,8 +809,6 @@ pub(super) fn run_af_evolution_analysis(
 
     Ok((global_results, window_results))
 }
-
-/* ================================================ */
 
 #[cfg(test)]
 mod tests {
