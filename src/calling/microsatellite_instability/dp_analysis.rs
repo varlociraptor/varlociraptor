@@ -36,7 +36,6 @@ use crate::utils::stats::{calculate_percentage, usize_to_f64_exact};
 ///
 /// p_stable = P(all variants absent) = Π(prob_absent)
 /// p_unstable = 1 - p_stable (computed in DP algorithm)
-#[derive(Debug)]
 struct RegionProbability {
     /// P(all variants in the region absent): the product of their `prob_absent`.
     p_stable: f64,
@@ -46,52 +45,52 @@ struct RegionProbability {
 ///
 /// Represents the probability that exactly k regions are unstable,
 /// along with the corresponding MSI score.
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub(super) struct DpResult {
     /// Number of unstable regions.
-    pub k: usize,
+    pub(super) k: usize,
     /// MSI score for this k (k / total_regions × 100).
-    pub msi_score: f32,
+    pub(super) msi_score: f32,
     /// P(exactly k regions unstable).
-    pub probability: f64,
+    pub(super) probability: f64,
 }
 
 /// Result for one sample at one AF threshold.
 ///
 /// Contains the MSI analysis results including MAP estimate,
 /// uncertainty bounds, and optionally the full probability distribution.
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub(super) struct AfEvolutionResult {
     /// Sample name.
-    pub sample: String,
+    pub(super) sample: String,
     /// AF threshold used to filter variants for this result.
-    pub af_threshold: f32,
+    pub(super) af_threshold: f32,
     /// Total MS regions (denominator for the MSI score).
-    pub total_regions: usize,
+    pub(super) total_regions: usize,
     // Only computed if pseudotime output requested:
     /// MAP estimate of the number of unstable regions.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub k_map: Option<usize>,
+    pub(super) k_map: Option<usize>,
     /// MSI score at k_map (k_map / total_regions × 100).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub msi_score_map: Option<f32>,
+    pub(super) msi_score_map: Option<f32>,
     /// Regions with at least one variant at or above the AF threshold.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub regions_af_pass: Option<usize>,
+    pub(super) regions_af_pass: Option<usize>,
     /// Lower bound (percent): (k_map - map_std_dev) / total_regions × 100, clamped at 0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub uncertainty_lower: Option<f32>,
+    pub(super) uncertainty_lower: Option<f32>,
     /// Upper bound (percent): (k_map + map_std_dev) / total_regions × 100, clamped at 100.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub uncertainty_upper: Option<f32>,
+    pub(super) uncertainty_upper: Option<f32>,
     /// Standard deviation around the MAP, in region counts: sqrt(Σ (k - k_map)² × P(k)).
     /// Measured from k_map, not from the mean.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub map_std_dev: Option<f64>,
+    pub(super) map_std_dev: Option<f64>,
     // Only computed if distribution output requested AND af_threshold == distribution_af:
     /// Full P(K=k) distribution.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub distribution: Option<Vec<DpResult>>,
+    pub(super) distribution: Option<Vec<DpResult>>,
 }
 
 /// MSI score for one genomic window.
@@ -103,20 +102,19 @@ pub(super) struct AfEvolutionResult {
 ///
 /// Produced by `run_windowed_analysis` when `--sliding-window` is specified.
 /// The fixed AF threshold used is configured via `--windowed-af`.
-#[derive(Debug)]
 pub(super) struct WindowResult {
     /// Chromosome name.
-    pub chrom: String,
+    pub(super) chrom: String,
     /// Window start position (0-based, inclusive).
-    pub window_start: u64,
+    pub(super) window_start: u64,
     /// Window end position (0-based, exclusive).
-    pub window_end: u64,
+    pub(super) window_end: u64,
     /// MSI score for this window (k_map / regions_in_window × 100).
-    pub msi_score: f32,
+    pub(super) msi_score: f32,
     /// P(k=k_map) from DP distribution.
-    pub posterior_probability: f64,
+    pub(super) posterior_probability: f64,
     /// Total MS regions in this window - denominator for MSI score.
-    pub regions_in_window: usize,
+    pub(super) regions_in_window: usize,
 }
 
 /// Filtered regions view.
@@ -124,7 +122,6 @@ pub(super) struct WindowResult {
 /// Uses a flat vector of variant references with region boundary indices
 /// to avoid allocating thousands of small Vecs (~1-3 per region).
 /// `filter_regions_by_af` leaves out regions with no variant passing the filter.
-#[derive(Debug)]
 struct FilteredRegions<'a> {
     /// Flat vector of all variant references.
     ///
@@ -181,24 +178,23 @@ impl<'a> FilteredRegions<'a> {
 /// threshold, the AF thresholds to analyze, the two fixed AF values used
 /// for the distribution and heatmap outputs, window size for heatmap analysis,
 /// and the compute resources (thread count) to use.
-#[derive(Debug)]
 pub(super) struct AnalysisConfig<'a> {
     /// Total number of MS regions (denominator for MSI score).
-    pub total_regions: usize,
+    pub(super) total_regions: usize,
     /// Sample name being analyzed.
-    pub sample: &'a str,
+    pub(super) sample: &'a str,
     /// Threshold (percentage) at or above which a sample is classified MSI-High.
-    pub msi_high_threshold: f32,
+    pub(super) msi_high_threshold: f32,
     /// Allele frequency thresholds to compute pseudotime/distribution analysis data.
-    pub af_thresholds: Vec<f32>,
+    pub(super) af_thresholds: Vec<f32>,
     /// Thread count for the rayon pool (`None` = rayon default).
-    pub num_threads: Option<usize>,
+    pub(super) num_threads: Option<usize>,
     /// Sliding window width (bp) for heatmap analysis.
-    pub window_size: u64,
+    pub(super) window_size: u64,
     /// Fixed AF at which the full P(K=k) distribution is populated.
-    pub distribution_af: f32,
+    pub(super) distribution_af: f32,
     /// Fixed AF used for windowed heatmap analysis.
-    pub windowed_af: f32,
+    pub(super) windowed_af: f32,
 }
 
 /* =========== Core DP Algorithm ================== */
@@ -855,7 +851,7 @@ mod tests {
 
     use crate::constants::test_constants::{TEST_EPSILON, TEST_EPSILON_F32};
 
-    /// Create a test Variant with given absence probability and allele frequency.
+    /// Helper: Create a test Variant with given absence probability and allele frequency.
     fn make_variant(prob: f64, af: f32) -> Variant {
         Variant {
             prob_absent: prob,
@@ -863,7 +859,7 @@ mod tests {
         }
     }
 
-    /// Create a test RegionSummary with full control over all fields.
+    /// Helper: Create a test RegionSummary with full control over all fields.
     fn make_region(
         chrom: &str,
         start: u64,
@@ -878,8 +874,8 @@ mod tests {
         }
     }
 
-    /// Create a test RegionSummary with default location fields.
-    /// Use when the test only cares about variants, not genomic position.
+    /// Helper: Create a test RegionSummary with default location fields,
+    /// for tests that only care about variants, not genomic position.
     fn make_region_simple(variants: Vec<Variant>) -> RegionSummary {
         make_region("chr1", 0, variants, true)
     }
