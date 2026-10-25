@@ -858,6 +858,68 @@ mod tests {
         make_region("chr1", 0, variants, true)
     }
 
+    /* ============ FilteredRegions tests ============ */
+
+    #[test]
+    fn test_filtered_regions_get_region() {
+        let v1 = make_variant(0.01, 0.8);
+        let v2 = make_variant(0.02, 0.9);
+        let v3 = make_variant(0.03, 0.7);
+
+        let filtered = FilteredRegions {
+            variants: vec![&v1, &v2, &v3],
+            region_starts: vec![0, 2],
+        };
+
+        // Region 0: variants[0..2]
+        let r0 = filtered.get_region(0);
+        assert_eq!(r0.len(), 2);
+        assert!((r0[0].prob_absent - 0.01).abs() < TEST_EPSILON);
+        assert!((r0[1].prob_absent - 0.02).abs() < TEST_EPSILON);
+
+        // Region 1: variants[2..3]
+        let r1 = filtered.get_region(1);
+        assert_eq!(r1.len(), 1);
+        assert!((r1[0].prob_absent - 0.03).abs() < TEST_EPSILON);
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds: the len is 2 but the index is 2")]
+    fn test_filtered_regions_get_region_out_of_range() {
+        let v1 = make_variant(0.01, 0.8);
+        let v2 = make_variant(0.02, 0.9);
+
+        let filtered = FilteredRegions {
+            variants: vec![&v1, &v2],
+            region_starts: vec![0, 1],
+        };
+
+        // 2 regions, so valid indices are 0 and 1: index 2 == len() is out of range
+        filtered.get_region(2);
+    }
+
+    #[test]
+    fn test_filtered_regions_len() {
+        let v1 = make_variant(0.01, 0.8);
+
+        let filtered = FilteredRegions {
+            variants: vec![&v1],
+            region_starts: vec![0],
+        };
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered.get_region(0).len(), 1);
+    }
+
+    #[test]
+    fn test_filtered_regions_len_empty() {
+        let filtered = FilteredRegions {
+            variants: vec![],
+            region_starts: vec![],
+        };
+        assert_eq!(filtered.len(), 0);
+    }
+
     /* ============== run_msi_dp tests =============== */
 
     #[test]
@@ -939,53 +1001,6 @@ mod tests {
     fn test_setup_thread_pool_default() {
         setup_thread_pool(None);
         assert!(rayon::current_num_threads() >= 1);
-    }
-
-    /* ============ FilteredRegions tests ============ */
-
-    #[test]
-    fn test_filtered_regions_get_region() {
-        let v1 = make_variant(0.01, 0.8);
-        let v2 = make_variant(0.02, 0.9);
-        let v3 = make_variant(0.03, 0.7);
-
-        let filtered = FilteredRegions {
-            variants: vec![&v1, &v2, &v3],
-            region_starts: vec![0, 2],
-        };
-
-        // Region 0: variants[0..2]
-        let r0 = filtered.get_region(0);
-        assert_eq!(r0.len(), 2);
-        assert!((r0[0].prob_absent - 0.01).abs() < TEST_EPSILON);
-        assert!((r0[1].prob_absent - 0.02).abs() < TEST_EPSILON);
-
-        // Region 1: variants[2..3]
-        let r1 = filtered.get_region(1);
-        assert_eq!(r1.len(), 1);
-        assert!((r1[0].prob_absent - 0.03).abs() < TEST_EPSILON);
-    }
-
-    #[test]
-    fn test_filtered_regions_len() {
-        let v1 = make_variant(0.01, 0.8);
-
-        let filtered = FilteredRegions {
-            variants: vec![&v1],
-            region_starts: vec![0],
-        };
-
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered.get_region(0).len(), 1);
-    }
-
-    #[test]
-    fn test_filtered_regions_len_empty() {
-        let filtered = FilteredRegions {
-            variants: vec![],
-            region_starts: vec![],
-        };
-        assert_eq!(filtered.len(), 0);
     }
 
     /* ========= filter_regions_by_af tests ========== */
