@@ -166,6 +166,7 @@ pub(super) struct AnalysisConfig<'a> {
 }
 
 /* =========== Core DP Algorithm ================== */
+
 /// Execute dynamic programming algorithm for MSI variant probability distribution.
 ///
 /// Implements matrix-based approach where:
@@ -967,7 +968,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filtered_regions_empty() {
+    fn test_filtered_regions_len_empty() {
         let filtered = FilteredRegions {
             variants: vec![],
             region_starts: vec![],
@@ -978,7 +979,7 @@ mod tests {
     /* ========= filter_regions_by_af tests ========== */
 
     #[test]
-    fn test_filter_by_af_basic() {
+    fn test_filter_regions_by_af_basic() {
         let regions = vec![make_region_simple(vec![
             make_variant(0.01, 0.8), // Pass
             make_variant(0.02, 0.4), // Fail
@@ -995,7 +996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_af_zero_includes_all() {
+    fn test_filter_regions_by_af_zero_includes_all() {
         let regions = vec![make_region_simple(vec![
             make_variant(0.01, 0.0),
             make_variant(0.02, 0.5),
@@ -1009,7 +1010,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_multiple_regions_some_empty() {
+    fn test_filter_regions_by_af_multiple_regions_some_empty() {
         let regions = vec![
             make_region("chr1", 100, vec![make_variant(0.01, 0.8)], true),
             make_region("chr1", 200, vec![make_variant(0.02, 0.3)], true), // Filtered out
@@ -1023,7 +1024,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_by_af_boundary_exact_threshold() {
+    fn test_filter_regions_by_af_boundary_exact_threshold() {
         // af == threshold is kept: >= is inclusive, not strict >
         let regions = vec![make_region_simple(vec![make_variant(0.01, 0.6)])];
         let filtered = filter_regions_by_af(&regions, 0.6);
@@ -1032,7 +1033,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_by_af_empty_regions_input() {
+    fn test_filter_regions_by_af_empty_regions_input() {
         let regions: Vec<RegionSummary> = vec![];
         let filtered = filter_regions_by_af(&regions, 0.5);
         assert_eq!(filtered.len(), 0);
@@ -1137,7 +1138,7 @@ mod tests {
     #[test]
     fn test_find_map_estimate_denominator() {
         // k_map=2, total=10, 2/10 × 100 = 20%
-        // Note: this also covers test_find_map_estimate_posterior_is_max_probability, as 0.7 is the max probability at k=2
+        // posterior_probability is dist[k_map] = 0.7, the largest entry, so no separate test is needed
         let dist = vec![0.1, 0.2, 0.7];
         let (k_map, score, posterior_probability) = find_map_estimate(&dist, 10);
         assert_eq!(k_map, 2);
@@ -1148,16 +1149,15 @@ mod tests {
     /* ======== calculate_msi_metrics tests ========== */
 
     #[test]
-    fn test_calculate_msi_metrics_empty() {
+    fn test_calculate_msi_metrics_no_outputs_requested() {
         let filtered = FilteredRegions {
             variants: vec![],
             region_starts: vec![],
         };
 
-        /* In theory should never come to this
-            still keeping the test for safety and future
-            flexibility.
-        */
+        // Unreachable from the CLI: MSIConfig::validate() returns
+        // Error::MsiConfigOutputMissing when no output is requested.
+        // Kept as a guard: nothing requested leaves the fields None.
         let output_req = OutputRequirements {
             needs_pseudotime: false,
             needs_distribution: false,
@@ -1170,6 +1170,10 @@ mod tests {
         assert!(result.k_map.is_none());
         assert!(result.msi_score_map.is_none());
         assert!(result.regions_af_pass.is_none());
+        assert!(result.uncertainty_lower.is_none());
+        assert!(result.uncertainty_upper.is_none());
+        assert!(result.map_std_dev.is_none());
+        assert!(result.distribution.is_none());
     }
 
     #[test]
