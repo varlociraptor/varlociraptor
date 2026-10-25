@@ -117,7 +117,7 @@ struct FilteredRegions<'a> {
     /// Region boundaries (start indices)
     /// Example: [0, 2, 3] means:
     ///   Region 0: variants[0..2] = [&V1, &V2]
-    ///   Region 1: variants[2..3] = [&V3]
+    ///   Region 1: variants[2..3] = \[&V3\]
     ///   Region 2: variants[3..5] = [&V4, &V5]
     region_starts: Vec<usize>,
 }
