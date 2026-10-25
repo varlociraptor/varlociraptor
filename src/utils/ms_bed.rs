@@ -4,7 +4,7 @@
 //!
 //! This module provides utilities for:
 //! 1. `BedRegion` - a parsed microsatellite region (chrom/start/end/motif)
-//! 2. `parse_motif_from_name` - extract motif from a BED name field (<count>x<motif>)
+//! 2. `parse_motif_from_name` - extract motif from a BED name field (`<count>x<motif>`)
 //! 3. `parse_bed_record` - parse and validate a BED record into a `BedRegion`
 //! 4. `collect_bed_chromosomes` - scan a BED file for its unique chromosome names
 //! 5. `validate_bed_file` - quick sanity check on a BED file's first record
