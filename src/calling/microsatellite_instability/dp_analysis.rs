@@ -1,20 +1,20 @@
 //! dp_analysis.rs
 //!
-//! Dynamic programming analysis for MSI estimation
+//! Dynamic programming analysis for MSI estimation.
 //! Implements AF evolution analysis using dynamic programming.
 //! Computes MSI probability distributions across allele frequency thresholds.
 //!
-//! # Overview
-//! 1. Core DP Algorithm (`run_msi_dp`)
-//! 2. Thread Pool Setup (`setup_thread_pool`)
-//! 3. AF Filtering (`filter_regions_by_af`)
-//! 4. DP Primitives (`run_dp_for_regions`, `find_map_estimate`)
-//! 5. MSI Metrics (`calculate_msi_metrics`)
-//! 6. Window Utilities (`get_window_slice`)
-//! 7. Windowed Analysis (`run_windowed_analysis`)
-//! 8. Global Analysis (`run_global_analysis`)
+//! This module provides:
+//! 1. Data Structures (`RegionProbability`, `DpResult`, `AfEvolutionResult`,
+//!    `WindowResult`, `FilteredRegions`, `AnalysisConfig`)
+//! 2. Core DP Algorithm (`run_msi_dp`)
+//! 3. Parallelization Setup (`setup_thread_pool`)
+//! 4. Filtering Regions by AF (`filter_regions_by_af`)
+//! 5. Distribution Primitives (`run_dp_for_regions`, `find_map_estimate`)
+//! 6. MSI Metrics (`calculate_msi_metrics`)
+//! 7. Window Utilities (`get_window_slice`)
+//! 8. Windowed & Global Analysis (`run_windowed_analysis`, `run_global_analysis`)
 //! 9. Orchestrator (`run_af_evolution_analysis`)
-//!
 
 use std::collections::{HashMap, HashSet};
 
@@ -297,7 +297,7 @@ fn setup_thread_pool(num_threads: Option<usize>) {
     }
 }
 
-/* === FILTERING REGIONS VARIANTS BY AF============ */
+/* =========== Filtering Regions by AF ============ */
 
 /// Filter a sample's regions down to variants meeting a minimum allele frequency.
 ///
@@ -339,7 +339,7 @@ fn filter_regions_by_af<'a>(
     }
 }
 
-/* ============ DP Primitives ===================== */
+/* ============ Distribution Primitives =========== */
 
 /// Compute DP probability distribution from pre-filtered regions.
 ///
@@ -845,7 +845,7 @@ mod tests {
         make_region("chr1", 0, variants, true)
     }
 
-    /* ============ DP Core Tests ==================== */
+    /* ============== run_msi_dp tests =============== */
 
     #[test]
     fn test_run_msi_dp_empty() {
@@ -920,7 +920,7 @@ mod tests {
         assert!((dist[2] - 1.0).abs() < TEST_EPSILON);
     }
 
-    /* ============ Parallelization Setup ============ */
+    /* ========== setup_thread_pool tests ============ */
 
     #[test]
     fn test_setup_thread_pool_default() {
@@ -928,7 +928,7 @@ mod tests {
         assert!(rayon::current_num_threads() >= 1);
     }
 
-    /* ============ FilteredRegions Tests ============ */
+    /* ============ FilteredRegions tests ============ */
 
     #[test]
     fn test_filtered_regions_get_region() {
@@ -975,7 +975,7 @@ mod tests {
         assert_eq!(filtered.len(), 0);
     }
 
-    /* ============ AF Filtering Tests =============== */
+    /* ========= filter_regions_by_af tests ========== */
 
     #[test]
     fn test_filter_by_af_basic() {
@@ -1038,7 +1038,7 @@ mod tests {
         assert_eq!(filtered.len(), 0);
     }
 
-    /* ============ DP Primitives ==================== */
+    /* ========== run_dp_for_regions tests =========== */
 
     #[test]
     fn test_run_dp_for_regions_empty() {
@@ -1093,6 +1093,8 @@ mod tests {
         assert!((dist[1] - 0.85).abs() < TEST_EPSILON); // P(1) = 0.85
     }
 
+    /* ========== find_map_estimate tests ============ */
+
     #[test]
     fn test_find_map_estimate_basic() {
         // P(0)=0.42, P(1)=0.46, P(2)=0.12, k_map=1
@@ -1143,7 +1145,7 @@ mod tests {
         assert!((posterior_probability - 0.7).abs() < TEST_EPSILON);
     }
 
-    /* ============ MSI Metrics ====================== */
+    /* ======== calculate_msi_metrics tests ========== */
 
     #[test]
     fn test_calculate_msi_metrics_empty() {
@@ -1235,7 +1237,7 @@ mod tests {
         assert!(result_af5.distribution.is_none());
     }
 
-    /* ============ Window Utilities ================= */
+    /* =========== get_window_slice tests ============ */
 
     #[test]
     fn test_get_window_slice_basic() {
@@ -1332,7 +1334,7 @@ mod tests {
         assert_eq!(slice[0].start, 0);
     }
 
-    /* ======= Windowed & Global Analysis ============ */
+    /* ======== run_windowed_analysis tests ========== */
 
     #[test]
     fn test_run_windowed_analysis_basic() {
@@ -1420,6 +1422,8 @@ mod tests {
         assert!((results[0].msi_score - 100.0).abs() < TEST_EPSILON_F32);
     }
 
+    /* ========= run_global_analysis tests =========== */
+
     #[test]
     fn test_run_global_analysis_basic() {
         let regions = vec![make_region_simple(vec![make_variant(0.1, 0.5)])];
@@ -1438,7 +1442,7 @@ mod tests {
         assert_eq!(r.regions_af_pass.unwrap(), 1);
     }
 
-    /* ============ Orchestrator ===================== */
+    /* ====== run_af_evolution_analysis tests ======== */
 
     #[test]
     fn test_run_af_evolution_analysis_basic() {
