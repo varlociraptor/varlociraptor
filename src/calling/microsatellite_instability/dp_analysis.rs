@@ -85,7 +85,8 @@ pub(super) struct AfEvolutionResult {
 /// - Y-axis: MSI score (`msi_score`)
 /// - Color: posterior probability (`posterior_probability`)
 ///
-/// Produced by `run_windowed_analysis` when `--sliding-window` is specified.
+/// Produced by `run_windowed_analysis` when a heatmap output is requested
+/// (`--plot-heatmap` or `--data-heatmap`).
 /// The fixed AF threshold used is configured via `--windowed-af`.
 pub(super) struct WindowResult {
     /// Chromosome name.
@@ -164,7 +165,7 @@ impl<'a> FilteredRegions<'a> {
 /// for the distribution and heatmap outputs, window size for heatmap analysis,
 /// and the compute resources (thread count) to use.
 pub(super) struct AnalysisConfig<'a> {
-    /// Total number of MS regions (denominator for MSI score).
+    /// Total number of MS regions (denominator for the pseudotime and distribution MSI scores).
     pub(super) total_regions: usize,
     /// Sample name being analyzed.
     pub(super) sample: &'a str,
