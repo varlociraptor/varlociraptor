@@ -29,7 +29,7 @@ use crate::utils::stats::{calculate_percentage, usize_to_f64_exact};
 
 /* ============ Data Structures =================== */
 
-/// Region probability for DP computation:
+/// Region probability for DP computation.
 ///
 /// Represents the probability that a microsatellite region is stable,
 /// calculated as the product of all variant absence probabilities.
@@ -38,43 +38,58 @@ use crate::utils::stats::{calculate_percentage, usize_to_f64_exact};
 /// p_unstable = 1 - p_stable (computed in DP algorithm)
 #[derive(Debug)]
 struct RegionProbability {
+    /// P(all variants in the region absent): the product of their `prob_absent`.
     p_stable: f64,
 }
 
-/// DP result for one k value:
+/// DP result for one k value.
 ///
 /// Represents the probability that exactly k regions are unstable,
 /// along with the corresponding MSI score.
 #[derive(Debug, Serialize)]
 pub(super) struct DpResult {
+    /// Number of unstable regions.
     pub k: usize,
+    /// MSI score for this k (k / total_regions × 100).
     pub msi_score: f32,
+    /// P(exactly k regions unstable).
     pub probability: f64,
 }
 
-/// Result for one sample at one AF threshold:
+/// Result for one sample at one AF threshold.
 ///
 /// Contains the MSI analysis results including MAP estimate,
 /// uncertainty bounds, and optionally the full probability distribution.
 #[derive(Debug, Serialize)]
 pub(super) struct AfEvolutionResult {
+    /// Sample name.
     pub sample: String,
+    /// AF threshold used to filter variants for this result.
     pub af_threshold: f32,
+    /// Total MS regions (denominator for the MSI score).
     pub total_regions: usize,
     // Only computed if pseudotime output requested:
+    /// MAP estimate of the number of unstable regions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub k_map: Option<usize>,
+    /// MSI score at k_map (k_map / total_regions × 100).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub msi_score_map: Option<f32>,
+    /// Regions with at least one variant at or above the AF threshold.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regions_af_pass: Option<usize>,
+    /// Lower bound (percent): (k_map - map_std_dev) / total_regions × 100, clamped at 0.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncertainty_lower: Option<f32>,
+    /// Upper bound (percent): (k_map + map_std_dev) / total_regions × 100, clamped at 100.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncertainty_upper: Option<f32>,
+    /// Standard deviation around the MAP, in region counts: sqrt(Σ (k - k_map)² × P(k)).
+    /// Measured from k_map, not from the mean.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map_std_dev: Option<f64>,
     // Only computed if distribution output requested AND af_threshold == distribution_af:
+    /// Full P(K=k) distribution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distribution: Option<Vec<DpResult>>,
 }
@@ -84,7 +99,7 @@ pub(super) struct AfEvolutionResult {
 /// Forms one data point in the windowed plot:
 /// - X-axis: genomic position (`window_start`)
 /// - Y-axis: MSI score (`msi_score`)
-/// - Color:  posterior probability (`posterior_probability`)
+/// - Color: posterior probability (`posterior_probability`)
 ///
 /// Produced by `run_windowed_analysis` when `--sliding-window` is specified.
 /// The fixed AF threshold used is configured via `--windowed-af`.
@@ -104,26 +119,44 @@ pub(super) struct WindowResult {
     pub regions_in_window: usize,
 }
 
-/// Filtered regions view
+/// Filtered regions view.
 ///
 /// Uses a flat vector of variant references with region boundary indices
 /// to avoid allocating thousands of small Vecs (~1-3 per region).
+/// `filter_regions_by_af` leaves out regions with no variant passing the filter.
 #[derive(Debug)]
 struct FilteredRegions<'a> {
-    /// Flat vector of all variant references
+    /// Flat vector of all variant references.
+    ///
+    /// ```text
     /// Example: [&V1, &V2, &V3, &V4, &V5]
+    /// ```
     variants: Vec<&'a Variant>,
 
-    /// Region boundaries (start indices)
+    /// Region boundaries (start indices).
+    ///
+    /// ```text
     /// Example: [0, 2, 3] means:
     ///   Region 0: variants[0..2] = [&V1, &V2]
-    ///   Region 1: variants[2..3] = \[&V3\]
+    ///   Region 1: variants[2..3] = [&V3]
     ///   Region 2: variants[3..5] = [&V4, &V5]
+    /// ```
     region_starts: Vec<usize>,
 }
 
 impl<'a> FilteredRegions<'a> {
-    /// Get variants for a specific region
+    /// Get the variants for one region.
+    ///
+    /// # Arguments
+    /// * `region_idx` - Index of the region, must be less than `len()`
+    ///
+    /// # Returns
+    /// Slice of the variant references of region `region_idx`: from its start index
+    /// up to, but not including, the next region's start index, or to the end of
+    /// `variants` for the last region.
+    ///
+    /// # Panics
+    /// Panics if `region_idx >= self.len()`, because `region_starts[region_idx]` is out of bounds.
     fn get_region(&self, region_idx: usize) -> &[&'a Variant] {
         let start = self.region_starts[region_idx];
         let end = self
@@ -134,7 +167,10 @@ impl<'a> FilteredRegions<'a> {
         &self.variants[start..end]
     }
 
-    /// Number of regions
+    /// Number of regions in the view.
+    ///
+    /// # Returns
+    /// Count of regions, which is the length of `region_starts`.
     fn len(&self) -> usize {
         self.region_starts.len()
     }
@@ -144,7 +180,7 @@ impl<'a> FilteredRegions<'a> {
 /// is being analyzed, the sample name, the MSI-High classification
 /// threshold, the AF thresholds to analyze, the two fixed AF values used
 /// for the distribution and heatmap outputs, window size for heatmap analysis,
-/// and the compute resources(thread count) to use.
+/// and the compute resources (thread count) to use.
 #[derive(Debug)]
 pub(super) struct AnalysisConfig<'a> {
     /// Total number of MS regions (denominator for MSI score).
