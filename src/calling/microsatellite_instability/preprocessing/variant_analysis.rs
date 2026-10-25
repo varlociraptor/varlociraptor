@@ -54,14 +54,14 @@ enum RepeatStatus {
 /// Small indels (even a single-base insertion) count as MS indels.
 /// Slippage acts per repeat unit; for mononucleotide repeats that's 1bp,
 /// and it's a common real MSI event.
-/// https://www.sciencedirect.com/topics/neuroscience/slipped-strand-mispairing
-/// https://en.wikipedia.org/wiki/Microsatellite
+/// <https://www.sciencedirect.com/topics/neuroscience/slipped-strand-mispairing>
+/// <https://en.wikipedia.org/wiki/Microsatellite>
 ///
 /// No upper size limit is applied to the changed sequence here - any
 /// perfect-motif match is valid regardless of length, no literature
 /// we know establishes a cutoff. Large deletions are already excluded
 /// before reaching this function (Varlociraptor converts deletions >50bp to
-/// symbolic <DEL> upstream), so no separate cap is needed here.
+/// symbolic `<DEL>` upstream), so no separate cap is needed here.
 ///
 /// We discard insertions that are not perfect multiples of the motif, and
 /// this is the right approach. Replication slippage, the mechanism
@@ -74,7 +74,7 @@ enum RepeatStatus {
 /// altogether. Both scenarios are computationally indistinguishable,
 /// introducing unresolvable ambiguity into the MSI score. This could be
 /// an interesting future direction.
-/// https://pmc.ncbi.nlm.nih.gov/articles/instance/1377148/pdf/9585597.pdf
+/// <https://pmc.ncbi.nlm.nih.gov/articles/instance/1377148/pdf/9585597.pdf>
 ///
 /// We do not track net tract-length change after an indel (i.e. whether
 /// the region "stops being" a microsatellite post-variant). MSI is defined
