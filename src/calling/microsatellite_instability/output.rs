@@ -19,7 +19,7 @@
 //!
 //! NOTE: An empty-plot placeholder function (create_empty_plot) was removed
 //! as unreachable dead code - available to copy back if ever needed:
-//! https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/estimation/microsatellite_instability/output.rs#L26
+//! <https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/estimation/microsatellite_instability/output.rs#L26>
 //!
 
 use std::collections::HashMap;
