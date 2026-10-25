@@ -207,36 +207,26 @@ pub(super) struct AnalysisConfig<'a> {
 ///
 /// Implements matrix-based approach where:
 /// - Matrix has n columns (regions 0 to n-1) and n+1 rows (unstable counts 0 to n)
-/// - Our implementation stores row vectors of length n+1
+/// - Our implementation keeps only the previous and current column, each a vector of length n+1
 /// - Rows represent possible unstable region counts (0 to n)
 /// - Each cell contains P(exactly i unstable regions using first k regions)
 ///
 /// # Algorithm
-///
 /// - **Initialize column 0**: `prev_col[0] = p_stable_0`, `prev_col[1] = p_unstable_0`
 /// - **Recurrence**: `curr_col[i] = prev_col[i] × p_stable_k + prev_col[i-1] × p_unstable_k`
 ///
 /// # Arguments
-///
 /// * `region_probs` - Regions with instability probabilities where:
 ///   - `p_stable` = P(all variants absent) = Π(prob_absent)
 ///   - `p_unstable` = 1 - `p_stable`
 ///
 /// # Returns
-///
-/// Probability distribution `[P(0 unstable), P(1 unstable), ..., P(n unstable)]`
-/// where sum equals 1.0 and each `P(i)` represents probability of exactly
-/// i regions being unstable.
-///
-/// # Note
-///
-/// - Uses space-optimized approach storing only previous column instead of full matrix
-/// - `p_unstable + p_stable` should equal 1.0
-/// - Floating-point precision: PHRED probability conversion has ~0.005 tolerance for
-///   floating-point precision
+/// - Probability distribution `[P(0 unstable), P(1 unstable), ..., P(n unstable)]`
+///   where sum equals 1.0 (to rounding error) and each `P(i)` represents probability of exactly
+///   i regions being unstable
+/// - `[1.0]` if `region_probs` is empty
 ///
 /// # Example
-///
 /// ```text
 /// Input: 2 regions with p_unstable = [0.3, 0.4]
 ///
@@ -254,6 +244,9 @@ pub(super) struct AnalysisConfig<'a> {
 /// Result: [0.42, 0.46, 0.12]
 /// Meaning: P(0 unstable)=42%, P(1 unstable)=46%, P(2 unstable)=12%
 /// ```
+///
+/// # Note
+/// - Uses space-optimized approach storing only previous column instead of full matrix
 fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
     let n = region_probs.len();
 
@@ -306,7 +299,13 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
 /// any parallel work begins. Both `run_global_analysis` and
 /// `run_windowed_analysis` share this pool automatically.
 ///
-/// Silently falls back to the existing pool if already configured.
+/// Keeps the existing pool, with a warning, if the global pool is already configured.
+///
+/// # Arguments
+/// * `num_threads` - Thread count for the global pool, `None` leaves rayon's default
+///
+/// # Returns
+/// * Nothing
 fn setup_thread_pool(num_threads: Option<usize>) {
     if let Some(threads) = num_threads {
         // Note: In CLI usage, build_global() should always succeed on first call.
@@ -388,7 +387,7 @@ fn filter_regions_by_af<'a>(
 ///
 /// # Returns
 /// Probability distribution `[P(0 unstable), ..., P(n unstable)]`
-/// summing to 1.0. Returns `[1.0]` if no regions passed filtering.
+/// summing to 1.0 (to rounding error). Returns `[1.0]` if no regions passed filtering.
 fn run_dp_for_regions(filtered: &FilteredRegions) -> Vec<f64> {
     let region_probs: Vec<RegionProbability> = (0..filtered.len())
         .map(|i| {
@@ -414,16 +413,19 @@ fn run_dp_for_regions(filtered: &FilteredRegions) -> Vec<f64> {
 /// of unstable region count. Ties broken by taking the highest k.
 ///
 /// # Arguments
-/// * `dist`          - DP probability distribution from `run_dp_for_regions`
-/// * `total_regions` - Denominator for the MSI percentage. Callers pass
-///   either the genome-wide region count (global analysis) or the
-///   region count within a single window (windowed analysis) - this
-///   function is agnostic to which.
+/// * `dist` - DP probability distribution from `run_dp_for_regions`
+/// * `total_regions` - Denominator for the MSI percentage, either the genome-wide region
+///   count (global analysis) or the region count within a single window (windowed analysis)
 ///
 /// # Returns
 /// `(k_map, msi_score, posterior_probability)` where:
+/// - `k_map` - the k maximizing P(K=k), the highest such k on ties
 /// - `msi_score = k_map / total_regions × 100`
 /// - `posterior_probability = P(k=k_map)` - confidence in the estimate
+///
+/// # Panics
+/// Panics if `dist` is empty, if `dist` has two or more entries and one is NaN, or if
+/// `total_regions` is 0.
 fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
     let k_map = dist
         .iter()
