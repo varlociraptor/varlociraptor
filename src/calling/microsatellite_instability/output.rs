@@ -627,8 +627,6 @@ mod tests {
         m.insert(
             "0.00".to_string(),
             AfEvolutionResult {
-                sample: "tumor".to_string(),
-                af_threshold: 0.0,
                 total_regions: 40,
                 k_map: None,
                 msi_score_map: None,
@@ -658,8 +656,6 @@ mod tests {
         m.insert(
             "0.00".to_string(),
             AfEvolutionResult {
-                sample: "tumor".to_string(),
-                af_threshold: 0.0,
                 total_regions: 40,
                 k_map: Some(2),
                 msi_score_map: Some(2.0),

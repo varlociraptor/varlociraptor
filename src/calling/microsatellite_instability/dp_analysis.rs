@@ -19,7 +19,6 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use rayon::prelude::*;
-use serde::Serialize;
 
 use super::extraction::{RegionSummary, Variant};
 use super::OutputRequirements;
@@ -44,7 +43,6 @@ struct RegionProbability {
 ///
 /// Represents the probability that exactly k regions are unstable,
 /// along with the corresponding MSI score.
-#[derive(Serialize)]
 pub(super) struct DpResult {
     /// Number of unstable regions.
     pub(super) k: usize,
@@ -58,37 +56,25 @@ pub(super) struct DpResult {
 ///
 /// Contains the MSI analysis results including MAP estimate,
 /// uncertainty bounds, and optionally the full probability distribution.
-#[derive(Serialize)]
 pub(super) struct AfEvolutionResult {
-    /// Sample name.
-    pub(super) sample: String,
-    /// AF threshold used to filter variants for this result.
-    pub(super) af_threshold: f32,
     /// Total MS regions (denominator for the MSI score).
     pub(super) total_regions: usize,
     // Only computed if pseudotime output requested:
     /// MAP estimate of the number of unstable regions.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) k_map: Option<usize>,
     /// MSI score at k_map (k_map / total_regions × 100).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) msi_score_map: Option<f32>,
     /// Regions with at least one variant at or above the AF threshold.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) regions_af_pass: Option<usize>,
     /// Lower bound (percent): (k_map - map_std_dev) / total_regions × 100, clamped at 0.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) uncertainty_lower: Option<f32>,
     /// Upper bound (percent): (k_map + map_std_dev) / total_regions × 100, clamped at 100.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) uncertainty_upper: Option<f32>,
     /// Standard deviation around the MAP, in region counts: sqrt(Σ (k - k_map)² × P(k)).
     /// Measured from k_map, not from the mean.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) map_std_dev: Option<f64>,
     // Only computed if distribution output requested AND af_threshold == distribution_af:
     /// Full P(K=k) distribution.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) distribution: Option<Vec<DpResult>>,
 }
 
@@ -454,7 +440,6 @@ fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
 /// * `filtered` - Filtered view of variants passing AF threshold
 /// * `total_regions` - Total number of MS regions
 /// * `af_threshold` - AF threshold used for filtering
-/// * `sample` - The sample being processed
 /// * `output_req` - Which outputs are requested (controls what to compute)
 /// * `distribution_af` - Fixed AF at which `distribution` is populated;
 ///   `distribution` is only set when `output_req.needs_distribution` is true
@@ -466,7 +451,6 @@ fn calculate_msi_metrics(
     filtered: &FilteredRegions,
     total_regions: usize,
     af_threshold: f32,
-    sample: String,
     output_req: OutputRequirements,
     distribution_af: f32,
 ) -> AfEvolutionResult {
@@ -544,8 +528,6 @@ fn calculate_msi_metrics(
     };
 
     AfEvolutionResult {
-        sample,
-        af_threshold,
         total_regions,
         k_map,
         msi_score_map,
@@ -714,7 +696,6 @@ fn run_windowed_analysis(
 /// # Arguments
 /// * `regions`            - Regions with variants from extraction
 /// * `total_regions`      - Total MS regions (denominator for MSI score)
-/// * `sample`             - Sample name
 /// * `af_thresholds`      - AF thresholds to analyze in parallel
 /// * `distribution_af`    - Fixed AF forwarded to `calculate_msi_metrics` on each call
 ///   marking which AF should populate the full distribution conditionally
@@ -725,7 +706,6 @@ fn run_windowed_analysis(
 fn run_global_analysis(
     regions: &[RegionSummary],
     total_regions: usize,
-    sample: &str,
     af_thresholds: &[f32],
     distribution_af: f32,
     output_req: OutputRequirements,
@@ -743,7 +723,6 @@ fn run_global_analysis(
                 &filtered,
                 total_regions,
                 *af_threshold,
-                sample.to_string(),
                 output_req,
                 distribution_af,
             );
@@ -825,7 +804,6 @@ pub(super) fn run_af_evolution_analysis(
         run_global_analysis(
             regions,
             config.total_regions,
-            config.sample,
             &config.af_thresholds,
             config.distribution_af,
             output_req,
@@ -1197,8 +1175,7 @@ mod tests {
             needs_heatmap: false,
         };
 
-        let result =
-            calculate_msi_metrics(&filtered, 100, 0.0, "sample1".to_string(), output_req, 0.05);
+        let result = calculate_msi_metrics(&filtered, 100, 0.0, output_req, 0.05);
 
         assert!(result.k_map.is_none());
         assert!(result.msi_score_map.is_none());
@@ -1225,8 +1202,7 @@ mod tests {
             needs_heatmap: false,
         };
 
-        let result =
-            calculate_msi_metrics(&filtered, 100, 0.5, "sample1".to_string(), output_req, 0.05);
+        let result = calculate_msi_metrics(&filtered, 100, 0.5, output_req, 0.05);
         let lower = result.uncertainty_lower.unwrap();
         let upper = result.uncertainty_upper.unwrap();
         let std_dev: f64 = result.map_std_dev.unwrap();
@@ -1258,8 +1234,7 @@ mod tests {
         };
 
         // AF=0.0 should include distribution
-        let result_af0 =
-            calculate_msi_metrics(&filtered, 100, 0.0, "sample1".to_string(), output_req, 0.00);
+        let result_af0 = calculate_msi_metrics(&filtered, 100, 0.0, output_req, 0.00);
         assert!(result_af0.distribution.is_some());
         let dist = result_af0.distribution.unwrap();
         assert_eq!(dist.len(), 2);
@@ -1269,8 +1244,7 @@ mod tests {
         assert_eq!(dist[1].k, 1);
 
         // AF=0.5 should NOT include distribution
-        let result_af5 =
-            calculate_msi_metrics(&filtered, 100, 0.5, "sample1".to_string(), output_req, 0.00);
+        let result_af5 = calculate_msi_metrics(&filtered, 100, 0.5, output_req, 0.00);
         assert!(result_af5.distribution.is_none());
     }
 
@@ -1469,11 +1443,10 @@ mod tests {
             needs_distribution: false,
             needs_heatmap: false,
         };
-        let results = run_global_analysis(&regions, 100, "sample1", &[0.0], 0.05, output_req);
+        let results = run_global_analysis(&regions, 100, &[0.0], 0.05, output_req);
 
         assert_eq!(results.len(), 1);
         let r = &results["0.00"];
-        assert_eq!(r.sample, "sample1");
         assert_eq!(r.k_map.unwrap(), 1);
         assert!((r.msi_score_map.unwrap() - 1.0).abs() < TEST_EPSILON_F32);
         assert_eq!(r.regions_af_pass.unwrap(), 1);
