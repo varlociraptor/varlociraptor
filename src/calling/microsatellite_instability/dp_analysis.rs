@@ -1,8 +1,7 @@
 //! dp_analysis.rs
 //!
 //! Dynamic programming analysis for MSI estimation.
-//! Implements AF evolution analysis using dynamic programming.
-//! Computes MSI probability distributions across allele frequency thresholds.
+//! Computes data for pseudotime, distribution, and windowed heatmap outputs.
 //!
 //! This module provides:
 //! 1. Data Structures (`RegionProbability`, `DpResult`, `AfEvolutionResult`,
