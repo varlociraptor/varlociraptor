@@ -1198,7 +1198,7 @@ mod tests {
     #[test]
     fn test_find_map_estimate_all_stable() {
         // P(0)=1.0, k_map=0, score=0%
-        let dist = vec![1.0, 0.0];
+        let dist = vec![1.0, 0.0, 0.0];
         let (k_map, score, posterior_probability) = find_map_estimate(&dist, 2);
         assert_eq!(k_map, 0);
         assert_eq!(score, 0.0);
