@@ -1068,7 +1068,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_regions_by_af_multiple_regions_some_empty() {
+    fn test_filter_regions_by_af_multiple_regions_some_filtered_out() {
         let regions = vec![
             make_region("chr1", 100, vec![make_variant(0.01, 0.8)], true),
             make_region("chr1", 200, vec![make_variant(0.02, 0.3)], true), // Filtered out
