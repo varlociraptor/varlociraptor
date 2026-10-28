@@ -1152,6 +1152,28 @@ mod tests {
         assert!((dist[1] - 0.85).abs() < TEST_EPSILON); // P(1) = 0.85
     }
 
+    #[test]
+    fn test_run_dp_for_regions_uneven_region_sizes() {
+        // Region 0 = [v1, v2]: p_stable = 0.5 × 0.4 = 0.2
+        // Region 1 = [v3]:     p_stable = 0.7
+        let v1 = make_variant(0.5, 0.8);
+        let v2 = make_variant(0.4, 0.9);
+        let v3 = make_variant(0.7, 0.7);
+        let filtered = FilteredRegions {
+            variants: vec![&v1, &v2, &v3],
+            region_starts: vec![0, 2],
+        };
+        let dist = run_dp_for_regions(&filtered);
+
+        assert_eq!(dist.len(), 3);
+        // P(0) = 0.2 × 0.7 = 0.14
+        // P(1) = 0.8 × 0.7 + 0.2 × 0.3 = 0.56 + 0.06 = 0.62
+        // P(2) = 0.8 × 0.3 = 0.24
+        assert!((dist[0] - 0.14).abs() < TEST_EPSILON);
+        assert!((dist[1] - 0.62).abs() < TEST_EPSILON);
+        assert!((dist[2] - 0.24).abs() < TEST_EPSILON);
+    }
+
     /* ========== find_map_estimate tests ============ */
 
     #[test]
