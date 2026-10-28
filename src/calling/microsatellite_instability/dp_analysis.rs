@@ -1216,7 +1216,7 @@ mod tests {
     }
 
     #[test]
-    fn test_find_map_estimate_denominator() {
+    fn test_find_map_estimate_total_regions_differs_from_dist_len() {
         // k_map=2, total=10, 2/10 × 100 = 20%
         // posterior_probability is dist[k_map] = 0.7, the largest entry, so no separate test is needed
         let dist = vec![0.1, 0.2, 0.7];
