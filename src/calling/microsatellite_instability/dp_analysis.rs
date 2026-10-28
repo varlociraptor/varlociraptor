@@ -423,7 +423,7 @@ fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
 
 /* ============ MSI Metrics ======================= */
 
-/// Calculate MSI metrics for filtered regions
+/// Calculate MSI metrics for filtered regions.
 ///
 /// Computes region instability probabilities, runs DP, calculates MAP estimate,
 /// and computes uncertainty bounds if requested.
@@ -431,9 +431,9 @@ fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
 /// # Steps
 /// 1. **Region Probabilities**: P(region unstable) = 1 - Π(p_absent)
 /// 2. **DP**: Compute probability distribution P(K = k)
-/// 3. **MAP**: Find k that maximizes P(K = k)
-/// 4. **MSI Score**: (k_map / total_regions) × 100
-/// 5. **Uncertainty** (if requested): Standard deviation bounds
+/// 3. **MAP** (if pseudotime requested): Find k that maximizes P(K = k)
+/// 4. **MSI Score** (if pseudotime requested): (k_map / total_regions) × 100
+/// 5. **Uncertainty** (if pseudotime requested): Standard deviation bounds
 /// 6. **Distribution** (if requested and `af_threshold == distribution_af`): Full P(K = k) array
 ///
 /// # Arguments
@@ -441,9 +441,9 @@ fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
 /// * `total_regions` - Total number of MS regions
 /// * `af_threshold` - AF threshold used for filtering
 /// * `output_req` - Which outputs are requested (controls what to compute)
-/// * `distribution_af` - Fixed AF at which `distribution` is populated;
+/// * `distribution_af` - Fixed AF at which `distribution` is populated,
 ///   `distribution` is only set when `output_req.needs_distribution` is true
-///   AND `af_threshold` equals this value
+///   and `af_threshold` equals this value
 ///
 /// # Returns
 /// Complete MSI analysis result for this sample/AF combination
