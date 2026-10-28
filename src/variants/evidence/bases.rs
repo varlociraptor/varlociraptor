@@ -15,6 +15,17 @@ lazy_static! {
     static ref PROB_ANY: LogProb = LogProb::from(Prob(0.25));
 }
 
+/// IUPAC mask of a reference base; ambiguous reference bases (e.g. `N`) are compatible with nothing.
+#[inline]
+pub(crate) fn ref_mask(base: u8) -> u8 {
+    let m = iupac_mask(base);
+    if m.count_ones() == 1 {
+        m
+    } else {
+        0
+    }
+}
+
 /// Calculate probability of read_base given ref_base.
 pub(crate) fn prob_read_base(mut read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     read_base = read_base.to_ascii_uppercase();
@@ -24,9 +35,9 @@ pub(crate) fn prob_read_base(mut read_base: u8, ref_base: u8, base_qual: u8) -> 
     } else if read_base == b'N' {
         // METHOD: N means there can be anything, assuming a flat probability here.
         *PROB_ANY
-    } else if iupac_mask(read_base) & iupac_mask(ref_base) != 0 {
+    } else if iupac_mask(read_base) & ref_mask(ref_base) != 0 {
         // read_base is an IUPAC ambiguity code (introduced by
-        // base conversion), and ref_base is one of the bases it can represent.
+        // base conversion), and ref_base is one A, C, G, or T
         unsafe { *BASEQUAL_TO_PROB_CALL.get_unchecked(base_qual as usize) }
     } else {
         let prob_miscall = prob_read_base_miscall(base_qual);

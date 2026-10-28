@@ -16,7 +16,7 @@ use bio::stats::{LogProb, Prob};
 use num_traits::Zero;
 use rust_htslib::bam;
 
-use crate::variants::evidence::bases::{prob_read_base, prob_read_base_miscall};
+use crate::variants::evidence::bases::{prob_read_base, prob_read_base_miscall, ref_mask};
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
 /// Width of band around alignment with optimal edit distance.
@@ -413,11 +413,7 @@ impl<'a> bio::stats::pairhmm::Emission for ReadVsAlleleEmission<'a> {
     }
 
     fn emission_y(&self, j: usize) -> u8 {
-        let pos = self.read_emission.project_j(j);
-        match &self.read_emission().converted_seq {
-            Some(seq) => unsafe { *seq.get_unchecked(pos) },
-            None => unsafe { self.read_emission().read_seq.decoded_base_unchecked(pos) },
-        }
+        self.read_emission.read_base(j)
     }
 }
 
@@ -464,19 +460,24 @@ impl<'a> ReadEmission<'a> {
         }
     }
 
-    /// Calculate probability of read_base given ref_base.
-    pub(crate) fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
+    #[inline]
+    pub(crate) fn read_base(&self, j: usize) -> u8 {
         let pos = self.project_j(j);
-        let read_base = match &self.converted_seq {
+        match &self.converted_seq {
             Some(seq) => unsafe { *seq.get_unchecked(pos) },
             None => unsafe { self.read_seq.decoded_base_unchecked(pos) },
         }
-        .to_ascii_uppercase();
+    }
+
+    /// Calculate probability of read_base given ref_base.
+    pub(crate) fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
+        let pos = self.project_j(j);
+        let read_base = self.read_base(j).to_ascii_uppercase();
         let ref_base = ref_base.to_ascii_uppercase();
         let base_qual = unsafe { *self.qual.get_unchecked(pos) };
         let prob = prob_read_base(read_base, ref_base, base_qual);
 
-        if iupac_mask(read_base) & iupac_mask(ref_base) != 0 {
+        if iupac_mask(read_base) & ref_mask(ref_base) != 0 {
             pairhmm::XYEmission::Match(prob)
         } else {
             // TODO the 'N' case now gives PROB ANY instead of definitive probability. Is this correct?
@@ -492,18 +493,14 @@ impl<'a> ReadEmission<'a> {
         state_base: u8,
     ) -> pairhmm::XYEmission {
         let pos = self.project_j(j);
-        let read_base = match &self.converted_seq {
-            Some(seq) => unsafe { *seq.get_unchecked(pos) },
-            None => unsafe { self.read_seq.decoded_base_unchecked(pos) },
-        }
-        .to_ascii_uppercase();
+        let read_base = self.read_base(j).to_ascii_uppercase();
         let ref_base = ref_base.to_ascii_uppercase();
         let state_base = state_base.to_ascii_uppercase();
         let base_qual = unsafe { *self.qual.get_unchecked(pos) };
 
         let prob = prob_read_base(read_base, ref_base, base_qual);
 
-        if iupac_mask(read_base) & iupac_mask(state_base) & iupac_mask(ref_base) != 0 {
+        if iupac_mask(read_base) & iupac_mask(state_base) & ref_mask(ref_base) != 0 {
             pairhmm::XYEmission::Match(prob)
         } else {
             // TODO the 'N' case now gives PROB ANY instead of definitive probability. Is this correct?
