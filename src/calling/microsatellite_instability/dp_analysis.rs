@@ -1226,6 +1226,28 @@ mod tests {
         assert!((posterior_probability - 0.7).abs() < TEST_EPSILON);
     }
 
+    #[test]
+    #[should_panic(expected = "dist is guaranteed non-empty")]
+    fn test_find_map_estimate_empty_dist() {
+        let dist: Vec<f64> = vec![];
+        find_map_estimate(&dist, 10);
+    }
+
+    #[test]
+    #[should_panic(expected = "called `Option::unwrap()` on a `None` value")]
+    fn test_find_map_estimate_nan_in_dist() {
+        // partial_cmp returns None when NaN is compared with another value
+        let dist = vec![f64::NAN, 0.5];
+        find_map_estimate(&dist, 10);
+    }
+
+    #[test]
+    #[should_panic(expected = "denominator must not be zero")]
+    fn test_find_map_estimate_zero_total_regions() {
+        let dist = vec![0.5, 0.5];
+        find_map_estimate(&dist, 0);
+    }
+
     /* ======== calculate_msi_metrics tests ========== */
 
     #[test]
