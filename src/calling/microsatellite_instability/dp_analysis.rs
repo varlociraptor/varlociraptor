@@ -464,14 +464,11 @@ fn calculate_msi_metrics(
     output_req: OutputRequirements,
     distribution_af: f32,
 ) -> AfEvolutionResult {
-    // Step 1: Compute region instability probabilities
-    // For each region, calculate P(at least one variant present)
-    // &
-    // Step 2: Run DP to get probability distribution
+    // Steps 1-2: Per-region stability probability and the DP distribution,
+    // both computed through run_dp_for_regions
     let distribution_raw = run_dp_for_regions(filtered);
 
-    // Steps 3 & 4: Compute k_map/msi_score_map/regions_af_pass and the
-    // uncertainty bounds together, ONLY if pseudotime is needed.
+    // Steps 3-5: MAP estimate, MSI score and uncertainty bounds, only if pseudotime is requested
     let (k_map, msi_score_map, regions_af_pass, uncertainty_lower, uncertainty_upper, map_std_dev) =
         if output_req.needs_pseudotime {
             let (k_map_raw, msi_score_map_raw, _) =
@@ -480,7 +477,7 @@ fn calculate_msi_metrics(
 
             let k_map_f64 = usize_to_f64_exact(k_map_raw);
 
-            // Calculate variance: Var(K) = Σ[(k - k_map)² × P(k)]
+            // Mean squared deviation from k_map (not from the mean): Σ[(k - k_map)² × P(k)]
             let variance_f64: f64 = distribution_raw
                 .iter()
                 .enumerate()
@@ -492,10 +489,10 @@ fn calculate_msi_metrics(
                 })
                 .sum();
 
-            // Calculate standard deviation
+            // Standard deviation around k_map
             let std_dev_f64 = variance_f64.sqrt();
 
-            // Get confidence bounds
+            // Bounds k_map ± std dev, clamped to [0, total_regions], as percentages
             let total_f64 = usize_to_f64_exact(total_regions);
             let lower_k = (k_map_f64 - std_dev_f64).max(0.0);
             let upper_k = (k_map_f64 + std_dev_f64).min(total_f64);
@@ -514,8 +511,8 @@ fn calculate_msi_metrics(
             (None, None, None, None, None, None)
         };
 
-    // Step 5: Create full distribution (only if distribution output requested
-    // AND current AF threshold matches distribution_af)
+    // Step 6: Create full distribution (only if distribution output requested
+    // and current AF threshold matches distribution_af)
     let distribution = if output_req.needs_distribution
         && (af_threshold - distribution_af).abs() < EPSILON as f32
     {
