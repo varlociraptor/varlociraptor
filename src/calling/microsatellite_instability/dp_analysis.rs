@@ -446,7 +446,17 @@ fn find_map_estimate(dist: &[f64], total_regions: usize) -> (usize, f32, f64) {
 ///   and `af_threshold` equals this value
 ///
 /// # Returns
-/// Complete MSI analysis result for this sample/AF combination
+/// `AfEvolutionResult` for this AF threshold, where:
+/// - `total_regions` - always set
+/// - `k_map`, `msi_score_map`, `regions_af_pass`, `uncertainty_lower`, `uncertainty_upper`
+///   and `map_std_dev` - set only if `output_req.needs_pseudotime`, otherwise `None`
+/// - `distribution` - set only if `output_req.needs_distribution` and `af_threshold`
+///   equals `distribution_af`, otherwise `None`
+///
+/// # Panics
+/// Panics if `total_regions` is 0 and a percentage is computed (pseudotime requested,
+/// or the distribution is populated). Unreachable from `call_msi`, which returns
+/// `MsiBedRegionsEmpty` before this point.
 fn calculate_msi_metrics(
     filtered: &FilteredRegions,
     total_regions: usize,
@@ -1337,6 +1347,22 @@ mod tests {
         // AF=0.5 should NOT include distribution
         let result_af5 = calculate_msi_metrics(&filtered, 100, 0.5, output_req, 0.00);
         assert!(result_af5.distribution.is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "denominator must not be zero")]
+    fn test_calculate_msi_metrics_zero_total_regions() {
+        let filtered = FilteredRegions {
+            variants: vec![],
+            region_starts: vec![],
+        };
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: false,
+            needs_heatmap: false,
+        };
+
+        calculate_msi_metrics(&filtered, 0, 0.0, output_req, 0.05);
     }
 
     /* =========== get_window_slice tests ============ */
