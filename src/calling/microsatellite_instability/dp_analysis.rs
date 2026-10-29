@@ -1273,7 +1273,7 @@ mod tests {
             needs_heatmap: false,
         };
 
-        let result = calculate_msi_metrics(&filtered, 100, 0.0, output_req, 0.05);
+        let result = calculate_msi_metrics(&filtered, 100, 0.0, output_req, 0.0);
 
         assert!(result.k_map.is_none());
         assert!(result.msi_score_map.is_none());
