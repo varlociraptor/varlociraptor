@@ -554,20 +554,15 @@ fn calculate_msi_metrics(
 /// `regions` must be sorted by `(chrom, start)`. This should be guaranteed by
 /// `extract_regions`, otherwise results would be incorrect.
 ///
-/// Regions must be sorted by (chrom, start) - guaranteed by extraction order.
-///
 /// # Arguments
-/// * `regions`      - All extracted regions sorted by `(chrom, start)`
-/// * `chrom`        - Chromosome to filter for
+/// * `regions` - All extracted regions sorted by `(chrom, start)`
+/// * `chrom` - Chromosome to filter for
 /// * `window_start` - Window start position (0-based, inclusive)
-/// * `window_end`   - Window end position (0-based, exclusive)
+/// * `window_end` - Window end position (0-based, exclusive)
 ///
 /// # Returns
 /// Sub-slice of `regions` whose chrom matches and start falls in
 /// `[window_start, window_end)`. Returns empty slice if no match.
-///
-/// # Example
-/// assert_eq!(get_window_slice(&regions, "chr1", 1000, 2000), &[RegionSummary { chrom: "chr1", start: 1500, ... }]);
 fn get_window_slice<'a>(
     regions: &'a [RegionSummary],
     chrom: &str,
@@ -1552,7 +1547,7 @@ mod tests {
         assert_eq!(slice.len(), 1);
         assert_eq!(slice[0].start, 1000);
 
-        // window_end is exclusive: region at exactly window_end=2000 excluded
+        // window_end is exclusive: region at exactly window_end=1000 excluded
         let slice = get_window_slice(&regions, "chr1", 0, 1000);
         assert_eq!(slice.len(), 1);
         assert_eq!(slice[0].start, 0);
