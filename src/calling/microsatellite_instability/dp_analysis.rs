@@ -582,25 +582,23 @@ fn get_window_slice<'a>(
 
 /// Compute windowed MSI scores across the genome.
 ///
-/// Slides a window of `window_size` bases across each chromosome,
-/// computing MSI score and posterior probability per window using
-/// a single fixed AF threshold. Only windows containing at least
-/// one MS region are included.
+/// Splits each chromosome into consecutive, non-overlapping windows of
+/// `window_size` bases and computes MSI score and posterior probability per
+/// window using a single fixed AF threshold. A region belongs to the window
+/// containing its start position. Only windows containing at least one MS
+/// region are included.
 ///
 /// Per-window denominator (`regions_in_window`) makes windows
 /// spatially comparable - each score reflects instability fraction
 /// within that window, not genome-wide.
 ///
 /// # Arguments
-/// * `regions`      - All extracted regions sorted by `(chrom, start)`
-/// * `af_threshold` - Fixed AF threshold from `--af-threshold-windowed`
-/// * `window_size`  - Window width in bases (e.g. 1_000_000 for 1Mb)
+/// * `regions` - All extracted regions sorted by `(chrom, start)`
+/// * `af_threshold` - Fixed AF threshold from `--windowed-af`
+/// * `window_size` - Window width in bases (e.g. 1_000_000 for 1Mb)
 ///
 /// # Returns
-/// Vec of `WindowResult` ordered by `(chrom, window_start)`.`
-///
-/// # Example
-/// assert_eq!(run_windowed_analysis(&regions, 0.1, 1_000_000), vec![WindowResult { chrom: "chr1", window_start: 0, window_end: 1_000_000, msi_score: 2.5, posterior_probability: 0.8, regions_in_window: 40 }, ...]);
+/// Vec of `WindowResult` ordered by `(chrom, window_start)`.
 fn run_windowed_analysis(
     regions: &[RegionSummary],
     af_threshold: f32,
