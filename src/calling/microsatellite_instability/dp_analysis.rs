@@ -598,7 +598,12 @@ fn get_window_slice<'a>(
 /// * `window_size` - Window width in bases (e.g. 1_000_000 for 1Mb)
 ///
 /// # Returns
-/// Vec of `WindowResult` ordered by `(chrom, window_start)`.
+/// Vec of `WindowResult` ordered by `(chrom, window_start)`, with chromosome
+/// names compared as strings (`chr1`, `chr10`, `chr2`).
+///
+/// # Panics
+/// In debug builds, panics (failed `debug_assert!`) if `window_size` is 0 or
+/// `regions` is empty.
 fn run_windowed_analysis(
     regions: &[RegionSummary],
     af_threshold: f32,
@@ -1595,6 +1600,7 @@ mod tests {
         assert_eq!(results[1].window_start, 5_000_000);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "regions=[] guaranteed unreachable")]
     fn test_run_windowed_analysis_empty_regions() {
@@ -1602,6 +1608,7 @@ mod tests {
         run_windowed_analysis(&regions, 0.1, 1_000_000);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "window_size=0 guaranteed unreachable")]
     fn test_run_windowed_analysis_zero_window_size() {
