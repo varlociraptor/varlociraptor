@@ -1273,6 +1273,7 @@ mod tests {
             needs_heatmap: false,
         };
 
+        // af_threshold equals distribution_af, but nothing is requested
         let result = calculate_msi_metrics(&filtered, 100, 0.0, output_req, 0.0);
 
         assert!(result.k_map.is_none());
@@ -1400,6 +1401,64 @@ mod tests {
         };
 
         calculate_msi_metrics(&filtered, 0, 0.0, output_req, 0.05);
+    }
+
+    #[test]
+    fn test_calculate_msi_metrics_lower_bound_clamped_at_zero() {
+        let v1 = make_variant(0.9, 0.8);
+        let v2 = make_variant(0.9, 0.8);
+        let filtered = FilteredRegions {
+            variants: vec![&v1, &v2],
+            region_starts: vec![0, 1],
+        };
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: false,
+            needs_heatmap: false,
+        };
+
+        let result = calculate_msi_metrics(&filtered, 2, 0.5, output_req, 0.05);
+
+        // p_stable = [0.9, 0.9]: P(0) = 0.81, P(1) = 0.18, P(2) = 0.01, so k_map = 0
+        // std around k_map = sqrt(1² × 0.18 + 2² × 0.01) = sqrt(0.22)
+        let std_expected = (0.18 + 4.0 * 0.01_f64).sqrt();
+
+        assert_eq!(result.k_map, Some(0));
+        // k_map - std < 0, so the lower bound is clamped to 0
+        assert_eq!(result.uncertainty_lower, Some(0.0));
+        assert!(
+            (result.uncertainty_upper.unwrap() - (std_expected / 2.0 * 100.0) as f32).abs()
+                < TEST_EPSILON_F32
+        );
+    }
+
+    #[test]
+    fn test_calculate_msi_metrics_upper_bound_clamped_at_total() {
+        let v1 = make_variant(0.1, 0.8);
+        let v2 = make_variant(0.1, 0.8);
+        let filtered = FilteredRegions {
+            variants: vec![&v1, &v2],
+            region_starts: vec![0, 1],
+        };
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: false,
+            needs_heatmap: false,
+        };
+
+        let result = calculate_msi_metrics(&filtered, 2, 0.5, output_req, 0.05);
+
+        // p_stable = [0.1, 0.1]: P(0) = 0.01, P(1) = 0.18, P(2) = 0.81, so k_map = 2
+        // std around k_map = sqrt(2² × 0.01 + 1² × 0.18) = sqrt(0.22)
+        let std_expected = (4.0 * 0.01 + 0.18_f64).sqrt();
+
+        assert_eq!(result.k_map, Some(2));
+        // k_map + std > 2 regions, so the upper bound is clamped to 2/2 × 100
+        assert_eq!(result.uncertainty_upper, Some(100.0));
+        assert!(
+            (result.uncertainty_lower.unwrap() - ((2.0 - std_expected) / 2.0 * 100.0) as f32).abs()
+                < TEST_EPSILON_F32
+        );
     }
 
     /* =========== get_window_slice tests ============ */
