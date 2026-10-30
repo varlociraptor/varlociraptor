@@ -1285,6 +1285,36 @@ mod tests {
     }
 
     #[test]
+    fn test_calculate_msi_metrics_empty_filtered_set() {
+        let filtered = FilteredRegions {
+            variants: vec![],
+            region_starts: vec![],
+        };
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: true,
+            needs_heatmap: false,
+        };
+
+        let result = calculate_msi_metrics(&filtered, 100, 0.5, output_req, 0.5);
+
+        // Empty filtered view: the DP distribution is [1.0],
+        // so k_map = 0 and the distribution has one entry
+        assert_eq!(result.k_map, Some(0));
+        assert_eq!(result.regions_af_pass, Some(0));
+        assert_eq!(result.msi_score_map, Some(0.0));
+        assert_eq!(result.map_std_dev, Some(0.0));
+        assert_eq!(result.uncertainty_lower, Some(0.0));
+        assert_eq!(result.uncertainty_upper, Some(0.0));
+
+        let dist = result.distribution.unwrap();
+        assert_eq!(dist.len(), 1);
+        assert_eq!(dist[0].k, 0);
+        assert_eq!(dist[0].msi_score, 0.0);
+        assert_eq!(dist[0].probability, 1.0);
+    }
+
+    #[test]
     fn test_calculate_msi_metrics_with_uncertainty() {
         let v1 = make_variant(0.1, 0.8);
         let v2 = make_variant(0.2, 0.9);
