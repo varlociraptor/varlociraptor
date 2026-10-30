@@ -1301,18 +1301,24 @@ mod tests {
         };
 
         let result = calculate_msi_metrics(&filtered, 100, 0.5, output_req, 0.05);
-        let lower = result.uncertainty_lower.unwrap();
-        let upper = result.uncertainty_upper.unwrap();
-        let std_dev: f64 = result.map_std_dev.unwrap();
 
-        assert!(result.distribution.is_none());
-        assert!(lower <= result.msi_score_map.unwrap());
-        assert!(result.msi_score_map.unwrap() <= upper);
-        assert!(std_dev >= 0.0);
-        assert_eq!(result.k_map.unwrap(), 2);
-        assert!(result.uncertainty_lower.is_some());
-        assert!(result.uncertainty_upper.is_some());
-        assert!(result.map_std_dev.is_some());
+        // p_stable = [0.1, 0.2]: P(0) = 0.1 × 0.2 = 0.02,
+        // P(1) = 0.9 × 0.2 + 0.1 × 0.8 = 0.26, P(2) = 0.9 × 0.8 = 0.72
+        // k_map = 2 and std around k_map = sqrt(2² × 0.02 + 1² × 0.26) = sqrt(0.34)
+        let std_expected = (4.0 * 0.02 + 0.26_f64).sqrt();
+
+        assert_eq!(result.k_map, Some(2));
+        assert_eq!(result.regions_af_pass, Some(2));
+        assert!((result.msi_score_map.unwrap() - 2.0).abs() < TEST_EPSILON_F32); // 2/100 × 100
+        assert!((result.map_std_dev.unwrap() - std_expected).abs() < TEST_EPSILON);
+        assert!(
+            (result.uncertainty_lower.unwrap() - (2.0 - std_expected) as f32).abs()
+                < TEST_EPSILON_F32
+        );
+        assert!(
+            (result.uncertainty_upper.unwrap() - (2.0 + std_expected) as f32).abs()
+                < TEST_EPSILON_F32
+        );
         assert!(result.distribution.is_none());
     }
 
@@ -1340,6 +1346,10 @@ mod tests {
         assert!((prob_sum - 1.0).abs() < TEST_EPSILON);
         assert_eq!(dist[0].k, 0);
         assert_eq!(dist[1].k, 1);
+        assert_eq!(dist[0].msi_score, 0.0); // 0/100 × 100
+        assert!((dist[1].msi_score - 1.0).abs() < TEST_EPSILON_F32); // 1/100 × 100
+        assert!((dist[0].probability - 0.1).abs() < TEST_EPSILON);
+        assert!((dist[1].probability - 0.9).abs() < TEST_EPSILON);
 
         // AF=0.5 should NOT include distribution
         let result_af5 = calculate_msi_metrics(&filtered, 100, 0.5, output_req, 0.00);
