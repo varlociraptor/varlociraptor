@@ -1623,11 +1623,12 @@ mod tests {
         let regions = vec![make_region(
             "chr1",
             100,
-            vec![make_variant(0.1, 0.05)],
+            vec![make_variant(0.1, 0.05), make_variant(0.2, 0.05)],
             true,
         )];
         let results = run_windowed_analysis(&regions, 0.1, 1_000_000);
         assert_eq!(results.len(), 1);
+        assert_eq!(results[0].regions_in_window, 1); // the region still counts in the denominator
         assert_eq!(results[0].msi_score, 0.0);
         assert!((results[0].posterior_probability - 1.0).abs() < TEST_EPSILON);
     }
@@ -1644,6 +1645,20 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].regions_in_window, 2);
         assert!((results[0].msi_score - 100.0).abs() < TEST_EPSILON_F32);
+    }
+
+    #[test]
+    fn test_run_windowed_analysis_chromosomes_sorted_as_strings() {
+        // Input is sorted as strings (chr1 < chr10 < chr2), as extract_regions returns it
+        let regions = vec![
+            make_region("chr1", 100, vec![make_variant(0.1, 0.8)], true),
+            make_region("chr10", 100, vec![make_variant(0.1, 0.8)], true),
+            make_region("chr2", 100, vec![make_variant(0.1, 0.8)], true),
+        ];
+        let results = run_windowed_analysis(&regions, 0.1, 1_000_000);
+
+        let chroms: Vec<&str> = results.iter().map(|r| r.chrom.as_str()).collect();
+        assert_eq!(chroms, vec!["chr1", "chr10", "chr2"]);
     }
 
     /* ========= run_global_analysis tests =========== */
