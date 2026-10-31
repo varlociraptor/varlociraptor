@@ -17,7 +17,8 @@
 //!    a sliding window of VCF variants, enabling memory-efficient analysis of
 //!    large datasets.
 //!
-//! Note: This module assumes that both the BED and VCF files are sorted by chromosome
+//! Note:
+//! This module assumes that both the BED and VCF files are sorted by chromosome
 //! (lexicographically) and position, which is a common requirement for genomic analyses.
 
 use std::collections::{HashMap, VecDeque};
@@ -60,6 +61,9 @@ impl PreprocessingStats {
     /// - Valid regions (1-6 bp motif)
     /// - Annotated MS indels
     /// - Dummy regions (2 records each)
+    ///
+    /// # Returns
+    /// Nothing, as all output goes through `info!`.
     pub(super) fn log_stats(&self) {
         info!("  Total BED regions: {}", self.total_regions);
         info!("  Valid regions (1-6bp motif): {}", self.valid_regions);
@@ -521,7 +525,7 @@ pub(super) mod tests {
     /// * `regions` - `(chrom, start, end, name)` tuples, with name as `<count>x<motif>` (e.g. `7xCAG`)
     ///
     /// # Returns
-    /// A `NamedTempFile`, keep it alive for the duration of the test
+    /// A `NamedTempFile`, keep it alive for the duration of the test.
     pub(crate) fn create_bed_file(regions: &[(&str, u64, u64, &str)]) -> NamedTempFile {
         let mut tmp = NamedTempFile::with_suffix(".bed").unwrap();
         for (chrom, start, end, motif) in regions {
