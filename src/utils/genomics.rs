@@ -80,7 +80,7 @@ pub(crate) fn is_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
 /// * `alt_seq` - Alternate allele sequence
 ///
 /// # Returns
-/// Length of shared prefix in bytes
+/// Length of shared prefix in bytes.
 pub(crate) fn calculate_anchor_length(ref_seq: &[u8], alt_seq: &[u8]) -> usize {
     let min_len = ref_seq.len().min(alt_seq.len());
 
@@ -131,7 +131,7 @@ pub(crate) fn is_clean_indel(ref_seq: &[u8], alt_seq: &[u8]) -> bool {
 /// * `alt_seq` - Alternate sequence
 ///
 /// # Returns
-/// `(reversed ref_seq, reversed alt_seq)`
+/// `(reversed ref_seq, reversed alt_seq)`.
 ///
 /// # Note
 /// A caller handling the position-1 trailing-anchor edge case (see this
@@ -204,8 +204,8 @@ pub(crate) fn calculate_dynamic_svlen(ref_seq: &[u8], alt_seq: &[u8]) -> i32 {
 /// Classify MSI status based on score and threshold.
 ///
 /// Binary classification of microsatellite instability status:
-/// - `MsiStatus::High`: Score ≥ threshold (displays as "MSI-High")
-/// - `MsiStatus::Stable`: Score < threshold (displays as "MSS")
+/// - `MsiStatus::High` - Score ≥ threshold (displays as "MSI-High")
+/// - `MsiStatus::Stable` - Score < threshold (displays as "MSS")
 ///
 /// # Arguments
 /// * `msi_score` - Calculated MSI score (percentage)
@@ -232,6 +232,12 @@ mod tests {
     fn test_msi_status_as_str() {
         assert_eq!(MsiStatus::Stable.as_str(), "MSS");
         assert_eq!(MsiStatus::High.as_str(), "MSI-High");
+    }
+
+    #[test]
+    fn test_msi_status_display() {
+        assert_eq!(MsiStatus::Stable.to_string(), "MSS");
+        assert_eq!(MsiStatus::High.to_string(), "MSI-High");
     }
 
     /* ========== is_indel tests ===================== */
