@@ -750,11 +750,18 @@ fn run_global_analysis(
 /// analysis across the genome.
 ///
 /// # Arguments
-/// * `regions`    - Regions from extraction
-/// * `config`     - Config items: total regions of interest, sample, msi threshold,
-///   AF Thresholds for pseudotime analysis, fixed distribution/windowed AF values,
+/// * `regions` - Regions from extraction
+/// * `config` - Config items: total regions of interest, sample, msi threshold,
+///   AF thresholds for pseudotime analysis, fixed distribution/windowed AF values,
 ///   windowed heatmap window size and compute resource
 /// * `output_req` - Which outputs requested (controls computation)
+///
+/// # Returns
+/// `Ok((global_results, window_results))`, where:
+/// - `global_results` - HashMap from AF threshold string to `AfEvolutionResult`, empty if
+///   neither pseudotime nor distribution requested
+/// - `window_results` - `Vec<WindowResult>`, empty if heatmap not requested or no
+///   windows contained regions
 ///
 /// # Note
 /// This function does not trim `config.af_thresholds` itself - it computes
@@ -763,16 +770,6 @@ fn run_global_analysis(
 /// avoid wasted computation: the full list when pseudotime is requested,
 /// a single-element `[distribution_af]` when only distribution is
 /// requested, or empty when neither is needed.
-///
-/// # Returns
-/// Tuple of `(global_results, window_results)` where:
-/// - `global_results`: HashMap keyed by AF threshold string -> MSI result.
-///   Empty if neither pseudotime nor distribution requested.
-/// - `window_results`: `Vec<WindowResult>`, empty if heatmap not requested
-///   or no windows contained regions.
-///
-/// # Example
-/// assert_eq!(run_af_evolution_analysis(&regions, config, output_req), (global_results, window_results));
 pub(super) fn run_af_evolution_analysis(
     regions: &[RegionSummary],
     config: AnalysisConfig<'_>,
