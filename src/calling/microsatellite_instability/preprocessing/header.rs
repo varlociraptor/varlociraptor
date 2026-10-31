@@ -161,7 +161,7 @@ mod tests {
 
     /// Helper: Create test BED file with given chromosomes.
     /// NOTE: Each region is 100-121 with a 7xCAG motif
-    /// (inappropriate for MSI but good for testing header prep)
+    /// (inappropriate for MSI but good for testing header prep).
     fn create_test_bed(chroms: &[&str]) -> NamedTempFile {
         let mut tmp = NamedTempFile::new().unwrap();
         for chrom in chroms {
