@@ -699,15 +699,16 @@ fn run_windowed_analysis(
 /// Responsible for generating data for pseudotime and distribution outputs.
 ///
 /// # Arguments
-/// * `regions`            - Regions with variants from extraction
-/// * `total_regions`      - Total MS regions (denominator for MSI score)
-/// * `af_thresholds`      - AF thresholds to analyze in parallel
-/// * `distribution_af`    - Fixed AF forwarded to `calculate_msi_metrics` on each call
+/// * `regions` - Regions with variants from extraction
+/// * `total_regions` - Total MS regions (denominator for MSI score)
+/// * `af_thresholds` - AF thresholds to analyze in parallel
+/// * `distribution_af` - Fixed AF forwarded to `calculate_msi_metrics` on each call
 ///   marking which AF should populate the full distribution conditionally
-/// * `output_req`         - Which outputs to compute
+/// * `output_req` - Which outputs to compute
 ///
 /// # Returns
-/// HashMap keyed by AF threshold string (e.g. "0.00"), MSI result.
+/// HashMap from AF threshold, formatted with two decimals (e.g. `"0.05"`), to its
+/// `AfEvolutionResult`. Thresholds that round to the same two decimals share one entry.
 fn run_global_analysis(
     regions: &[RegionSummary],
     total_regions: usize,
