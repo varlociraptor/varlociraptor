@@ -1681,6 +1681,39 @@ mod tests {
         assert_eq!(r.regions_af_pass.unwrap(), 1);
     }
 
+    #[test]
+    fn test_run_global_analysis_distribution_only_at_distribution_af() {
+        // Variant has AF 0.5: passes threshold 0.0, filtered out at 0.6
+        let regions = vec![make_region_simple(vec![make_variant(0.1, 0.5)])];
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: true,
+            needs_heatmap: false,
+        };
+        let results = run_global_analysis(&regions, 100, &[0.0, 0.6], 0.6, output_req);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results["0.00"].regions_af_pass, Some(1));
+        assert_eq!(results["0.60"].regions_af_pass, Some(0));
+        assert!(results["0.00"].distribution.is_none());
+        assert!(results["0.60"].distribution.is_some());
+    }
+
+    #[test]
+    fn test_run_global_analysis_thresholds_rounding_to_same_key_share_entry() {
+        let regions = vec![make_region_simple(vec![make_variant(0.1, 0.5)])];
+        let output_req = OutputRequirements {
+            needs_pseudotime: true,
+            needs_distribution: false,
+            needs_heatmap: false,
+        };
+        // 0.001 and 0.004 both format as "0.00"
+        let results = run_global_analysis(&regions, 100, &[0.001, 0.004], 0.05, output_req);
+
+        assert_eq!(results.len(), 1);
+        assert!(results.contains_key("0.00"));
+    }
+
     /* ====== run_af_evolution_analysis tests ======== */
 
     #[test]
