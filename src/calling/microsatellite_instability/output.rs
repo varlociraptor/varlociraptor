@@ -60,9 +60,10 @@ enum PlotType {
 /// 4. Write pretty-printed JSON to file
 ///
 /// # Plot Type Behavior
-/// - `WithThresholdLine`: Finds rule and text layers by mark type, then updates
-///   whichever of X or Y encoding has a `datum` field, so distribution uses X
-///   (vertical line) and pseudotime uses Y (horizontal line)
+/// - `WithThresholdLine`: Finds rule layers or text layers labelled
+///   "MSI Threshold", then updates whichever of X or Y encoding has a `datum`
+///   field, so distribution uses X (vertical line) and pseudotime uses Y
+///   (horizontal line)
 /// - `Heatmap`: Updates `encoding.color.scale.domain[1]` to set the
 ///   diverging color scale midpoint at the MSI-High threshold
 ///
