@@ -286,7 +286,7 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
 /// * `num_threads` - Thread count for the global pool, `None` leaves rayon's default
 ///
 /// # Returns
-/// * Nothing
+/// Nothing, as the outcome is reported through `info!` and `warn!`.
 fn setup_thread_pool(num_threads: Option<usize>) {
     if let Some(threads) = num_threads {
         // Note: In CLI usage, build_global() should always succeed on first call.
