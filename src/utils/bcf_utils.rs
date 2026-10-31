@@ -223,8 +223,6 @@ pub(crate) fn get_sample_af(
     Ok(Some(af))
 }
 
-/* ================================================ */
-
 /* ===== BCF Specification Check Functions ======== */
 
 /// Check if VCF uses PHRED-scaled probabilities from file path.
@@ -244,8 +242,6 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
     Ok(is_phred_scaled(&vcf))
 }
 
-/* ================================================ */
-
 /* ======== BCF Allele Type Check Functions ======= */
 
 /// Check if allele is a breakend: paired (contains `[` or `]`) or single
@@ -260,8 +256,6 @@ pub(crate) fn is_breakend(allele: &[u8]) -> bool {
     allele.iter().any(|&c| c == b'[' || c == b']')
         || (allele.len() > 1 && (allele.starts_with(b".") || allele.ends_with(b".")))
 }
-
-/* ================================================ */
 
 /* ======= BCF Record Query Functions ============= */
 
@@ -346,8 +340,6 @@ pub fn read_bcf_records(path: &Path) -> Result<Vec<bcf::Record>> {
         .collect()
 }
 
-/* ================================================ */
-
 /* ======= BCF Record INFO Copy Function ========== */
 
 /// Copy specified INFO fields from source to destination BCF record.
@@ -407,8 +399,6 @@ pub(crate) fn copy_info_fields(
     }
     Ok(())
 }
-
-/* ================================================ */
 
 /* ========= BCF Validation Functions ============= */
 
