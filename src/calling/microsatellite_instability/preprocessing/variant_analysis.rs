@@ -43,7 +43,7 @@ enum RepeatStatus {
 /// # Arguments
 /// * `alt_seq` - Alternate allele sequence
 /// * `svlen` - Structural variant length (positive=insertion, negative=deletion)
-/// * `motif` - Microsatellite motif to match
+/// * `motif` - Microsatellite motif to match (must be uppercase)
 /// * `ref_seq` - Reference allele sequence
 ///
 /// # Returns
@@ -117,7 +117,8 @@ fn is_perfect_repeat(alt_seq: &[u8], svlen: i32, motif: &str, ref_seq: &[u8]) ->
     }
 
     // 4. Check if changed sequence is a perfect repeat of the motif
-    let motif_bytes: Vec<u8> = motif.bytes().map(|b| b.to_ascii_uppercase()).collect();
+    // Relies on caller guarantee: motif is uppercase, see parse_motif_from_name.
+    let motif_bytes = motif.as_bytes();
     let motif_len = motif_bytes.len();
 
     // Guaranteed non-empty by ms_bed.rs's parse_motif_from_name. Re-enable if that changes.
@@ -243,7 +244,7 @@ mod tests {
     #[test]
     fn test_is_perfect_repeat_case_insensitive() {
         assert_eq!(
-            is_perfect_repeat(b"acagCAG", 3, "cag", b"acag"),
+            is_perfect_repeat(b"acagCAG", 3, "CAG", b"acag"),
             RepeatStatus::Perfect
         );
     }
@@ -251,7 +252,7 @@ mod tests {
     #[test]
     fn test_is_perfect_repeat_case_insensitive_first_byte() {
         assert_eq!(
-            is_perfect_repeat(b"AcagCAG", 3, "cag", b"acag"),
+            is_perfect_repeat(b"AcagCAG", 3, "CAG", b"acag"),
             RepeatStatus::Perfect
         );
     }
