@@ -605,13 +605,10 @@ mod tests {
     use std::fs;
     use tempfile::NamedTempFile;
 
-    use crate::calling::microsatellite_instability::dp_analysis::{
-        AfEvolutionResult, DpResult, WindowResult,
-    };
+    use crate::calling::microsatellite_instability::dp_analysis::DpResult;
     use crate::utils::genomics::MsiStatus;
 
-    /* ====== Test helpers ======================== */
-
+    /// Helper: Create AF results with a two-point distribution at AF 0.00.
     fn make_distribution_result() -> HashMap<String, AfEvolutionResult> {
         let mut m = HashMap::new();
         m.insert(
@@ -641,6 +638,7 @@ mod tests {
         m
     }
 
+    /// Helper: Create AF results with one pseudotime entry (no distribution) at AF 0.00.
     fn make_pseudotime_result() -> HashMap<String, AfEvolutionResult> {
         let mut m = HashMap::new();
         m.insert(
@@ -659,6 +657,7 @@ mod tests {
         m
     }
 
+    /// Helper: Create a single chr1 window result (0 to 1,000,000, score 2.5).
     fn make_window_results() -> Vec<WindowResult> {
         vec![WindowResult {
             chrom: "chr1".to_string(),
@@ -670,7 +669,7 @@ mod tests {
         }]
     }
 
-    /* ====== Distribution TSV =================== */
+    /* ===== write_distribution_data tests =========== */
 
     #[test]
     fn test_write_distribution_data_row_written() {
@@ -687,8 +686,10 @@ mod tests {
         assert!(first_row.contains("0.6")); // probability k=0
     }
 
+    /* === generate_distribution_plot_spec tests ===== */
+
     #[test]
-    fn test_generate_distribution_plot_threshold_injected() {
+    fn test_generate_distribution_plot_spec_threshold_injected() {
         let tmp = NamedTempFile::new().unwrap();
         generate_distribution_plot_spec(&make_distribution_result(), "tumor", tmp.path(), 7.5, 0.0)
             .unwrap();
@@ -722,7 +723,7 @@ mod tests {
         }
     }
 
-    /* ====== Pseudotime TSV ===================== */
+    /* ====== write_pseudotime_data tests ============ */
 
     #[test]
     fn test_write_pseudotime_data_row_written() {
@@ -739,8 +740,10 @@ mod tests {
         assert!(row.contains(MsiStatus::Stable.as_str())); // MSI status
     }
 
+    /* === generate_pseudotime_plot_spec tests ======= */
+
     #[test]
-    fn test_generate_pseudotime_plot_threshold_injected() {
+    fn test_generate_pseudotime_plot_spec_threshold_injected() {
         let tmp = NamedTempFile::new().unwrap();
         generate_pseudotime_plot_spec(&make_pseudotime_result(), "tumor", tmp.path(), 7.5).unwrap();
 
@@ -773,7 +776,7 @@ mod tests {
         }
     }
 
-    /* ====== Heatmap TSV ======================== */
+    /* ======= write_heatmap_data tests ============== */
 
     #[test]
     fn test_write_heatmap_data_row_written() {
@@ -790,8 +793,10 @@ mod tests {
         assert!(row.contains("0.8000")); // posterior
     }
 
+    /* ==== generate_heatmap_plot_spec tests ========= */
+
     #[test]
-    fn test_generate_heatmap_plot_threshold_injected() {
+    fn test_generate_heatmap_plot_spec_threshold_injected() {
         let tmp = NamedTempFile::new().unwrap();
         generate_heatmap_plot_spec(&make_window_results(), "tumor", tmp.path(), 7.5, 0.05).unwrap();
 
