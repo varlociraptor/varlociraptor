@@ -1359,8 +1359,11 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        let result = get_events_probability(&record, 0, &["somatic".to_string()], false);
-        assert!(result.is_err());
+        let err = get_events_probability(&record, 0, &["somatic".to_string()], false).unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<Error>(),
+            Some(Error::VcfProbabilityValueInvalid { .. })
+        ));
     }
 
     #[test]
@@ -1373,8 +1376,11 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        let result = get_events_probability(&record, 0, &["somatic".to_string()], true);
-        assert!(result.is_err());
+        let err = get_events_probability(&record, 0, &["somatic".to_string()], true).unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<Error>(),
+            Some(Error::VcfProbabilityValueInvalid { .. })
+        ));
     }
 
     #[test]
@@ -1502,7 +1508,11 @@ pub(crate) mod tests {
         });
         let record = read_first_record(tmp_vcf.path());
 
-        assert!(get_sample_af(&record, 0, 0).is_err());
+        let err = get_sample_af(&record, 0, 0).unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<Error>(),
+            Some(Error::VcfAlleleFrequencyInvalid { .. })
+        ));
     }
 
     #[test]
@@ -1794,7 +1804,10 @@ pub(crate) mod tests {
         .unwrap();
 
         let err = read_bcf_records(tmp.path()).unwrap_err();
-        assert!(err.to_string().contains("failed to read VCF/BCF record"));
+        assert!(matches!(
+            err.downcast_ref::<Error>(),
+            Some(Error::VcfRecordReadFailed { .. })
+        ));
     }
 
     /* ========== copy_info_fields tests ============= */
@@ -2542,8 +2555,9 @@ pub(crate) mod tests {
         let mut vcf = bcf::Reader::from_path(tmp.path()).unwrap();
 
         let err = validate_vcf_file(&mut vcf).unwrap_err();
-        assert!(err
-            .to_string()
-            .starts_with("failed to read VCF/BCF record:"));
+        assert!(matches!(
+            err.downcast_ref::<Error>(),
+            Some(Error::VcfRecordReadFailed { .. })
+        ));
     }
 }
