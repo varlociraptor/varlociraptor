@@ -155,7 +155,7 @@ fn write_plot(
     Ok(())
 }
 
-/* === Output Functions Type 1: Distribution ====== */
+/* ============ Distribution Outputs ============== */
 
 /// Write MSI probability distribution data to TSV file.
 ///
@@ -181,11 +181,6 @@ fn write_plot(
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if file creation or writing fails
-///
-/// # Example
-/// ```ignore
-/// write_distribution_data(&results, "sample", Path::new("dist.tsv"), 3.5, 0.0)?;
-/// ```
 pub(super) fn write_distribution_data(
     results: &HashMap<String, AfEvolutionResult>,
     sample: &str,
@@ -241,11 +236,6 @@ pub(super) fn write_distribution_data(
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if file creation, template parsing, or writing fails
-///
-/// # Example
-/// ```ignore
-/// generate_distribution_plot_spec(&results, "tumor", Path::new("dist.vl.json"), 3.5, 0.0)?;
-/// ```
 pub(super) fn generate_distribution_plot_spec(
     results: &HashMap<String, AfEvolutionResult>,
     sample: &str,
@@ -281,7 +271,7 @@ pub(super) fn generate_distribution_plot_spec(
     Ok(())
 }
 
-/* === Output Functions Type 2: Pseudotime ======== */
+/* ============ Pseudotime Outputs ================ */
 
 /// Write MSI pseudotime evolution trajectory data to TSV file.
 ///
@@ -305,11 +295,6 @@ pub(super) fn generate_distribution_plot_spec(
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if file creation or writing fails
-///
-/// # Example
-/// ```ignore
-/// write_pseudotime_data(&results, "tumor", Path::new("pseudo.tsv"), 3.5)?;
-/// ```
 pub(super) fn write_pseudotime_data(
     results: &HashMap<String, AfEvolutionResult>,
     sample: &str,
@@ -418,11 +403,6 @@ pub(super) fn write_pseudotime_data(
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if file creation, template parsing, or writing fails
-///
-/// # Example
-/// ```ignore
-/// generate_pseudotime_plot_spec(&results, "tumor", Path::new("pseudo.vl.json"), 3.5)?;
-/// ```
 pub(super) fn generate_pseudotime_plot_spec(
     results: &HashMap<String, AfEvolutionResult>,
     sample: &str,
@@ -472,7 +452,7 @@ pub(super) fn generate_pseudotime_plot_spec(
     )
 }
 
-/* === Output Functions Type 3: Heatmap =========== */
+/* ============ Heatmap Outputs =================== */
 
 /// Write windowed MSI heatmap data to TSV file.
 ///
@@ -495,11 +475,6 @@ pub(super) fn generate_pseudotime_plot_spec(
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if file creation or writing fails
-///
-/// # Example
-/// ```ignore
-/// write_heatmap_data(&results, "tumor", Path::new("heatmap.tsv"), 3.5, 0.05)?;
-/// ```
 pub(super) fn write_heatmap_data(
     results: &[WindowResult],
     sample: &str,
@@ -559,11 +534,6 @@ pub(super) fn write_heatmap_data(
 /// # Returns
 /// * `Ok(())` on success
 /// * `Err` if file creation, template parsing, or writing fails
-///
-/// # Example
-/// ```ignore
-/// generate_heatmap_plot_spec(&results, "tumor", Path::new("heatmap.vl.json"), 3.5, 0.05)?;
-/// ```
 pub(super) fn generate_heatmap_plot_spec(
     results: &[WindowResult],
     sample: &str,
