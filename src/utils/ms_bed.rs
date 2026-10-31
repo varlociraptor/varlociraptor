@@ -11,7 +11,7 @@
 //!
 //! Note:
 //! Expected BED format: chrom, start, end, name
-//! where name follows the pattern `<count>x<motif>` (e.g., "15xCAG")
+//! where name follows the pattern `<count>x<motif>` (e.g., "15xCAG").
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -180,7 +180,7 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
 /// Collect unique chromosome names from BED file.
 ///
 /// Performs a fast scan of the BED file to identify all chromosomes
-/// present in the bed file.
+/// present in the BED file.
 ///
 /// # Algorithm
 /// Reads each BED record, extracts chromosome name, and collects
@@ -192,7 +192,7 @@ pub(crate) fn parse_bed_record(record: &bed::Record) -> Result<BedRegion> {
 ///
 /// # Returns
 /// * `Ok(HashSet<String>)` - Set of unique chromosome names from BED
-/// * `Err` if BED file cannot be read or contains invalid records
+/// * `Err` - If BED file cannot be read or contains invalid records
 pub(crate) fn collect_bed_chromosomes(bed_path: &Path) -> Result<HashSet<String>> {
     let mut bed_reader = bed::Reader::from_file(bed_path)
         .context("Failed to open BED file for chromosome collection")?;
@@ -504,6 +504,20 @@ mod tests {
         assert!(result.is_err(), "Should error on non-existent file");
     }
 
+    #[test]
+    fn test_collect_bed_chromosomes_invalid_record() {
+        let tmp = NamedTempFile::new().unwrap();
+        writeln!(tmp.as_file(), "chr1\t1000\t1021\t3xCAG").unwrap();
+        writeln!(tmp.as_file(), "chr2\t2000\t2020\tbad").unwrap(); // No 'x' separator
+        let err = collect_bed_chromosomes(tmp.path()).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiBedMotifInvalid {
+                motif: "bad".to_string()
+            })
+        );
+    }
+
     /* ===== validate_bed_file tests ================= */
 
     #[test]
@@ -528,6 +542,19 @@ mod tests {
         assert_eq!(
             err.downcast_ref::<Error>(),
             Some(&Error::MsiBedMotifNameMissing)
+        );
+    }
+
+    #[test]
+    fn test_validate_bed_file_motif_too_long() {
+        let tmp = NamedTempFile::new().unwrap();
+        writeln!(tmp.as_file(), "chr1\t100\t114\t2xAAAAAAA").unwrap();
+        let err = validate_bed_file(tmp.path()).unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiBedMotifInvalid {
+                motif: "AAAAAAA".to_string()
+            })
         );
     }
 }
