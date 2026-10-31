@@ -79,7 +79,7 @@ impl BedRegion {
 /// * `name` - BED record name field (e.g., "5xCAG")
 ///
 /// # Returns
-/// * `Ok(motif)` - Extracted motif string (e.g., "CAG")
+/// * `Ok(motif)` - Extracted motif string, uppercased (e.g., "CAG")
 /// * `Err(Error::MsiBedMotifInvalid)`
 ///     - Missing 'x' separator
 ///     - Non-numeric or zero repeat count
@@ -118,7 +118,7 @@ pub(crate) fn parse_motif_from_name(name: &str) -> Result<String> {
             motif: name.to_string(),
         }
         .into()),
-        (_, _) => Ok(motif.to_string()),
+        (_, _) => Ok(motif.to_ascii_uppercase()),
     }
 }
 
@@ -321,6 +321,7 @@ mod tests {
         assert_eq!(parse_motif_from_name("5xCAG").unwrap(), "CAG");
         assert_eq!(parse_motif_from_name("1xA").unwrap(), "A");
         assert_eq!(parse_motif_from_name("100xATCG").unwrap(), "ATCG");
+        assert_eq!(parse_motif_from_name("3xcag").unwrap(), "CAG");
     }
 
     #[test]
