@@ -217,7 +217,7 @@ pub(super) struct AnalysisConfig<'a> {
 ///
 /// Step 2 (Region 1):
 ///   p_stable_1 = 0.6, p_unstable_1 = 0.4
-///   
+///
 ///   curr_col[0] = prev_col[0] × 0.6 = 0.7 × 0.6 = 0.42
 ///   curr_col[1] = prev_col[1] × 0.6 + prev_col[0] × 0.4 = 0.3 × 0.6 + 0.7 × 0.4 = 0.46
 ///   curr_col[2] = prev_col[1] × 0.4 = 0.3 × 0.4 = 0.12
