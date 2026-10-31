@@ -322,7 +322,7 @@ fn setup_thread_pool(num_threads: Option<usize>) {
 /// Optimized for MSI analysis where most regions have ~ 1-3 variants.
 ///
 /// # Arguments
-/// * `regions` - All regions with variants (lifetime 'a)
+/// * `regions` - All regions (lifetime 'a)
 /// * `af_threshold` - Minimum AF
 ///
 /// # Returns
@@ -699,7 +699,7 @@ fn run_windowed_analysis(
 /// Responsible for generating data for pseudotime and distribution outputs.
 ///
 /// # Arguments
-/// * `regions` - Regions with variants from extraction
+/// * `regions` - Regions from extraction
 /// * `total_regions` - Total MS regions (denominator for MSI score)
 /// * `af_thresholds` - AF thresholds to analyze in parallel
 /// * `distribution_af` - Fixed AF forwarded to `calculate_msi_metrics` on each call
@@ -750,7 +750,7 @@ fn run_global_analysis(
 /// analysis across the genome.
 ///
 /// # Arguments
-/// * `regions`    - Regions with variants from extraction
+/// * `regions`    - Regions from extraction
 /// * `config`     - Config items: total regions of interest, sample, msi threshold,
 ///   AF Thresholds for pseudotime analysis, fixed distribution/windowed AF values,
 ///   windowed heatmap window size and compute resource
@@ -782,7 +782,7 @@ pub(super) fn run_af_evolution_analysis(
     info!("AF thresholds: {:?}", config.af_thresholds);
     info!("MSI-High threshold: {}%", config.msi_high_threshold);
     info!("Total regions (BED): {}", config.total_regions);
-    info!("Regions with variants: {}", regions.len());
+    info!("Regions: {}", regions.len());
     info!("Output requirements:");
     info!("    - Pseudotime: {}", output_req.needs_pseudotime);
     if output_req.needs_distribution {
