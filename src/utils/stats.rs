@@ -23,8 +23,7 @@ use bio::stats::{PHREDProb, Prob};
 /// * `phred` - PHRED-scaled probability score
 ///
 /// # Returns
-/// Mathematically in `(0.0, 1.0]`, linear probability for valid (non-negative)
-/// PHRED input - it only approaches but never reaches 0 as PHRED grows
+/// Linear probability, mathematically in `(0.0, 1.0]` for valid (non-negative) PHRED input.
 ///
 /// # Panics
 /// Panics if `phred` is negative - a negative PHRED score is not meaningful
@@ -53,7 +52,7 @@ pub(crate) fn phred_to_prob(phred: f64) -> f64 {
 /// * `value` - Count to convert (e.g. a region or allele total)
 ///
 /// # Returns
-/// `value` as `f64`, exact for any input within range
+/// `value` as `f64`, exact for any input within range.
 ///
 /// # Panics
 /// Panics if `value > 2^53` (9_007_199_254_740_992), where the conversion
