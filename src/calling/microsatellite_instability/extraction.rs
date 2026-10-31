@@ -142,7 +142,7 @@ impl ExtractionStats {
     /// Log extraction statistics alongside region-level counts.
     ///
     /// # Returns
-    /// Nothing, as all output goes through `info!`
+    /// Nothing, as all output goes through `info!`.
     pub(super) fn log_stats(&self) {
         info!("Extraction statistics:");
         info!("  - Total records read:             {}", self.total_records);
