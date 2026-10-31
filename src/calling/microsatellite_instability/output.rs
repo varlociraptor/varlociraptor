@@ -10,7 +10,7 @@
 //! 5. **Heatmap data (TSV)**: Windowed MSI scores across the genome
 //! 6. **Heatmap plot (Vega-Lite JSON)**: Spatial rect heatmap by chromosome
 //!
-//! Types 1-4 use `AfEvolutionResult` from DP analysis.
+//! Types 1-4 use `AfEvolutionResult` from global analysis.
 //! Types 5-6 use `WindowResult` from windowed analysis.
 //!
 //! # Output Requirements
@@ -18,9 +18,11 @@
 //! flag is set, checked upstream.
 //!
 //! Note:
-//! An empty-plot placeholder function (create_empty_plot) was removed
-//! as unreachable dead code - available to copy back if ever needed:
-//! <https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/estimation/microsatellite_instability/output.rs#L26>
+//! An empty-plot placeholder function (create_empty_plot) and its template
+//! (msi_empty.json) were removed as unreachable dead code - available to copy
+//! back if ever needed:
+//! 1. Function: <https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/estimation/microsatellite_instability/output.rs#L26>
+//! 2. Template: <https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/templates/plots/msi_empty.json>
 
 use std::collections::HashMap;
 use std::fs::File;
