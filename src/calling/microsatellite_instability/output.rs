@@ -3,7 +3,7 @@
 //! Output generation for MSI analysis.
 //!
 //! This module provides functions to generate six types of outputs:
-//! 1. **Distribution data (TSV)**: Probability distribution P(K=k) at AF=0.0
+//! 1. **Distribution data (TSV)**: Probability distribution P(K=k) at `distribution_af`
 //! 2. **Distribution plot (Vega-Lite JSON)**: Scatter plot of distribution
 //! 3. **Pseudotime data (TSV)**: MSI score evolution across AF thresholds
 //! 4. **Pseudotime plot (Vega-Lite JSON)**: Line plot with uncertainty bands
@@ -15,12 +15,12 @@
 //!
 //! # Output Requirements
 //! Each function is called only when the corresponding `OutputRequirements`
-//! flag is set, checked in upstream.
+//! flag is set, checked upstream.
 //!
-//! NOTE: An empty-plot placeholder function (create_empty_plot) was removed
+//! Note:
+//! An empty-plot placeholder function (create_empty_plot) was removed
 //! as unreachable dead code - available to copy back if ever needed:
 //! <https://github.com/rohan-ibn-tariq/varlociraptor/blob/56278ba1f36f8a89046c3bc9481d502ab7e0b377/src/estimation/microsatellite_instability/output.rs#L26>
-//!
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -53,7 +53,7 @@ enum PlotType {
 /// Load Vega-Lite template, inject data, apply threshold mutation,
 /// and write pretty-printed JSON to file.
 ///
-/// # How It Works
+/// # Algorithm
 /// 1. Parse template JSON from embedded string
 /// 2. Inject data array into `data.values`
 /// 3. Apply plot-type-specific threshold mutation (see below)
@@ -73,6 +73,7 @@ enum PlotType {
 /// * `path`      - Output file path
 /// * `threshold` - MSI-High threshold value
 /// * `plot_type` - Controls which template mutation is applied
+/// * `title` - Title written into the plot specification
 ///
 /// # Returns
 /// * `Ok(())` on success
@@ -163,7 +164,7 @@ fn write_plot(
 
 /// Write MSI probability distribution data to TSV file.
 ///
-/// Outputs the complete probability distribution P(K=k) at AF=0.0,
+/// Outputs the complete probability distribution P(K=k) at `distribution_af`,
 /// where k is the number of unstable microsatellite regions.
 ///
 /// # Output Format
@@ -224,7 +225,7 @@ pub(super) fn write_distribution_data(
 
 /// Generate Vega-Lite plot specification for MSI probability distribution.
 ///
-/// Creates a scatter plot showing the probability distribution P(K=k) at AF=0.0,
+/// Creates a scatter plot showing the probability distribution P(K=k) at `distribution_af`,
 /// with a vertical threshold line indicating the MSI-High cutoff.
 ///
 /// Uses embedded template from `templates/plots/msi_distribution.json`.
