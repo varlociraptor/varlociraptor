@@ -58,17 +58,16 @@ enum PlotType {
 /// 4. Write pretty-printed JSON to file
 ///
 /// # Plot Type Behavior
-/// - `WithThresholdLine`: Finds rule and text layers by mark type,
-///   then updates whichever of X or Y encoding has a `datum` field.
-///   Distribution uses X datum (vertical line), Pseudotime uses Y datum
-///   (horizontal line) - detection handles both without branching.
+/// - `WithThresholdLine`: Finds rule and text layers by mark type, then updates
+///   whichever of X or Y encoding has a `datum` field, so distribution uses X
+///   (vertical line) and pseudotime uses Y (horizontal line)
 /// - `Heatmap`: Updates `encoding.color.scale.domain[1]` to set the
-///   diverging color scale midpoint at the MSI-High threshold.
+///   diverging color scale midpoint at the MSI-High threshold
 ///
 /// # Arguments
-/// * `data`      - Data array to inject into `data.values`
-/// * `template`  - Embedded template string
-/// * `path`      - Output file path
+/// * `data` - Data array to inject into `data.values`
+/// * `template` - Embedded template string
+/// * `path` - Output file path
 /// * `threshold` - MSI-High threshold value
 /// * `plot_type` - Controls which template mutation is applied
 /// * `title` - Title written into the plot specification
@@ -173,9 +172,9 @@ fn write_plot(
 /// ```
 ///
 /// # Arguments
-/// * `results`       - Flat HashMap keyed by AF threshold string (e.g. "0.00")
-/// * `sample`        - Sample name written to the first column of each row
-/// * `path`          - Output TSV file path
+/// * `results` - Flat HashMap keyed by AF threshold string (e.g. "0.00")
+/// * `sample` - Sample name written to the first column of each row
+/// * `path` - Output TSV file path
 /// * `msi_threshold` - MSI-High threshold for column header label
 /// * `distribution_af` - Allele frequency threshold for which distribution is written
 ///
@@ -233,9 +232,9 @@ pub(super) fn write_distribution_data(
 /// - **Interactive tooltips**: MSI score, probability, k value
 ///
 /// # Arguments
-/// * `results`       - Flat HashMap keyed by AF threshold string (e.g. "0.00")
-/// * `sample`        - Sample name for plot title.
-/// * `path`          - Output JSON file path (Vega-Lite specification)
+/// * `results` - Flat HashMap keyed by AF threshold string (e.g. "0.00")
+/// * `sample` - Sample name for plot title
+/// * `path` - Output JSON file path (Vega-Lite specification)
 /// * `msi_threshold` - MSI-High threshold for vertical line position
 /// * `distribution_af` - AF threshold this distribution was computed at
 ///
@@ -298,9 +297,9 @@ pub(super) fn generate_distribution_plot_spec(
 /// ```
 ///
 /// # Arguments
-/// * `results`       - Flat HashMap keyed by AF threshold string
-/// * `sample`        - Sample name written to the first column of each row
-/// * `path`          - Output TSV file path
+/// * `results` - Flat HashMap keyed by AF threshold string
+/// * `sample` - Sample name written to the first column of each row
+/// * `path` - Output TSV file path
 /// * `msi_threshold` - MSI-High threshold for column header
 ///
 /// # Returns
@@ -411,9 +410,9 @@ pub(super) fn write_pseudotime_data(
 /// If uncertainty bounds are absent, MSI score is used for both bounds.
 ///
 /// # Arguments
-/// * `results`       - Flat HashMap keyed by AF threshold string
-/// * `sample`        - Sample name for plot title.
-/// * `path`          - Output JSON file path (Vega-Lite specification)
+/// * `results` - Flat HashMap keyed by AF threshold string
+/// * `sample` - Sample name for plot title
+/// * `path` - Output JSON file path (Vega-Lite specification)
 /// * `msi_threshold` - MSI-High threshold for horizontal line position
 ///
 /// # Returns
@@ -487,11 +486,11 @@ pub(super) fn generate_pseudotime_plot_spec(
 /// ```
 ///
 /// # Arguments
-/// * `results`       - Windowed analysis results from `run_windowed_analysis`
-/// * `sample`        - Sample name for the first column
-/// * `path`          - Output TSV file path
+/// * `results` - Windowed analysis results from `run_windowed_analysis`
+/// * `sample` - Sample name for the first column
+/// * `path` - Output TSV file path
 /// * `msi_threshold` - MSI-High threshold for column header and classification
-/// * `windowed_af`   - Fixed AF threshold windowed analysis was computed at
+/// * `windowed_af` - Fixed AF threshold windowed analysis was computed at
 ///
 /// # Returns
 /// * `Ok(())` on success
@@ -542,7 +541,7 @@ pub(super) fn write_heatmap_data(
 /// Creates a diverging-color rect heatmap where:
 /// - X-axis: genomic window position (start to end)
 /// - Y-axis: chromosome (ordinal, genomic order preserved via sort:null)
-/// - Color:  MSI score - blue (stable) through soft yellow (threshold) to red (unstable)
+/// - Color: MSI score, blue (stable) through soft yellow (threshold) to red (unstable)
 /// - Opacity: posterior probability (confidence in the score)
 /// - Tooltip: includes MSI-High/MSS classification at the given threshold
 ///
@@ -551,11 +550,11 @@ pub(super) fn write_heatmap_data(
 /// `msi_threshold` - the template uses a 3-point domain [0, threshold, 100].
 ///
 /// # Arguments
-/// * `results`       - Windowed analysis results from `run_windowed_analysis`
-/// * `sample`        - Sample name for title
-/// * `path`          - Output JSON file path
+/// * `results` - Windowed analysis results from `run_windowed_analysis`
+/// * `sample` - Sample name for title
+/// * `path` - Output JSON file path
 /// * `msi_threshold` - MSI-High threshold for color scale midpoint and classification
-/// * `windowed_af`   - Fixed AF threshold windowed analysis was computed at
+/// * `windowed_af` - Fixed AF threshold windowed analysis was computed at
 ///
 /// # Returns
 /// * `Ok(())` on success
