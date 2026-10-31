@@ -104,7 +104,7 @@ impl PreprocessMSIConfig {
     /// - None (stdout) to VCF text, uncompressed
     ///
     /// # Returns
-    /// Tuple of (`Format`, `uncompressed`) for writer creation, `true` means no compression is applied
+    /// Tuple of (`Format`, `uncompressed`) for writer creation, `true` means no compression is applied.
     fn determine_output_format(&self) -> (Format, bool) {
         match self.output.as_deref() {
             None => (Format::Vcf, true),
@@ -127,7 +127,7 @@ impl PreprocessMSIConfig {
     /// Log the input paths, the output destination and the INFO fields to propagate.
     ///
     /// # Returns
-    /// Nothing, as all output goes through `info!`
+    /// Nothing, as all output goes through `info!`.
     fn log_config(&self) {
         info!("Input files:");
         info!("BED file: {}", self.microsatellite_bed.display());
