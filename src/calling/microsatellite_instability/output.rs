@@ -46,8 +46,6 @@ enum PlotType {
     Heatmap,
 }
 
-/* ================================================ */
-
 /* ============ Plotting Utils ==================== */
 
 /// Load Vega-Lite template, inject data, apply threshold mutation,
@@ -157,8 +155,6 @@ fn write_plot(
 
     Ok(())
 }
-
-/* ================================================ */
 
 /* === Output Functions Type 1: Distribution ====== */
 
@@ -285,8 +281,6 @@ pub(super) fn generate_distribution_plot_spec(
 
     Ok(())
 }
-
-/* ================================================ */
 
 /* === Output Functions Type 2: Pseudotime ======== */
 
@@ -479,8 +473,6 @@ pub(super) fn generate_pseudotime_plot_spec(
     )
 }
 
-/* ================================================ */
-
 /* === Output Functions Type 3: Heatmap =========== */
 
 /// Write windowed MSI heatmap data to TSV file.
@@ -607,8 +599,6 @@ pub(super) fn generate_heatmap_plot_spec(
         ),
     )
 }
-
-/* ================================================ */
 
 #[cfg(test)]
 mod tests {
