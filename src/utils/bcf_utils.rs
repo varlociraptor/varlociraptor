@@ -251,7 +251,7 @@ pub(crate) fn is_phred_scaled_from_path(vcf_path: &Path) -> Result<bool> {
 /// * `allele` - Allele sequence as byte slice
 ///
 /// # Returns
-/// `true` if allele is a breakend, `false` otherwise
+/// `true` if allele is a breakend, `false` otherwise.
 pub(crate) fn is_breakend(allele: &[u8]) -> bool {
     allele.iter().any(|&c| c == b'[' || c == b']')
         || (allele.len() > 1 && (allele.starts_with(b".") || allele.ends_with(b".")))
@@ -268,7 +268,7 @@ pub(crate) fn is_breakend(allele: &[u8]) -> bool {
 /// * `field` - INFO field name as bytes (e.g., b"REGION_ID")
 ///
 /// # Returns
-/// `true` if the field is set on this record, `false` otherwise
+/// `true` if the field is set on this record, `false` otherwise.
 pub fn record_has_info_string(record: &bcf::Record, field: &[u8]) -> bool {
     record.info(field).string().ok().flatten().is_some()
 }
@@ -307,7 +307,7 @@ pub fn get_info_strings(record: &bcf::Record, field: &[u8]) -> Option<Vec<String
 /// * `field` - INFO flag name as bytes (e.g., b"MSI_DUMMY")
 ///
 /// # Returns
-/// `true` if flag is present, `false` if absent or on error
+/// `true` if flag is present, `false` if absent or on error.
 pub fn record_has_info_flag(record: &bcf::Record, field: &[u8]) -> bool {
     record.info(field).flag().unwrap_or(false)
 }
@@ -901,7 +901,7 @@ pub(crate) mod tests {
     /// * `path` - Path to VCF/BCF file
     ///
     /// # Returns
-    /// `bcf::Record` for testing
+    /// `bcf::Record` for testing.
     pub(crate) fn read_first_record(path: &Path) -> bcf::Record {
         let mut reader = bcf::Reader::from_path(path).unwrap();
         reader.records().next().unwrap().unwrap()
@@ -917,7 +917,7 @@ pub(crate) mod tests {
     /// * `alt_alleles` - Slice of ALT allele byte slices (e.g. `&[b"ACAGCAG", b"A"]`)
     ///
     /// # Returns
-    /// Configured BCF record ready for testing
+    /// Configured BCF record ready for testing.
     pub(crate) fn create_test_record_multi_alt(
         writer: &bcf::Writer,
         rid: u32,
@@ -944,7 +944,7 @@ pub(crate) mod tests {
     /// * `alt_allele` - Alternate allele (e.g., b"T")
     ///
     /// # Returns
-    /// Configured VCF record ready for testing
+    /// Configured VCF record ready for testing.
     pub(crate) fn create_test_record(
         writer: &bcf::Writer,
         rid: u32,
@@ -966,7 +966,7 @@ pub(crate) mod tests {
     ///   `header_lines`, in declaration order
     ///
     /// # Returns
-    /// A `NamedTempFile` with a `.vcf` suffix containing the resulting VCF
+    /// A `NamedTempFile` with a `.vcf` suffix containing the resulting VCF.
     ///
     /// # Note
     /// Unlike [`create_test_vcf`], which builds exactly one feature-rich
