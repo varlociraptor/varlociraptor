@@ -524,15 +524,11 @@ pub(crate) fn validate_samples_exist(
 ///
 /// # Returns
 /// * `Ok(())` if all event fields exist with the correct type/shape
-/// * `Err` if any event field is missing, or exists with the wrong type/shape
-///
-/// # Errors
-/// * `VcfEventsMissing` if any INFO/PROB_{EVENT} field is not found, with the
+/// * `Err(Error::VcfEventsMissing)` if any INFO/PROB_{EVENT} field is not found, with the
 ///   missing events listed comma-separated in the error message
-/// * `VcfHeaderFieldTypeInvalid` if a PROB_{EVENT} field is found but isn't
-///   `Type=Float, Number=A`
-/// * A wrong-type field returns immediately, so any missing events are not
-///   reported in that case
+/// * `Err(Error::VcfHeaderFieldTypeInvalid)` if a PROB_{EVENT} field is found but isn't
+///   `Type=Float, Number=A`, in which case it returns immediately and any missing
+///   events are not reported
 ///
 /// # Event Field Mapping
 /// ```text
@@ -661,8 +657,8 @@ pub(crate) mod tests {
         pub(crate) prob_high_vaf: Option<Vec<f32>>,
         pub(crate) num_samples: usize,
         pub(crate) use_phred: bool,
-        /// Extra INFO fields: (id, number, type, description, value)
-        /// e.g. (b"COSMIC_ID", b"1", b"String", b"COSMIC ID", b"COSM123")
+        /// Extra INFO fields as `(id, number, type, description, value)`,
+        /// e.g. `(b"COSMIC_ID", b"1", b"String", b"COSMIC ID", b"COSM123")`.
         pub(crate) extra_info_fields: Vec<(&'a [u8], &'a [u8], &'a [u8], &'a [u8], &'a [u8])>,
         pub(crate) write_prob_somatic: bool,
         pub(crate) write_prob_high_vaf: bool,
@@ -699,7 +695,8 @@ pub(crate) mod tests {
     /// * `config` - Alleles, probabilities, AF values, samples and extra INFO fields to write
     ///
     /// # Returns
-    /// `(tmp_file, sample_names)` - keep `tmp_file` alive for the duration of the test, names are `sample1..sampleN`
+    /// `(tmp_file, sample_names)`, where `tmp_file` must be kept alive for the duration
+    /// of the test and the names are `sample1..sampleN`.
     pub(crate) fn create_test_vcf(config: TestVcfConfig) -> (NamedTempFile, Vec<String>) {
         let tmp = NamedTempFile::new().unwrap();
         let path = tmp.path();
@@ -895,7 +892,7 @@ pub(crate) mod tests {
         reader.header().clone()
     }
 
-    /// Read the first record from a VCF/BCF file (without header).
+    /// Read the first record from a VCF/BCF file.
     ///
     /// # Arguments
     /// * `path` - Path to VCF/BCF file
