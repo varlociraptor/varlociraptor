@@ -42,13 +42,10 @@ use dp_analysis::AnalysisConfig;
 
 /* ======== CLI CONFIGURATION ===================== */
 
-/// Output requirements for optimizing calculations(conditional generation of metrics):
+/// Output requirements that decide which computations are run.
 ///
 /// Determines which expensive computations are needed based on
 /// which output files the user requested.
-///     - needs_pseudotime: For pseudotime data
-///     - needs_distribution: For distribution data
-///     - needs_heatmap: For heatmap data
 #[derive(Debug, Clone, Copy)]
 struct OutputRequirements {
     /// Whether pseudotime outputs are requested (total regions, MAP k, MSI score, regions
