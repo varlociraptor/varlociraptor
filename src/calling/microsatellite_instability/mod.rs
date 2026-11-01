@@ -451,7 +451,7 @@ mod tests {
     use std::path::Path;
     use tempfile::NamedTempFile;
 
-    /// `create_test_vcf`'s temp file has no extension, but MSIConfig::validate()'s
+    /// Helper: `create_test_vcf`'s temp file has no extension, but MSIConfig::validate()'s
     /// first check (crate::cli::validate_vcf_file) requires a .vcf-style filename.
     /// Copy the generated content into a properly-suffixed temp file.
     fn create_test_vcf_named(config: TestVcfConfig) -> (NamedTempFile, Vec<String>) {
@@ -461,7 +461,7 @@ mod tests {
         (named_tmp, sample_names)
     }
 
-    /// Build a config that passes every check, so each test can break exactly one field.
+    /// Helper: Build a config that passes every check, so each test can break exactly one field.
     fn valid_config(calls: &Path, sample: String) -> MSIConfig {
         MSIConfig {
             calls: calls.to_path_buf(),
@@ -482,6 +482,8 @@ mod tests {
             is_phred: false,
         }
     }
+
+    /* ============ validate tests =================== */
 
     #[test]
     fn test_validate_succeeds_with_valid_config() {
@@ -637,6 +639,8 @@ mod tests {
 
         assert!(config.validate().is_err());
     }
+
+    /* ============ set_defaults tests =============== */
 
     #[test]
     fn test_set_defaults_detects_linear_scale() {
