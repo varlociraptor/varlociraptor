@@ -69,7 +69,7 @@ pub struct MSIConfig {
     pub calls: PathBuf,
     /// Sample name to analyze from VCF/BCF.
     pub sample: String,
-    /// Event names to combine for MSI probability (e.g., ["somatic_tumor", "high_vaf"].
+    /// Event names to combine for MSI probability (e.g., ["somatic_tumor", "high_vaf"]).
     pub events: Vec<String>,
     /// MSI-High classification threshold (percentage), default: 3.5.
     pub msi_threshold: f32,
