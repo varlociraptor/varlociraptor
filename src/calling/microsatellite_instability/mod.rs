@@ -51,11 +51,13 @@ use dp_analysis::AnalysisConfig;
 ///     - needs_heatmap: For heatmap data
 #[derive(Debug, Clone, Copy)]
 struct OutputRequirements {
-    /// Whether to compute uncertainty bounds (std dev, lower/upper)
+    /// Whether pseudotime outputs are requested (total regions, MAP k, MSI score, regions
+    /// passing the AF threshold, MAP standard deviation and uncertainty bounds,
+    /// across the full AF threshold list).
     needs_pseudotime: bool,
-    /// Whether to compute full probability distribution
+    /// Whether the full probability distribution at `distribution_af` is requested.
     needs_distribution: bool,
-    /// Whether to compute windowed heatmap analysis
+    /// Whether windowed heatmap analysis is requested.
     needs_heatmap: bool,
 }
 
