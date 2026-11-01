@@ -169,9 +169,9 @@ fn write_plot(
 /// Tab-separated values with header:
 /// ```text
 /// sample  distribution_af  k   msi_score(threshold=3.5)    probability
-/// tumor   0.00             0   0.00    0.420000
-/// tumor   0.00             1   1.00    0.460000
-/// tumor   0.00             2   2.00    0.120000
+/// tumor   0.00             0   0.00                        0.420000000000
+/// tumor   0.00             1   1.00                        0.460000000000
+/// tumor   0.00             2   2.00                        0.120000000000
 /// ```
 ///
 /// # Arguments
@@ -283,8 +283,8 @@ pub(super) fn generate_distribution_plot_spec(
 /// Tab-separated values, sorted highest to lowest AF threshold.
 /// ```text
 /// sample    af_threshold    total_regions    msi_score(threshold=3.5)    k_map    regions_af_pass    msi_status    uncertainty_lower    uncertainty_upper    map_std_dev
-/// tumor     1.0             40               0.00                       0        20                 MSS          0.00                0.00                 0.000000
-/// tumor     0.8             40               2.50                       2        35                 MSS          1.80                3.20                 0.700000
+/// tumor     1.00            40               0.00                        0        20                 MSS           0.00                 0.00                 0.000000
+/// tumor     0.80            40               2.50                        2        35                 MSS           1.80                 3.20                 0.700000
 /// ```
 ///
 /// # Arguments
@@ -343,11 +343,11 @@ pub(super) fn write_pseudotime_data(
             .unwrap_or_else(|| "NA".to_string());
         let lower = result
             .uncertainty_lower
-            .map(|v| format!("{:.4}", v))
+            .map(|v| format!("{:.2}", v))
             .unwrap_or_else(|| "NA".to_string());
         let upper = result
             .uncertainty_upper
-            .map(|v| format!("{:.4}", v))
+            .map(|v| format!("{:.2}", v))
             .unwrap_or_else(|| "NA".to_string());
         let std_dev = result
             .map_std_dev
@@ -463,7 +463,7 @@ pub(super) fn generate_pseudotime_plot_spec(
 /// # Output Format
 /// ```text
 /// sample  windowed_af  chrom  window_start  window_end  msi_score(threshold=3.5)  posterior_probability  regions_in_window  msi_status
-/// tumor   0.05         chr1   0             1000000     2.5000                    0.820000               40                 MSS
+/// tumor   0.05         chr1   0             1000000     2.50                      0.820000000000         40                 MSS
 /// ```
 ///
 /// # Arguments
@@ -495,7 +495,7 @@ pub(super) fn write_heatmap_data(
     for r in results {
         writeln!(
             writer,
-            "{}\t{:.2}\t{}\t{}\t{}\t{:.4}\t{:.6}\t{}\t{}",
+            "{}\t{:.2}\t{}\t{}\t{}\t{:.2}\t{:.12}\t{}\t{}",
             sample,
             windowed_af,
             r.chrom,
@@ -519,7 +519,9 @@ pub(super) fn write_heatmap_data(
 /// - Y-axis: chromosome (ordinal, genomic order preserved via sort:null)
 /// - Color: MSI score, blue (stable) through soft yellow (threshold) to red (unstable)
 /// - Opacity: posterior probability (confidence in the score)
-/// - Tooltip: includes MSI-High/MSS classification at the given threshold
+/// - Tooltip: chromosome, window start and end, MSI score, confidence, region
+///   count, and MSI-High/MSS classification at the given threshold
+/// - Outline: red stroke on MSI-High windows
 ///
 /// Uses `write_plot` with embedded template `templates/plots/msi_heatmap.json`.
 /// `write_plot` dynamically updates the color scale midpoint to match
@@ -763,7 +765,8 @@ mod tests {
         assert!(row.starts_with("tumor"));
         assert!(row.contains("chr1"));
         assert!(row.contains(MsiStatus::Stable.as_str())); // MSI status
-        assert!(row.contains("0.8000")); // posterior
+        assert!(row.contains("0.800000000000")); // posterior
+        assert!(row.contains("2.50"));
     }
 
     /* ==== generate_heatmap_plot_spec tests ========= */

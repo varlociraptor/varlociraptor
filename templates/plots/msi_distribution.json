@@ -26,7 +26,7 @@
                 },
                 "tooltip": [
                     { "field": "msi_score", "type": "quantitative", "title": "MSI Score (%)", "format": ".2f" },
-                    { "field": "probability", "type": "quantitative", "title": "Probability", "format": ".6f" },
+                    { "field": "probability", "type": "quantitative", "title": "Probability", "format": ".12f" },
                     { "field": "k", "type": "quantitative", "title": "k (unstable regions)" }
                 ]
             }
