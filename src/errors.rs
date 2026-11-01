@@ -242,7 +242,7 @@ pub(crate) enum Error {
         distribution_af: f32,
         af_thresholds: Vec<f32>,
     },
-    #[error("at least one output must be specified: use --plot-pseudotime, --plot-distribution, --data-pseudotime, or --data-distribution")]
+    #[error("at least one output must be specified: use --plot-distribution, --plot-pseudotime, --plot-heatmap, --data-distribution, --data-pseudotime, or --data-heatmap")]
     MsiConfigOutputMissing,
     /* -------------------- BED File Errors -------------------------- */
     #[error(
