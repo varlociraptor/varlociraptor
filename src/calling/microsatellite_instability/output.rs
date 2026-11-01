@@ -675,7 +675,8 @@ mod tests {
             .filter(|layer| {
                 let mark_type = layer["mark"]["type"].as_str();
                 mark_type == Some("rule")
-                    || layer["encoding"]["text"]["value"].as_str() == Some("MSI Threshold")
+                    || (mark_type == Some("text")
+                        && layer["encoding"]["text"]["value"].as_str() == Some("MSI Threshold"))
             })
             .collect();
 
@@ -728,7 +729,8 @@ mod tests {
             .filter(|layer| {
                 let mark_type = layer["mark"]["type"].as_str();
                 mark_type == Some("rule")
-                    || layer["encoding"]["text"]["value"].as_str() == Some("MSI Threshold")
+                    || (mark_type == Some("text")
+                        && layer["encoding"]["text"]["value"].as_str() == Some("MSI Threshold"))
             })
             .collect();
 
