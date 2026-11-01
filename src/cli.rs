@@ -464,7 +464,7 @@ pub enum PreprocessKind {
             long,
             short = "o",
             parse(from_os_str),
-            help = "Output file (VCF, BCF, or VCF.GZ; if omitted, writes uncompressed VCF to STDOUT)"
+            help = "Output file. Format is inferred from the extension: .vcf, .vcf.gz, .vcf.bgz, .bcf or .bcf.gz (any other extension gives uncompressed VCF). If omitted, writes uncompressed VCF to STDOUT."
         )]
         output: Option<PathBuf>,
         #[structopt(
