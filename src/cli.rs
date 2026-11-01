@@ -105,7 +105,7 @@ pub(crate) fn validate_vcf_file(path: &Path) -> Result<()> {
 pub(crate) fn validate_thread_count(threads: Option<usize>) -> Result<()> {
     if let Some(count) = threads {
         if count < MIN_THREAD_COUNT {
-            bail!(errors::Error::ThreadCountInvalid { count: (count) });
+            bail!(errors::Error::ThreadCountInvalid { count });
         }
     }
     Ok(())
@@ -819,7 +819,7 @@ pub enum CallKind {
             long,
             required = true,
             multiple = true,
-            help = "Event names to combine for MSI analysis (e.g., --events somatic_tumor high_vaf_somatic)"
+            help = "Event names to combine for MSI analysis (e.g., --events somatic_tumor high_vaf_somatic)."
         )]
         events: Vec<String>,
         #[structopt(
@@ -1519,7 +1519,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     info!("MSI Calling");
                     info!("==============================================");
                     info!("----------------------------------------------");
-                    info!("Step 0: Setting up Configuration, Validating It  & Setting Defaults");
+                    info!("Step 0: Setting up Configuration, Validating It & Setting Defaults");
                     info!("----------------------------------------------");
 
                     /* Set up calling configuration */
@@ -1542,7 +1542,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         data_heatmap,
                     };
 
-                    /* Validate the configuration and set defaults*/
+                    /* Validate the configuration and set defaults */
                     config.validate()?;
                     config.set_defaults()?;
 
