@@ -324,9 +324,9 @@ pub(super) fn process_and_annotate(
             let ready = match entry {
                 WindowEntry::Dummy(..) => true,
                 WindowEntry::Real(_) if entry.chrom() < region.chrom.as_str() => true,
-                WindowEntry::Real(_) if entry.chrom() == region.chrom.as_str() => entry
-                    .max_safe_pos()
-                    .is_none_or(|position| position < region.start),
+                WindowEntry::Real(_) if entry.chrom() == region.chrom.as_str() => {
+                    entry.max_safe_pos().unwrap_or_else(|| entry.pos()) < region.start
+                }
                 _ => false,
             };
             if !ready {
