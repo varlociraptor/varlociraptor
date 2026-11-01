@@ -38,7 +38,7 @@ use crate::utils::bcf_utils::{
 
 use dp_analysis::AnalysisConfig;
 
-/* ======== CLI CONFIGURATION ===================== */
+/* ============ Data Structures =================== */
 
 /// Output requirements that decide which computations are run.
 ///
@@ -297,7 +297,7 @@ impl MSIConfig {
     }
 }
 
-/* ================================================ */
+/* ============ Functions ========================= */
 
 /// Run the MSI calling workflow end to end.
 ///
