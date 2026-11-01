@@ -5,19 +5,17 @@
 //!
 //! **Note: This feature is experimental.**
 //!
-//! This module provides:
 //! Owns `MSIConfig` (CLI configuration) and `call_msi` (the entry point
 //! that orchestrates extraction, analysis, and output). Declares these
 //! child submodules:
-//! 1. `extraction`  - extracts MSI regions and their variant/dummy status
-//!    from the enriched, called VCF/BCF.
+//! 1. `extraction` - extracts MSI regions and their variant/dummy status
+//!    from the enriched, called VCF/BCF
 //! 2. `dp_analysis` - runs dynamic-programming AF-evolution analysis
-//!    (global distribution/pseudotime, plus windowed heatmap analysis).
-//! 3. `output`      - writes TSV data files and Vega-Lite plot specs for
-//!    distribution, pseudotime, and heatmap outputs.
+//!    (global distribution/pseudotime, plus windowed heatmap analysis)
+//! 3. `output` - writes TSV data files and Vega-Lite plot specs for
+//!    distribution, pseudotime, and heatmap outputs
 //! 4. `preprocessing` - contains the MSI preprocessing pipeline, which is
-//!    used to generate the enriched VCF/BCF that is the input to this module.
-//!
+//!    used to generate the enriched VCF/BCF that is the input to this module
 
 mod dp_analysis;
 mod extraction;
