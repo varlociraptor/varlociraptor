@@ -191,7 +191,7 @@ pub(super) fn write_distribution_data(
     msi_threshold: f32,
     distribution_af: f32,
 ) -> Result<()> {
-    let file = File::create(path).context("Failed to create Distribution data TSV.")?;
+    let file = File::create(path).context("Failed to create distribution TSV")?;
     let mut writer = BufWriter::new(file);
     let af_key = format!("{:.2}", distribution_af);
 
@@ -269,9 +269,7 @@ pub(super) fn generate_distribution_plot_spec(
             "MSI Score Distribution — Sample: {} (AF ≥ {:.2})",
             sample, distribution_af
         ),
-    )?;
-
-    Ok(())
+    )
 }
 
 /* ============ Pseudotime Outputs ================ */
@@ -304,7 +302,7 @@ pub(super) fn write_pseudotime_data(
     path: &Path,
     msi_threshold: f32,
 ) -> Result<()> {
-    let file = File::create(path).context("Failed to create Pseudotime data TSV.")?;
+    let file = File::create(path).context("Failed to create pseudotime TSV")?;
     let mut writer = BufWriter::new(file);
 
     writeln!(
