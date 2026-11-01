@@ -138,6 +138,10 @@ impl MSIConfig {
     /// 8. `sliding_window`: != 0 when a heatmap output is requested
     /// 9. `threads`: if given, is >= `MIN_THREAD_COUNT`
     /// 10. Output paths: checks at least one output is specified
+    ///
+    /// # Returns
+    /// * `Ok(())` if every check passes
+    /// * `Err` if any check fails
     pub fn validate(&self) -> Result<()> {
         // --- calls ---
         validate_vcf_file(&self.calls)?;
