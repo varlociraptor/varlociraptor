@@ -74,8 +74,9 @@ pub struct MSIConfig {
     /// MSI-High classification threshold (percentage), default: 3.5.
     pub msi_threshold: f32,
     /// Allele frequency thresholds to consider for AF evolution analysis
-    /// when generating pseudotime outputs. (default: [1.0,0.8,0.6,0.4,0.2,0.0])
-    /// If no pseudotime outputs are requested, this will be set to [0.0] to optimize computation.
+    /// when generating pseudotime outputs (default: `MSI_DEFAULT_AF_THRESHOLDS`).
+    /// Otherwise `call_msi` uses a trimmed local copy: `[distribution_af]` for
+    /// distribution-only runs, empty for heatmap-only runs.
     pub af_thresholds: Vec<f32>,
     /// Fixed AF at which the full P(K=k) distribution is reported.
     /// Must be present in `af_thresholds` - enforced in `validate()`.
