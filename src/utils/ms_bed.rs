@@ -215,18 +215,18 @@ pub(crate) fn collect_bed_chromosomes(bed_path: &Path) -> Result<HashSet<String>
 /// Validate BED file by checking first record.
 ///
 /// Performs quick sanity check to ensure BED file is readable
-/// and contains valid microsatellite region format.
+/// and its first record parses as a microsatellite region.
 ///
 /// # Arguments
 /// * `bed_path` - Path to BED file
 ///
 /// # Returns
-/// * `Ok(())` if the file is readable and its first record is valid
+/// * `Ok(())` if the file is readable and its first record parses
 /// * `Err`
 ///     - File cannot be opened
 ///     - File is empty
 ///     - First record cannot be read
-///     - First record is invalid
+///     - First record fails `parse_bed_record`
 pub(crate) fn validate_bed_file(bed_path: &Path) -> Result<()> {
     info!("Validating BED file: {}", bed_path.display());
 
@@ -237,16 +237,14 @@ pub(crate) fn validate_bed_file(bed_path: &Path) -> Result<()> {
         Some(Err(e)) => Err(e).context("Failed to read first BED record"),
         Some(Ok(record)) => {
             let first_region = parse_bed_record(&record)?;
-            if !first_region.is_valid_motif() {
-                return Err(Error::MsiBedMotifInvalid {
-                    motif: first_region.motif,
-                }
-                .into());
-            }
 
             info!(
-                "  - First region: ({} {}-{} motif={}) valid-motif=true",
-                first_region.chrom, first_region.start, first_region.end, first_region.motif,
+                "  - First region: ({} {}-{} motif={}) valid-motif={}",
+                first_region.chrom,
+                first_region.start,
+                first_region.end,
+                first_region.motif,
+                first_region.is_valid_motif(),
             );
             info!("  - BED file's first record validated successfully");
             Ok(())
@@ -547,15 +545,9 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_bed_file_motif_too_long() {
+    fn test_validate_bed_file_long_motif_first_record_accepted() {
         let tmp = NamedTempFile::new().unwrap();
         writeln!(tmp.as_file(), "chr1\t100\t114\t2xAAAAAAA").unwrap();
-        let err = validate_bed_file(tmp.path()).unwrap_err();
-        assert_eq!(
-            err.downcast_ref::<Error>(),
-            Some(&Error::MsiBedMotifInvalid {
-                motif: "AAAAAAA".to_string()
-            })
-        );
+        assert!(validate_bed_file(tmp.path()).is_ok());
     }
 }
