@@ -1274,13 +1274,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     info!("==============================================");
 
                     /* Set up preprocessing configuration */
-                    let config =
-                        calling::microsatellite_instability::preprocessing::PreprocessMSIConfig {
-                            microsatellite_bed,
-                            candidate_vcf,
-                            output,
-                            propagate_info_fields,
-                        };
+                    let config = calling::microsatellite_instability::PreprocessMSIConfig {
+                        microsatellite_bed,
+                        candidate_vcf,
+                        output,
+                        propagate_info_fields,
+                    };
 
                     /* Validate the configuration */
                     info!("----------------------------------------------");
@@ -1289,9 +1288,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     config.validate()?;
 
                     /* Dispatch preprocessing */
-                    calling::microsatellite_instability::preprocessing::preprocess_ms_candidates(
-                        config,
-                    )?;
+                    calling::microsatellite_instability::preprocess_ms_candidates(config)?;
                 }
             }
         }

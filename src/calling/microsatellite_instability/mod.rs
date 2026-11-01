@@ -20,7 +20,8 @@
 mod dp_analysis;
 mod extraction;
 mod output;
-pub mod preprocessing;
+mod preprocessing;
+pub use preprocessing::{preprocess_ms_candidates, PreprocessMSIConfig};
 
 use std::path::PathBuf;
 
@@ -44,7 +45,7 @@ use dp_analysis::AnalysisConfig;
 ///
 /// Determines which expensive computations are needed based on
 /// which output files the user requested.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 struct OutputRequirements {
     /// Whether pseudotime outputs are requested (total regions, MAP k, MSI score, regions
     /// passing the AF threshold, MAP standard deviation and uncertainty bounds,
@@ -60,7 +61,6 @@ struct OutputRequirements {
 ///
 /// Contains all parameters needed for per-sample MSI analysis,
 /// populated from CLI arguments.
-#[derive(Debug)]
 pub struct MSIConfig {
     /// Path to VCF/BCF file with variant calls.
     pub calls: PathBuf,
