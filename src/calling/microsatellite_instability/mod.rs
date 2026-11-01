@@ -228,10 +228,17 @@ impl MSIConfig {
         Ok(())
     }
 
-    /// Log configuration details:
-    ///   - Input file, sample, events
-    ///   - Threshold and AF settings
-    ///   - Requested outputs
+    /// Log the input file, sample, events, MSI threshold, thread count,
+    /// probability scale and requested output paths.
+    ///
+    /// The AF thresholds, distribution AF, and windowed AF with window size
+    /// are logged only when the matching output is requested.
+    ///
+    /// # Arguments
+    /// * `output_req` - Requested outputs, which decide the AF settings that are logged
+    ///
+    /// # Returns
+    /// Nothing, as all output goes through `info!`.
     fn log_config(&self, output_req: &OutputRequirements) {
         info!("Input file: {}", self.calls.display());
         info!("Sample: {}", self.sample);
