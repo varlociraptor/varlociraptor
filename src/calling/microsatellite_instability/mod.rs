@@ -97,7 +97,7 @@ pub struct MSIConfig {
     pub data_pseudotime: Option<PathBuf>,
     /// Output path for heatmap data (TSV).
     pub data_heatmap: Option<PathBuf>,
-    /// Whether the probabilities in the VCF are PHRED-scaled.
+    /// Whether the probabilities in the VCF are PHRED-scaled (set by `set_defaults`).
     pub is_phred: bool,
 }
 
