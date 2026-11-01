@@ -288,7 +288,7 @@ pub(super) fn generate_distribution_plot_spec(
 /// ```
 ///
 /// # Arguments
-/// * `results` - Flat HashMap keyed by AF threshold string
+/// * `results` - Flat HashMap keyed by AF threshold string (every entry must have its pseudotime fields set)
 /// * `sample` - Sample name written to the first column of each row
 /// * `path` - Output TSV file path
 /// * `msi_threshold` - MSI-High threshold for column header
@@ -321,7 +321,7 @@ pub(super) fn write_pseudotime_data(
         })
         .collect();
 
-    af_pairs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    af_pairs.sort_by(|a, b| b.0.total_cmp(&a.0));
 
     for (af_f32, af_str) in af_pairs {
         let result = match results.get(&af_str) {
@@ -329,47 +329,21 @@ pub(super) fn write_pseudotime_data(
             None => continue,
         };
 
-        let msi_score_str = result
-            .msi_score_map
-            .map(|v| format!("{:.2}", v))
-            .unwrap_or_else(|| "NA".to_string());
-        let k_map_str = result
-            .k_map
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "NA".to_string());
-        let regions_str = result
-            .regions_af_pass
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "NA".to_string());
-        let lower = result
-            .uncertainty_lower
-            .map(|v| format!("{:.2}", v))
-            .unwrap_or_else(|| "NA".to_string());
-        let upper = result
-            .uncertainty_upper
-            .map(|v| format!("{:.2}", v))
-            .unwrap_or_else(|| "NA".to_string());
-        let std_dev = result
-            .map_std_dev
-            .map(|v| format!("{:.6}", v))
-            .unwrap_or_else(|| "NA".to_string());
+        let msi_score = result.msi_score_map.unwrap();
 
         writeln!(
             writer,
-            "{}\t{:.2}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{:.2}\t{}\t{:.2}\t{}\t{}\t{}\t{:.2}\t{:.2}\t{:.6}",
             sample,
             af_f32,
             result.total_regions,
-            msi_score_str,
-            k_map_str,
-            regions_str,
-            result
-                .msi_score_map
-                .map(|s| classify_msi_status(s, msi_threshold).as_str())
-                .unwrap_or("NA"),
-            lower,
-            upper,
-            std_dev
+            msi_score,
+            result.k_map.unwrap(),
+            result.regions_af_pass.unwrap(),
+            classify_msi_status(msi_score, msi_threshold),
+            result.uncertainty_lower.unwrap(),
+            result.uncertainty_upper.unwrap(),
+            result.map_std_dev.unwrap()
         )?;
     }
 
@@ -392,11 +366,8 @@ pub(super) fn write_pseudotime_data(
 /// - **Reversed X-axis**: 1.0 (left) to 0.0 (right), showing temporal flow
 /// - **Interactive tooltips**: AF threshold, MSI score, bounds
 ///
-/// # Uncertainty Handling
-/// If uncertainty bounds are absent, MSI score is used for both bounds.
-///
 /// # Arguments
-/// * `results` - Flat HashMap keyed by AF threshold string
+/// * `results` - Flat HashMap keyed by AF threshold string (every entry must have its pseudotime fields set)
 /// * `sample` - Sample name for plot title
 /// * `path` - Output JSON file path (Vega-Lite specification)
 /// * `msi_threshold` - MSI-High threshold for horizontal line position
@@ -422,7 +393,7 @@ pub(super) fn generate_pseudotime_plot_spec(
         })
         .collect();
 
-    af_pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    af_pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
 
     for (af_f32, af_str) in &af_pairs {
         let result = match results.get(af_str) {
@@ -430,16 +401,13 @@ pub(super) fn generate_pseudotime_plot_spec(
             None => continue,
         };
 
-        let msi_score = match result.msi_score_map {
-            Some(v) => v,
-            None => continue, // no computed score for this AF threshold - skip the point
-        };
+        let msi_score = result.msi_score_map.unwrap();
 
         data.push(json!({
             "af_threshold": af_f32,
             "msi_score": msi_score,
-            "lower_bound": result.uncertainty_lower.unwrap_or(msi_score),
-            "upper_bound": result.uncertainty_upper.unwrap_or(msi_score),
+            "lower_bound": result.uncertainty_lower.unwrap(),
+            "upper_bound": result.uncertainty_upper.unwrap(),
         }));
     }
 
