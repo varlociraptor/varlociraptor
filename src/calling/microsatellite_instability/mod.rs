@@ -102,9 +102,14 @@ pub struct MSIConfig {
 }
 
 impl MSIConfig {
-    /// Set default values for MSIConfig fields based on functional logic.
-    /// Defaults Set:
-    /// 1. Set is_phred based on events sepcification.
+    /// Set default values for `MSIConfig` fields based on functional logic.
+    ///
+    /// Currently sets `is_phred` from the descriptions of the `PROB_{event}`
+    /// header fields in `calls`. Callers run `validate` first.
+    ///
+    /// # Returns
+    /// * `Ok(())` once `is_phred` is set
+    /// * `Err` from `is_phred_scaled_from_path` if the calls file cannot be opened
     pub fn set_defaults(&mut self) -> Result<()> {
         self.is_phred = is_phred_scaled_from_path(&self.calls)?;
         Ok(())
