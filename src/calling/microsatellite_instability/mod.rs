@@ -529,7 +529,6 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.af_thresholds = vec![1.0, 0.5, 0.0];
         config.distribution_af = 0.7; // not present in af_thresholds
 
         let result = config.validate();
@@ -572,7 +571,7 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.msi_threshold = 0.0; // must be > MIN_MSI_THRESHOLD (0.0)
+        config.msi_threshold = 0.0; // must be > MSI_MIN_THRESHOLD (0.0)
 
         assert!(config.validate().is_err());
     }
