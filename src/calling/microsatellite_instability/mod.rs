@@ -295,8 +295,23 @@ impl MSIConfig {
 
 /* ================================================ */
 
-/// Orchestrates the MSI calling workflow: extract regions from a preprocessed +
-/// called VCF/BCF, run AF-evolution analysis, then write requested outputs.
+/// Run the MSI calling workflow end to end.
+///
+/// Extracts the MS regions from the preprocessed and called VCF/BCF, runs the
+/// AF-evolution analysis on them, then writes each requested output.
+/// Callers run `MSIConfig::validate` and `MSIConfig::set_defaults` first.
+///
+/// # Arguments
+/// * `config` - MSI calling configuration
+///
+/// # Returns
+/// * `Ok(())` once every requested output has been written
+/// * `Err` with context `Failed to open calls VCF/BCF` if the calls file cannot be opened
+/// * `Err(Error::VcfSamplesMissing)` if the sample is not in the calls header
+/// * `Err` from `extract_regions` if region extraction fails
+/// * `Err(Error::MsiBedRegionsEmpty)` if no MS regions are found
+/// * `Err` from `run_af_evolution_analysis` if the analysis fails
+/// * `Err` from the first output writer that fails
 pub fn call_msi(config: MSIConfig) -> Result<()> {
     info!("----------------------------------------------");
     info!("Step 1: Configuration");
