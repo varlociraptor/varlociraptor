@@ -117,27 +117,27 @@ impl MSIConfig {
 
     /// Validate the MSI configuration.
     ///
-    /// Responsibilities:
+    /// Checks run in this order and stop at the first failure:
     /// 1. `calls`: validates file extension, opens the file, checks it
     ///    contains at least one variant record, and that its header declares
     ///    FORMAT/AF (Float, one value per ALT allele) and the preprocessing
-    ///    fields INFO/REGION_ID (String) and INFO/MSI_DUMMY (Flag).
-    /// 2. `sample`: validates the calls file contains the specified sample.
+    ///    fields INFO/REGION_ID (String) and INFO/MSI_DUMMY (Flag)
+    /// 2. `sample`: validates the calls file contains the specified sample
     /// 3. `events`: validates the calls file contains the specified events in
     ///    the header, with each INFO/PROB_{EVENT} field having the correct
-    ///    type/shape.
-    /// 4. `msi_threshold`: checks for a valid MSI threshold.
-    /// 5. `af_thresholds`: non-empty, and every entry in [0.0, 1.0]. Required
-    ///    even though `--af-thresholds` is a `hidden` CLI flag - hidden only
-    ///    suppresses it from `--help`, it does not prevent a caller (e.g. an
-    ///    evaluation pipeline) from overriding it with an invalid value.
-    /// 6. `distribution_af`: in [0.0, 1.0], and present in `af_thresholds`
-    ///    - required because `calculate_msi_metrics` only populates `distribution
-    ///    when `af_thresholds` contains distribution_af` exactly.
-    /// 7. `windowed_af`: in [0.0, 1.0].
-    /// 8. `sliding_window`: != 0 when a heatmap output is requested.
-    /// 9. `threads`: if given, is >= `MIN_THREAD_COUNT`.
-    /// 10. Output paths: checks at least one output is specified.
+    ///    type/shape
+    /// 4. `msi_threshold`: finite and greater than `MSI_MIN_THRESHOLD`
+    /// 5. `af_thresholds`: non-empty, and every entry in [0.0, 1.0], required
+    ///    even though `--af-thresholds` is a `hidden` CLI flag, because hidden
+    ///    only suppresses it from `--help` and does not prevent a caller (e.g. an
+    ///    evaluation pipeline) from overriding it with an invalid value
+    /// 6. `distribution_af`: in [0.0, 1.0], and present in `af_thresholds`,
+    ///    because `calculate_msi_metrics` only populates `distribution` when
+    ///    `af_thresholds` contains `distribution_af` exactly
+    /// 7. `windowed_af`: in [0.0, 1.0]
+    /// 8. `sliding_window`: != 0 when a heatmap output is requested
+    /// 9. `threads`: if given, is >= `MIN_THREAD_COUNT`
+    /// 10. Output paths: checks at least one output is specified
     pub fn validate(&self) -> Result<()> {
         // --- calls ---
         validate_vcf_file(&self.calls)?;
