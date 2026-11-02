@@ -575,11 +575,17 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.distribution_af = 1.5;
+        let invalid_af = 1.5; // out of [0.0, 1.0]
+        config.distribution_af = invalid_af;
 
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("distribution_af"));
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigAfThresholdInvalid {
+                field: "distribution_af",
+                threshold: invalid_af,
+            })
+        );
     }
 
     #[test]
@@ -589,9 +595,14 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.msi_threshold = 0.0; // must be > MSI_MIN_THRESHOLD (0.0)
+        let threshold = MSI_MIN_THRESHOLD; // must be > MSI_MIN_THRESHOLD (0.0)
+        config.msi_threshold = threshold;
 
-        assert!(config.validate().is_err());
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigThresholdInvalid { threshold })
+        );
     }
 
     #[test]
