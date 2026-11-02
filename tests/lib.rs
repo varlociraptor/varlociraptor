@@ -492,11 +492,11 @@ fn run_msi_preprocess_expect_err(test: &str) -> anyhow::Error {
 }
 
 #[test]
-fn test_preprocess_msi_basic_annotation() -> Result<()> {
+fn test_preprocess_ms_candidates_basic_annotation() -> Result<()> {
     // VCF: 1 perfect CAG insertion at chr1:95
     // BED: chr1:94-124 10xCAG
     // Expected: 1 annotated record, 0 dummies
-    let output = run_msi_preprocess("test_preprocess_msi_basic")?;
+    let output = run_msi_preprocess("test_preprocess_ms_candidates_basic")?;
     let records = bcf_utils::read_bcf_records(&output)?;
 
     assert_eq!(records.len(), 1, "Expected 1 record total");
@@ -520,8 +520,8 @@ fn test_preprocess_msi_basic_annotation() -> Result<()> {
 }
 
 #[test]
-fn test_preprocess_msi_dummy_injection() -> Result<()> {
-    let output = run_msi_preprocess("test_preprocess_msi_dummy")?;
+fn test_preprocess_ms_candidates_dummy_injection() -> Result<()> {
+    let output = run_msi_preprocess("test_preprocess_ms_candidates_dummy")?;
     let records = bcf_utils::read_bcf_records(&output)?;
 
     assert_eq!(
@@ -573,8 +573,8 @@ fn test_preprocess_msi_dummy_injection() -> Result<()> {
 }
 
 #[test]
-fn test_preprocess_msi_imperfect_indel_gets_dummy() -> Result<()> {
-    let output = run_msi_preprocess("test_preprocess_msi_imperfect")?;
+fn test_preprocess_ms_candidates_imperfect_indel_gets_dummy() -> Result<()> {
+    let output = run_msi_preprocess("test_preprocess_ms_candidates_imperfect")?;
     let records = bcf_utils::read_bcf_records(&output)?;
 
     assert_eq!(
@@ -626,8 +626,8 @@ fn test_preprocess_msi_imperfect_indel_gets_dummy() -> Result<()> {
 }
 
 #[test]
-fn test_preprocess_msi_multi_region() -> Result<()> {
-    let output = run_msi_preprocess("test_preprocess_msi_multi")?;
+fn test_preprocess_ms_candidates_multi_region() -> Result<()> {
+    let output = run_msi_preprocess("test_preprocess_ms_candidates_multi")?;
     let records = bcf_utils::read_bcf_records(&output)?;
 
     assert_eq!(
@@ -680,8 +680,8 @@ fn test_preprocess_msi_multi_region() -> Result<()> {
 }
 
 #[test]
-fn test_preprocess_msi_overlapping_bed_errors() -> Result<()> {
-    let err = run_msi_preprocess_expect_err("test_preprocess_msi_overlap_error");
+fn test_preprocess_ms_candidates_overlapping_bed_errors() -> Result<()> {
+    let err = run_msi_preprocess_expect_err("test_preprocess_ms_candidates_overlap_error");
     assert!(
         err.to_string().contains("overlaps multiple BED regions"),
         "Error message should mention overlapping regions, got: {}",
@@ -691,9 +691,9 @@ fn test_preprocess_msi_overlapping_bed_errors() -> Result<()> {
 }
 
 #[test]
-fn test_preprocess_msi_propagates_info_fields() -> Result<()> {
+fn test_preprocess_ms_candidates_propagates_info_fields() -> Result<()> {
     let output = run_msi_preprocess_with_fields(
-        "test_preprocess_msi_propagate",
+        "test_preprocess_ms_candidates_propagate",
         vec!["COSMIC_ID".to_string()],
     )?;
     let records = bcf_utils::read_bcf_records(&output)?;
@@ -759,8 +759,6 @@ fn run_msi_call(
     varlociraptor::call_msi(config)
 }
 
-/* ====== 1. Distribution ====== */
-
 #[test]
 fn test_call_msi_distribution_basic() -> Result<()> {
     let basedir = basedir("test_call_msi_distribution_basic");
@@ -823,8 +821,6 @@ fn test_call_msi_distribution_basic() -> Result<()> {
 
     Ok(())
 }
-
-/* ====== 2. Pseudotime ====== */
 
 #[test]
 fn test_call_msi_pseudotime_basic() -> Result<()> {
@@ -909,8 +905,6 @@ fn test_call_msi_pseudotime_basic() -> Result<()> {
 
     Ok(())
 }
-
-/* ====== 3. Heatmap ====== */
 
 #[test]
 fn test_call_msi_heatmap_basic() -> Result<()> {
