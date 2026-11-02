@@ -858,7 +858,7 @@ pub enum CallKind {
         #[structopt(
             long,
             default_value = constants::MSI_DEFAULT_SLIDING_WINDOW_SIZE,
-            help = "Sliding window size (bp) for regional MSI heatmap analysis (default: 1,000,000). \
+            help = "Sliding window size (bp) for regional MSI heatmap analysis. \
                     Only used if --plot-heatmap or --data-heatmap specified."
         )]
         sliding_window: u64,

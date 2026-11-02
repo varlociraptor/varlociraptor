@@ -8,14 +8,15 @@
 //! Owns `MSIConfig` (CLI configuration) and `call_msi` (the entry point
 //! that orchestrates extraction, analysis, and output). Declares these
 //! child submodules:
-//! 1. `extraction` - extracts MSI regions and their variant/dummy status
-//!    from the enriched, called VCF/BCF
+//! 1. `extraction` - extracts MSI regions and their variants
+//!    (absent probability and AF) from the enriched, called VCF/BCF
 //! 2. `dp_analysis` - runs dynamic-programming AF-evolution analysis
 //!    (global distribution/pseudotime, plus windowed heatmap analysis)
 //! 3. `output` - writes TSV data files and Vega-Lite plot specs for
 //!    distribution, pseudotime, and heatmap outputs
 //! 4. `preprocessing` - contains the MSI preprocessing pipeline, which is
-//!    used to generate the enriched VCF/BCF that is the input to this module
+//!    used to generate the enriched VCF/BCF that, after `call variants`,
+//!    is the input to this module
 
 mod dp_analysis;
 mod extraction;
@@ -68,7 +69,7 @@ pub struct MSIConfig {
     pub sample: String,
     /// Event names to combine for MSI probability (e.g., ["somatic_tumor", "high_vaf"]).
     pub events: Vec<String>,
-    /// MSI-High classification threshold (percentage), default: 3.5.
+    /// MSI-High classification threshold (percentage), default: `MSI_DEFAULT_THRESHOLD`.
     pub msi_threshold: f32,
     /// Allele frequency thresholds to consider for AF evolution analysis
     /// when generating pseudotime outputs (default: `MSI_DEFAULT_AF_THRESHOLDS`).
@@ -80,7 +81,7 @@ pub struct MSIConfig {
     pub distribution_af: f32,
     /// Fixed AF used for windowed heatmap analysis. Independent of `af_thresholds`.
     pub windowed_af: f32,
-    /// Sliding window size (bp) for regional MSI heatmap analysis (default: 1,000,000).
+    /// Sliding window size (bp) for regional MSI heatmap analysis (default: `MSI_DEFAULT_SLIDING_WINDOW_SIZE`).
     /// Only used if --plot-heatmap or --data-heatmap specified.
     pub sliding_window: u64,
     /// Number of threads (None = use rayon default).
