@@ -9,6 +9,7 @@
 //! 3. `write_variant` - Writes variants with REGION_ID annotations if applicable
 
 use anyhow::Result;
+use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Writer};
 use std::collections::HashMap;
 
@@ -95,6 +96,7 @@ pub(super) fn inject_dummy_indels(writer: &mut Writer, region: &BedRegion) -> Re
         let mut record = writer.empty_record();
         record.set_rid(Some(rid));
         record.set_pos(dummy_pos as i64);
+        record.set_qual(f32::missing());
 
         let mut ref_allele = vec![anchor];
         ref_allele.extend_from_slice(motif_bytes);
@@ -111,6 +113,7 @@ pub(super) fn inject_dummy_indels(writer: &mut Writer, region: &BedRegion) -> Re
         let mut record = writer.empty_record();
         record.set_rid(Some(rid));
         record.set_pos(dummy_pos as i64);
+        record.set_qual(f32::missing());
 
         let ref_allele = vec![anchor];
         let mut alt_allele = vec![anchor];
@@ -163,6 +166,7 @@ pub(super) fn write_variant(
 
     output_record.set_rid(Some(output_rid));
     output_record.set_pos(variant_info.record.pos());
+    output_record.set_qual(f32::missing());
     output_record.set_alleles(&variant_info.record.alleles())?;
 
     copy_info_fields(&variant_info.record, &mut output_record, &MSI_COPY_FIELDS)?;
