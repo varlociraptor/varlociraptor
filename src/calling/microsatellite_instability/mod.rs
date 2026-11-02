@@ -536,11 +536,17 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.distribution_af = 0.7; // not present in af_thresholds
+        let distribution_af = 0.7; // not present in af_thresholds
+        config.distribution_af = distribution_af;
 
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("distribution"));
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigDistributionAfMissing {
+                distribution_af,
+                af_thresholds: config.af_thresholds.clone(),
+            })
+        );
     }
 
     #[test]
@@ -550,11 +556,16 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.af_thresholds = vec![1.5, 0.5]; // 1.5 is out of [0.0, 1.0]
+        let invalid_af = 1.5; // out of [0.0, 1.0]
+        config.af_thresholds = vec![invalid_af, 0.5];
 
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("1.5"));
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigAfThresholdsInvalid {
+                threshold: invalid_af
+            })
+        );
     }
 
     #[test]
