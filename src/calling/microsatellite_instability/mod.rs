@@ -502,11 +502,14 @@ mod tests {
             num_samples: 1,
             ..Default::default()
         });
-        let config = valid_config(tmp_vcf.path(), "nonexistent_sample".to_string());
+        let sample = "nonexistent_sample".to_string();
+        let config = valid_config(tmp_vcf.path(), sample.clone());
 
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("nonexistent_sample"));
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfSamplesMissing { samples: sample })
+        );
     }
 
     #[test]
@@ -516,11 +519,14 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.events = vec!["not_a_real_event".to_string()];
+        let event = "not_a_real_event".to_string();
+        config.events = vec![event.clone()];
 
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("not_a_real_event"));
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::VcfEventsMissing { events: event })
+        );
     }
 
     #[test]
