@@ -649,9 +649,14 @@ mod tests {
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
         config.plot_heatmap = Some(PathBuf::from("heatmap.vl.json")); // triggers needs_heatmap
-        config.sliding_window = 0;
+        let window_size = 0;
+        config.sliding_window = window_size;
 
-        assert!(config.validate().is_err());
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigSlidingWindowInvalid { window_size })
+        );
     }
 
     #[test]
@@ -661,9 +666,14 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.threads = Some(0); // MIN_THREAD_COUNT is 1
+        let count = 0; // below MIN_THREAD_COUNT (1)
+        config.threads = Some(count);
 
-        assert!(config.validate().is_err());
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::ThreadCountInvalid { count })
+        );
     }
 
     #[test]
@@ -675,7 +685,11 @@ mod tests {
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
         config.plot_distribution = None; // valid_config's only output source, now cleared
 
-        assert!(config.validate().is_err());
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigOutputMissing)
+        );
     }
 
     /* ============ set_defaults tests =============== */
