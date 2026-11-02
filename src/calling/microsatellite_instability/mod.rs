@@ -614,7 +614,11 @@ mod tests {
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
         config.af_thresholds = vec![];
 
-        assert!(config.validate().is_err());
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigAfThresholdsEmpty)
+        );
     }
 
     #[test]
@@ -624,11 +628,17 @@ mod tests {
             ..Default::default()
         });
         let mut config = valid_config(tmp_vcf.path(), sample_names[0].clone());
-        config.windowed_af = 1.5; // out of [0.0, 1.0]
+        let invalid_af = 1.5; // out of [0.0, 1.0]
+        config.windowed_af = invalid_af;
 
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(format!("{}", result.unwrap_err()).contains("windowed_af"));
+        let err = config.validate().unwrap_err();
+        assert_eq!(
+            err.downcast_ref::<Error>(),
+            Some(&Error::MsiConfigAfThresholdInvalid {
+                field: "windowed_af",
+                threshold: invalid_af,
+            })
+        );
     }
 
     #[test]
