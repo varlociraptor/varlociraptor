@@ -179,6 +179,8 @@ testcase!(test_uzuner_fp_mnv1, exact);
 
 testcase!(test_prinz_af_scan, exact);
 testcase!(test_prinz_call_meth_1, exact);
+// This test should fail since we suppress the ABSENT event in the calling but the test expects it to be present in the output.
+testcase_should_panic!(test_prinz_call_meth_1_no_absent, exact);
 testcase!(test_prinz_call_meth_2, exact);
 testcase!(test_prinz_pacbio_zero, exact);
 
