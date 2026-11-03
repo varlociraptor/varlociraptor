@@ -626,6 +626,13 @@ pub enum CallKind {
         #[serde(default)]
         full_prior: bool,
         #[structopt(
+            long = "no-absent",
+            help = "Do not automatically add the absent event (all samples having VAF 0.0) to the events of the scenario.
+            This requires the scenario to define an event that contains VAF 0.0 in all samples."
+        )]
+        #[serde(default)]
+        no_absent: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS. Alternatively, for single variant VCFs, you can \
@@ -1074,6 +1081,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     log_mode,
                     propagate_info_fields,
                     full_prior,
+                    no_absent,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -1091,6 +1099,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     )
                                     .omit_alt_locus_bias(omit_alt_locus_bias)
                                     .fragment_end_bias(fragment_end_bias)
+                                    .no_absent(no_absent)
                                     .locus(&testcase_locus)?,
                             )
                         } else {
@@ -1157,6 +1166,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     DefaultCandidateFilter::new(),
                                     propagate_info_fields,
                                     full_prior,
+                                    no_absent,
                                 )?;
                             } else {
                                 return Err(errors::Error::InvalidObservationsSpec.into());
@@ -1243,6 +1253,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 DefaultCandidateFilter::new(),
                                 propagate_info_fields,
                                 full_prior,
+                                no_absent,
                             )?;
                         }
                     }

@@ -160,6 +160,14 @@ pub trait Testcase {
         }
     }
 
+    fn no_absent_yaml(&self) -> bool {
+        if self.yaml()["no_absent"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["no_absent"].as_bool().unwrap()
+        }
+    }
+
     fn fragment_end_bias(&self) -> bool {
         if self.yaml()["fragment_end_bias"].is_badvalue() {
             false
@@ -316,6 +324,7 @@ pub trait Testcase {
                         },
                         log_mode: "default".to_owned(),
                         full_prior: false,
+                        no_absent: self.no_absent_yaml(),
                     },
                 };
 
@@ -346,6 +355,7 @@ pub trait Testcase {
                         },
                         log_mode: "default".to_owned(),
                         full_prior: false,
+                        no_absent: self.no_absent_yaml(),
                     },
                 };
 
