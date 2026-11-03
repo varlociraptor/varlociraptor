@@ -30,6 +30,7 @@ use strum::IntoEnumIterator;
 //use crate::estimation::sample_variants;
 //use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
+use crate::filtration::fdr::EventSubsets;
 use crate::grammar;
 use crate::reference;
 use crate::testcase;
@@ -831,6 +832,15 @@ pub enum FilterMethod {
         smart_retain_artifacts: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
+        #[structopt(
+            long,
+            default_value = "all",
+            help = "How to aggregate the probabilities of the given --events per record. \
+            'all': sum over all events. 'adjacent-<k>': maximum over the sums of k consecutive \
+            events in the order given via --events."
+        )]
+        #[serde(default)]
+        subsets: EventSubsets,
         #[structopt(long, help = "Minimum indel length to consider.")]
         minlen: Option<u64>,
         #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
@@ -1294,6 +1304,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 minlen,
                 maxlen,
                 smart_retain_artifacts,
+                subsets,
             } => {
                 let events = events
                     .iter()
@@ -1321,6 +1332,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     local,
                     smart,
                     smart_retain_artifacts,
+                    &subsets,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {

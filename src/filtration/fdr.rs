@@ -9,6 +9,7 @@
 //! Basically, the expected FDR is calculated directly from the posterior error probabilities.
 
 use std::path::Path;
+use std::str::FromStr;
 
 use anyhow::{bail, Result};
 use bio::stats::{bayesian, LogProb};
@@ -22,6 +23,36 @@ use crate::variants::model;
 use crate::{errors, Event};
 use crate::{utils, SimpleEvent};
 
+/// How the probabilities of the given events are aggregated per record before FDR control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum EventSubsets {
+    /// Sum over all given events (default).
+    #[default]
+    All,
+    /// Maximum over the sums of k consecutive events (in the order they are given).
+    Adjacent(usize),
+}
+
+impl FromStr for EventSubsets {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        if s == "all" {
+            return Ok(EventSubsets::All);
+        }
+        if let Some(k) = s.strip_prefix("adjacent-") {
+            match k.parse::<usize>() {
+                Ok(k) if k >= 1 => return Ok(EventSubsets::Adjacent(k)),
+                _ => (),
+            }
+        }
+        bail!(
+            "invalid event subsets specification '{}', expected 'all' or 'adjacent-<k>' with k >= 1",
+            s
+        )
+    }
+}
+
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///
 /// # Arguments
@@ -33,6 +64,8 @@ use crate::{utils, SimpleEvent};
 /// * `events` - the set of events to control (sum of the probabilities of the individual events at a site)
 /// * `vartype` - the variant type to consider
 /// * `alpha` - the FDR threshold to control for
+/// * `subsets` - how to aggregate the event probabilities per record
+#[allow(clippy::too_many_arguments)]
 pub fn control_fdr<R, W>(
     inbcf: R,
     outbcf: Option<W>,
@@ -42,6 +75,7 @@ pub fn control_fdr<R, W>(
     local: bool,
     smart: bool,
     smart_retain_artifacts: bool,
+    subsets: &EventSubsets,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -77,6 +111,18 @@ where
     if cleaned_events.is_empty() {
         bail!(errors::Error::InvalidFDRControlEvents)
     } else if cleaned_events != events {
+        if let EventSubsets::Adjacent(_) = subsets {
+            // skipping events would make non-adjacent events neighbors
+            bail!(
+                "Events not present in BCF header: {}. All events have to be present when using \
+                 --subsets adjacent-<k>, because their order defines which events are adjacent.",
+                events
+                    .iter()
+                    .filter(|event| !cleaned_events.contains(event))
+                    .map(|event| event.name())
+                    .join(", ")
+            );
+        }
         warn!(
             "Skipping events not present in BCF header: {}",
             events
@@ -119,11 +165,14 @@ where
             |p: NotNan<f64>| LogProb(*p)
         };
 
-        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, &dist_events, vartype)?
-            .into_iter()
-            .rev()
-            .map(convert_prob)
-            .collect_vec();
+        let dist_subsets = if smart { EventSubsets::All } else { *subsets };
+
+        let prob_dist =
+            utils::collect_prob_dist(&mut inbcf_reader, &dist_events, vartype, &dist_subsets)?
+                .into_iter()
+                .rev()
+                .map(convert_prob)
+                .collect_vec();
 
         // estimate FDR
         let pep_dist = prob_dist.iter().map(|p| p.ln_one_minus_exp()).collect_vec();
@@ -158,6 +207,7 @@ where
         vartype,
         smart,
         smart_retain_artifacts,
+        subsets,
     )?;
 
     Ok(())

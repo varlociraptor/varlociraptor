@@ -24,6 +24,7 @@ use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bam::record::Cigar, bcf};
 use serde::Serializer;
 
+use crate::filtration::fdr::EventSubsets;
 use crate::variants::model;
 use crate::Event;
 
@@ -233,10 +234,12 @@ where
 /// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
+/// * `subsets` - how to aggregate the event probabilities per record
 pub(crate) fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: Option<&model::VariantType>,
+    subsets: &EventSubsets,
 ) -> Result<Vec<NotNan<f64>>>
 where
     E: Event,
@@ -285,6 +288,8 @@ where
 /// * `vartype` - the variant type to consider (if None, use all types)
 /// * `smart` - if true, use a smart thresholding strategy that just filters based on presence with the threshold
 ///             and then keeps records whether the sum of the event probabilities exceeds 50%.
+/// * `subsets` - how to aggregate the event probabilities per record
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
@@ -293,6 +298,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
     vartype: Option<&model::VariantType>,
     smart: bool,
     smart_retain_artifacts: bool,
+    subsets: &EventSubsets,
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
