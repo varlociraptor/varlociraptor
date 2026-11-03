@@ -212,6 +212,42 @@ pub(crate) fn tags_prob_sum(
         .collect_vec())
 }
 
+/// Aggregate in log space the probabilities of the given tags for all variants of vartype in the given BCF record. With `EventSubsets::All`, this is the same as `tags_prob_sum`. With `EventSubsets::Adjacent(k)`, the tags are summed up in windows of k consecutive tags (in the given order, e.g. neighboring VAF bins), and the maximum window sum is returned.
+pub(crate) fn tags_prob_aggregate(
+    record: &mut bcf::Record,
+    tags: &[String],
+    vartype: Option<&model::VariantType>,
+    subsets: &EventSubsets,
+) -> Result<Vec<Option<LogProb>>> {
+    let k = match subsets {
+        EventSubsets::All => return tags_prob_sum(record, tags, vartype),
+        // a single window covering all tags is the same as summing up all tags
+        EventSubsets::Adjacent(k) if *k >= tags.len() => {
+            return tags_prob_sum(record, tags, vartype)
+        }
+        EventSubsets::Adjacent(k) => *k,
+    };
+
+    // Sum up each window of k consecutive tags: [tag1, tag2], [tag2, tag3], ...
+    // Each window sum is a vector with one entry.
+    let window_sums = tags
+        .windows(k)
+        .map(|window| tags_prob_sum(record, window, vartype))
+        .collect::<Result<Vec<_>>>()?;
+
+    // Take the maximum over all windows, separately for each allele.
+    // None (no value in this window) is smaller than any Some(_).
+    let mut max_probs = vec![None; window_sums[0].len()];
+    for sums in &window_sums {
+        for (max_prob, prob) in max_probs.iter_mut().zip(sums) {
+            if *prob > *max_prob {
+                *max_prob = *prob;
+            }
+        }
+    }
+    Ok(max_probs)
+}
+
 pub(crate) fn events_to_tags<E>(events: &[E]) -> Vec<String>
 where
     E: Event,
@@ -263,7 +299,7 @@ where
             }
         }
 
-        for p in (tags_prob_sum(&mut record, &tags, vartype)?)
+        for p in (tags_prob_aggregate(&mut record, &tags, vartype, subsets)?)
             .into_iter()
             .flatten()
         {
@@ -302,14 +338,11 @@ pub(crate) fn filter_by_threshold<E: Event>(
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
-    let mut tags = events_to_tags(events);
+    let tags = events_to_tags(events);
     let mut absent_and_artifact_tags = vec!["PROB_ABSENT".to_owned()];
+    let retain_artifacts = smart && smart_retain_artifacts;
 
-    if smart && smart_retain_artifacts {
-        // in this case, artifact events are wanted, and hence added to the
-        // queried events
-        tags.push("PROB_ARTIFACT".to_owned());
-    } else {
+    if !retain_artifacts {
         // in this case, artifacts are unwanted and hence added to the absent case
         absent_and_artifact_tags.push("PROB_ARTIFACT".to_owned());
     }
@@ -325,7 +358,20 @@ pub(crate) fn filter_by_threshold<E: Event>(
             None
         };
 
-        let probs_events = tags_prob_sum(record, &tags, vartype)?;
+        let mut probs_events = tags_prob_aggregate(record, &tags, vartype, subsets)?;
+        if retain_artifacts {
+            // in this case, artifact events are wanted, and hence added to the
+            // queried events (separately, such that they are not adjacent to any event)
+            let probs_artifact = tags_prob_sum(record, &["PROB_ARTIFACT".to_owned()], vartype)?;
+            for (p, a) in probs_events.iter_mut().zip(probs_artifact) {
+                *p = match (*p, a) {
+                    (Some(p), Some(a)) => {
+                        Some(p.ln_add_exp(a).cap_numerical_overshoot(NUMERICAL_EPSILON))
+                    }
+                    (p, a) => p.or(a),
+                };
+            }
+        }
         let probs_absent_or_artifact = if smart {
             tags_prob_sum(record, &absent_and_artifact_tags, vartype)?
         } else {
