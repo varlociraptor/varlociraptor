@@ -253,6 +253,7 @@ fn control_fdr(
         local,
         smart,
         smart_retain_artifacts,
+        &varlociraptor::filtration::fdr::EventSubsets::All,
     )
     .unwrap();
 }
