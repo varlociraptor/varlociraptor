@@ -131,11 +131,13 @@ where
              read orientation, softclip bias, or divindel bias (PHRED). See the bias specific records below for \
              an explanation for each type of bias.\">".as_slice(),
         );
-        header.push_record(
-            b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
-                Description=\"Posterior probability for not having a variant (PHRED)\">"
-                .as_slice(),
-        );
+        if !self.no_absent {
+            header.push_record(
+                b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
+                    Description=\"Posterior probability for not having a variant (PHRED)\">"
+                    .as_slice(),
+            );
+        }
 
         header.push_record(
             b"##INFO=<ID=HINTS,Number=.,Type=String,\
