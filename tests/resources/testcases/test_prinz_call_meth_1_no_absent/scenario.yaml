@@ -4,5 +4,7 @@ samples:
     universe: "[0.0,1.0]"
 
 events:
+  unmethylated:
+    "normal:0.0"
   methylated:
-    "normal:[0.0,1.0]"
+    "normal:]0.0,1.0]"

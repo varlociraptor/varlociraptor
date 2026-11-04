@@ -384,6 +384,16 @@ pub trait Testcase {
             .map(|(_, call)| call);
 
         for call in calls {
+            if let Some(ids) = self.yaml()["expected"]["missing_info_fields"].as_vec() {
+                for id in ids.iter().filter_map(|id| id.as_str()) {
+                    assert!(
+                        !matches!(call.info(id.as_bytes()).float(), Ok(Some(_))),
+                        "INFO field {} is present, but expected to be missing",
+                        id
+                    );
+                }
+            }
+
             let afs = call.format(b"AF").float().unwrap();
             if let Some(exprs) = self.yaml()["expected"]["allelefreqs"].as_vec() {
                 for expr in exprs.iter() {

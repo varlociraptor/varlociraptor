@@ -1,9 +1,6 @@
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form (zwischen 0.97 & 0.98)
-    - normal >= 0.0
-  posteriors:
-    - PROB_ABSENT >= 0.0
+  missing_info_fields:
+    - PROB_ABSENT
 
 samples:
   normal:
