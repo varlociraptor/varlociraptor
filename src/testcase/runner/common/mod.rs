@@ -160,6 +160,14 @@ pub trait Testcase {
         }
     }
 
+    fn no_absent_yaml(&self) -> bool {
+        if self.yaml()["no_absent"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["no_absent"].as_bool().unwrap()
+        }
+    }
+
     fn fragment_end_bias(&self) -> bool {
         if self.yaml()["fragment_end_bias"].is_badvalue() {
             false
@@ -316,6 +324,7 @@ pub trait Testcase {
                         },
                         log_mode: "default".to_owned(),
                         full_prior: false,
+                        no_absent: self.no_absent_yaml(),
                     },
                 };
 
@@ -346,6 +355,7 @@ pub trait Testcase {
                         },
                         log_mode: "default".to_owned(),
                         full_prior: false,
+                        no_absent: self.no_absent_yaml(),
                     },
                 };
 
@@ -374,6 +384,16 @@ pub trait Testcase {
             .map(|(_, call)| call);
 
         for call in calls {
+            if let Some(ids) = self.yaml()["expected"]["missing_info_fields"].as_vec() {
+                for id in ids.iter().filter_map(|id| id.as_str()) {
+                    assert!(
+                        !matches!(call.info(id.as_bytes()).float(), Ok(Some(_))),
+                        "INFO field {} is present, but expected to be missing",
+                        id
+                    );
+                }
+            }
+
             let afs = call.format(b"AF").float().unwrap();
             if let Some(exprs) = self.yaml()["expected"]["allelefreqs"].as_vec() {
                 for expr in exprs.iter() {

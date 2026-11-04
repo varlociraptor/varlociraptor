@@ -469,5 +469,6 @@ pub(crate) fn estimate_contamination(
         ContaminationCandidateFilter::new(),
         Vec::new(),
         false,
+        false,
     )
 }

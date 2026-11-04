@@ -98,6 +98,12 @@ where
             if !smart_retain_artifacts {
                 evts.push(SimpleEvent::new("ARTIFACT"));
             }
+            evts.retain(|e| {
+                inbcf_reader
+                    .header()
+                    .info_type(event_to_tag(e).as_bytes())
+                    .is_ok()
+            });
             evts
         } else {
             cleaned_events.clone()
