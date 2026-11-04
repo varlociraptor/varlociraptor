@@ -97,6 +97,8 @@ pub(super) struct WindowResult {
     pub(super) window_end: u64,
     /// MSI score for this window (k_map / regions_in_window × 100).
     pub(super) msi_score: f32,
+    /// MAP estimate of the number of unstable regions in this window.
+    pub(super) k_map: usize,
     /// P(k=k_map) from DP distribution.
     pub(super) posterior_probability: f64,
     /// Total MS regions in this window - denominator for MSI score.
@@ -667,13 +669,15 @@ fn run_windowed_analysis(
             let filtered = filter_regions_by_af(window_slice, af_threshold);
 
             let dist = run_dp_for_regions(&filtered);
-            let (_, msi_score, posterior_probability) = find_map_estimate(&dist, regions_in_window);
+            let (k_map, msi_score, posterior_probability) =
+                find_map_estimate(&dist, regions_in_window);
 
             Some(WindowResult {
                 chrom: chrom.to_string(),
                 window_start,
                 window_end,
                 msi_score,
+                k_map,
                 posterior_probability,
                 regions_in_window,
             })
@@ -1575,6 +1579,7 @@ mod tests {
         assert_eq!(results[0].regions_in_window, 2);
         assert!((results[0].msi_score - 100.0).abs() < TEST_EPSILON_F32);
         assert!((results[0].posterior_probability - 0.72).abs() < TEST_EPSILON);
+        assert_eq!(results[0].k_map, 2);
 
         // chr2: 1 region, p_stable=0.3
         // P(1)=0.7 > P(0)=0.3, k_map=1, score=1/1×100=100%, posterior=0.7
@@ -1582,6 +1587,7 @@ mod tests {
         assert_eq!(results[1].regions_in_window, 1);
         assert!((results[1].msi_score - 100.0).abs() < TEST_EPSILON_F32);
         assert!((results[1].posterior_probability - 0.7).abs() < TEST_EPSILON);
+        assert_eq!(results[1].k_map, 1);
     }
 
     #[test]

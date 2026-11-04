@@ -426,12 +426,12 @@ pub(super) fn generate_pseudotime_plot_spec(
 /// Write windowed MSI heatmap data to TSV file.
 ///
 /// Each row represents one genomic window with its MSI score,
-/// posterior probability, and MSI-High classification.
+/// MAP unstable-region count, posterior probability, and MSI-High classification.
 ///
 /// # Output Format
 /// ```text
-/// sample  windowed_af  chrom  window_start  window_end  msi_score(threshold=3.5)  posterior_probability  regions_in_window  msi_status
-/// tumor   0.05         chr1   0             1000000     2.50                      0.820000000000         40                 MSS
+/// sample  windowed_af  chrom  window_start  window_end  msi_score(threshold=3.5)  k_map  posterior_probability  regions_in_window  msi_status
+/// tumor   0.05         chr1   0             1000000     2.50                      1      0.820000000000         40                 MSS
 /// ```
 ///
 /// # Arguments
@@ -456,20 +456,21 @@ pub(super) fn write_heatmap_data(
 
     writeln!(
         writer,
-        "sample\twindowed_af\tchrom\twindow_start\twindow_end\tmsi_score(threshold={:.1})\tposterior_probability\tregions_in_window\tmsi_status",
+        "sample\twindowed_af\tchrom\twindow_start\twindow_end\tmsi_score(threshold={:.1})\tk_map\tposterior_probability\tregions_in_window\tmsi_status",
         msi_threshold
     )?;
 
     for r in results {
         writeln!(
             writer,
-            "{}\t{:.2}\t{}\t{}\t{}\t{:.2}\t{:.12}\t{}\t{}",
+            "{}\t{:.2}\t{}\t{}\t{}\t{:.2}\t{}\t{:.12}\t{}\t{}",
             sample,
             windowed_af,
             r.chrom,
             r.window_start,
             r.window_end,
             r.msi_score,
+            r.k_map,
             r.posterior_probability,
             r.regions_in_window,
             classify_msi_status(r.msi_score, msi_threshold),
@@ -487,8 +488,8 @@ pub(super) fn write_heatmap_data(
 /// - Y-axis: chromosome (ordinal, genomic order preserved via sort:null)
 /// - Color: MSI score, blue (stable) through soft yellow (threshold) to red (unstable)
 /// - Opacity: posterior probability (confidence in the score)
-/// - Tooltip: chromosome, window start and end, MSI score, confidence, region
-///   count, and MSI-High/MSS classification at the given threshold
+/// - Tooltip: chromosome, window start and end, MSI score, MAP unstable-region count,
+///   confidence, region count, and MSI-High/MSS classification at the given threshold
 /// - Outline: red stroke on MSI-High windows
 ///
 /// Uses `write_plot` with embedded template `templates/plots/msi_heatmap.json`.
@@ -520,6 +521,7 @@ pub(super) fn generate_heatmap_plot_spec(
                 "window_start": r.window_start,
                 "window_end": r.window_end,
                 "msi_score": r.msi_score,
+                "k_map": r.k_map,
                 "posterior_probability": r.posterior_probability,
                 "regions_in_window": r.regions_in_window,
                 "msi_status": classify_msi_status(r.msi_score, msi_threshold).as_str(),
@@ -605,6 +607,7 @@ mod tests {
             window_start: 0,
             window_end: 1_000_000,
             msi_score: 2.5,
+            k_map: 1,
             posterior_probability: 0.8,
             regions_in_window: 40,
         }]
@@ -735,6 +738,7 @@ mod tests {
         assert!(row.contains(MsiStatus::Stable.as_str())); // MSI status
         assert!(row.contains("0.800000000000")); // posterior
         assert!(row.contains("2.50"));
+        assert_eq!(row.split('\t').nth(6), Some("1")); // k_map
     }
 
     /* ==== generate_heatmap_plot_spec tests ========= */

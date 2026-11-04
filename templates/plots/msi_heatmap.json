@@ -46,6 +46,7 @@
             { "field": "window_start", "type": "quantitative", "title": "Window Start" },
             { "field": "window_end", "type": "quantitative", "title": "Window End" },
             { "field": "msi_score", "type": "quantitative", "title": "MSI Score (%)", "format": ".2f" },
+            { "field": "k_map", "type": "quantitative", "title": "Unstable Regions (MAP)" },
             { "field": "posterior_probability", "type": "quantitative", "title": "Confidence", "format": ".12f" },
             { "field": "regions_in_window", "type": "quantitative", "title": "Regions" },
             { "field": "msi_status", "type": "nominal", "title": "Classification" }
