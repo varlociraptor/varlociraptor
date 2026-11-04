@@ -6,7 +6,7 @@ expected:
     # There are some fragments with increased insert size that let prosic think
     # there is a bit of evidence for having a somatic normal call. This makes
     # the probability for somatic tumor weak.
-  - PROB_SOME_FALSE == inf
+  - PLAIN_PROB_SOME_FALSE == 0.0
 
 # necessary bam files
 samples:

@@ -286,8 +286,8 @@ impl EditDistanceCalculation {
 
                             EditOperationCounts::new(
                                 n_subst,
-                                n_del,
                                 n_ins,
+                                n_del,
                                 pos_start as usize,
                                 pos as usize,
                                 in_range_alignment,

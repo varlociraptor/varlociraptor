@@ -1,0 +1,3 @@
+[env]
+# This injects the RUSTFLAGS *only* when you run with `--profile profiling`
+CARGO_PROFILE_PROFILING_RUSTFLAGS = "-Clink-arg=-Wl,--no-rosegment"

@@ -1052,6 +1052,52 @@ impl VAFSpectrum {
             VAFSpectrum::Range(range) => range.is_complete(),
         }
     }
+
+    /// Intersection of two spectra. Returns an empty spectrum if they are disjoint.
+    pub(crate) fn intersect(&self, other: &VAFSpectrum) -> VAFSpectrum {
+        match (self, other) {
+            (VAFSpectrum::Range(a), VAFSpectrum::Range(b)) => {
+                let r = a.intersect(b);
+                if r.is_empty() {
+                    VAFSpectrum::empty()
+                } else if r.is_singleton() {
+                    VAFSpectrum::singleton(r.start)
+                } else {
+                    VAFSpectrum::Range(r)
+                }
+            }
+            (VAFSpectrum::Range(r), VAFSpectrum::Set(s))
+            | (VAFSpectrum::Set(s), VAFSpectrum::Range(r)) => {
+                VAFSpectrum::Set(s.iter().filter(|v| r.contains(**v)).cloned().collect())
+            }
+            (VAFSpectrum::Set(a), VAFSpectrum::Set(b)) => {
+                VAFSpectrum::Set(a.intersection(b).cloned().collect())
+            }
+        }
+    }
+
+    /// Pick a representative allele frequency that is contained in this spectrum, or `None` if the
+    /// spectrum is empty (or, for a range, if no representable value lies within it). For ranges,
+    /// the midpoint is preferred; when it rounds onto an excluded bound, an included bound is used
+    /// instead.
+    pub(crate) fn representative(&self) -> Option<AlleleFreq> {
+        match self {
+            VAFSpectrum::Set(s) => s.iter().next().copied(),
+            VAFSpectrum::Range(r) => {
+                if r.is_empty() {
+                    None
+                } else if r.is_singleton() {
+                    Some(r.start)
+                } else {
+                    let midpoint = AlleleFreq((*r.start + *r.end) / 2.0);
+                    [midpoint, r.start, r.end]
+                        .iter()
+                        .copied()
+                        .find(|vaf| r.contains(*vaf))
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Hash, CopyGetters)]
@@ -1595,8 +1641,29 @@ fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
 #[cfg(test)]
 mod test {
     use crate::grammar::Scenario;
-    use crate::grammar::{Formula, VAFRange};
+    use crate::grammar::{Formula, VAFRange, VAFSpectrum};
     use crate::variants::model::AlleleFreq;
+
+    #[test]
+    fn representative_of_narrow_exclusive_range_is_contained() {
+        // The midpoint of this range rounds to 1.0, which the range excludes.
+        let range = VAFRange {
+            inner: AlleleFreq(0.9999999999999999)..AlleleFreq(1.0),
+            left_exclusive: false,
+            right_exclusive: true,
+        };
+        let spectrum = VAFSpectrum::Range(range.clone());
+        let vaf = spectrum.representative().expect("non-empty range");
+        assert!(range.contains(vaf), "{} is not in {:?}", vaf, spectrum);
+
+        // Both bounds excluded and nothing representable in between: no witness.
+        let range = VAFRange {
+            inner: AlleleFreq(0.9999999999999999)..AlleleFreq(1.0),
+            left_exclusive: true,
+            right_exclusive: true,
+        };
+        assert_eq!(VAFSpectrum::Range(range).representative(), None);
+    }
 
     #[test]
     fn test_vaf_range_overlap() {

@@ -10,6 +10,7 @@ use crate::variants::evidence::observations::{
 };
 
 pub(crate) mod alt_locus_bias;
+pub(crate) mod fragment_end_bias;
 pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
@@ -17,6 +18,7 @@ pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
 
 pub(crate) use alt_locus_bias::AltLocusBias;
+pub(crate) use fragment_end_bias::FragmentEndBias;
 pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
@@ -35,11 +37,15 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn is_artifact(&self) -> bool;
 
     fn is_possible(&self, pileups: &[Pileup]) -> bool {
+        self.is_possible_in(pileups.iter())
+    }
+
+    fn is_possible_in<'a>(&self, pileups: impl Iterator<Item = &'a Pileup>) -> bool {
         if !self.is_artifact() {
             return true;
         }
 
-        pileups.iter().any(|pileup| {
+        pileups.into_iter().any(|pileup| {
             pileup
                 .read_observations()
                 .iter()
@@ -47,7 +53,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
         })
     }
 
-    fn is_informative(&self, _pileups: &[Pileup]) -> bool {
+    fn is_informative(&self, pileups: &[Pileup]) -> bool {
+        self.is_informative_in(pileups.iter())
+    }
+
+    fn is_informative_in<'a>(&self, _pileups: impl Iterator<Item = &'a Pileup>) -> bool {
         true
     }
 
@@ -60,10 +70,14 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     fn is_likely(&self, pileups: &[Pileup]) -> bool {
+        self.is_likely_in(pileups.iter())
+    }
+
+    fn is_likely_in<'a>(&self, pileups: impl Iterator<Item = &'a Pileup>) -> bool {
         if !self.is_artifact() {
             true
         } else {
-            pileups.iter().any(|pileup| {
+            pileups.into_iter().any(|pileup| {
                 let strong_all = pileup
                     .read_observations()
                     .iter()
@@ -104,7 +118,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     /// Learn parameters needed for estimation on current pileup.
-    fn learn_parameters(&mut self, _pileups: &[Pileup]) {
+    fn learn_parameters(&mut self, pileups: &[Pileup]) {
+        self.learn_parameters_in(pileups.iter());
+    }
+
+    fn learn_parameters_in<'a>(&mut self, _pileups: impl Iterator<Item = &'a Pileup>) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
@@ -120,6 +138,8 @@ pub struct Artifacts {
     #[getset(get = "pub(crate)")]
     read_position_bias: ReadPositionBias,
     #[getset(get = "pub(crate)")]
+    fragment_end_bias: FragmentEndBias,
+    #[getset(get = "pub(crate)")]
     softclip_bias: SoftclipBias,
     #[getset(get = "pub(crate)")]
     homopolymer_error: HomopolymerError,
@@ -132,6 +152,7 @@ impl Artifacts {
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
+        consider_fragment_end_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
         consider_alt_locus_bias: bool,
@@ -139,6 +160,7 @@ impl Artifacts {
         if !consider_strand_bias
             && !consider_read_orientation_bias
             && !consider_read_position_bias
+            && !consider_fragment_end_bias
             && !consider_softclip_bias
             && !consider_homopolymer_error
             && !consider_alt_locus_bias
@@ -166,6 +188,11 @@ impl Artifacts {
         } else {
             vec![SoftclipBias::None]
         };
+        let fragment_end_biases = if consider_fragment_end_bias {
+            FragmentEndBias::iter().collect_vec()
+        } else {
+            vec![FragmentEndBias::default()]
+        };
         let homopolymer_error = if consider_homopolymer_error {
             HomopolymerError::values()
         } else {
@@ -182,15 +209,17 @@ impl Artifacts {
                 .into_iter()
                 .cartesian_product(read_orientation_biases)
                 .cartesian_product(read_position_biases)
+                .cartesian_product(fragment_end_biases)
                 .cartesian_product(softclip_biases)
                 .cartesian_product(homopolymer_error)
                 .cartesian_product(alt_locus_bias)
-                .filter_map(|(((((sb, rob), rpb), scb), dib), alb)| {
+                .filter_map(|((((((sb, rob), rpb), feb), scb), dib), alb)| {
                     if [
                         sb.is_artifact(),
                         rob.is_artifact(),
                         rpb.is_artifact(),
                         scb.is_artifact(),
+                        feb.is_artifact(),
                         dib.is_artifact(),
                         alb.is_artifact(),
                     ]
@@ -205,6 +234,7 @@ impl Artifacts {
                                 .read_orientation_bias(rob)
                                 .read_position_bias(rpb)
                                 .softclip_bias(scb)
+                                .fragment_end_bias(feb)
                                 .homopolymer_error(dib)
                                 .alt_locus_bias(alb)
                                 .build()
@@ -217,11 +247,22 @@ impl Artifacts {
         )
     }
 
+    /// Reset all biases that are not applicable to a sample (currently only fragment end bias,
+    /// which can be configured per sample).
+    pub(crate) fn for_sample(&self, fragment_end_bias: bool) -> Self {
+        let mut artifacts = self.clone();
+        if !fragment_end_bias {
+            artifacts.fragment_end_bias = FragmentEndBias::default();
+        }
+        artifacts
+    }
+
     pub(crate) fn none() -> Self {
         ArtifactsBuilder::default()
             .strand_bias(StrandBias::default())
             .read_orientation_bias(ReadOrientationBias::None)
             .read_position_bias(ReadPositionBias::default())
+            .fragment_end_bias(FragmentEndBias::default())
             .softclip_bias(SoftclipBias::None)
             .homopolymer_error(HomopolymerError::default())
             .alt_locus_bias(AltLocusBias::None)
@@ -229,28 +270,48 @@ impl Artifacts {
             .unwrap()
     }
 
-    pub(crate) fn is_possible(&self, pileups: &[Pileup]) -> bool {
+    /// Iterate over the pileups of those samples for which fragment end bias is considered.
+    fn fragment_end_pileups<'a>(
+        pileups: &'a [Pileup],
+        fragment_end_samples: &'a [bool],
+    ) -> impl Iterator<Item = &'a Pileup> {
+        pileups
+            .iter()
+            .zip(fragment_end_samples)
+            .filter_map(|(pileup, enabled)| enabled.then_some(pileup))
+    }
+
+    pub(crate) fn is_possible(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
+            && self
+                .fragment_end_bias
+                .is_possible_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
             && self.softclip_bias.is_possible(pileups)
             && self.homopolymer_error.is_possible(pileups)
             && self.alt_locus_bias.is_possible(pileups)
     }
 
-    pub(crate) fn is_informative(&self, pileups: &[Pileup]) -> bool {
+    pub(crate) fn is_informative(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
+            && self
+                .fragment_end_bias
+                .is_informative_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
             && self.softclip_bias.is_informative(pileups)
             && self.homopolymer_error.is_informative(pileups)
             && self.alt_locus_bias.is_informative(pileups)
     }
 
-    pub(crate) fn is_likely(&self, pileups: &[Pileup]) -> bool {
+    pub(crate) fn is_likely(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
         self.strand_bias.is_likely(pileups)
             && self.read_orientation_bias.is_likely(pileups)
             && self.read_position_bias.is_likely(pileups)
+            && self
+                .fragment_end_bias
+                .is_likely_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
             && self.softclip_bias.is_likely(pileups)
             && self.homopolymer_error.is_likely(pileups)
             && self.alt_locus_bias.is_likely(pileups)
@@ -260,6 +321,7 @@ impl Artifacts {
         self.strand_bias.prob_alt(observation)
             + self.read_orientation_bias.prob_alt(observation)
             + self.read_position_bias.prob_alt(observation)
+            + self.fragment_end_bias.prob_alt(observation)
             + self.softclip_bias.prob_alt(observation)
             + self.homopolymer_error.prob_alt(observation)
             + self.alt_locus_bias.prob_alt(observation)
@@ -269,6 +331,7 @@ impl Artifacts {
         self.strand_bias.prob_ref(observation)
             + self.read_orientation_bias.prob_ref(observation)
             + self.read_position_bias.prob_ref(observation)
+            + self.fragment_end_bias.prob_ref(observation)
             + self.softclip_bias.prob_ref(observation)
             + self.homopolymer_error.prob_ref(observation)
             + self.alt_locus_bias.prob_ref(observation)
@@ -278,6 +341,7 @@ impl Artifacts {
         self.strand_bias.prob_any(observation)
             + self.read_orientation_bias.prob_any(observation)
             + self.read_position_bias.prob_any(observation)
+            + self.fragment_end_bias.prob_any(observation)
             + self.softclip_bias.prob_any(observation)
             + self.homopolymer_error.prob_any(observation)
             + self.alt_locus_bias.prob_any(observation)
@@ -287,15 +351,18 @@ impl Artifacts {
         self.strand_bias.is_artifact()
             || self.read_orientation_bias.is_artifact()
             || self.read_position_bias.is_artifact()
+            || self.fragment_end_bias.is_artifact()
             || self.softclip_bias.is_artifact()
             || self.homopolymer_error.is_artifact()
             || self.alt_locus_bias.is_artifact()
     }
 
-    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) {
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup], fragment_end_samples: &[bool]) {
         self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
         self.read_position_bias.learn_parameters(pileups);
+        self.fragment_end_bias
+            .learn_parameters_in(Self::fragment_end_pileups(pileups, fragment_end_samples));
         self.alt_locus_bias.learn_parameters(pileups);
     }
 }

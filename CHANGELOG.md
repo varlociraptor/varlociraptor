@@ -2,6 +2,56 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.12.0](https://github.com/varlociraptor/varlociraptor/compare/v8.11.0...v8.12.0) (2026-10-17)
+
+
+### Features
+
+* support fragment end bias setting per sample in scenario ([#581](https://github.com/varlociraptor/varlociraptor/issues/581)) ([5b5d41c](https://github.com/varlociraptor/varlociraptor/commit/5b5d41cc8ab99b31bee23eeb1f32134b4cb90c3e))
+
+
+### Bug Fixes
+
+* handle skipped cytosines in methylation MM tag according to skip flag ([#578](https://github.com/varlociraptor/varlociraptor/issues/578)) ([25d6b21](https://github.com/varlociraptor/varlociraptor/commit/25d6b214152f58cc1d17575171a57a5c32845690))
+
+## [8.11.0](https://github.com/varlociraptor/varlociraptor/compare/v8.10.0...v8.11.0) (2026-10-16)
+
+
+### Features
+
+* Add testcase from pm4onco seqc2 ffpe  benchmark for 1:154466505 ([#575](https://github.com/varlociraptor/varlociraptor/issues/575)) ([ad0e263](https://github.com/varlociraptor/varlociraptor/commit/ad0e263b6743ef71b518fa957bd0ec95211fabd6))
+* Add testcase from pm4onco seqc2 ffpe  benchmark for 19:54638714 ([#573](https://github.com/varlociraptor/varlociraptor/issues/573)) ([c8c54ef](https://github.com/varlociraptor/varlociraptor/commit/c8c54ef9fda00c055f58170a9ab162166f797fa6))
+* Add testcase from pm4onco seqc2 ffpe  benchmark for 8:11324507 ([#571](https://github.com/varlociraptor/varlociraptor/issues/571)) ([4348b1f](https://github.com/varlociraptor/varlociraptor/commit/4348b1fe807b861a1a61f8008281dc36aacc4b78))
+* report fragment end bias in output BCF; obtain major fragment end independently for left and right side of fragments; add testcase from pm4onco seqc2 ffpe benchmark for 3:195784926 ([#572](https://github.com/varlociraptor/varlociraptor/issues/572)) ([f576840](https://github.com/varlociraptor/varlociraptor/commit/f57684017bc10b6420e255fd459a1993b3f5ce29))
+* support for optional fragment end bias detection (identifies likely FFPE artifacts) ([#580](https://github.com/varlociraptor/varlociraptor/issues/580)) ([f167749](https://github.com/varlociraptor/varlociraptor/commit/f167749a22a05588ec91dd547c10ab20f2fda0ab))
+
+
+### Bug Fixes
+
+* fixed expected error rate calculation; added ability to test all records in a testcase; confirmed that atomized variants are correctly not called as somatic in testcase test_seqc2_ffpe_1_3900324 ([#574](https://github.com/varlociraptor/varlociraptor/issues/574)) ([42d85a1](https://github.com/varlociraptor/varlociraptor/commit/42d85a1a1c990dc1d9bb1ca66ff06fcedff92dec))
+
+## [8.10.0](https://github.com/varlociraptor/varlociraptor/compare/v8.9.5...v8.10.0) (2026-10-07)
+
+
+### Features
+
+* **grammar:** verify pairwise event disjointness at scenario compilation ([#558](https://github.com/varlociraptor/varlociraptor/issues/558)) ([7fae288](https://github.com/varlociraptor/varlociraptor/commit/7fae288288ae284cf35e945ec277218e2b6e5fb5))
+
+
+### Bug Fixes
+
+* correct borders for vaf splitting ([#545](https://github.com/varlociraptor/varlociraptor/issues/545)) ([6126679](https://github.com/varlociraptor/varlociraptor/commit/6126679abc9463b90922c6d8ea9450632f99bfff))
+* properly respect left exclusiveness of VAF ranges when shortcutting on integration over such intervals in case of clear reference allele evidence ([#576](https://github.com/varlociraptor/varlociraptor/issues/576)) ([5ebc6c7](https://github.com/varlociraptor/varlociraptor/commit/5ebc6c7cfe441c606f5a3fd80e2169189651241b))
+
+
+### Performance Improvements
+
+* avoid logging every non-coding variant when estimating mutational burden ([#546](https://github.com/varlociraptor/varlociraptor/issues/546)) ([f9810d2](https://github.com/varlociraptor/varlociraptor/commit/f9810d2455976fd13850afa292e0326a416b1a55))
+* bump to rust-bio 4.2.0 ([#569](https://github.com/varlociraptor/varlociraptor/issues/569)) ([35a7fba](https://github.com/varlociraptor/varlociraptor/commit/35a7fba3ba044a1964c27d653446fa8e7b407c55))
+* bump to rust-bio 4.2.1 ([#577](https://github.com/varlociraptor/varlociraptor/issues/577)) ([8338070](https://github.com/varlociraptor/varlociraptor/commit/83380707dcd8309fa51fad49e460772e7b7b7bc9))
+* **preprocess:** read through gaps of up to 10 kb instead of refetching ([#563](https://github.com/varlociraptor/varlociraptor/issues/563)) ([2f46a80](https://github.com/varlociraptor/varlociraptor/commit/2f46a801fe84889dfaa42b80014d0b78008a6ed8))
+* update rust-bio dependency to version 4.1.0 ([#567](https://github.com/varlociraptor/varlociraptor/issues/567)) ([b0f22ec](https://github.com/varlociraptor/varlociraptor/commit/b0f22eccbd428becb3fcde84c0a23e6ca887a5da))
+
 ## [8.9.5](https://github.com/varlociraptor/varlociraptor/compare/v8.9.4...v8.9.5) (2026-02-10)
 
 

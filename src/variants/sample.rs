@@ -10,9 +10,9 @@ use crate::estimation::alignment_properties;
 use crate::reference;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    major_read_position, Observable, ReadObservation,
+    major_fragment_end, major_read_position, Observable, ReadObservation,
 };
-use crate::variants::types::methylation::extract_mm_ml_5mc;
+use crate::variants::types::methylation::{extract_mm_ml_5mc, MethylationInfo};
 use crate::variants::types::Loci;
 use crate::variants::types::Variant;
 use anyhow::Result;
@@ -29,9 +29,9 @@ use std::f64;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
+use std::sync::Arc;
 
-type MethylationPosToProbs = HashMap<usize, LogProb>;
-type MethylationOfRead = HashMap<ByAddress<Rc<Record>>, Option<Rc<MethylationPosToProbs>>>;
+type MethylationOfRead = HashMap<ByAddress<Arc<Record>>, Option<Rc<MethylationInfo>>>;
 
 #[derive(Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -44,7 +44,9 @@ pub(crate) struct RecordBuffer {
     // Hashmap containing as a key the read and as a value a hashmap with the position of methylation and the probability of methylation
     methylation_probs: Option<MethylationOfRead>,
     #[getset(get = "pub")]
-    failed_reads: Option<HashSet<ByAddress<Rc<Record>>>>,
+    failed_reads: Option<HashSet<ByAddress<Arc<Record>>>>,
+    // Probability of methylation for cytosines skipped in the MM tag. None if reads are not annotated with MM/ML tags.
+    methylation_prob_skipped_bases: Option<LogProb>,
 }
 
 impl RecordBuffer {
@@ -52,22 +54,23 @@ impl RecordBuffer {
         inner: bam::RecordBuffer,
         single_read_window: u64,
         read_pair_window: u64,
-        methylation_mm_ml_tag: bool,
+        methylation_prob_skipped_bases: Option<LogProb>,
     ) -> Self {
         RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
-            methylation_probs: if methylation_mm_ml_tag {
+            methylation_probs: if methylation_prob_skipped_bases.is_some() {
                 Some(HashMap::new())
             } else {
                 None
             },
-            failed_reads: if methylation_mm_ml_tag {
+            failed_reads: if methylation_prob_skipped_bases.is_some() {
                 Some(HashSet::new())
             } else {
                 None
             },
+            methylation_prob_skipped_bases,
         }
     }
 
@@ -83,11 +86,11 @@ impl RecordBuffer {
 
     pub(crate) fn get_read_specific_meth_probs(
         &self,
-        rec: &Rc<Record>,
-    ) -> Option<Rc<HashMap<usize, LogProb>>> {
+        rec: &Arc<Record>,
+    ) -> Option<Rc<MethylationInfo>> {
         self.methylation_probs.as_ref().and_then(|meth_probs| {
             meth_probs
-                .get(&ByAddress(Rc::clone(rec)))
+                .get(&ByAddress(Arc::clone(rec)))
                 .cloned()
                 .flatten()
         })
@@ -110,11 +113,13 @@ impl RecordBuffer {
         if let Some(methylation_probs) = &mut self.methylation_probs {
             if let Some(failed_reads) = &mut self.failed_reads {
                 for rec in self.inner.iter() {
-                    let rec_id = ByAddress(Rc::clone(rec));
+                    let rec_id = ByAddress(Arc::clone(rec));
                     // If the read has been processed in a previous fetch we skip it.
                     if methylation_probs.get(&rec_id).is_none() && !failed_reads.contains(&rec_id) {
                         // Extract methylation probs out of MM and ML tag and save in methylation_probs
-                        let pos_to_probs = extract_mm_ml_5mc(rec).map(Rc::new);
+                        let pos_to_probs =
+                            extract_mm_ml_5mc(rec, self.methylation_prob_skipped_bases.unwrap())
+                                .map(Rc::new);
                         // If extraction failed we add the read to the failed reads set to avoid reprocessing it in future fetches.
                         if pos_to_probs.is_none() {
                             failed_reads.insert(rec_id);
@@ -126,7 +131,7 @@ impl RecordBuffer {
                 let buffer_ids: HashSet<_> = self
                     .inner
                     .iter()
-                    .map(|rec| ByAddress(Rc::clone(rec)))
+                    .map(|rec| ByAddress(Arc::clone(rec)))
                     .collect();
                 // Clean up methylation_probs to only keep entries for reads that are still in the buffer.
                 if let Some(methylation_probs_map) = &mut self.methylation_probs {
@@ -145,11 +150,11 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = Rc<bam::Record>> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Arc<bam::Record>> + '_ {
         self.inner
             .iter()
             .filter(|record| is_valid_record(record.as_ref()))
-            .map(Rc::clone)
+            .map(Arc::clone)
     }
 }
 
@@ -251,7 +256,7 @@ impl SampleBuilder {
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
-        methylation_mm_ml_tag: bool,
+        methylation_prob_skipped_bases: Option<LogProb>,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -273,7 +278,7 @@ impl SampleBuilder {
                 record_buffer,
                 single_read_window,
                 read_pair_window,
-                methylation_mm_ml_tag,
+                methylation_prob_skipped_bases,
             ))
     }
 }
@@ -317,12 +322,21 @@ impl Sample {
             alt_variants,
             &mut observation_id_factory,
         )?;
-        // Process for each observation whether it is from the major read position or not.
+        // Process for each observation whether it is from the major read position, alt locus, fragment end, or not.
+        // TODO: is it fine to do this before eventual filtering of the observations afterwards?
         let major_pos = major_read_position(&observations);
+        let major_fragment_end = major_fragment_end(&observations);
         let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
         let mut observations: Vec<_> = observations
             .iter()
-            .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
+            .map(|obs| {
+                obs.process(
+                    major_pos,
+                    major_fragment_end,
+                    &major_alt_locus,
+                    &self.alignment_properties,
+                )
+            })
             .collect();
         if self.adjust_prob_mapping {
             ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
