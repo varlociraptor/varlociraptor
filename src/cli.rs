@@ -810,7 +810,9 @@ pub enum CallKind {
                     output of `varlociraptor preprocess msi` (adds dummy indels and \
                     region id annotations at microsatellite loci) followed by \
                     `varlociraptor call variants` (adds the INFO/PROB_* event \
-                    probability fields used by --events)."
+                    probability fields used by --events). Run `call variants` \
+                    with `--propagate-info-fields REGION_ID MSI_DUMMY` so the \
+                    MSI annotations are kept."
         )]
         calls: PathBuf,
         #[structopt(long, required = true, help = "Sample to analyze.")]
