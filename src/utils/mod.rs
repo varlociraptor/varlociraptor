@@ -393,7 +393,12 @@ pub(crate) fn filter_by_threshold<E: Event>(
                 } else {
                     let p = if smart {
                         // METHOD: in smart mode, the record is kept if the probability for presence exceeds the threshold
-                        prob_absent_or_artifact.map(|p| p.ln_one_minus_exp())
+                        if absent_and_artifact_tags.is_empty() {
+                            // METHOD: neither absent (--no-absent) nor artifacts (retained) compete with presence
+                            Some(LogProb::ln_one())
+                        } else {
+                            prob_absent_or_artifact.map(|p| p.ln_one_minus_exp())
+                        }
                     } else {
                         prob_events
                     };

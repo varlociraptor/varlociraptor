@@ -1187,6 +1187,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             normal_observations,
                             purity,
                         } => {
+                            if no_absent {
+                                bail!(
+                                    "--no-absent is not supported in tumor-normal mode, because its \
+                                     scenario has no event covering VAF 0.0 in all samples. Use the \
+                                     generic mode with a suitable scenario instead."
+                                );
+                            }
+
                             if let Some(testcase_builder) = testcase_builder {
                                 let tumor_options =
                                     calling::variants::preprocessing::read_preprocess_options(
@@ -1263,7 +1271,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 DefaultCandidateFilter::new(),
                                 propagate_info_fields,
                                 full_prior,
-                                no_absent,
+                                false,
                             )?;
                         }
                     }
