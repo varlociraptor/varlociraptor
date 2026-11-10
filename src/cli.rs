@@ -841,6 +841,13 @@ pub enum FilterMethod {
         )]
         #[serde(default)]
         subsets: EventSubsets,
+        #[structopt(
+            long,
+            conflicts_with = "smart-retain-artifacts",
+            help = "Count the probability of the ARTIFACT event towards the given event, e.g. the event (or bin) containing AF 0, such that artifacts are treated like the absence of the alteration. The event has to be one of the given --events."
+        )]
+        #[serde(default)]
+        artifact_as: Option<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
         minlen: Option<u64>,
         #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
@@ -1313,6 +1320,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 maxlen,
                 smart_retain_artifacts,
                 subsets,
+                artifact_as,
             } => {
                 let events = events
                     .iter()
@@ -1341,6 +1349,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     smart,
                     smart_retain_artifacts,
                     &subsets,
+                    artifact_as.map(|e| SimpleEvent::new(&e)).as_ref(),
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {

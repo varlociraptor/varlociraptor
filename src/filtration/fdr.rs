@@ -65,6 +65,7 @@ impl FromStr for EventSubsets {
 /// * `vartype` - the variant type to consider
 /// * `alpha` - the FDR threshold to control for
 /// * `subsets` - how to aggregate the event probabilities per record
+/// * `artifact_as` - event the probability of the ARTIFACT event is counted towards
 #[allow(clippy::too_many_arguments)]
 pub fn control_fdr<R, W>(
     inbcf: R,
@@ -76,6 +77,7 @@ pub fn control_fdr<R, W>(
     smart: bool,
     smart_retain_artifacts: bool,
     subsets: &EventSubsets,
+    artifact_as: Option<&SimpleEvent>,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -136,12 +138,34 @@ where
         );
     }
 
+    let artifact_as_tag = artifact_as.map(event_to_tag);
+    if let Some(artifact_as_tag) = artifact_as_tag.as_ref() {
+        if smart_retain_artifacts {
+            bail!("--artifact-as cannot be combined with --smart-retain-artifacts");
+        }
+        if !cleaned_events
+            .iter()
+            .any(|event| event_to_tag(event) == *artifact_as_tag)
+        {
+            bail!(
+                "Event {} given via --artifact-as has to be one of the given events (and present \
+                 in the BCF header).",
+                artifact_as.unwrap().name()
+            );
+        }
+    }
+    // whether the ARTIFACT event counts against presence (in smart mode)
+    let artifact_against_presence = !smart_retain_artifacts
+        && artifact_as_tag
+            .as_ref()
+            .is_none_or(|tag| tag == "PROB_ABSENT");
+
     if local {
         threshold = Some(alpha.ln_one_minus_exp());
     } else if alpha != LogProb::ln_one() {
         let dist_events = if smart {
             let mut evts = vec![SimpleEvent::new("ABSENT")];
-            if !smart_retain_artifacts {
+            if artifact_against_presence {
                 evts.push(SimpleEvent::new("ARTIFACT"));
             }
             evts.retain(|e| {
@@ -166,13 +190,24 @@ where
         };
 
         let dist_subsets = if smart { EventSubsets::All } else { *subsets };
+        // in smart mode, the distribution is over ABSENT (and ARTIFACT), not over the given events
+        let dist_artifact_as = if smart {
+            None
+        } else {
+            artifact_as_tag.as_deref()
+        };
 
-        let prob_dist =
-            utils::collect_prob_dist(&mut inbcf_reader, &dist_events, vartype, &dist_subsets)?
-                .into_iter()
-                .rev()
-                .map(convert_prob)
-                .collect_vec();
+        let prob_dist = utils::collect_prob_dist(
+            &mut inbcf_reader,
+            &dist_events,
+            vartype,
+            &dist_subsets,
+            dist_artifact_as,
+        )?
+        .into_iter()
+        .rev()
+        .map(convert_prob)
+        .collect_vec();
 
         // estimate FDR
         let pep_dist = prob_dist.iter().map(|p| p.ln_one_minus_exp()).collect_vec();
@@ -208,6 +243,7 @@ where
         smart,
         smart_retain_artifacts,
         subsets,
+        artifact_as_tag.as_deref(),
     )?;
 
     Ok(())
