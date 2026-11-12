@@ -308,7 +308,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
         absent_and_artifact_tags.push("PROB_ARTIFACT".to_owned());
     }
     let is_defined = |tag: &str| calls.header().info_type(tag.as_bytes()).is_ok();
-    // skip tags not defined in the header (e.g. PROB_ABSENT for calls made with --no-absent)
+    // skip tags not defined in the header (e.g. PROB_ABSENT for calls made with --omit-absent-event)
     absent_and_artifact_tags.retain(|tag| is_defined(tag));
 
     let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
@@ -342,7 +342,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
                     let p = if smart {
                         // METHOD: in smart mode, the record is kept if the probability for presence exceeds the threshold
                         if absent_and_artifact_tags.is_empty() {
-                            // METHOD: neither absent (--no-absent) nor artifacts (retained) compete with presence
+                            // METHOD: neither absent (--omit-absent-event) nor artifacts (retained) compete with presence
                             Some(LogProb::ln_one())
                         } else {
                             prob_absent_or_artifact.map(|p| p.ln_one_minus_exp())

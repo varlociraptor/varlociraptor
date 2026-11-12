@@ -1179,7 +1179,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         } => {
                             if no_absent {
                                 bail!(
-                                    "--no-absent is not supported in tumor-normal mode, because its \
+                                    "--omit-absent-event is not supported in tumor-normal mode, because its \
                                      scenario has no event covering VAF 0.0 in all samples. Use the \
                                      generic mode with a suitable scenario instead."
                                 );
