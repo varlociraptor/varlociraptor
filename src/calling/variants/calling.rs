@@ -798,7 +798,7 @@ where
             // Compute probabilities for given events.
             let m = model.compute(event_universe.iter().cloned(), &data);
 
-            // A single event can occur with --no-absent if all biases are omitted.
+            // A single event can occur with --omit-absent-event if all biases are omitted.
             let best_event = match event_universe
                 .iter()
                 .minmax_by_key(|event| m.posterior(event).unwrap())
