@@ -626,7 +626,7 @@ pub enum CallKind {
         #[serde(default)]
         full_prior: bool,
         #[structopt(
-            long = "no-absent",
+            long = "omit-absent-event",
             help = "Do not automatically add the absent event (all samples having VAF 0.0) to the events of the scenario.
             This requires the scenario to define an event that contains VAF 0.0 in all samples."
         )]
