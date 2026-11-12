@@ -30,6 +30,7 @@ use strum::IntoEnumIterator;
 //use crate::estimation::sample_variants;
 //use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
+use crate::filtration::fdr::EventSubsets;
 use crate::grammar;
 use crate::reference;
 use crate::testcase;
@@ -626,6 +627,13 @@ pub enum CallKind {
         #[serde(default)]
         full_prior: bool,
         #[structopt(
+            long = "omit-absent-event",
+            help = "Do not automatically add the absent event (all samples having VAF 0.0) to the events of the scenario.
+            This requires the scenario to define an event that contains VAF 0.0 in all samples."
+        )]
+        #[serde(default)]
+        no_absent: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS. Alternatively, for single variant VCFs, you can \
@@ -824,6 +832,22 @@ pub enum FilterMethod {
         smart_retain_artifacts: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
+        #[structopt(
+            long,
+            default_value = "all",
+            help = "How to aggregate the probabilities of the given --events per record. \
+            'all': sum over all events. 'adjacent-<k>': maximum over the sums of k consecutive \
+            events in the order given via --events."
+        )]
+        #[serde(default)]
+        subsets: EventSubsets,
+        #[structopt(
+            long,
+            conflicts_with = "smart-retain-artifacts",
+            help = "Count the probability of the ARTIFACT event towards the given event, e.g. the event (or bin) containing AF 0, such that artifacts are treated like the absence of the alteration. The event has to be one of the given --events."
+        )]
+        #[serde(default)]
+        artifact_as: Option<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
         minlen: Option<u64>,
         #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
@@ -1074,6 +1098,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     log_mode,
                     propagate_info_fields,
                     full_prior,
+                    no_absent,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -1091,6 +1116,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     )
                                     .omit_alt_locus_bias(omit_alt_locus_bias)
                                     .fragment_end_bias(fragment_end_bias)
+                                    .no_absent(no_absent)
                                     .locus(&testcase_locus)?,
                             )
                         } else {
@@ -1157,6 +1183,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     DefaultCandidateFilter::new(),
                                     propagate_info_fields,
                                     full_prior,
+                                    no_absent,
                                 )?;
                             } else {
                                 return Err(errors::Error::InvalidObservationsSpec.into());
@@ -1167,6 +1194,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             normal_observations,
                             purity,
                         } => {
+                            if no_absent {
+                                bail!(
+                                    "--omit-absent-event is not supported in tumor-normal mode, because its \
+                                     scenario has no event covering VAF 0.0 in all samples. Use the \
+                                     generic mode with a suitable scenario instead."
+                                );
+                            }
+
                             if let Some(testcase_builder) = testcase_builder {
                                 let tumor_options =
                                     calling::variants::preprocessing::read_preprocess_options(
@@ -1243,6 +1278,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 DefaultCandidateFilter::new(),
                                 propagate_info_fields,
                                 full_prior,
+                                false,
                             )?;
                         }
                     }
@@ -1283,6 +1319,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 minlen,
                 maxlen,
                 smart_retain_artifacts,
+                subsets,
+                artifact_as,
             } => {
                 let events = events
                     .iter()
@@ -1310,6 +1348,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     local,
                     smart,
                     smart_retain_artifacts,
+                    &subsets,
+                    artifact_as.map(|e| SimpleEvent::new(&e)).as_ref(),
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {

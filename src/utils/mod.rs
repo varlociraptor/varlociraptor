@@ -24,6 +24,7 @@ use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bam::record::Cigar, bcf};
 use serde::Serializer;
 
+use crate::filtration::fdr::EventSubsets;
 use crate::variants::model;
 use crate::Event;
 
@@ -211,6 +212,52 @@ pub(crate) fn tags_prob_sum(
         .collect_vec())
 }
 
+/// Aggregate in log space the probabilities of the given tags for all variants of vartype in the given BCF record. With `EventSubsets::All`, this is the same as `tags_prob_sum`. With `EventSubsets::Adjacent(k)`, the tags are summed up in windows of k consecutive tags (in the given order, e.g. neighboring VAF bins), and the maximum window sum is returned.
+pub(crate) fn tags_prob_aggregate(
+    record: &mut bcf::Record,
+    tags: &[String],
+    vartype: Option<&model::VariantType>,
+    subsets: &EventSubsets,
+    artifact_as: Option<&str>,
+) -> Result<Vec<Option<LogProb>>> {
+    // count PROB_ARTIFACT towards the artifact_as event, if contained in the given tags
+    let with_artifact = |tags: &[String]| {
+        let mut tags = tags.to_vec();
+        if artifact_as.is_some_and(|tag| tags.iter().any(|t| t == tag)) {
+            tags.push("PROB_ARTIFACT".to_owned());
+        }
+        tags
+    };
+
+    let k = match subsets {
+        EventSubsets::All => return tags_prob_sum(record, &with_artifact(tags), vartype),
+        // a single window covering all tags is the same as summing up all tags
+        EventSubsets::Adjacent(k) if *k >= tags.len() => {
+            return tags_prob_sum(record, &with_artifact(tags), vartype)
+        }
+        EventSubsets::Adjacent(k) => *k,
+    };
+
+    // Sum up each window of k consecutive tags: [tag1, tag2], [tag2, tag3], ...
+    // Each window sum is a vector with one entry.
+    let window_sums = tags
+        .windows(k)
+        .map(|window| tags_prob_sum(record, &with_artifact(window), vartype))
+        .collect::<Result<Vec<_>>>()?;
+
+    // Take the maximum over all windows, separately for each allele.
+    // None (no value in this window) is smaller than any Some(_).
+    let mut max_probs = vec![None; window_sums[0].len()];
+    for sums in &window_sums {
+        for (max_prob, prob) in max_probs.iter_mut().zip(sums) {
+            if *prob > *max_prob {
+                *max_prob = *prob;
+            }
+        }
+    }
+    Ok(max_probs)
+}
+
 pub(crate) fn events_to_tags<E>(events: &[E]) -> Vec<String>
 where
     E: Event,
@@ -233,10 +280,14 @@ where
 /// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
+/// * `subsets` - how to aggregate the event probabilities per record
+/// * `artifact_as` - tag of an event (contained in `events`) the artifact probability is counted towards
 pub(crate) fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: Option<&model::VariantType>,
+    subsets: &EventSubsets,
+    artifact_as: Option<&str>,
 ) -> Result<Vec<NotNan<f64>>>
 where
     E: Event,
@@ -260,7 +311,7 @@ where
             }
         }
 
-        for p in (tags_prob_sum(&mut record, &tags, vartype)?)
+        for p in (tags_prob_aggregate(&mut record, &tags, vartype, subsets, artifact_as)?)
             .into_iter()
             .flatten()
         {
@@ -285,6 +336,9 @@ where
 /// * `vartype` - the variant type to consider (if None, use all types)
 /// * `smart` - if true, use a smart thresholding strategy that just filters based on presence with the threshold
 ///             and then keeps records whether the sum of the event probabilities exceeds 50%.
+/// * `subsets` - how to aggregate the event probabilities per record
+/// * `artifact_as` - tag of an event (contained in `events`) the artifact probability is counted towards.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
@@ -293,20 +347,22 @@ pub(crate) fn filter_by_threshold<E: Event>(
     vartype: Option<&model::VariantType>,
     smart: bool,
     smart_retain_artifacts: bool,
+    subsets: &EventSubsets,
+    artifact_as: Option<&str>,
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
-    let mut tags = events_to_tags(events);
+    let tags = events_to_tags(events);
     let mut absent_and_artifact_tags = vec!["PROB_ABSENT".to_owned()];
+    let retain_artifacts = smart && smart_retain_artifacts;
 
-    if smart && smart_retain_artifacts {
-        // in this case, artifact events are wanted, and hence added to the
-        // queried events
-        tags.push("PROB_ARTIFACT".to_owned());
-    } else {
+    if !retain_artifacts && artifact_as.is_none_or(|tag| tag == "PROB_ABSENT") {
         // in this case, artifacts are unwanted and hence added to the absent case
         absent_and_artifact_tags.push("PROB_ARTIFACT".to_owned());
     }
+    let is_defined = |tag: &str| calls.header().info_type(tag.as_bytes()).is_ok();
+    // skip tags not defined in the header (e.g. PROB_ABSENT for calls made with --omit-absent-event)
+    absent_and_artifact_tags.retain(|tag| is_defined(tag));
 
     let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
         let bnd_event = info_tag_event(record).ok().flatten();
@@ -316,7 +372,20 @@ pub(crate) fn filter_by_threshold<E: Event>(
             None
         };
 
-        let probs_events = tags_prob_sum(record, &tags, vartype)?;
+        let mut probs_events = tags_prob_aggregate(record, &tags, vartype, subsets, artifact_as)?;
+        if retain_artifacts {
+            // in this case, artifact events are wanted, and hence added to the
+            // queried events (separately, such that they are not adjacent to any event)
+            let probs_artifact = tags_prob_sum(record, &["PROB_ARTIFACT".to_owned()], vartype)?;
+            for (p, a) in probs_events.iter_mut().zip(probs_artifact) {
+                *p = match (*p, a) {
+                    (Some(p), Some(a)) => {
+                        Some(p.ln_add_exp(a).cap_numerical_overshoot(NUMERICAL_EPSILON))
+                    }
+                    (p, a) => p.or(a),
+                };
+            }
+        }
         let probs_absent_or_artifact = if smart {
             tags_prob_sum(record, &absent_and_artifact_tags, vartype)?
         } else {
@@ -338,7 +407,12 @@ pub(crate) fn filter_by_threshold<E: Event>(
                 } else {
                     let p = if smart {
                         // METHOD: in smart mode, the record is kept if the probability for presence exceeds the threshold
-                        prob_absent_or_artifact.map(|p| p.ln_one_minus_exp())
+                        if absent_and_artifact_tags.is_empty() {
+                            // METHOD: neither absent (--omit-absent-event) nor artifacts (retained) compete with presence
+                            Some(LogProb::ln_one())
+                        } else {
+                            prob_absent_or_artifact.map(|p| p.ln_one_minus_exp())
+                        }
                     } else {
                         prob_events
                     };
@@ -533,13 +607,27 @@ mod tests {
         let del = VariantType::Deletion(None);
 
         let mut del_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_del = collect_prob_dist(&mut del_calls_1, &events, Some(&del)).unwrap();
+        let prob_del = collect_prob_dist(
+            &mut del_calls_1,
+            &events,
+            Some(&del),
+            &EventSubsets::All,
+            None,
+        )
+        .unwrap();
         println!("prob_del[0]: {:?}", prob_del[0].into_inner());
         assert_eq!(prob_del.len(), 1);
         assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
 
         let mut del_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, Some(&del)).unwrap();
+        let prob_del_abs = collect_prob_dist(
+            &mut del_calls_2,
+            &absent_event,
+            Some(&del),
+            &EventSubsets::All,
+            None,
+        )
+        .unwrap();
         assert_eq!(prob_del_abs.len(), 1);
         assert_relative_eq!(
             prob_del_abs[0].into_inner(),
@@ -551,12 +639,26 @@ mod tests {
         let ins = VariantType::Insertion(None);
 
         let mut ins_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, Some(&ins)).unwrap();
+        let prob_ins = collect_prob_dist(
+            &mut ins_calls_1,
+            &events,
+            Some(&ins),
+            &EventSubsets::All,
+            None,
+        )
+        .unwrap();
         assert_eq!(prob_ins.len(), 1);
         assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
 
         let mut ins_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, Some(&ins)).unwrap();
+        let prob_ins_abs = collect_prob_dist(
+            &mut ins_calls_2,
+            &absent_event,
+            Some(&ins),
+            &EventSubsets::All,
+            None,
+        )
+        .unwrap();
         assert_eq!(prob_ins_abs.len(), 1);
         assert_relative_eq!(
             prob_ins_abs[0].into_inner(),
