@@ -484,6 +484,10 @@ pub(crate) struct Sample {
     inheritance: Option<Inheritance>,
     #[serde(default)]
     sex: Option<Sex>,
+    /// consider fragment end bias (e.g. FFPE artifacts) for this sample
+    #[serde(default)]
+    #[get = "pub(crate)"]
+    fragment_end_bias: bool,
 }
 
 impl Sample {

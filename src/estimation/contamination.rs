@@ -462,6 +462,7 @@ pub(crate) fn estimate_contamination(
         false,
         false,
         false,
+        false,
         None,
         false,
         ContaminationEstimator::new(output, output_plot, output_max_vaf_variants, prior_estimate),

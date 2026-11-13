@@ -185,6 +185,10 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
+fn default_methylation_prob_skipped_bases() -> f64 {
+    0.05
+}
+
 fn default_pairhmm_mode() -> String {
     "exact".to_owned()
 }
@@ -194,7 +198,7 @@ fn default_log_mode() -> String {
 }
 
 fn default_min_bam_refetch_distance() -> u64 {
-    1
+    10000
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -276,13 +280,14 @@ pub enum PreprocessKind {
         reference_buffer_size: usize,
         #[structopt(
             long = "min-bam-refetch-distance",
-            default_value = "1",
+            default_value = "10000",
             help = "Base pair distance to last fetched BAM interval such that a refetching is performed \
                   instead of reading through until the next interval is reached. Making this too small \
-                  can cause unnecessary random access. Making this too large can lead to unneccessary \
-                  iteration over irrelevant records. Benchmarking has shown that at least for short reads, \
-                  a value of 1 (e.g. always refetch) does not incur additional costs and is a reasonable \
-                  default."
+                  causes unnecessary random access: every refetch discards htslib's read-ahead and \
+                  decompresses the block at the new position again, which with dense candidates can \
+                  cost several times a single pass over the file. Making this too large can lead to \
+                  unnecessary iteration over irrelevant records. Reading through gaps of up to 10 kb \
+                  is at least as fast as refetching for short reads."
         )]
         #[serde(default = "default_min_bam_refetch_distance")]
         min_bam_refetch_distance: u64,
@@ -369,6 +374,13 @@ pub enum PreprocessKind {
             help = "Type of methylation information encoded in the reads. Use 'converted' for reads treated with bisulfite or EMSeq. Use 'annotated' for reads where methylation information is encoded in the MM and ML tags."
         )]
         methylation_readtype: Option<MethylationReadtype>,
+        #[structopt(
+            long = "methylation-prob-skipped-bases",
+            default_value = "0.05",
+            help = "Upper bound on the methylation probability of cytosines omitted from the MM tag (MM/ML annotated reads). Only applies when the MM skip mode is ‘.’ or absent, which means omitted bases are presumed unmodified (Dorado typically omits calls below 0.05). Ignored for skip mode ‘?’, where the status of omitted bases is unknown."
+        )]
+        #[serde(default = "default_methylation_prob_skipped_bases")]
+        methylation_prob_skipped_bases: f64,
     },
 }
 
@@ -591,6 +603,15 @@ pub enum CallKind {
         )]
         #[serde(default)]
         omit_alt_locus_bias: bool,
+        #[structopt(
+            long = "fragment-end-bias",
+            help = "Consider fragment end bias when calculating the probability of an \
+                    artifact. Use this to avoid false positives caused by FFPE artifacts. \
+                    If all reads supporting the variant share at least one fragment end, \
+                    the variant can more likely be an FFPE induced artifact."
+        )]
+        #[serde(default)]
+        fragment_end_bias: bool,
         #[structopt(
             long = "full-prior",
             help = "Compute the full prior distribution for any allele frequency combination. \
@@ -870,6 +891,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     log_mode,
                     output_raw_observations,
                     methylation_readtype,
+                    methylation_prob_skipped_bases,
                     variant_heterozygosity_field,
                     variant_somatic_effective_mutation_rate_field,
                 } => {
@@ -882,6 +904,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             ).into()
                         );
                     };
+
+                    let methylation_prob_skipped_bases = LogProb::from(
+                        Prob::checked(methylation_prob_skipped_bases)
+                            .context("--methylation-prob-skipped-bases must be between 0 and 1.")?,
+                    );
 
                     let variant_heterozygosity_field = variant_heterozygosity_field.map(Vec::from);
                     let variant_somatic_effective_mutation_rate_field =
@@ -938,6 +965,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
+                                    .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -971,6 +999,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
+                                    .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -1014,6 +1043,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     ))
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
+                                    .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -1036,6 +1066,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_softclip_bias,
                     omit_homopolymer_artifact_detection,
                     omit_alt_locus_bias,
+                    fragment_end_bias,
                     testcase_locus,
                     testcase_prefix,
                     testcase_anonymous,
@@ -1051,6 +1082,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 testcase::builder::TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
                                     .anonymize(testcase_anonymous)
+                                    .omit_strand_bias(omit_strand_bias)
+                                    .omit_read_orientation_bias(omit_read_orientation_bias)
+                                    .omit_read_position_bias(omit_read_position_bias)
+                                    .omit_softclip_bias(omit_softclip_bias)
+                                    .omit_homopolymer_artifact_detection(
+                                        omit_homopolymer_artifact_detection,
+                                    )
+                                    .omit_alt_locus_bias(omit_alt_locus_bias)
+                                    .fragment_end_bias(fragment_end_bias)
                                     .locus(&testcase_locus)?,
                             )
                         } else {
@@ -1110,6 +1150,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     omit_softclip_bias,
                                     omit_homopolymer_artifact_detection,
                                     omit_alt_locus_bias,
+                                    fragment_end_bias,
                                     output,
                                     log_each_record,
                                     CallWriter::new(),
@@ -1195,6 +1236,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 omit_softclip_bias,
                                 omit_homopolymer_artifact_detection,
                                 omit_alt_locus_bias,
+                                fragment_end_bias,
                                 output,
                                 log_each_record,
                                 CallWriter::new(),
