@@ -42,6 +42,13 @@ struct TestcaseTemplate {
     ref_path: String,
     mode: Mode,
     purity: Option<f64>,
+    omit_strand_bias: bool,
+    omit_read_orientation_bias: bool,
+    omit_read_position_bias: bool,
+    omit_softclip_bias: bool,
+    omit_homopolymer_artifact_detection: bool,
+    omit_alt_locus_bias: bool,
+    fragment_end_bias: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +85,13 @@ pub struct Testcase {
     purity: Option<f64>,
     mode: Mode,
     anonymize: bool,
+    omit_strand_bias: bool,
+    omit_read_orientation_bias: bool,
+    omit_read_position_bias: bool,
+    omit_softclip_bias: bool,
+    omit_homopolymer_artifact_detection: bool,
+    omit_alt_locus_bias: bool,
+    fragment_end_bias: bool,
 }
 
 pub(crate) fn modify_bnd_alleles(
@@ -496,6 +510,13 @@ impl Testcase {
                     scenario: scenario.clone(),
                     mode: self.mode,
                     purity: self.purity,
+                    omit_strand_bias: self.omit_strand_bias,
+                    omit_read_orientation_bias: self.omit_read_orientation_bias,
+                    omit_read_position_bias: self.omit_read_position_bias,
+                    omit_softclip_bias: self.omit_softclip_bias,
+                    omit_homopolymer_artifact_detection: self.omit_homopolymer_artifact_detection,
+                    omit_alt_locus_bias: self.omit_alt_locus_bias,
+                    fragment_end_bias: self.fragment_end_bias,
                 }
                 .render()?
                 .as_bytes(),

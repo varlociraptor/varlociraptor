@@ -262,8 +262,8 @@ pub(crate) enum Variant {
 impl fmt::Display for Variant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let fmt_allele = |mut allele: &[u8]| {
-            if allele.len() > 10 {
-                allele = &allele[..10];
+            if allele.len() > 30 {
+                allele = &allele[..30];
             }
             String::from_utf8_lossy(allele).into_owned()
         };
@@ -365,7 +365,8 @@ impl Variant {
 #[cfg(test)]
 mod tests {
     use crate::variants::evidence::observations::read_observation::{
-        AltLocus, ProcessedReadObservation, ReadObservationBuilder, ReadPosition, Strand,
+        AltLocus, FragmentEnd, ProcessedReadObservation, ReadObservationBuilder, ReadPosition,
+        Strand,
     };
     use bio_types::sequence::SequenceReadPairOrientation;
 
@@ -387,6 +388,7 @@ mod tests {
             .prob_overlap(LogProb::ln_one())
             .read_orientation(SequenceReadPairOrientation::None)
             .read_position(ReadPosition::Some)
+            .fragment_end(FragmentEnd::Some)
             .strand(Strand::Both)
             .softclipped(false)
             .prob_observable_at_homopolymer_artifact(None)

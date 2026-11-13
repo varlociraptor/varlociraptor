@@ -27,11 +27,11 @@ use crate::utils;
 use crate::utils::aux_info::AuxInfo;
 use crate::utils::bayes_factor_to_letter;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::evidence::observations::read_observation::AltLocus;
+use crate::variants::evidence::observations::read_observation::{expected_depth, FragmentEnd};
 use crate::variants::evidence::observations::read_observation::{ReadPosition, Strand};
 use crate::variants::model;
-use crate::variants::model::bias::AltLocusBias;
+use crate::variants::model::bias::{AltLocusBias, FragmentEndBias};
 use crate::variants::model::HaplotypeIdentifier;
 use crate::variants::model::VariantPrecision;
 use crate::variants::model::{
@@ -203,6 +203,7 @@ impl Call {
         let mut softclip_bias = VecMap::new();
         let mut homopolymer_error = VecMap::new();
         let mut alt_locus_bias = VecMap::new();
+        let mut fragment_end_bias = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -267,6 +268,13 @@ impl Call {
                         AltLocusBias::Some { .. } => b'*',
                     },
                 );
+                fragment_end_bias.insert(
+                    i,
+                    match sample_info.artifacts.fragment_end_bias() {
+                        FragmentEndBias::None => b'.',
+                        FragmentEndBias::Some => b'F',
+                    },
+                );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
                 obs_counts.insert(
@@ -280,7 +288,7 @@ impl Call {
                         sample_info.pileup.read_observations().iter().map(|obs| {
                             let score = format!("{}", obs.max_bayes_factor());
                             format!(
-                                "{}{}{}{}{}{}{}{}{}",
+                                "{}{}{}{}{}{}{}{}{}{}",
                                 if obs.is_max_mapq {
                                     score.to_ascii_uppercase()
                                 } else {
@@ -318,6 +326,10 @@ impl Call {
                                     '*'
                                 } else {
                                     '.'
+                                },
+                                match obs.fragment_end {
+                                    FragmentEnd::Major => 'F',
+                                    FragmentEnd::Some => '.',
                                 },
                             )
                         }),
@@ -537,6 +549,12 @@ impl Call {
 
             let alb = alt_locus_bias.values().map(|alb| vec![*alb]).collect_vec();
             record.push_format_string(b"ALB", &alb)?;
+
+            let feb = fragment_end_bias
+                .values()
+                .map(|feb| vec![*feb])
+                .collect_vec();
+            record.push_format_string(b"FEB", &feb)?;
 
             let vaf_densities = vaf_densities
                 .values()
