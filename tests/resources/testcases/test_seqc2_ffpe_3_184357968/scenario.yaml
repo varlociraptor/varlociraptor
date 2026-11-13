@@ -1,0 +1,70 @@
+__definitions__:
+  - import pandas as pd
+  - |
+    samples = params.samples.set_index("alias")
+    if "ffpe" not in samples.columns:
+      samples["ffpe"] = pd.NA
+  - sex = samples.loc["tumor", "sex"]
+  - |
+    if pd.isna(sex) or sex not in ["male", "female"]:
+        raise ValueError(f"Unsupported sex in sample sheet (also ensure that sample sheet is entirely tab separated): {sex}")
+  - is_tumor_ffpe = samples.loc["tumor", "ffpe"]
+  - is_normal_ffpe = samples.loc["normal", "ffpe"]
+  - |
+    def purity():
+        return float(samples.loc["tumor", "purity"])
+  - |
+    def contamination():
+        return 1.0 - purity()
+  - |
+    def ffpe_threshold():
+        return 0.05 / purity()
+
+species:
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+  genome-size: 3.5e9
+expressions:
+  ?if is_tumor_ffpe:
+    is_tumor_ffpe_artifact: ?f"(C>T | G>A) & tumor:]0.0,{ffpe_threshold()}["
+  ?else:
+    is_tumor_ffpe_artifact: "false"
+  ?if is_normal_ffpe:
+    is_normal_ffpe_artifact: ?f"(C>T | G>A) & normal:]0.0,0.05["
+  ?elif True: # work around yte issue (duplicate else keys)
+    is_normal_ffpe_artifact: "false"
+samples:
+  tumor:
+    sex: male
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: true
+    contamination:
+      by: normal
+      fraction: 0.0
+    fragment_end_bias: true
+  normal:
+    sex: male
+    somatic-effective-mutation-rate: 1e-6
+events:
+    ?if is_tumor_ffpe:
+      tumor_ffpe_artifact: "$is_tumor_ffpe_artifact"
+    ?if is_normal_ffpe:
+      normal_ffpe_artifact: "$is_normal_ffpe_artifact"
+    somatic_tumor_high: "tumor:[0.1,1.0] & !$is_tumor_ffpe_artifact & (normal:0.0 | $is_normal_ffpe_artifact)"
+    somatic_tumor_low: "tumor:]0.0,0.1[ & !$is_tumor_ffpe_artifact & normal:0.0"
+    somatic_normal_or_ctc: "(normal:]0.0,0.5[ | normal:]0.5,1.0[) & tumor:[0.0,1.0] & !$is_normal_ffpe_artifact"
+    loh: "normal:0.5 & tumor:1.0"
+    loh_or_amplification: "normal:0.5 & tumor:[0.9,1.0["
+    germline: "((normal:0.5 & tumor:[0.0,0.9[) | (normal:1.0 & tumor:[0.0,1.0]))"
