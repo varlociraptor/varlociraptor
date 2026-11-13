@@ -32,7 +32,7 @@ samples:
     fragment_end_bias: true
 events:
   tumor_ffpe_artifact: $is_tumor_ffpe_artifact
-  normal_ffpe_artifact: $is_normal_ffpe_artifact
+  normal_ffpe_artifact: $is_normal_ffpe_artifact & !$somatic_tumor_high
   somatic_tumor_high: tumor:[0.1,1.0] & !$is_tumor_ffpe_artifact & (normal:0.0 | $is_normal_ffpe_artifact)
   somatic_tumor_low: tumor:]0.0,0.1[ & !$is_tumor_ffpe_artifact & normal:0.0
   somatic_normal_or_ctc: (normal:]0.0,0.5[ | normal:]0.5,1.0[) & tumor:[0.0,1.0] &
