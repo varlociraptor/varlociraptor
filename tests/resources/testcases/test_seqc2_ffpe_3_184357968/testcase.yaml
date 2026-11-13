@@ -1,13 +1,8 @@
 # TP Variant in seqc2 ffpe benchmark -> should be called
 
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - tumor > 0.3
   posteriors:
-    # write down a list of expressions of the form
-    # - PROB_SOMATIC_TUMOR <= 0.05
-    # - PROB_GERMLINE_HET > 0.05
+    - (PLAIN_PROB_SOMATIC_TUMOR_HIGH + PLAIN_PROB_SOMATIC_TUMOR_LOW) >= 0.95
 
 # necessary bam files
 samples:
