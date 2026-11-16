@@ -219,7 +219,6 @@ testcase!(test_seqc2_ffpe_3_184357968, exact);
 testcase!(test_seqc2_ffpe_2_169645788, exact);
 testcase!(test_seqc2_ffpe_9_137280377, exact);
 
-
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }
