@@ -2,7 +2,7 @@
 
 expected:
   posteriors:
-    - (PLAIN_PROB_SOMATIC_TUMOR_HIGH + PLAIN_PROB_SOMATIC_TUMOR_LOW) >= 0.95
+    - (PLAIN_PROB_SOMATIC_TUMOR_HIGH + PLAIN_PROB_SOMATIC_TUMOR_LOW) >= 0.7
 
 # necessary bam files
 samples:

@@ -12,8 +12,9 @@ species:
       Y: 0
   genome-size: 3.5e9
 expressions:
-  is_tumor_ffpe_artifact: (C>T | G>A) & tumor:]0.0,0.05[
-  is_normal_ffpe_artifact: (C>T | G>A) & normal:]0.0,0.05[
+  # problematic substitutions derived from Dobrovic et al. 2015 (https://doi.org/10.1373/clinchem.2014.223040)
+  is_tumor_ffpe_artifact: (C>T | G>A | C>A | G>T | A>T | G>C) & tumor:]0.0,0.05[
+  is_normal_ffpe_artifact: (C>T | G>A | C>A | G>T | A>T | G>C) & normal:]0.0,0.05[
 samples:
   tumor:
     sex: male
@@ -31,8 +32,9 @@ samples:
     somatic-effective-mutation-rate: 1e-6
     fragment_end_bias: true
 events:
-  tumor_ffpe_artifact: $is_tumor_ffpe_artifact
-  normal_ffpe_artifact: $is_normal_ffpe_artifact & !(tumor:[0.1,1.0] & !$is_tumor_ffpe_artifact & (normal:0.0 | $is_normal_ffpe_artifact))
+  tumor_ffpe_artifact: $is_tumor_ffpe_artifact & normal:0.0
+  normal_ffpe_artifact: $is_normal_ffpe_artifact & tumor:0.0
+  tumor_normal_ffpe_artifact: $is_tumor_ffpe_artifact & $is_normal_ffpe_artifact
   somatic_tumor_high: tumor:[0.1,1.0] & !$is_tumor_ffpe_artifact & (normal:0.0 | $is_normal_ffpe_artifact)
   somatic_tumor_low: tumor:]0.0,0.1[ & !$is_tumor_ffpe_artifact & normal:0.0
   somatic_normal_or_ctc: (normal:]0.0,0.5[ | normal:]0.5,1.0[) & tumor:[0.0,1.0] &
