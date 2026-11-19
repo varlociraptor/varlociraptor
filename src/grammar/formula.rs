@@ -510,10 +510,10 @@ impl Formula {
                     if let Some(formula) = scenario.expressions().get(identifier) {
                         if *negated {
                             Formula::Negation {
-                                operand: Box::new(formula.clone()),
+                                operand: Box::new(formula.expand_expressions(scenario)?),
                             }
                         } else {
-                            formula.clone()
+                            formula.expand_expressions(scenario)?
                         }
                     } else {
                         return Err(errors::Error::UndefinedExpression {
