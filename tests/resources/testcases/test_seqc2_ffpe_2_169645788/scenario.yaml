@@ -39,4 +39,4 @@ events:
     !$is_normal_ffpe_artifact
   loh: normal:0.5 & tumor:1.0
   loh_or_amplification: normal:0.5 & tumor:[0.9,1.0[
-  germline: ((normal:0.5 & tumor:[0.0,0.9[) | (normal:1.0 & tumor:[0.0,1.0]))
+  germline: (normal:0.5 & tumor:[0.0,0.9[) | (normal:1.0 & tumor:[0.0,1.0])
