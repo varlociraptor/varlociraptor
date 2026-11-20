@@ -1,5 +1,4 @@
 FROM gitpod/workspace-full
-RUN sudo apt-get install --yes libgsl0-dev
 
 USER gitpod
 ENV SHELL /bin/bash

@@ -9,9 +9,9 @@ use std::{
 use anyhow::Result;
 use bio::stats::{bayesian, LogProb, Prob};
 use csv::WriterBuilder;
+use gsl_oxide_randist::binomial_pdf;
 use itertools::Itertools;
 use itertools_num::linspace;
-use rgsl::randist::binomial::binomial_pdf;
 use serde_json;
 use serde_json::json;
 
@@ -138,7 +138,9 @@ impl Prior {
             let n = prior_estimate.n_observed_cells;
             let k = (prior_estimate.contamination * n as f64).round() as u32;
             let p = *contamination;
-            LogProb::from(Prob(binomial_pdf(k, p, n)))
+            LogProb::from(Prob(
+                binomial_pdf(k, p, n).unwrap(),
+            ))
         } else {
             LogProb::ln_one()
         }
@@ -470,4 +472,32 @@ pub(crate) fn estimate_contamination(
         Vec::new(),
         false,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prior_matches_gsl_probabilities() {
+        // Reference probabilities from GSL, including endpoint and zero-trial priors.
+        for (contamination, n_observed_cells, candidate, expected) in [
+            (0.1, 100, 0.2, 0.003362819969582639),
+            (0.0, 10, 0.0, 1.0),
+            (0.0, 10, 1.0, 0.0),
+            (1.0, 10, 0.0, 0.0),
+            (1.0, 10, 1.0, 1.0),
+            (0.5, 0, 0.2, 1.0),
+        ] {
+            let prior = Prior::new(Some(PriorEstimate {
+                contamination: AlleleFreq(contamination),
+                n_observed_cells,
+            }));
+            assert_relative_eq!(
+                prior.prob(AlleleFreq(candidate)).exp(),
+                expected,
+                max_relative = 1e-12
+            );
+        }
+    }
 }

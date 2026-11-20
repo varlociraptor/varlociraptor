@@ -11,12 +11,11 @@ use std::path::Path;
 use anyhow::Result;
 use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
+use gsl_oxide_randist::{binomial_pdf, poisson_pdf};
 use itertools::join;
 use itertools::Itertools;
 use itertools_num::linspace;
 use rayon::prelude::*;
-use rgsl::randist::binomial::binomial_pdf;
-use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::Read;
@@ -29,7 +28,11 @@ const MIN_DEPTH: u32 = 10;
 const MAX_GAIN: i32 = 21;
 
 pub(crate) fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
-    LogProb(poisson_pdf(observed_depth, true_depth).ln())
+    LogProb(
+        poisson_pdf(observed_depth, true_depth)
+            .unwrap()
+            .ln(),
+    )
 }
 
 pub(crate) fn allele_freq_pdf(
@@ -38,7 +41,11 @@ pub(crate) fn allele_freq_pdf(
     depth: u32,
 ) -> LogProb {
     let k = (*observed_allele_freq * depth as f64).round() as u32;
-    LogProb(binomial_pdf(k, *true_allele_freq, depth).ln())
+    LogProb(
+        binomial_pdf(k, *true_allele_freq, depth)
+            .unwrap()
+            .ln(),
+    )
 }
 
 #[derive(Builder)]

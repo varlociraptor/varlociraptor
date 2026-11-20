@@ -4,7 +4,6 @@ platforms = ["linux-64"]
 
 [dependencies]
 rust = ">=1.98.1,<1.99"
-gsl = ">=2.6,<3"
 gcc_linux-64 = ">=16.2.0,<17"
 gcc = ">=16.2.0,<16.3"
 cmake = ">=4.4.4,<5"

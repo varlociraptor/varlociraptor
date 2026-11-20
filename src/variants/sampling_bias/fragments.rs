@@ -6,8 +6,8 @@
 use std::ops::Range;
 
 use bio::stats::LogProb;
+use gsl_oxide_cdf::standard_normal_cdf;
 use itertools::Itertools;
-use rgsl::randist::gaussian::ugaussian_P;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
@@ -162,7 +162,33 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
 
 /// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
 pub(crate) fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
-    LogProb((ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln())
+    let upper = standard_normal_cdf((value + 0.5 - mean) / sd)
+        .unwrap();
+    let lower = standard_normal_cdf((value - 0.5 - mean) / sd)
+        .unwrap();
+    LogProb((upper - lower).ln())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_isize_pmf_matches_gsl_probabilities() {
+        // Reference probabilities from GSL at the center and at six standard deviations.
+        for (value, mean, sd, expected) in [
+            (312.0, 312.0, 12.0, 0.03323557298072677),
+            (300.0, 312.0, 15.0, 0.019311482580611522),
+            (222.0, 312.0, 15.0, 4.0768875446743455e-10),
+            (402.0, 312.0, 15.0, 4.0768877163088746e-10),
+        ] {
+            assert_relative_eq!(
+                isize_pmf(value, mean, sd).exp(),
+                expected,
+                max_relative = 1e-12
+            );
+        }
+    }
 }
 
 // #[cfg(test)]
