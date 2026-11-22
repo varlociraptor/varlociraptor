@@ -81,6 +81,7 @@ where
     #[builder(default)]
     haplotype_results: RwLock<HashMap<HaplotypeIdentifier, HaplotypeResult>>,
     log_each_record: bool,
+    no_absent: bool,
     call_processor: RefCell<CP>,
     candidate_filter: CF,
 }
@@ -130,11 +131,13 @@ where
              read orientation, softclip bias, or divindel bias (PHRED). See the bias specific records below for \
              an explanation for each type of bias.\">".as_slice(),
         );
-        header.push_record(
-            b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
-                Description=\"Posterior probability for not having a variant (PHRED)\">"
-                .as_slice(),
-        );
+        if !self.no_absent {
+            header.push_record(
+                b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
+                    Description=\"Posterior probability for not having a variant (PHRED)\">"
+                    .as_slice(),
+            );
+        }
 
         header.push_record(
             b"##INFO=<ID=HINTS,Number=.,Type=String,\
@@ -684,12 +687,14 @@ where
             // clear old events
             events.clear();
 
-            // register absent event
-            events.push(model::Event {
-                name: "absent".to_owned(),
-                vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: vec![Artifacts::none()],
-            });
+            if !self.no_absent {
+                // register absent event
+                events.push(model::Event {
+                    name: "absent".to_owned(),
+                    vafs: grammar::VAFTree::absent(self.n_samples()),
+                    biases: vec![Artifacts::none()],
+                });
+            }
 
             // add events from scenario
             for (event_name, vaftree) in self.scenario.vaftrees(contig)? {
@@ -793,13 +798,15 @@ where
             // Compute probabilities for given events.
             let m = model.compute(event_universe.iter().cloned(), &data);
 
-            let best_event = if let MinMaxResult::MinMax(_, best_event) = event_universe
+            // A single event can occur with --omit-absent-event if all biases are omitted.
+            let best_event = match event_universe
                 .iter()
                 .minmax_by_key(|event| m.posterior(event).unwrap())
             {
-                best_event
-            } else {
-                unreachable!()
+                MinMaxResult::MinMax(_, best_event) | MinMaxResult::OneElement(best_event) => {
+                    best_event
+                }
+                MinMaxResult::NoElements => unreachable!(),
             };
 
             // add calling results
@@ -1116,6 +1123,7 @@ pub(crate) fn call_generic<CP, CF>(
     candidate_filter: CF,
     propagate_info_fields: Vec<String>,
     full_prior: bool,
+    no_absent: bool,
 ) -> Result<()>
 where
     CP: CallProcessor,
@@ -1194,6 +1202,7 @@ where
         .outbcf(output)
         .aux_info_fields(propagate_info_fields)
         .log_each_record(log_each_record)
+        .no_absent(no_absent)
         .call_processor(RefCell::new(call_processor))
         .candidate_filter(candidate_filter)
         .build()

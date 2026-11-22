@@ -49,6 +49,7 @@ struct TestcaseTemplate {
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
     fragment_end_bias: bool,
+    no_absent: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +93,7 @@ pub struct Testcase {
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
     fragment_end_bias: bool,
+    no_absent: bool,
 }
 
 pub(crate) fn modify_bnd_alleles(
@@ -517,6 +519,7 @@ impl Testcase {
                     omit_homopolymer_artifact_detection: self.omit_homopolymer_artifact_detection,
                     omit_alt_locus_bias: self.omit_alt_locus_bias,
                     fragment_end_bias: self.fragment_end_bias,
+                    no_absent: self.no_absent,
                 }
                 .render()?
                 .as_bytes(),
