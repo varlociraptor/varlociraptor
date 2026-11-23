@@ -145,6 +145,14 @@ where
         if smart_retain_artifacts {
             bail!("--artifact-as cannot be combined with --smart-retain-artifacts");
         }
+        if cleaned_events
+            .iter()
+            .any(|event| event_to_tag(event) == "PROB_ARTIFACT")
+        {
+            bail!(
+                "--artifact-as cannot be combined with ARTIFACT being one of the given --events, since the artifact probability would be counted twice."
+            );
+        }
         if !cleaned_events
             .iter()
             .any(|event| event_to_tag(event) == *artifact_as_tag)
