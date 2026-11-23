@@ -256,6 +256,7 @@ fn control_fdr(
         smart_retain_artifacts,
         &varlociraptor::filtration::fdr::EventSubsets::All,
         None,
+        &[],
     )
     .unwrap();
 }

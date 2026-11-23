@@ -66,6 +66,7 @@ impl FromStr for EventSubsets {
 /// * `alpha` - the FDR threshold to control for
 /// * `subsets` - how to aggregate the event probabilities per record
 /// * `artifact_as` - event the probability of the ARTIFACT event is counted towards
+/// * `as_artifact` - additional events that are treated like the ARTIFACT event. In smart mode, they count against presence (or are retained with `smart_retain_artifacts`), and with `artifact_as`, they are counted towards that event.
 #[allow(clippy::too_many_arguments)]
 pub fn control_fdr<R, W>(
     inbcf: R,
@@ -78,6 +79,7 @@ pub fn control_fdr<R, W>(
     smart_retain_artifacts: bool,
     subsets: &EventSubsets,
     artifact_as: Option<&SimpleEvent>,
+    as_artifact: &[SimpleEvent],
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -154,7 +156,43 @@ where
             );
         }
     }
-    // whether the ARTIFACT event counts against presence (in smart mode)
+
+    // validate events given via --as-artifact
+    let as_artifact = as_artifact
+        .iter()
+        .unique_by(|event| event_to_tag(*event))
+        .cloned()
+        .collect_vec();
+    let event_tags = utils::events_to_tags(events);
+    for event in &as_artifact {
+        let tag = event_to_tag(event);
+        if event_tags.contains(&tag) {
+            bail!(
+                "Event {} given via --as-artifact must not be one of the given --events.",
+                event.name()
+            );
+        }
+        if tag == "PROB_ABSENT" || tag == "PROB_ARTIFACT" {
+            bail!(
+                "Event {} cannot be given via --as-artifact, because it is already handled separately (use --artifact-as to change how ARTIFACT is counted).",
+                event.name()
+            );
+        }
+        if inbcf_reader.header().info_type(tag.as_bytes()).is_err() {
+            bail!(
+                "Event {} given via --as-artifact is not present in the BCF header.",
+                event.name()
+            );
+        }
+    }
+    let as_artifact_tags = utils::events_to_tags(&as_artifact);
+    if !smart && artifact_as.is_none() && !as_artifact.is_empty() {
+        warn!(
+            "--as-artifact has no effect in strict mode without --artifact-as, since all events not given via --events count as false discoveries anyway."
+        );
+    }
+
+    // whether the ARTIFACT event (and the additional artifact events) count against presence (in smart mode)
     let artifact_against_presence = !smart_retain_artifacts
         && artifact_as_tag
             .as_ref()
@@ -163,18 +201,22 @@ where
     if local {
         threshold = Some(alpha.ln_one_minus_exp());
     } else if alpha != LogProb::ln_one() {
+        // dist_events is the set of events over which the distribution is calculated.
         let dist_events = if smart {
-            let mut evts = vec![SimpleEvent::new("ABSENT")];
+            let mut against_presence = vec![SimpleEvent::new("ABSENT")];
             if artifact_against_presence {
-                evts.push(SimpleEvent::new("ARTIFACT"));
+                against_presence.push(SimpleEvent::new("ARTIFACT"));
             }
-            evts.retain(|e| {
+            if artifact_against_presence {
+                against_presence.extend(as_artifact.iter().cloned());
+            }
+            against_presence.retain(|e| {
                 inbcf_reader
                     .header()
                     .info_type(event_to_tag(e).as_bytes())
                     .is_ok()
             });
-            evts
+            against_presence
         } else {
             cleaned_events.clone()
         };
@@ -203,6 +245,7 @@ where
             vartype,
             &dist_subsets,
             dist_artifact_as,
+            &as_artifact_tags,
         )?
         .into_iter()
         .rev()
@@ -244,6 +287,7 @@ where
         smart_retain_artifacts,
         subsets,
         artifact_as_tag.as_deref(),
+        &as_artifact_tags,
     )?;
 
     Ok(())

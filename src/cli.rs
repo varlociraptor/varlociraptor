@@ -848,6 +848,12 @@ pub enum FilterMethod {
         )]
         #[serde(default)]
         artifact_as: Option<String>,
+        #[structopt(
+            long = "as-artifact",
+            help = "Additional events that shall be treated like the ARTIFACT event in every respect. In smart mode, their probabilities are added to the artifact probability, i.e. they count against presence, or are kept together with artifacts if --smart-retain-artifacts is set. With --artifact-as, they are counted towards the given event as well (also in strict mode). Otherwise, this has no effect in strict mode."
+        )]
+        #[serde(default)]
+        as_artifact: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
         minlen: Option<u64>,
         #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
@@ -1321,6 +1327,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 smart_retain_artifacts,
                 subsets,
                 artifact_as,
+                as_artifact,
             } => {
                 let events = events
                     .iter()
@@ -1350,6 +1357,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     smart_retain_artifacts,
                     &subsets,
                     artifact_as.map(|e| SimpleEvent::new(&e)).as_ref(),
+                    &as_artifact
+                        .iter()
+                        .map(|e| SimpleEvent::new(e))
+                        .collect_vec(),
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
