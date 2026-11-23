@@ -16,6 +16,7 @@
 //! 9. Orchestrator (`run_af_evolution_analysis`)
 
 use std::collections::{HashMap, HashSet};
+use std::mem::swap;
 
 use anyhow::Result;
 use rayon::prelude::*;
@@ -240,6 +241,7 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
 
     // Initialize probability vector: [P(0), P(1), P(2), ..., P(n)]
     let mut prev_col = vec![0.0; n + 1];
+    let mut curr_col = vec![0.0; n + 1];
 
     // Column 0: Initialize with first region probabilities
     let p_stable_0 = region_probs[0].p_stable;
@@ -254,8 +256,6 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
         let p_stable_k = region_probs[k].p_stable;
         let p_unstable_k = 1.0 - p_stable_k;
 
-        let mut curr_col = vec![0.0; n + 1];
-
         // Base case: P(0 unstable) = previous P(0 unstable) × current region stable
         curr_col[0] = prev_col[0] * p_stable_k;
 
@@ -268,7 +268,7 @@ fn run_msi_dp(region_probs: &[RegionProbability]) -> Vec<f64> {
                         + prev_col[i - 1] * p_unstable_k; // Path 2: Increment to i
         }
 
-        prev_col = curr_col; // Update for next iteration
+        swap(&mut prev_col, &mut curr_col); // Update for next iteration
     }
 
     prev_col // Final distribution: [P(0), P(1), ..., P(n)]
