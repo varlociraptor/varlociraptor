@@ -374,6 +374,9 @@ pub(crate) fn filter_by_threshold<E: Event>(
         absent_and_artifact_tags.push("PROB_ARTIFACT".to_owned());
         absent_and_artifact_tags.extend(as_artifact.iter().cloned());
     }
+    let is_defined = |tag: &str| calls.header().info_type(tag.as_bytes()).is_ok();
+    // skip tags not defined in the header (e.g. PROB_ABSENT for calls made with --omit-absent-event)
+    absent_and_artifact_tags.retain(|tag| is_defined(tag));
 
     let is_defined = |tag: &str| calls.header().info_type(tag.as_bytes()).is_ok();
     // skip tags not defined in the header (e.g. PROB_ABSENT for calls made with --omit-absent-event)

@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.12.1](https://github.com/varlociraptor/varlociraptor/compare/v8.12.0...v8.12.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* fix recursive formula expression expansion; add 3 ffpe FN testcases from seqc2 pm4onco benchmark and fix them ([#586](https://github.com/varlociraptor/varlociraptor/issues/586)) ([e71355d](https://github.com/varlociraptor/varlociraptor/commit/e71355dc54f9f965f0d338bda18071d5a1552689))
+
 ## [8.12.0](https://github.com/varlociraptor/varlociraptor/compare/v8.11.0...v8.12.0) (2026-10-17)
 
 
