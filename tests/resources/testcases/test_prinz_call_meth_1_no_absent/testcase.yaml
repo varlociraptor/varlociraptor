@@ -21,7 +21,7 @@ mode: Generic
 
 version: '4'
 
-no_absent: true
+omit_absent_event: true
 omit_strand_bias: true
 omit_read_orientation_bias: true
 omit_read_position_bias: true

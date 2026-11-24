@@ -160,11 +160,11 @@ pub trait Testcase {
         }
     }
 
-    fn no_absent_yaml(&self) -> bool {
-        if self.yaml()["no_absent"].is_badvalue() {
+    fn omit_absent_event_yaml(&self) -> bool {
+        if self.yaml()["omit_absent_event"].is_badvalue() {
             false
         } else {
-            self.yaml()["no_absent"].as_bool().unwrap()
+            self.yaml()["omit_absent_event"].as_bool().unwrap()
         }
     }
 
@@ -324,7 +324,7 @@ pub trait Testcase {
                         },
                         log_mode: "default".to_owned(),
                         full_prior: false,
-                        no_absent: self.no_absent_yaml(),
+                        omit_absent_event: self.omit_absent_event_yaml(),
                     },
                 };
 
@@ -355,7 +355,7 @@ pub trait Testcase {
                         },
                         log_mode: "default".to_owned(),
                         full_prior: false,
-                        no_absent: self.no_absent_yaml(),
+                        omit_absent_event: self.omit_absent_event_yaml(),
                     },
                 };
 
