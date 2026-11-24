@@ -162,10 +162,8 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
 
 /// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
 pub(crate) fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
-    let upper = standard_normal_cdf((value + 0.5 - mean) / sd)
-        .unwrap();
-    let lower = standard_normal_cdf((value - 0.5 - mean) / sd)
-        .unwrap();
+    let upper = standard_normal_cdf((value + 0.5 - mean) / sd).unwrap();
+    let lower = standard_normal_cdf((value - 0.5 - mean) / sd).unwrap();
     LogProb((upper - lower).ln())
 }
 

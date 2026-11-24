@@ -138,9 +138,7 @@ impl Prior {
             let n = prior_estimate.n_observed_cells;
             let k = (prior_estimate.contamination * n as f64).round() as u32;
             let p = *contamination;
-            LogProb::from(Prob(
-                binomial_pdf(k, p, n).unwrap(),
-            ))
+            LogProb::from(Prob(binomial_pdf(k, p, n).unwrap()))
         } else {
             LogProb::ln_one()
         }
