@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [8.13.0](https://github.com/varlociraptor/varlociraptor/compare/v8.12.1...v8.13.0) (2026-11-24)
+
+
+### Features
+
+* --subsets argument for fdr-control, allowing to specify adjacent subsets of events that shall pass the FDR threshold together ([#584](https://github.com/varlociraptor/varlociraptor/issues/584)) ([50936cf](https://github.com/varlociraptor/varlociraptor/commit/50936cfb328fc40f0d36c5c573e543e8c4443dbb))
+* allow specification of --artifact-as in FDR control, enabling to consider the artifact event as part of another event; allow specification of --as-artifact, enabling to consider any other event as part of the artifact event during FDR control ([#585](https://github.com/varlociraptor/varlociraptor/issues/585)) ([b2bdb5a](https://github.com/varlociraptor/varlociraptor/commit/b2bdb5a4600c1a3ccfa15382b698f018655d7653))
+
 ## [8.12.1](https://github.com/varlociraptor/varlociraptor/compare/v8.12.0...v8.12.1) (2026-11-19)
 
 
