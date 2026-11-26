@@ -17,6 +17,12 @@ pub(crate) enum ReadOrientationBias {
 impl Bias for ReadOrientationBias {
     fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.read_orientation) {
+            // both strand families agree, which rules out single-strand artifacts
+            (ReadOrientationBias::F1R2 | ReadOrientationBias::F2R1, _)
+                if observation.duplex_confirmed =>
+            {
+                LogProb::ln_zero()
+            }
             (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal
             (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_05, // normal
             (ReadOrientationBias::F1R2, SequenceReadPairOrientation::F1R2) => LogProb::ln_one(), // bias

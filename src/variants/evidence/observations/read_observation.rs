@@ -345,6 +345,9 @@ where
     /// True if obervation contains s
     pub softclipped: bool,
     pub paired: bool,
+    /// True if both strand families of a duplex consensus read agree
+    #[builder(default)]
+    pub duplex_confirmed: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub read_position: P,
     /// Tuple of the putative fragment end positions (start, end)
@@ -403,6 +406,7 @@ impl ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions> {
             read_orientation: self.read_orientation,
             softclipped: self.softclipped,
             paired: self.paired,
+            duplex_confirmed: self.duplex_confirmed,
             read_position: self.read_position.map_or(ReadPosition::Some, |pos| {
                 if let Some(major_pos) = major_read_position {
                     if pos == major_pos {
@@ -641,6 +645,7 @@ where
 /// When singleton evidence is found, both `prob_alt_adj` and `prob_ref_adj` of the observation
 /// are set to 0.5 (PROB_05) to reflect the increased uncertainty that the variant could be
 /// an artifact like a PCR error.
+/// Duplex-confirmed observations are left unchanged.
 pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
     let mut alt_observations: Vec<&mut ReadObservation<_, _, _>> = pileups
         .iter_mut()
@@ -649,6 +654,10 @@ pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
         .collect();
     if alt_observations.len() == 1 {
         let obs = alt_observations.first_mut().unwrap();
+        // METHOD: agreement of both strand families of a duplex consensus read rules out PCR errors after strand separation.
+        if obs.duplex_confirmed {
+            return false;
+        }
         obs.prob_alt_adj = Some(*PROB_05);
         obs.prob_ref_adj = Some(*PROB_05);
         true
@@ -799,6 +808,7 @@ pub(crate) trait Observable: Variant {
                                 .read_orientation(evidence.read_orientation()?),
                         )
                         .softclipped(evidence.softclipped())
+                        .duplex_confirmed(allele_support.duplex_strands() == DuplexStrands::Both)
                         .read_position(allele_support.read_position())
                         .fragment_end(evidence.fragment_end_positions())
                         .paired(evidence.is_paired())

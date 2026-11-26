@@ -153,6 +153,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
+            "DUPLEX_CONFIRMED",
             "PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE",
             "PROB_HOMOPOLYMER_VARIANT_OBSERVABLE",
             "HOMOPOLYMER_INDEL_LEN",
@@ -815,7 +816,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "16";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "17";
 
 pub struct Observations {
     pub pileup: Pileup,
@@ -869,6 +870,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
     let fragment_end: Vec<FragmentEnd> = read_values(record, b"FRAGMENT_END", false)?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
+    let duplex_confirmed: BitVec<u8> = read_values(record, b"DUPLEX_CONFIRMED", false)?;
     let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
         read_values(record, b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE", true)?;
     let prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
@@ -899,6 +901,7 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
                 .fragment_end(fragment_end[i])
                 .softclipped(softclipped[i as u64])
                 .paired(paired[i as u64])
+                .duplex_confirmed(duplex_confirmed[i as u64])
                 .is_max_mapq(is_max_mapq[i as u64])
                 .alt_locus(alt_locus[i])
                 .third_allele_evidence(third_allele_evidence[i]);
@@ -944,6 +947,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let mut read_orientation = Vec::with_capacity(read_observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut paired: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+    let mut duplex_confirmed: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut read_position = Vec::with_capacity(read_observations.len());
     let mut fragment_end = Vec::with_capacity(read_observations.len());
     let mut prob_hit_base = vec();
@@ -970,6 +974,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
         paired.push(obs.paired);
+        duplex_confirmed.push(obs.duplex_confirmed);
         read_position.push(obs.read_position);
         fragment_end.push(obs.fragment_end);
         is_max_mapq.push(obs.is_max_mapq);
@@ -1022,6 +1027,7 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
     push_values(record, b"PAIRED", &paired)?;
+    push_values(record, b"DUPLEX_CONFIRMED", &duplex_confirmed)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"FRAGMENT_END", &fragment_end)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
@@ -1062,6 +1068,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
     header.remove_info(b"PAIRED");
+    header.remove_info(b"DUPLEX_CONFIRMED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
     header.remove_info(b"FRAGMENT_END");

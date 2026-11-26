@@ -219,6 +219,8 @@ testcase!(test_seqc2_ffpe_1_154466505, exact);
 testcase!(test_seqc2_ffpe_3_184357968, exact);
 testcase!(test_seqc2_ffpe_2_169645788, exact);
 testcase!(test_seqc2_ffpe_9_137280377, exact);
+testcase!(test_fgumi_duplex_orientation_skew, exact);
+testcase!(test_fgumi_duplex_singleton, exact);
 testcase!(test_fgumi_duplex_single_strand_damage, exact);
 testcase!(test_fgumi_duplex_strand_disagreement, exact);
 
