@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Regenerate the test_fgumi_duplex_* testcases from simulated duplex reads.
+# Regenerate the data of the test_fgumi_duplex_* testcases from simulated duplex reads.
 # Usage: FGUMI=<fgumi 0.9.0 built with --features simulate> pixi run simulate-duplex-testcases
+# An existing testcase.yaml is kept, since its expected values and comments are written by hand;
+# delete it to get a fresh one.
 set -euo pipefail
 
 sim=$(cd "$(dirname "$0")" && pwd)
@@ -38,6 +40,14 @@ samtools index normal.bam
 "$varlociraptor" preprocess variants ref.fa --candidates candidates.vcf \
     --bam normal.bam --output normal.bcf
 
+# install_testcase SRC DST: the data files always, testcase.yaml only when DST has none
+install_testcase() {
+    local src=$1 dst=$2
+    mkdir -p "$dst"
+    cp "$src"/*.bam "$src"/*.vcf "$src"/*.fa "$src"/scenario.yaml "$dst/"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
+}
+
 # testcase NAME MIN_READS FILTER_ARGS CALL_ARGS INJECT_ARGS...
 testcase() {
     local name=$1 min_reads=$2 filter_args=$3 call_args=$4
@@ -55,9 +65,9 @@ testcase() {
     samtools index "$name.bam"
     "$varlociraptor" preprocess variants ref.fa --candidates candidates.vcf \
         --bam "$name.bam" --output "$name.bcf"
-    rm -rf "${testcases:?}/$name"
-    "$varlociraptor" call variants --testcase-locus chr1:1000 --testcase-prefix "$testcases/$name" \
+    "$varlociraptor" call variants --testcase-locus chr1:1000 --testcase-prefix "$name.testcase" \
         $call_args generic --scenario "$sim/scenario.yaml" --obs "duplex=$name.bcf" normal=normal.bcf
+    install_testcase "$name.testcase" "$testcases/$name"
 }
 
 # true variant, all consensus records in F1R2 orientation
@@ -72,13 +82,24 @@ testcase test_fgumi_duplex_single_strand_damage 1,1,1 --require-single-strand-ag
 testcase test_fgumi_duplex_strand_disagreement 1,1,1 "" --omit-strand-bias --other-qual 12 \
     --op a:5:F2R1 --op b:5:F2R1
 
+# the singleton with the neutral prior: the same data, the neutral scenario and the full prior
+neutral_prior() {
+    local src=$testcases/test_fgumi_duplex_singleton dst=$testcases/test_fgumi_duplex_singleton_neutral_prior
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,duplex.bam,normal.bam,ref.fa} "$dst/"
+    cp "$sim/scenario_neutral.yaml" "$dst/scenario.yaml"
+    [ -e "$dst/testcase.yaml" ] || sed '/^no_absent:/i full_prior: true' "$src/testcase.yaml" > "$dst/testcase.yaml"
+}
+neutral_prior
+
 # the singleton with the per-molecule prior at half the depth: the alt molecule plus every second other molecule
 half_depth() {
     local src=$testcases/test_fgumi_duplex_singleton_neutral_prior dst=$testcases/test_fgumi_duplex_singleton_neutral_prior_half_depth
     local pos
     pos=$(grep -v '^#' "$src/candidates.vcf" | cut -f2)
-    rm -rf "${dst:?}" && mkdir "$dst"
-    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml,testcase.yaml} "$dst/"
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml} "$dst/"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
     samtools view "$src/duplex.bam" | python -c '
 import re, sys
 pos = int(sys.argv[1])
@@ -110,8 +131,9 @@ half_depth
 # a read from a divergent source: the singleton's alt molecule with four more mismatches per mate
 divergent_read() {
     local src=$testcases/test_fgumi_duplex_singleton dst=$testcases/test_fgumi_duplex_divergent_read
-    rm -rf "${dst:?}" && mkdir "$dst"
-    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml,testcase.yaml} "$dst/"
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml} "$dst/"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
     python - "$src" "$dst" <<'PY'
 import sys
 import pysam
