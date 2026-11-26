@@ -479,7 +479,7 @@ impl Prior {
             // METHOD: under the neutral model of Williams et al., the density of somatic VAFs is rate / VAF²,
             // where the rate is the effective mutation rate per base pair and sequenced molecule (the mutation burden).
             // Below the sample's resolution the density stays at its value at the resolution.
-            // The prior mass above 0.0 is then rate * (2 / resolution - 1), see neutral_prior_mass(),
+            // The prior mass above 0.0 is the integral of the capped density, see neutral_prior_mass(),
             // and the probability of a somatic mutation at a locus grows with the VAF range that the depth makes observable:
             // every molecule carries a mutation with the given rate, hence more molecules mean more chances to observe one.
             // This is what favors single molecules in deep duplex sequencing.
@@ -501,9 +501,16 @@ impl Prior {
     }
 
     /// Prior mass of somatic VAFs above 0.0 under the neutral prior:
-    /// the integral of rate / max(VAF, resolution)² over (0.0, 1.0].
+    /// the integral of min(1, rate / max(VAF, resolution)²) over (0.0, 1.0].
+    /// The cap is active below sqrt(rate) once the rate exceeds resolution², see prob_somatic_mutation().
     fn neutral_prior_mass(somatic_effective_mutation_rate: LogProb, resolution: f64) -> LogProb {
-        LogProb(*somatic_effective_mutation_rate + (2.0 / resolution - 1.0).ln())
+        let rate = *Prob::from(somatic_effective_mutation_rate);
+        let mass = if rate > resolution * resolution {
+            2.0 * rate.sqrt() - rate
+        } else {
+            rate * (2.0 / resolution - 1.0)
+        };
+        LogProb::from(Prob(mass))
     }
 
     fn prob_clonal_inheritance(
@@ -875,8 +882,8 @@ impl CheckablePrior for Prior {
             if self.somatic_vaf_prior[sample] == grammar::SomaticVafPrior::Neutral {
                 if let Some(rate) = self.somatic_effective_mutation_rate[sample] {
                     let resolution = **self.resolution[sample];
-                    if *Self::neutral_prior_mass(LogProb::from(Prob(rate)), resolution) >= 0.0 {
-                        return err("neutral somatic VAF prior with a somatic effective mutation rate that is not below half the resolution: the rate is per base pair and molecule (e.g. 1e-6) and the prior mass above a VAF of 0.0 is rate * (2 / resolution - 1), which must stay below 1.0");
+                    if rate * (2.0 / resolution - 1.0) >= 1.0 {
+                        return err("neutral somatic VAF prior with a somatic effective mutation rate that is not below half the resolution: the rate is per base pair and molecule (e.g. 1e-6), such that the mass of the uncapped density, rate * (2 / resolution - 1), stays below 1.0");
                     }
                 }
             }
