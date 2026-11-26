@@ -919,8 +919,10 @@ impl CheckablePrior for Prior {
             if self.somatic_vaf_prior[sample] == grammar::SomaticVafPrior::Neutral {
                 if let Some(rate) = self.somatic_effective_mutation_rate[sample] {
                     let resolution = **self.resolution[sample];
-                    if rate * (2.0 / resolution - 1.0) >= 1.0 {
-                        return err("neutral somatic VAF prior with a somatic effective mutation rate that is not below half the resolution: the rate is per base pair and molecule (e.g. 1e-6), such that the mass of the uncapped density, rate * (2 / resolution - 1), stays below 1.0");
+                    // METHOD: the mass of nonzero somatic VAFs is largest at a germline VAF of 0.5, where the range extends 0.5 to both sides.
+                    let mass = Self::neutral_prior_mass(LogProb::from(Prob(rate)), resolution, 0.5);
+                    if LogProb(*mass + 2f64.ln()) >= LogProb::ln_one() {
+                        return err("neutral somatic VAF prior with a somatic effective mutation rate whose prior mass of nonzero somatic VAFs reaches 1.0: the rate is per base pair and molecule (e.g. 1e-6)");
                     }
                 }
             }
