@@ -163,3 +163,17 @@ PY
     rm "$dst/unsorted.bam" "$dst/sorted.bam"
 }
 divergent_read
+
+# the strand disagreement without the normal: the duplex sample alone has to show the orientation artifact
+tumor_only() {
+    local src=$testcases/test_fgumi_duplex_strand_disagreement dst=$testcases/test_fgumi_duplex_strand_disagreement_tumor_only
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,duplex.bam,ref.fa} "$dst/"
+    cp "$sim/scenario_duplex_only.yaml" "$dst/scenario.yaml"
+    [ -e "$dst/testcase.yaml" ] || python - "$src/testcase.yaml" > "$dst/testcase.yaml" <<'PY'
+import re, sys
+# drop the normal sample: its entry is indented by two spaces, its fields by four
+print(re.sub(r"\n  normal:\n(    .*\n)+", "\n", open(sys.argv[1]).read()), end="")
+PY
+}
+tumor_only

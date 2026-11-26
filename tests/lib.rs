@@ -226,6 +226,7 @@ testcase!(test_fgumi_duplex_singleton_neutral_prior_half_depth, exact);
 testcase!(test_fgumi_duplex_divergent_read, exact);
 testcase!(test_fgumi_duplex_single_strand_damage, exact);
 testcase!(test_fgumi_duplex_strand_disagreement, exact);
+testcase!(test_fgumi_duplex_strand_disagreement_tumor_only, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

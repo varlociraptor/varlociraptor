@@ -52,47 +52,41 @@ impl Bias for ReadOrientationBias {
         // 98Ns**^68Ns***18Vs**^4Vs***2Ns-*^1Np+<*1Np+>*1Ns-**, would weakly vote for a bias,
         // although almost all reads do not provide orientation info and the only that do are
         // reference reads.
-        let n_uncertain: usize = pileups
-            .iter()
-            .flat_map(|pileup| pileup.read_observations().iter())
-            .map(|observation| {
-                if !(observation.read_orientation == SequenceReadPairOrientation::F1R2
-                    || observation.read_orientation == SequenceReadPairOrientation::F2R1)
-                {
-                    1
-                } else {
-                    0
-                }
-            })
-            .sum();
-        let n: usize = pileups
-            .iter()
-            .map(|pileup| pileup.read_observations().len())
-            .sum();
+        // Observations confirmed by both strand families of a duplex consensus read have no single orientation,
+        // but they are not uncertain: both orientations were observed and agree.
+        let observations = || {
+            pileups
+                .iter()
+                .flat_map(|pileup| pileup.read_observations().iter())
+        };
+        let oriented = |observation: &ProcessedReadObservation| {
+            observation.read_orientation == SequenceReadPairOrientation::F1R2
+                || observation.read_orientation == SequenceReadPairOrientation::F2R1
+        };
+        let n_uncertain = observations()
+            .filter(|observation| !oriented(observation) && !observation.duplex_confirmed)
+            .count();
+        let n = observations().count();
         let enough_information = (n_uncertain as f64) < (n as f64 / 2.0);
 
         // METHOD: read orientation bias needs a uniform distribution of F1R2 and F2R1 among the
         // reference reads. Otherwise, we cannot reliably detect whether there is something odd
         // in the alt reads.
-        let strong_ref_total_count = pileups
-            .iter()
-            .flat_map(|pileup| pileup.read_observations().iter())
-            .filter(|observation| {
-                observation.is_strong_ref_support()
-                    && (observation.read_orientation == SequenceReadPairOrientation::F1R2
-                        || observation.read_orientation == SequenceReadPairOrientation::F2R1)
-            })
+        // A duplex-confirmed reference read was observed in both orientations and counts as half F1R2 and half F2R1.
+        let strong_ref =
+            || observations().filter(|observation| observation.is_strong_ref_support());
+        let strong_ref_total_count = strong_ref()
+            .filter(|observation| oriented(observation) || observation.duplex_confirmed)
             .count();
-        let strong_ref_f1r2 = pileups
-            .iter()
-            .flat_map(|pileup| pileup.read_observations().iter())
-            .filter(|observation| {
-                observation.is_strong_ref_support()
-                    && (observation.read_orientation == SequenceReadPairOrientation::F1R2)
-            })
-            .count();
+        let strong_ref_f1r2 = strong_ref()
+            .filter(|observation| observation.read_orientation == SequenceReadPairOrientation::F1R2)
+            .count() as f64
+            + 0.5
+                * strong_ref()
+                    .filter(|observation| observation.duplex_confirmed)
+                    .count() as f64;
         let uniform_distribution = if strong_ref_total_count > 2 {
-            let fraction = strong_ref_f1r2 as f64 / strong_ref_total_count as f64;
+            let fraction = strong_ref_f1r2 / strong_ref_total_count as f64;
             // TODO use strong_ref_total_count and binomial to calculate a confidence interval
             (0.3..=0.7).contains(&fraction)
         } else {
