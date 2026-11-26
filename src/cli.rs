@@ -963,6 +963,20 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     variant_heterozygosity_field,
                     variant_somatic_effective_mutation_rate_field,
                 } => {
+                    if !(mismapped_read_divergence > 0.0 && mismapped_read_divergence < 1.0) {
+                        return Err(structopt::clap::Error::with_description(
+                            "Command-line option --mismapped-read-divergence requires a value between 0 and 1 (exclusive).",
+                            structopt::clap::ErrorKind::ValueValidation,
+                        )
+                        .into());
+                    }
+                    if !(0.0..=1.0).contains(&sample_variation_min_frequency) {
+                        return Err(structopt::clap::Error::with_description(
+                            "Command-line option --sample-variation-min-frequency requires a value between 0 and 1.",
+                            structopt::clap::ErrorKind::ValueValidation,
+                        )
+                        .into());
+                    }
                     // METHOD: converted reads deviate from the reference by design,
                     // which the divergence model would take for another source.
                     let read_divergence_settings = ReadDivergenceSettings {
