@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use super::evidence::observations::fragment_id_factory::FragmentIdFactory;
+use super::evidence::observations::read_divergence::ReadDivergenceSettings;
 use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
 use crate::estimation::alignment_properties;
@@ -47,6 +48,8 @@ pub(crate) struct RecordBuffer {
     failed_reads: Option<HashSet<ByAddress<Arc<Record>>>>,
     // Probability of methylation for cytosines skipped in the MM tag. None if reads are not annotated with MM/ML tags.
     methylation_prob_skipped_bases: Option<LogProb>,
+    #[getset(get = "pub")]
+    read_divergence: ReadDivergenceSettings,
 }
 
 impl RecordBuffer {
@@ -55,11 +58,13 @@ impl RecordBuffer {
         single_read_window: u64,
         read_pair_window: u64,
         methylation_prob_skipped_bases: Option<LogProb>,
+        read_divergence: ReadDivergenceSettings,
     ) -> Self {
         RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
+            read_divergence,
             methylation_probs: if methylation_prob_skipped_bases.is_some() {
                 Some(HashMap::new())
             } else {
@@ -257,6 +262,7 @@ impl SampleBuilder {
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
         methylation_prob_skipped_bases: Option<LogProb>,
+        read_divergence: ReadDivergenceSettings,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -279,6 +285,7 @@ impl SampleBuilder {
                 single_read_window,
                 read_pair_window,
                 methylation_prob_skipped_bases,
+                read_divergence,
             ))
     }
 }

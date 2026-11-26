@@ -33,6 +33,7 @@ use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_divergence::ReadDivergenceSettings;
 use crate::variants::evidence::observations::read_observation::{
     AltLocus, FragmentEnd, ReadObservationBuilder, ReadPosition, Strand,
 };
@@ -79,6 +80,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     atomic_candidate_variants: bool,
     methylation_readtype: Option<MethylationReadtype>,
     methylation_prob_skipped_bases: LogProb,
+    read_divergence_settings: ReadDivergenceSettings,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
@@ -243,6 +245,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
                 methylation_prob_skipped_bases,
+                self.read_divergence_settings,
             )
             .build()
             .unwrap();

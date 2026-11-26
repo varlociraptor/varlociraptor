@@ -5,6 +5,7 @@
 
 use std::cmp;
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -17,6 +18,7 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
+use crate::variants::evidence::observations::read_divergence::ReadDivergenceModel;
 use crate::variants::evidence::observations::read_observation::{
     AlignmentRecord, DuplexStrands, Evidence, Observable, ReadObservation, Strand,
 };
@@ -91,7 +93,7 @@ impl AlleleSupport {
         }
     }
 
-    fn is_alt_support(&self) -> bool {
+    pub(crate) fn is_alt_support(&self) -> bool {
         self.prob_alt_allele > self.prob_ref_allele
     }
 
@@ -160,6 +162,14 @@ impl AlleleSupport {
 }
 
 pub(crate) trait Variant {
+    /// Bases this far around the variant are left out of the read divergence model (see read_divergence):
+    /// by default the whole realignment window,
+    /// since the aligner's placement of the variant decides where mismatches appear;
+    /// SNVs and MNVs return 0, their alt bases are excluded as such.
+    fn read_divergence_exclusion(&self, realignment_window: u64) -> u64 {
+        realignment_window
+    }
+
     fn is_imprecise(&self) -> bool;
 
     /// Determine whether the evidence is suitable to assessing probabilities
@@ -392,6 +402,20 @@ where
         let subsample = locus_depth.values().all(|depth| *depth > max_depth);
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
+        // METHOD: reads carry mapping evidence in their own mismatches, see read_divergence.
+        // Around candidates that are realigned,
+        // the aligner's placement of the candidate decides where mismatches appear,
+        // so the realignment window is left out there.
+        let settings = *buffer.read_divergence();
+        let padding = self.read_divergence_exclusion(settings.exclusion_window);
+        let excluded = self
+            .loci()
+            .ranges()
+            .into_iter()
+            .map(|range| range.start.saturating_sub(padding)..range.end + padding)
+            .collect();
+        let divergence_model = ReadDivergenceModel::new(&candidates, excluded, settings);
+
         let mut observations = Vec::new();
         for evidence in &candidates {
             if !subsample || subsampler.keep() {
@@ -401,6 +425,7 @@ where
                     &homopolymer_error_model,
                     alt_variants,
                     observation_id_factory,
+                    divergence_model.as_ref(),
                 )? {
                     observations.push(obs);
                 }
@@ -414,6 +439,8 @@ where
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
     fn first_pos(&self) -> u64;
+    /// Reference ranges of the loci.
+    fn ranges(&self) -> Vec<Range<u64>>;
 }
 
 #[derive(Debug, Derefable, Builder, new, Clone)]
@@ -484,6 +511,9 @@ impl Loci for SingleLocus {
     fn contig(&self) -> Option<&str> {
         Some(self.interval.contig())
     }
+    fn ranges(&self) -> Vec<Range<u64>> {
+        vec![self.range().clone()]
+    }
 }
 
 #[derive(new, Default, Debug, Derefable, Clone)]
@@ -501,6 +531,13 @@ impl MultiLocus {
 impl Loci for MultiLocus {
     fn first_pos(&self) -> u64 {
         self[0].first_pos()
+    }
+
+    fn ranges(&self) -> Vec<Range<u64>> {
+        self.loci
+            .iter()
+            .map(|locus| locus.range().clone())
+            .collect()
     }
 
     fn contig(&self) -> Option<&str> {

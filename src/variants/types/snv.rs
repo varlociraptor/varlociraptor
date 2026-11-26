@@ -183,6 +183,10 @@ impl<R: Realigner> Realignable for Snv<R> {
 }
 
 impl<R: Realigner> Variant for Snv<R> {
+    fn read_divergence_exclusion(&self, _realignment_window: u64) -> u64 {
+        0
+    }
+
     fn is_imprecise(&self) -> bool {
         false
     }

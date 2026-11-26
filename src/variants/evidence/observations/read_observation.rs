@@ -38,6 +38,7 @@ use crate::variants::types::Variant;
 use crate::variants::evidence::realignment::Realignable;
 
 use super::fragment_id_factory::FragmentIdFactory;
+use super::read_divergence::ReadDivergenceModel;
 
 const INVALID_XA_FORMAT_MSG: &str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
 
@@ -595,8 +596,13 @@ impl ProcessedReadObservation {
             }
 
             for obs in pileup {
-                obs.prob_mapping_adj = Some(average);
-                obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
+                // METHOD: consensus reads carry their own mapping evidence (see read_divergence),
+                // which is more specific than the locus average;
+                // their adjusted probabilities stay.
+                if obs.prob_mapping_adj.is_none() {
+                    obs.prob_mapping_adj = Some(average);
+                    obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
+                }
             }
         }
     }
@@ -772,6 +778,7 @@ pub(crate) trait Observable: Variant {
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+        divergence_model: Option<&ReadDivergenceModel>,
     ) -> Result<Option<ReadObservation>> {
         let id = observation_id_factory
             .as_mut()
@@ -787,15 +794,25 @@ pub(crate) trait Observable: Variant {
                     if allele_support.strand() != Strand::None || self.is_imprecise() =>
                 {
                     let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
+                    let prob_mapping = self.prob_mapping(evidence);
+                    // METHOD: for consensus reads,
+                    // the mapping probability from MAPQ is updated with the evidence of the read's own mismatches,
+                    // and a mismapped read supports the alt allele only where its source differs from the mapped locus
+                    // (see read_divergence).
+                    let recalibrated = divergence_model.and_then(|model| {
+                        model.recalibrate(evidence, prob_mapping, allele_support.is_alt_support())
+                    });
 
                     let mut obs = ReadObservationBuilder::default();
                     obs.name(Some(evidence.id().to_string().to_owned()))
                         .fragment_id(id)
-                        .prob_mapping_mismapping(self.prob_mapping(evidence))
+                        .prob_mapping_mismapping(prob_mapping)
                         .prob_alt(allele_support.prob_alt_allele())
                         .prob_ref(allele_support.prob_ref_allele())
                         .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
-                        .prob_missed_allele(allele_support.prob_missed_allele())
+                        .prob_missed_allele(
+                            recalibrated.map_or(allele_support.prob_missed_allele(), |(_, p)| p),
+                        )
                         .prob_overlap(if allele_support.strand() == Strand::Both {
                             LogProb::ln_one()
                         } else {
@@ -816,6 +833,10 @@ pub(crate) trait Observable: Variant {
                         .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
                         .alt_locus(evidence.alt_loci())
                         .third_allele_evidence(allele_support.third_allele_evidence().map(|d| *d));
+                    if let Some((prob_mapping, _)) = recalibrated {
+                        obs.prob_mapping_adj(Some(prob_mapping))
+                            .prob_mismapping_adj(Some(prob_mapping.ln_one_minus_exp()));
+                    }
 
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
                         let ref_indel_len =
@@ -888,6 +909,16 @@ pub(crate) enum Evidence {
 }
 
 impl Evidence {
+    /// The alignment records of the evidence.
+    pub(crate) fn records(&self) -> impl Iterator<Item = &bam::Record> {
+        match self {
+            Evidence::SingleEndSequencingRead(read) => vec![read.record().as_ref()].into_iter(),
+            Evidence::PairedEndSequencingRead { left, right } => {
+                vec![left.record().as_ref(), right.record().as_ref()].into_iter()
+            }
+        }
+    }
+
     fn fragment_end_positions(&self) -> FragmentEndPositions {
         match self {
             Evidence::SingleEndSequencingRead(read) => {

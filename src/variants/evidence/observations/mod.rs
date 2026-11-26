@@ -1,6 +1,7 @@
 pub(crate) mod depth_observation;
 pub(crate) mod fragment_id_factory;
 pub mod pileup;
+pub(crate) mod read_divergence;
 pub mod read_observation;
 
 // pub(crate) trait Observation {

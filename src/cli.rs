@@ -37,6 +37,9 @@ use crate::testcase;
 use crate::utils::PathMap;
 use crate::variants::evidence::realignment;
 
+use crate::variants::evidence::observations::read_divergence::{
+    ReadDivergenceReads, ReadDivergenceSettings,
+};
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::Prior;
 use crate::variants::model::{AlleleFreq, VariantType};
@@ -184,6 +187,14 @@ fn default_methylation_motifs() -> Vec<MethylationMotif> {
 
 fn default_reference_buffer_size() -> usize {
     10
+}
+
+fn default_mismapped_read_divergence() -> f64 {
+    0.03
+}
+
+fn default_sample_variation_min_frequency() -> f64 {
+    0.2
 }
 
 fn default_methylation_prob_skipped_bases() -> f64 {
@@ -382,6 +393,43 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_methylation_prob_skipped_bases")]
         methylation_prob_skipped_bases: f64,
+        #[structopt(
+            long = "read-divergence-model",
+            default_value = "auto",
+            possible_values = &ReadDivergenceReads::iter().map(|v| v.into()).collect_vec(),
+            help = "Update the mapping probability of each read with the evidence of its own mismatches against the reference: \
+                    mismatches that the other reads of the locus do not share point to a source the reference lacks \
+                    (paralog, pseudogene, contaminant), \
+                    matches speak for the mapped locus. \
+                    A mismapped read then supports the alt allele only with the divergence of its source instead of 0.5. \
+                    'auto' applies this to consensus reads, recognized by the tags ac, bc or cD as written by fgbio or fgumi, \
+                    whose base errors are far below any divergence, \
+                    'always' to all reads, 'never' to none. \
+                    Needs MD tags. \
+                    Off for converted methylation reads."
+        )]
+        #[serde(default)]
+        read_divergence_model: ReadDivergenceReads,
+        #[structopt(
+            long = "mismapped-read-divergence",
+            default_value = "0.03",
+            help = "Divergence of the source a mismapped read would come from, for the read divergence model. \
+                    Human paralogs and pseudogenes differ by about 1 to 5% from each other."
+        )]
+        #[serde(default = "default_mismapped_read_divergence")]
+        mismapped_read_divergence: f64,
+        #[structopt(
+            long = "sample-variation-min-frequency",
+            default_value = "0.2",
+            help = "For the read divergence model: \
+                    a base shared by at least this fraction of the other reads of the locus is variation of the sample and explains a mismatch; \
+                    a rarer shared base counts as divergence, \
+                    since a rare haplotype with several linked differences is far less likely than reads from another source, \
+                    while germline variation sits at one over the ploidy and above \
+                    (0.2 leaves room for allelic imbalance)."
+        )]
+        #[serde(default = "default_sample_variation_min_frequency")]
+        sample_variation_min_frequency: f64,
     },
 }
 
@@ -909,9 +957,27 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     output_raw_observations,
                     methylation_readtype,
                     methylation_prob_skipped_bases,
+                    read_divergence_model,
+                    mismapped_read_divergence,
+                    sample_variation_min_frequency,
                     variant_heterozygosity_field,
                     variant_somatic_effective_mutation_rate_field,
                 } => {
+                    // METHOD: converted reads deviate from the reference by design,
+                    // which the divergence model would take for another source.
+                    let read_divergence_settings = ReadDivergenceSettings {
+                        reads: if matches!(
+                            methylation_readtype,
+                            Some(MethylationReadtype::Converted)
+                        ) {
+                            ReadDivergenceReads::Never
+                        } else {
+                            read_divergence_model
+                        },
+                        divergence: mismapped_read_divergence,
+                        variation_min_frequency: sample_variation_min_frequency,
+                        exclusion_window: realignment_window,
+                    };
                     // TODO: handle testcases
                     if realignment_window > (128 / 2) {
                         return Err(
@@ -983,6 +1049,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
                                     .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
+                                    .read_divergence_settings(read_divergence_settings)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -1017,6 +1084,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
                                     .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
+                                    .read_divergence_settings(read_divergence_settings)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -1061,6 +1129,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
                                     .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
+                                    .read_divergence_settings(read_divergence_settings)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,

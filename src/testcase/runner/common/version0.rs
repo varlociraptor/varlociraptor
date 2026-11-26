@@ -7,6 +7,7 @@ use yaml_rust::Yaml;
 use crate::cli::{PreprocessKind, Varlociraptor};
 use crate::testcase::runner::common::Mode;
 use crate::testcase::runner::common::Testcase;
+use crate::variants::evidence::observations::read_divergence::ReadDivergenceSettings;
 use crate::variants::sample::MethylationReadtype;
 
 #[derive(Debug)]
@@ -91,6 +92,10 @@ impl Testcase for TestcaseVersion0 {
                         max_depth,
                         methylation_readtype: Some(MethylationReadtype::Annotated),
                         methylation_prob_skipped_bases: 0.05,
+                        read_divergence_model: Default::default(),
+                        mismapped_read_divergence: ReadDivergenceSettings::default().divergence,
+                        sample_variation_min_frequency: ReadDivergenceSettings::default()
+                            .variation_min_frequency,
                         // The rest will be overwritten.
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),
