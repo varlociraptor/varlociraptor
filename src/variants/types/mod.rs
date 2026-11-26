@@ -417,13 +417,19 @@ where
         // so the realignment window is left out there.
         let settings = *buffer.read_divergence();
         let padding = self.read_divergence_exclusion(settings.exclusion_window);
-        let excluded = self
+        let excluded: Vec<Range<u64>> = self
             .loci()
             .ranges()
             .into_iter()
             .map(|range| range.start.saturating_sub(padding)..range.end + padding)
             .collect();
-        let divergence_model = ReadDivergenceModel::new(&candidates, excluded, settings);
+        // TODO: loci on several contigs (breakends) are left out, since the model keys bases and excluded
+        // ranges by position alone; supporting them needs contig-aware keys and ranges.
+        let divergence_model = if !excluded.is_empty() && self.loci().contig().is_some() {
+            ReadDivergenceModel::new(&candidates, excluded, settings)
+        } else {
+            None
+        };
 
         let mut observations = Vec::new();
         for evidence in &candidates {
