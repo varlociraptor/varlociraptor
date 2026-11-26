@@ -18,7 +18,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observations::read_observation::{
-    AlignmentRecord, Evidence, Observable, ReadObservation, Strand,
+    AlignmentRecord, DuplexStrands, Evidence, Observable, ReadObservation, Strand,
 };
 use crate::variants::sample;
 
@@ -65,6 +65,9 @@ pub(crate) struct AlleleSupport {
     homopolymer_indel_len: Option<i8>,
     #[getset(get_copy = "pub")]
     third_allele_evidence: Option<EditDistance>,
+    #[builder(default)]
+    #[getset(get_copy = "pub")]
+    duplex_strands: DuplexStrands,
 }
 
 impl AlleleSupport {
@@ -124,6 +127,7 @@ impl AlleleSupport {
 
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
+        self.duplex_strands |= other.duplex_strands;
 
         if self.strand == Strand::None {
             self.strand = other.strand;

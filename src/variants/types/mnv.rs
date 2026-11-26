@@ -21,7 +21,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::observations::read_observation::{DuplexStrands, Strand};
 use crate::variants::evidence::realignment::edit_distance::is_explainable_by_error_rates;
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::ReadEmission;
@@ -101,6 +101,7 @@ impl<R: Realigner> Mnv<R> {
             let mut prob_third = LogProb::ln_one();
             let aux_strand_info = utils::aux_tag_strand_info(read);
             let mut strand = Strand::None;
+            let mut informative_qpos = Vec::new();
             let mut read_position = None;
             let mut alt_edit_dist = 0_u32;
             let read_emission = ReadEmission::new(read.seq(), read.qual(), None, None);
@@ -140,6 +141,7 @@ impl<R: Realigner> Mnv<R> {
                     let base_prob_third = prob_read_base(read_base, read_base, base_qual);
 
                     if base_prob_alt != base_prob_ref {
+                        informative_qpos.push(qpos as usize);
                         if let Some(strand_info) = aux_strand_info {
                             if let Some(s) = strand_info.get(qpos as usize) {
                                 strand |= Strand::from_aux_item(*s)?;
@@ -190,6 +192,10 @@ impl<R: Realigner> Mnv<R> {
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .strand(strand)
+                    .duplex_strands(DuplexStrands::from_record_and_positions(
+                        read,
+                        informative_qpos,
+                    )?)
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .read_position(read_position)

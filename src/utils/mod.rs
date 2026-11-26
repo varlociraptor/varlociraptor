@@ -24,6 +24,7 @@ use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bam::record::Cigar, bcf};
 use serde::Serializer;
 
+use crate::errors;
 use crate::filtration::fdr::EventSubsets;
 use crate::variants::model;
 use crate::Event;
@@ -56,6 +57,36 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
         Some(strand_info.as_bytes())
     } else {
         None
+    }
+}
+
+/// Per-base single-strand consensus bases of a duplex read, aligned to SEQ.
+/// They are expected in the tags `ac` and `bc`, as written by fgbio or fgumi.
+/// The tags may still cover bases hard clipped by the aligner (e.g. supplementary alignments after fgumi realign).
+pub(crate) fn aux_tag_duplex_bases<'a>(
+    record: &'a bam::Record,
+    tag: &[u8],
+) -> Result<Option<&'a [u8]>> {
+    let invalid = || {
+        errors::Error::InvalidDuplexBasesTag {
+            tag: String::from_utf8_lossy(tag).into_owned(),
+        }
+        .into()
+    };
+    let bases = match record.aux(tag) {
+        Ok(bam::record::Aux::String(bases)) => bases.as_bytes(),
+        Err(_) => return Ok(None),
+        _ => return Err(invalid()),
+    };
+    let cigar = record.cigar();
+    let leading = cigar.leading_hardclips() as usize;
+    let trailing = cigar.trailing_hardclips() as usize;
+    if bases.len() == record.seq_len() {
+        Ok(Some(bases))
+    } else if bases.len() == leading + record.seq_len() + trailing {
+        Ok(Some(&bases[leading..leading + record.seq_len()]))
+    } else {
+        Err(invalid())
     }
 }
 

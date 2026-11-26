@@ -123,6 +123,72 @@ impl ops::BitOrAssign for Strand {
     }
 }
 
+/// Strand families (A, B) of a duplex consensus read supporting an observation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum DuplexStrands {
+    A,
+    B,
+    Both,
+    #[default]
+    None,
+}
+
+impl DuplexStrands {
+    /// Families agreeing with all given non-N bases (tags `ac`, `bc`, see utils::aux_tag_duplex_bases).
+    pub(crate) fn from_record_and_positions(
+        record: &bam::Record,
+        positions: impl IntoIterator<Item = usize>,
+    ) -> Result<Self> {
+        let a_bases = utils::aux_tag_duplex_bases(record, b"ac")?;
+        let b_bases = utils::aux_tag_duplex_bases(record, b"bc")?;
+        if a_bases.is_none() && b_bases.is_none() {
+            return Ok(Self::None);
+        }
+
+        let seq = record.seq();
+        let agrees = |bases: Option<&[u8]>, pos: usize| {
+            bases.is_some_and(|bases| bases[pos].eq_ignore_ascii_case(&seq[pos]))
+        };
+        let (mut a, mut b, mut any) = (true, true, false);
+        for pos in positions.into_iter().filter(|pos| seq[*pos] != b'N') {
+            any = true;
+            a &= agrees(a_bases, pos);
+            b &= agrees(b_bases, pos);
+        }
+
+        Ok(match (any && a, any && b) {
+            (true, true) => Self::Both,
+            (true, false) => Self::A,
+            (false, true) => Self::B,
+            (false, false) => Self::None,
+        })
+    }
+
+    /// Pair orientation of the supporting families.
+    /// The record has the orientation of family A (duplex R1 = AB-R1 + BA-R2), family B the opposite one.
+    pub(crate) fn read_orientation(
+        self,
+        record_orientation: SequenceReadPairOrientation,
+    ) -> SequenceReadPairOrientation {
+        match (self, record_orientation) {
+            (Self::Both, _) => SequenceReadPairOrientation::None,
+            (Self::B, SequenceReadPairOrientation::F1R2) => SequenceReadPairOrientation::F2R1,
+            (Self::B, SequenceReadPairOrientation::F2R1) => SequenceReadPairOrientation::F1R2,
+            (_, orientation) => orientation,
+        }
+    }
+}
+
+impl ops::BitOrAssign for DuplexStrands {
+    fn bitor_assign(&mut self, rhs: Self) {
+        if *self == Self::None {
+            *self = rhs;
+        } else if rhs != Self::None && *self != rhs {
+            *self = Self::Both;
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ReadPosition {
     Major,
@@ -727,7 +793,11 @@ pub(crate) trait Observable: Variant {
                             LogProb::ln_zero()
                         })
                         .strand(allele_support.strand())
-                        .read_orientation(evidence.read_orientation()?)
+                        .read_orientation(
+                            allele_support
+                                .duplex_strands()
+                                .read_orientation(evidence.read_orientation()?),
+                        )
                         .softclipped(evidence.softclipped())
                         .read_position(allele_support.read_position())
                         .fragment_end(evidence.fragment_end_positions())
@@ -966,5 +1036,92 @@ impl Hash for EvidenceIdentifier {
         match self {
             EvidenceIdentifier::Bytes(id) => id.hash(state),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(tags: &str) -> bam::Record {
+        record_with_cigar("4M", tags)
+    }
+
+    fn record_with_cigar(cigar: &str, tags: &str) -> bam::Record {
+        let mut header = bam::Header::new();
+        header.push_record(
+            bam::header::HeaderRecord::new(b"SQ")
+                .push_tag(b"SN", "chr1")
+                .push_tag(b"LN", 100),
+        );
+        let header = bam::HeaderView::from_header(&header);
+        let sam = format!("r1\t99\tchr1\t1\t60\t{cigar}\t=\t1\t4\tACGN\tIIII{tags}");
+        bam::Record::from_sam(&header, sam.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn test_duplex_strands_from_record() {
+        let rec = record("\tac:Z:ACAN\tbc:Z:ATGN");
+        let strands = |positions: &[usize]| {
+            DuplexStrands::from_record_and_positions(&rec, positions.iter().copied()).unwrap()
+        };
+        assert_eq!(strands(&[0]), DuplexStrands::Both);
+        assert_eq!(strands(&[1]), DuplexStrands::A);
+        assert_eq!(strands(&[2]), DuplexStrands::B);
+        assert_eq!(strands(&[0, 1]), DuplexStrands::A);
+        assert_eq!(strands(&[1, 2]), DuplexStrands::None);
+        // N bases are ignored
+        assert_eq!(strands(&[3]), DuplexStrands::None);
+        assert_eq!(strands(&[0, 3]), DuplexStrands::Both);
+
+        // missing bc
+        let rec = record("\tac:Z:ACGN");
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [0]).unwrap(),
+            DuplexStrands::A
+        );
+        // no duplex tags
+        let rec = record("");
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [0]).unwrap(),
+            DuplexStrands::None
+        );
+        // tags covering bases hard clipped by the aligner
+        let rec = record_with_cigar("2H4M1H", "\tac:Z:TTACANG\tbc:Z:GGATGNC");
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [0]).unwrap(),
+            DuplexStrands::Both
+        );
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [1]).unwrap(),
+            DuplexStrands::A
+        );
+        // length mismatch, e.g. hard clipped without trimming the tags
+        let rec = record("\tac:Z:AC");
+        assert!(DuplexStrands::from_record_and_positions(&rec, [0]).is_err());
+    }
+
+    #[test]
+    fn test_duplex_strands_read_orientation() {
+        use SequenceReadPairOrientation::{F1R2, F2R1};
+        assert_eq!(
+            DuplexStrands::Both.read_orientation(F1R2),
+            SequenceReadPairOrientation::None
+        );
+        assert_eq!(DuplexStrands::A.read_orientation(F1R2), F1R2);
+        assert_eq!(DuplexStrands::B.read_orientation(F1R2), F2R1);
+        assert_eq!(DuplexStrands::B.read_orientation(F2R1), F1R2);
+        assert_eq!(DuplexStrands::None.read_orientation(F2R1), F2R1);
+    }
+
+    #[test]
+    fn test_duplex_strands_merge() {
+        let mut strands = DuplexStrands::None;
+        strands |= DuplexStrands::A;
+        assert_eq!(strands, DuplexStrands::A);
+        strands |= DuplexStrands::None;
+        assert_eq!(strands, DuplexStrands::A);
+        strands |= DuplexStrands::B;
+        assert_eq!(strands, DuplexStrands::Both);
     }
 }
