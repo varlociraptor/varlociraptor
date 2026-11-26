@@ -488,6 +488,25 @@ pub(crate) struct Sample {
     #[serde(default)]
     #[get = "pub(crate)"]
     fragment_end_bias: bool,
+    /// prior distribution of somatic VAFs (only used with the full prior)
+    #[serde(default, rename = "somatic-vaf-prior")]
+    #[get = "pub(crate)"]
+    somatic_vaf_prior: SomaticVafPrior,
+}
+
+/// Prior distribution of somatic VAFs above 0.
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum SomaticVafPrior {
+    /// Uniform density.
+    #[default]
+    Flat,
+
+    /// Density rate / VAF² as under neutral evolution (Williams et al. 2016),
+    /// where the somatic effective mutation rate is the rate per base pair and sequenced molecule
+    /// (the mutation burden),
+    /// such that the prior probability of a somatic mutation grows with the depth.
+    Neutral,
 }
 
 impl Sample {

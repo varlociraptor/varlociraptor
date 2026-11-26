@@ -1172,6 +1172,8 @@ where
         .uniform(sample_infos.uniform_prior)
         .germline_mutation_rate(sample_infos.germline_mutation_rates)
         .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
+        .somatic_vaf_prior(sample_infos.somatic_vaf_priors)
+        .resolution(sample_infos.resolutions.clone())
         .inheritance(sample_infos.inheritance)
         .heterozygosity(
             scenario
@@ -1223,6 +1225,7 @@ pub(crate) struct SampleInfos {
     fragment_end_bias: grammar::SampleInfo<bool>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
+    somatic_vaf_priors: grammar::SampleInfo<grammar::SomaticVafPrior>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     names: grammar::SampleInfo<String>,
 }
@@ -1237,6 +1240,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
         let mut sample_names = scenario.sample_info();
         let mut germline_mutation_rates = scenario.sample_info();
         let mut somatic_effective_mutation_rates = scenario.sample_info();
+        let mut somatic_vaf_priors = scenario.sample_info();
         let mut inheritance = scenario.sample_info();
         let mut uniform_prior = scenario.sample_info();
 
@@ -1267,6 +1271,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
                 sample_name,
                 sample.somatic_effective_mutation_rate(scenario.species()),
             );
+            somatic_vaf_priors = somatic_vaf_priors.push(sample_name, *sample.somatic_vaf_prior());
             inheritance = inheritance.push(
                 sample_name,
                 if let Some(inheritance) = sample.inheritance() {
@@ -1309,6 +1314,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             fragment_end_bias: fragment_end_bias.build(),
             germline_mutation_rates: germline_mutation_rates.build(),
             somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),
+            somatic_vaf_priors: somatic_vaf_priors.build(),
             inheritance: inheritance.build(),
             names: sample_names.build(),
         })

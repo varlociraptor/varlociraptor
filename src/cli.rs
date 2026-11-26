@@ -1518,6 +1518,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .somatic_effective_mutation_rate(
                         sample_infos.somatic_effective_mutation_rates().clone(),
                     )
+                    .somatic_vaf_prior(sample_infos.somatic_vaf_priors().clone())
+                    .resolution(sample_infos.resolutions().clone())
                     .inheritance(sample_infos.inheritance().clone())
                     .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))

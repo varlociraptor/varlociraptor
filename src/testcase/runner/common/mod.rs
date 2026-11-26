@@ -176,6 +176,14 @@ pub trait Testcase {
         }
     }
 
+    fn full_prior(&self) -> bool {
+        if self.yaml()["full_prior"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["full_prior"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -323,7 +331,7 @@ pub trait Testcase {
                                 .collect_vec(),
                         },
                         log_mode: "default".to_owned(),
-                        full_prior: false,
+                        full_prior: self.full_prior(),
                         no_absent: self.no_absent_yaml(),
                     },
                 };
@@ -354,7 +362,7 @@ pub trait Testcase {
                             purity: self.purity().unwrap(),
                         },
                         log_mode: "default".to_owned(),
-                        full_prior: false,
+                        full_prior: self.full_prior(),
                         no_absent: self.no_absent_yaml(),
                     },
                 };

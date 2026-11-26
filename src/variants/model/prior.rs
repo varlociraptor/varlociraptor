@@ -69,6 +69,8 @@ pub(crate) struct Prior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
     germline_mutation_rate: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
+    somatic_vaf_prior: grammar::SampleInfo<grammar::SomaticVafPrior>,
+    resolution: grammar::SampleInfo<grammar::Resolution>,
     #[builder(default)]
     variant_somatic_effective_mutation_rate: Option<LogProb>,
     heterozygosity: Option<LogProb>,
@@ -91,6 +93,8 @@ impl Clone for Prior {
             universe: self.universe.clone(),
             germline_mutation_rate: self.germline_mutation_rate.clone(),
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
+            somatic_vaf_prior: self.somatic_vaf_prior.clone(),
+            resolution: self.resolution.clone(),
             variant_somatic_effective_mutation_rate: self.variant_somatic_effective_mutation_rate,
             heterozygosity: self.heterozygosity,
             variant_heterozygosity: self.variant_heterozygosity,
@@ -380,6 +384,7 @@ impl Prior {
                             self.variant_or_vartype_somatic_effective_mutation_rate(sample)
                                 .map(|r| {
                                     self.prob_somatic_mutation(
+                                        sample,
                                         r,
                                         self.effective_somatic_vaf(sample, event, &germline_vafs),
                                     )
@@ -453,20 +458,52 @@ impl Prior {
 
     fn prob_somatic_mutation(
         &self,
+        sample: usize,
         somatic_effective_mutation_rate: LogProb,
         somatic_vaf: AlleleFreq,
     ) -> LogProb {
-        // METHOD: we do not apply the model of Williams et al. The reason is that
-        // too much can happen in addition to the somatic mutation (e.g. an overlapping SV).
-        // Instead, we simply assume a flat prior over VAFs > 0.0, and distinguish between
-        // 0.0 and >0.0 via the given mutation rate. In other words, the mutation rate
-        // models the rate of loci with somatic mutations, but for those, any VAFs >0.0
-        // are a priori equally possible.
-        if relative_eq!(*somatic_vaf, 0.0) {
-            somatic_effective_mutation_rate.ln_one_minus_exp()
-        } else {
-            somatic_effective_mutation_rate
+        match self.somatic_vaf_prior[sample] {
+            // METHOD: by default, we do not apply the model of Williams et al. The reason is that
+            // too much can happen in addition to the somatic mutation (e.g. an overlapping SV).
+            // Instead, we simply assume a flat prior over VAFs > 0.0, and distinguish between
+            // 0.0 and >0.0 via the given mutation rate. In other words, the mutation rate
+            // models the rate of loci with somatic mutations, but for those, any VAFs >0.0
+            // are a priori equally possible.
+            grammar::SomaticVafPrior::Flat => {
+                if relative_eq!(*somatic_vaf, 0.0) {
+                    somatic_effective_mutation_rate.ln_one_minus_exp()
+                } else {
+                    somatic_effective_mutation_rate
+                }
+            }
+            // METHOD: under the neutral model of Williams et al., the density of somatic VAFs is rate / VAF²,
+            // where the rate is the effective mutation rate per base pair and sequenced molecule (the mutation burden).
+            // Below the sample's resolution the density stays at its value at the resolution.
+            // The prior mass above 0.0 is then rate * (2 / resolution - 1), see neutral_prior_mass(),
+            // and the probability of a somatic mutation at a locus grows with the VAF range that the depth makes observable:
+            // every molecule carries a mutation with the given rate, hence more molecules mean more chances to observe one.
+            // This is what favors single molecules in deep duplex sequencing.
+            // The density is capped at 1.0, since it is multiplied with probabilities below;
+            // the cap only affects VAFs below sqrt(rate).
+            grammar::SomaticVafPrior::Neutral => {
+                let min_vaf = **self.resolution[sample];
+                if relative_eq!(*somatic_vaf, 0.0) {
+                    Self::neutral_prior_mass(somatic_effective_mutation_rate, min_vaf)
+                        .ln_one_minus_exp()
+                } else {
+                    LogProb(
+                        (*somatic_effective_mutation_rate - 2.0 * (*somatic_vaf).max(min_vaf).ln())
+                            .min(0.0),
+                    )
+                }
+            }
         }
+    }
+
+    /// Prior mass of somatic VAFs above 0.0 under the neutral prior:
+    /// the integral of rate / max(VAF, resolution)² over (0.0, 1.0].
+    fn neutral_prior_mass(somatic_effective_mutation_rate: LogProb, resolution: f64) -> LogProb {
+        LogProb(*somatic_effective_mutation_rate + (2.0 / resolution - 1.0).ln())
     }
 
     fn prob_clonal_inheritance(
@@ -499,7 +536,7 @@ impl Prior {
                         // effects on the growth rate.
                         LogProb::ln_one()
                     } else {
-                        self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf)
+                        self.prob_somatic_mutation(sample, somatic_mutation_rate, somatic_vaf)
                     }
                 }
                 (true, None) => {
@@ -516,6 +553,7 @@ impl Prior {
                 (false, Some(somatic_mutation_rate)) => {
                     // METHOD: no somatic inheritance, all effective somatic vaf must be de novo.
                     self.prob_somatic_mutation(
+                        sample,
                         somatic_mutation_rate,
                         self.effective_somatic_vaf(sample, event, germline_vafs),
                     )
@@ -544,7 +582,7 @@ impl Prior {
                 Some(somatic_mutation_rate) => {
                     if *parent_total_vaf == 0.0 && *germline_vaf == 0.0 {
                         // METHOD: variant is denovo in this sample, calculate somatic mutation probability
-                        self.prob_somatic_mutation(somatic_mutation_rate, total_vaf)
+                        self.prob_somatic_mutation(sample, somatic_mutation_rate, total_vaf)
                     } else {
                         // METHOD: inherited, consider uniform probability because anything can happen during subclonal inheritance
                         LogProb::ln_one()
@@ -717,6 +755,7 @@ impl Prior {
             self.variant_or_vartype_somatic_effective_mutation_rate(child)
         {
             prob += self.prob_somatic_mutation(
+                child,
                 somatic_mutation_rate,
                 self.effective_somatic_vaf(child, event, germline_vafs),
             );
@@ -831,6 +870,14 @@ impl CheckablePrior for Prior {
             if let Some(Inheritance::Subclonal { .. }) = &self.inheritance[sample] {
                 if !self.has_somatic_variation(sample) {
                     return err("subclonal inheritance defined but no somatic mutation: define somatic effective mutation rate for sample that inherits");
+                }
+            }
+            if self.somatic_vaf_prior[sample] == grammar::SomaticVafPrior::Neutral {
+                if let Some(rate) = self.somatic_effective_mutation_rate[sample] {
+                    let resolution = **self.resolution[sample];
+                    if *Self::neutral_prior_mass(LogProb::from(Prob(rate)), resolution) >= 0.0 {
+                        return err("neutral somatic VAF prior with a somatic effective mutation rate that is not below half the resolution: the rate is per base pair and molecule (e.g. 1e-6) and the prior mass above a VAF of 0.0 is rate * (2 / resolution - 1), which must stay below 1.0");
+                    }
                 }
             }
         }
