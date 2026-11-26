@@ -127,9 +127,18 @@ impl AlleleSupport {
             self.read_position = other.read_position;
         }
 
+        // METHOD: the strand families of a fragment are those of the mates supporting its allele,
+        // since agreement of both families on the reference base of one mate does not confirm the alt base of the other.
+        let self_alt = self.is_alt_support();
+        let other_alt = other.is_alt_support();
+        if self_alt == other_alt {
+            self.duplex_strands |= other.duplex_strands;
+        } else if other_alt {
+            self.duplex_strands = other.duplex_strands;
+        }
+
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
-        self.duplex_strands |= other.duplex_strands;
 
         if self.strand == Strand::None {
             self.strand = other.strand;
