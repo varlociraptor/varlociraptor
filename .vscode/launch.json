@@ -1,0 +1,108 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'varlociraptor'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=varlociraptor"
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Number CN",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor",
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "cnv-candidates",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/observations/calls.bcf",
+                // "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-methylation-evaluation/resources/chromosome_J02459.fasta",
+                // "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/posterior/chromosome_J02459.fasta",
+                // "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-methylation-evaluation/resources/J02459/candidates_1-of-1.bcf",
+                "/home/adrian/Documents/Promotion/varlo_stuff/varlociraptor-copy-number-variants/results/observations/output.bcf",
+            ],
+            "cwd": "${workspaceFolder}",
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'varlociraptor'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor"
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'varlociraptor'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=varlociraptor",
+                    "--package=varlociraptor"
+                ],
+                "filter": {
+                    "name": "varlociraptor",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'lib'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=lib",
+                    "--package=varlociraptor"
+                ],
+                "filter": {
+                    "name": "lib",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
