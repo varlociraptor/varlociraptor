@@ -32,9 +32,10 @@ use crate::utils::collect_variants::VariantInfo;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
+use crate::variants::evidence::observations::mismatches::Mismatches;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    AltLocus, FragmentEnd, ReadObservationBuilder, ReadPosition, Strand,
+    AltLocus, DuplexStrands, FragmentEnd, ReadObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model::{self, HaplotypeIdentifier};
@@ -79,6 +80,8 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'stat
     atomic_candidate_variants: bool,
     methylation_readtype: Option<MethylationReadtype>,
     methylation_prob_skipped_bases: LogProb,
+    /// Window around realigned candidates whose bases are left out of the mismatch summaries, see mismatches.
+    realignment_window: u64,
     variant_heterozygosity_field: Option<Vec<u8>>,
     variant_somatic_effective_mutation_rate_field: Option<Vec<u8>>,
 }
@@ -153,6 +156,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
+            "DUPLEX_STRANDS",
+            "MISMATCHES",
+            "CONSENSUS",
             "PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE",
             "PROB_HOMOPOLYMER_VARIANT_OBSERVABLE",
             "HOMOPOLYMER_INDEL_LEN",
@@ -242,6 +248,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
                 methylation_prob_skipped_bases,
+                Arc::clone(&self.reference_buffer),
+                self.realignment_window,
             )
             .build()
             .unwrap();
@@ -815,7 +823,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "16";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "17";
 
 pub struct Observations {
     pub pileup: Pileup,
@@ -869,6 +877,9 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
     let fragment_end: Vec<FragmentEnd> = read_values(record, b"FRAGMENT_END", false)?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
+    let duplex_strands: Vec<DuplexStrands> = read_values(record, b"DUPLEX_STRANDS", false)?;
+    let mismatches: Vec<Mismatches> = read_values(record, b"MISMATCHES", false)?;
+    let consensus: BitVec<u8> = read_values(record, b"CONSENSUS", false)?;
     let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
         read_values(record, b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE", true)?;
     let prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
@@ -899,6 +910,9 @@ pub fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
                 .fragment_end(fragment_end[i])
                 .softclipped(softclipped[i as u64])
                 .paired(paired[i as u64])
+                .duplex_strands(duplex_strands[i])
+                .mismatches(mismatches[i].clone())
+                .consensus(consensus[i as u64])
                 .is_max_mapq(is_max_mapq[i as u64])
                 .alt_locus(alt_locus[i])
                 .third_allele_evidence(third_allele_evidence[i]);
@@ -944,6 +958,9 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     let mut read_orientation = Vec::with_capacity(read_observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut paired: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+    let mut duplex_strands = Vec::with_capacity(read_observations.len());
+    let mut mismatches = Vec::with_capacity(read_observations.len());
+    let mut consensus: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
     let mut read_position = Vec::with_capacity(read_observations.len());
     let mut fragment_end = Vec::with_capacity(read_observations.len());
     let mut prob_hit_base = vec();
@@ -970,6 +987,9 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
         paired.push(obs.paired);
+        duplex_strands.push(obs.duplex_strands);
+        mismatches.push(obs.mismatches.clone());
+        consensus.push(obs.consensus);
         read_position.push(obs.read_position);
         fragment_end.push(obs.fragment_end);
         is_max_mapq.push(obs.is_max_mapq);
@@ -1022,6 +1042,9 @@ pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> R
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
     push_values(record, b"PAIRED", &paired)?;
+    push_values(record, b"DUPLEX_STRANDS", &duplex_strands)?;
+    push_values(record, b"MISMATCHES", &mismatches)?;
+    push_values(record, b"CONSENSUS", &consensus)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"FRAGMENT_END", &fragment_end)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
@@ -1062,6 +1085,9 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
     header.remove_info(b"PAIRED");
+    header.remove_info(b"DUPLEX_STRANDS");
+    header.remove_info(b"MISMATCHES");
+    header.remove_info(b"CONSENSUS");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
     header.remove_info(b"FRAGMENT_END");

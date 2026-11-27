@@ -996,6 +996,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
                                     .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
+                                    .realignment_window(realignment_window)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -1030,6 +1031,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
                                     .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
+                                    .realignment_window(realignment_window)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,
@@ -1074,6 +1076,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .atomic_candidate_variants(atomic_candidate_variants)
                                     .methylation_readtype(methylation_readtype)
                                     .methylation_prob_skipped_bases(methylation_prob_skipped_bases)
+                                    .realignment_window(realignment_window)
                                     .variant_heterozygosity_field(variant_heterozygosity_field)
                                     .variant_somatic_effective_mutation_rate_field(
                                         variant_somatic_effective_mutation_rate_field,

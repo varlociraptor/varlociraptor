@@ -157,10 +157,18 @@ fn haplotype_support(variant_supports: &[AlleleSupport]) -> AlleleSupport {
 
     let prob_ref_allele = LogProb::ln_sum_exp(&last[1..]);
 
+    // METHOD: the strand families of the haplotype are those agreeing with every constituent variant.
+    let duplex_strands = variant_supports
+        .iter()
+        .map(|support| support.duplex_strands())
+        .reduce(|a, b| a.and(b))
+        .unwrap_or_default();
+
     AlleleSupportBuilder::default()
         .prob_alt_allele(prob_alt_allele)
         .prob_ref_allele(prob_ref_allele)
         .strand(variant_supports[0].strand())
+        .duplex_strands(duplex_strands)
         .third_allele_evidence(third_allele_evidence)
         .build()
         .unwrap()

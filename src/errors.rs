@@ -61,6 +61,11 @@ pub(crate) enum Error {
     InvalidStrandInfo { value: char },
     #[error("invalid read orientation information '{value}', must be 'F1R2', 'F2R1', etc.")]
     InvalidReadOrientationInfo { value: String },
+    #[error(
+        "invalid duplex consensus tag {tag}, must be a string with one base per read base \
+        (if hard clipping with fgumi clip, use --auto-clip-attributes)"
+    )]
+    InvalidDuplexBasesTag { tag: String },
     #[error("the following events are not disjunct: {expressions}")]
     OverlappingEvents { expressions: String },
     #[error("the input VCF/BCF is not sorted: {previous_locus:?} > {current_locus:?}")]
