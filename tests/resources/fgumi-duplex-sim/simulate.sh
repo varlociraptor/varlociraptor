@@ -82,6 +82,85 @@ testcase test_fgumi_duplex_single_strand_damage 1,1,1 --require-single-strand-ag
 testcase test_fgumi_duplex_strand_disagreement 1,1,1 "" --omit-strand-bias --other-qual 12 \
     --op a:5:F2R1 --op b:5:F2R1
 
+# the singleton with the neutral prior: the same data, the neutral scenario and the full prior
+neutral_prior() {
+    local src=$testcases/test_fgumi_duplex_singleton dst=$testcases/test_fgumi_duplex_singleton_neutral_prior
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,duplex.bam,normal.bam,ref.fa} "$dst/"
+    cp "$sim/scenario_neutral.yaml" "$dst/scenario.yaml"
+    [ -e "$dst/testcase.yaml" ] || sed '/^no_absent:/i full_prior: true' "$src/testcase.yaml" > "$dst/testcase.yaml"
+}
+neutral_prior
+
+# the singleton with the per-molecule prior at half the depth: the alt molecule plus every second other molecule
+half_depth() {
+    local src=$testcases/test_fgumi_duplex_singleton_neutral_prior dst=$testcases/test_fgumi_duplex_singleton_neutral_prior_half_depth
+    local pos
+    pos=$(grep -v '^#' "$src/candidates.vcf" | cut -f2)
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml} "$dst/"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
+    samtools view "$src/duplex.bam" | python -c '
+import re, sys
+pos = int(sys.argv[1])
+alt, names = set(), []
+for line in sys.stdin:
+    fields = line.split("\t")
+    start, cigar, seq = int(fields[3]), fields[5], fields[9]
+    qpos = rpos = 0
+    for n, op in re.findall(r"(\d+)([MIDNSHP=X])", cigar):
+        n = int(n)
+        if op in "M=X":
+            if start + rpos <= pos < start + rpos + n and seq[qpos + pos - start - rpos] == "T":
+                alt.add(fields[0])
+            qpos += n
+            rpos += n
+        elif op in "IS":
+            qpos += n
+        elif op in "DN":
+            rpos += n
+    if fields[0] not in names:
+        names.append(fields[0])
+print("\n".join(name for i, name in enumerate(sorted(names)) if name in alt or i % 2 == 0))
+' "$pos" > keep.txt
+    samtools view -b -N keep.txt -o "$dst/duplex.bam" "$src/duplex.bam"
+    samtools index "$dst/duplex.bam"
+}
+half_depth
+
+# the singleton with the per-molecule prior at eight times the depth: every reference molecule eight times, at a finer resolution
+deep() {
+    local src=$testcases/test_fgumi_duplex_singleton_neutral_prior dst=$testcases/test_fgumi_duplex_singleton_neutral_prior_deep
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa} "$dst/"
+    sed 's/resolution: 0.001$/resolution: 0.0001/' "$src/scenario.yaml" > "$dst/scenario.yaml"
+    [ -e "$dst/testcase.yaml" ] || sed 's/"max_depth":200/"max_depth":100000/g' "$src/testcase.yaml" > "$dst/testcase.yaml"
+    python - "$src" "$dst" <<'PY'
+import os, sys
+import pysam
+src, dst = sys.argv[1], sys.argv[2]
+with pysam.VariantFile(f"{src}/candidates.vcf") as vcf:
+    pos = next(vcf).pos - 1
+with pysam.AlignmentFile(f"{src}/duplex.bam") as bam:
+    reads = list(bam)
+    header = bam.header
+alt = {r.query_name for r in reads if any(rp == pos and r.query_sequence[q] == "T" for q, rp in r.get_aligned_pairs(matches_only=True))}
+with pysam.AlignmentFile(f"{dst}/unsorted.bam", "wb", header=header) as out:
+    for r in reads:
+        if r.query_name in alt:
+            out.write(r)
+        else:
+            name = r.query_name
+            for k in range(8):
+                r.query_name = f"{name}.{k}"
+                out.write(r)
+pysam.sort("-o", f"{dst}/duplex.bam", f"{dst}/unsorted.bam")
+pysam.index(f"{dst}/duplex.bam")
+os.remove(f"{dst}/unsorted.bam")
+PY
+}
+deep
+
 # a read from a divergent source: the singleton's alt molecule with four more mismatches per mate
 divergent_read() {
     local src=$testcases/test_fgumi_duplex_singleton dst=$testcases/test_fgumi_duplex_divergent_read
