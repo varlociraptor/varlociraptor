@@ -1,0 +1,68 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "description": "MSI probability distribution at AF threshold 0.0.",
+    "title": "MSI Score Distribution (AF 0.0)",
+    "data": { "values": [] },
+    "width": 500,
+    "height": 350,
+    "layer": [
+        {
+            "mark": {
+                "type": "circle",
+                "size": 50,
+                "opacity": 0.7
+            },
+            "encoding": {
+                "x": {
+                    "field": "msi_score",
+                    "type": "quantitative",
+                    "title": "MSI Score (%)",
+                    "scale": { "zero": false }
+                },
+                "y": {
+                    "field": "probability",
+                    "type": "quantitative",
+                    "title": "Posterior Probability",
+                    "axis": { "labels": false }
+                },
+                "color": {
+                    "field": "sample",
+                    "type": "nominal",
+                    "scale": { "scheme": "category10" },
+                    "legend": { "title": "Sample" }
+                },
+                "tooltip": [
+                    { "field": "sample", "type": "nominal", "title": "Sample" },
+                    { "field": "msi_score", "type": "quantitative", "title": "MSI Score (%)", "format": ".2f" },
+                    { "field": "probability", "type": "quantitative", "title": "Probability", "format": ".6f" },
+                    { "field": "k", "type": "quantitative", "title": "k (unstable regions)" }
+                ]
+            }
+        },
+        {
+            "mark": {
+                "type": "rule",
+                "color": "#d62728",
+                "strokeDash": [5, 5],
+                "strokeWidth": 2
+            },
+            "encoding": {
+                "x": { "datum": 3.5 }
+            }
+        },
+        {
+            "mark": {
+                "type": "text",
+                "align": "left",
+                "dx": 5,
+                "dy": -10,
+                "fontSize": 11,
+                "color": "#d62728"
+            },
+            "encoding": {
+                "x": { "datum": 3.5 },
+                "text": { "value": "MSI Threshold" }
+            }
+        }
+    ]
+}

@@ -27,3 +27,7 @@ tests/resources/prior/.snakemake/**
 .vscode/**
 .micromamba
 Cargo.lock
+
+# Local development box, always ignored
+# (can be used for large test files etc.)
+dev_sandbox/
