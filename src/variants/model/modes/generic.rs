@@ -60,6 +60,7 @@ where
     resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
     fragment_end_bias: Option<grammar::SampleInfo<bool>>,
+    somatic_vaf_priors: Option<grammar::SampleInfo<grammar::SomaticVafPrior>>,
     prior: P,
 }
 
@@ -72,6 +73,15 @@ where
         resolutions: grammar::SampleInfo<grammar::Resolution>,
     ) -> Self {
         self.resolutions = Some(resolutions);
+
+        self
+    }
+
+    pub(crate) fn somatic_vaf_priors(
+        mut self,
+        somatic_vaf_priors: grammar::SampleInfo<grammar::SomaticVafPrior>,
+    ) -> Self {
+        self.somatic_vaf_priors = Some(somatic_vaf_priors);
 
         self
     }
@@ -108,6 +118,8 @@ where
                 .expect("GenericModelBuilder: need to call resolutions() before build()"),
             self.fragment_end_bias
                 .expect("GenericModelBuilder: need to call fragment_end_bias() before build()"),
+            self.somatic_vaf_priors
+                .expect("GenericModelBuilder: need to call somatic_vaf_priors() before build()"),
         );
         let likelihood = GenericLikelihood::new(
             self.contaminations
@@ -198,6 +210,57 @@ impl Index<usize> for LikelihoodOperands {
 pub(crate) struct GenericPosterior {
     resolutions: grammar::SampleInfo<grammar::Resolution>,
     fragment_end_bias: grammar::SampleInfo<bool>,
+    somatic_vaf_priors: grammar::SampleInfo<grammar::SomaticVafPrior>,
+}
+
+/// Integrate the density over the VAF interval.
+///
+/// METHOD: an interval too small for the resolution gets 3 grid points,
+/// a sample with fewer than 5 observations 11, since its density need not be unimodal;
+/// otherwise the adaptive integration at the resolution.
+/// With the neutral somatic VAF prior the density falls like 1 / VAF² above the resolution,
+/// which a grid in the VAF cannot resolve near the resolution.
+/// In 1 / VAF the prior is flat, so that part is integrated there (dVAF = du / u²),
+/// and the part below the resolution, where the prior is flat in the VAF, as usual.
+pub(crate) fn ln_integrate_vafs<F: FnMut(AlleleFreq) -> LogProb>(
+    density: &mut F,
+    min_vaf: AlleleFreq,
+    max_vaf: AlleleFreq,
+    resolution: f64,
+    n_obs: usize,
+    neutral_prior: bool,
+) -> LogProb {
+    let integrate = |density: &mut dyn FnMut(AlleleFreq) -> LogProb,
+                     min: AlleleFreq,
+                     max: AlleleFreq| {
+        if (*max - *min) < resolution {
+            LogProb::ln_simpsons_integrate_exp(|_, vaf| density(AlleleFreq(vaf)), *min, *max, 3)
+        } else if n_obs < 5 {
+            LogProb::ln_simpsons_integrate_exp(|_, vaf| density(AlleleFreq(vaf)), *min, *max, 11)
+        } else {
+            adaptive_integration::ln_integrate_exp(
+                |vaf| density(vaf),
+                min,
+                max,
+                AlleleFreq(resolution),
+            )
+        }
+    };
+    if neutral_prior && *max_vaf > resolution {
+        let split = AlleleFreq((*min_vaf).max(resolution));
+        let above = integrate(
+            &mut |u: AlleleFreq| density(AlleleFreq(1.0 / *u)) + LogProb(-2.0 * (*u).ln()),
+            AlleleFreq(1.0 / *max_vaf),
+            AlleleFreq(1.0 / *split),
+        );
+        if *min_vaf < *split {
+            above.ln_add_exp(integrate(density, min_vaf, split))
+        } else {
+            above
+        }
+    } else {
+        integrate(density, min_vaf, max_vaf)
+    }
 }
 
 impl GenericPosterior {
@@ -377,34 +440,14 @@ impl GenericPosterior {
                             subdensity(&mut likelihood_operands)
                         };
 
-                        if (max_vaf - min_vaf) < **resolution {
-                            // METHOD: Interval too small for desired resolution.
-                            // Just use 3 grid points.
-                            LogProb::ln_simpsons_integrate_exp(
-                                |_, vaf| density(AlleleFreq(vaf)),
-                                *min_vaf,
-                                *max_vaf,
-                                3,
-                            )
-                        } else if n_obs < 5 {
-                            // METHOD: Not enough observations to expect a unimodal density.
-                            // Use 11 grid points.
-                            LogProb::ln_simpsons_integrate_exp(
-                                |_, vaf| density(AlleleFreq(vaf)),
-                                *min_vaf,
-                                *max_vaf,
-                                11,
-                            )
-                        } else {
-                            // METHOD: enough data and large enough interval, use adaptive integration
-                            // at the desired resolution.
-                            adaptive_integration::ln_integrate_exp(
-                                density,
-                                min_vaf,
-                                max_vaf,
-                                **resolution,
-                            )
-                        }
+                        ln_integrate_vafs(
+                            &mut density,
+                            min_vaf,
+                            max_vaf,
+                            ***resolution,
+                            n_obs,
+                            self.somatic_vaf_priors[*sample] == grammar::SomaticVafPrior::Neutral,
+                        )
                     }
                 }
             }
@@ -564,5 +607,32 @@ impl Likelihood<Cache> for GenericLikelihood {
         }
 
         p
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ln_integrate_vafs_neutral() {
+        let (rate, resolution) = (1e-6, 1e-5);
+        let mut prior = |vaf: AlleleFreq| LogProb((rate / (*vaf).max(resolution).powi(2)).ln());
+        let (min, max) = (AlleleFreq(1e-5), AlleleFreq(0.01));
+        // the integral of rate / VAF² from the resolution to 0.01
+        let expected = rate * (1.0 / resolution - 1.0 / 0.01);
+        for n_obs in [3usize, 100] {
+            let mass = (*ln_integrate_vafs(&mut prior, min, max, resolution, n_obs, true)).exp();
+            assert!(
+                (mass - expected).abs() / expected < 0.01,
+                "{} {} {}",
+                n_obs,
+                mass,
+                expected
+            );
+        }
+        // a grid in the VAF with few observations overestimates the mass by far
+        let plain = (*ln_integrate_vafs(&mut prior, min, max, resolution, 3, false)).exp();
+        assert!(plain > 10.0 * expected, "{} {}", plain, expected);
     }
 }

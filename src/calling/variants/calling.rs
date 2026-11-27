@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 
 use anyhow::{Context, Result};
@@ -59,6 +60,9 @@ use crate::variants::evidence::observations::read_observation::{
 };
 use crate::VERSION;
 
+/// Whether the warning about a depth beyond the resolution has been shown.
+static WARNED_RESOLUTION: AtomicBool = AtomicBool::new(false);
+
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub(crate) struct Caller<Pr, CP, CF>
@@ -76,6 +80,7 @@ where
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
     read_divergence: ReadDivergenceSettings,
+    somatic_vaf_priors: grammar::SampleInfo<grammar::SomaticVafPrior>,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     aux_info_fields: Vec<Vec<u8>>,
@@ -338,6 +343,7 @@ where
             .contaminations(self.contaminations.clone())
             .resolutions(self.resolutions.clone())
             .fragment_end_bias(self.fragment_end_bias.clone())
+            .somatic_vaf_priors(self.somatic_vaf_priors.clone())
             .build()
             .unwrap()
     }
@@ -632,7 +638,7 @@ where
         // obtain pileups
         let mut filtered_alignments = false;
         let mut pileups = Vec::new();
-        for record in records.iter_mut() {
+        for (sample, record) in records.iter_mut().enumerate() {
             let pileup = if let Some(record) = record {
                 let Observations {
                     mut pileup,
@@ -642,6 +648,20 @@ where
                 adjust_duplex_orientation(std::slice::from_mut(&mut pileup));
                 // METHOD: reads carry mapping evidence in their own mismatches, see model::read_divergence.
                 adjust_read_divergence(&mut pileup, self.divergence(), &self.read_divergence);
+                // METHOD: the VAF integration cannot resolve VAFs below the sample's resolution.
+                // At a depth above 1 / resolution such VAFs become observable. Warn once, for any prior.
+                let n_obs = pileup.read_observations().len();
+                if n_obs > 0
+                    && 1.0 / (n_obs as f64) < **self.resolutions[sample]
+                    && !WARNED_RESOLUTION.swap(true, Ordering::Relaxed)
+                {
+                    warn!(
+                        "Sample {} has {} observations at a locus, more than 1 / resolution ({}). \
+                         VAFs below the resolution are observable there but not resolved. \
+                         Consider a resolution of at most 1 / depth in the scenario (shown once).",
+                        self.samplenames[sample], n_obs, **self.resolutions[sample]
+                    );
+                }
                 if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;
@@ -1192,6 +1212,8 @@ where
         .uniform(sample_infos.uniform_prior)
         .germline_mutation_rate(sample_infos.germline_mutation_rates)
         .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
+        .somatic_vaf_prior(sample_infos.somatic_vaf_priors.clone())
+        .resolution(sample_infos.resolutions.clone())
         .inheritance(sample_infos.inheritance)
         .heterozygosity(
             scenario
@@ -1219,6 +1241,7 @@ where
         .resolutions(sample_infos.resolutions)
         .fragment_end_bias(fragment_end_bias)
         .read_divergence(read_divergence)
+        .somatic_vaf_priors(sample_infos.somatic_vaf_priors)
         .haplotype_feature_index(haplotype_feature_index)
         .outbcf(output)
         .aux_info_fields(propagate_info_fields)
@@ -1244,6 +1267,7 @@ pub(crate) struct SampleInfos {
     fragment_end_bias: grammar::SampleInfo<bool>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
+    somatic_vaf_priors: grammar::SampleInfo<grammar::SomaticVafPrior>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     names: grammar::SampleInfo<String>,
 }
@@ -1258,6 +1282,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
         let mut sample_names = scenario.sample_info();
         let mut germline_mutation_rates = scenario.sample_info();
         let mut somatic_effective_mutation_rates = scenario.sample_info();
+        let mut somatic_vaf_priors = scenario.sample_info();
         let mut inheritance = scenario.sample_info();
         let mut uniform_prior = scenario.sample_info();
 
@@ -1288,6 +1313,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
                 sample_name,
                 sample.somatic_effective_mutation_rate(scenario.species()),
             );
+            somatic_vaf_priors = somatic_vaf_priors.push(sample_name, *sample.somatic_vaf_prior());
             inheritance = inheritance.push(
                 sample_name,
                 if let Some(inheritance) = sample.inheritance() {
@@ -1330,6 +1356,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             fragment_end_bias: fragment_end_bias.build(),
             germline_mutation_rates: germline_mutation_rates.build(),
             somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),
+            somatic_vaf_priors: somatic_vaf_priors.build(),
             inheritance: inheritance.build(),
             names: sample_names.build(),
         })
