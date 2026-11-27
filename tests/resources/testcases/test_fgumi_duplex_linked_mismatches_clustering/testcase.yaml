@@ -1,4 +1,5 @@
 # The data of test_fgumi_duplex_linked_mismatches with clustered somatic mutations in the scenario: a twentieth of the somatic mutations lie in clusters with a mutation every five base pairs.
+# That is denser than kataegis or omikli, which space mutations by hundreds of base pairs; it matches the three SNVs within 10 bp.
 # The cluster explains the linked mismatches of the alt reads, which keep their mapping probability, and the variant is called.
 expected:
   allelefreqs:

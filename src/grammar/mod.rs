@@ -504,6 +504,9 @@ pub(crate) struct Sample {
 
 /// Clustering of somatic mutations, as caused by APOBEC (kataegis, omikli) or UV light.
 /// Without it, somatic mutations are taken as independent at the somatic effective mutation rate.
+/// For orientation: 3.7% of the substitutions of 2,583 PCAWG genomes are clustered, up to 11.5% per cancer type (Bergstrom et al. 2022);
+/// kataegis averages below 1 kb between mutations (Alexandrov et al. 2013) and APOBEC omikli peaks at 355 bp (Mas-Ponte and Supek 2020),
+/// so rates of 1e-3 to 1e-2 per base pair.
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SomaticClustering {
