@@ -1,0 +1,295 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=SVLEN,Number=.,Type=Integer,Description="Difference in length between REF and ALT alleles">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of structural variant (inclusive, 1-based).">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=EVENT,Number=1,Type=String,Description="ID of event associated to breakend">
+##INFO=<ID=MATEID,Number=.,Type=String,Description="ID of mate breakends">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=CIPOS,Number=2,Type=Integer,Description="Confidence interval around POS for imprecise variants">
+##INFO=<ID=CIEND,Number=2,Type=Integer,Description="Confidence interval around END for imprecise variants">
+##INFO=<ID=HETEROZYGOSITY,Number=A,Type=Float,Description="PHRED scaled expected heterozygosity of this particular variant (equivalent to population allele frequency)">
+##INFO=<ID=SOMATIC_EFFECTIVE_MUTATION_RATE,Number=A,Type=Float,Description="PHRED scaled expected somatic effective mutation rate of this particular variant (see Williams et al. Nature Genetics 2016)">
+##contig=<ID=1,length=248956422>
+##contig=<ID=10,length=133797422>
+##contig=<ID=11,length=135086622>
+##contig=<ID=12,length=133275309>
+##contig=<ID=13,length=114364328>
+##contig=<ID=14,length=107043718>
+##contig=<ID=15,length=101991189>
+##contig=<ID=16,length=90338345>
+##contig=<ID=17,length=83257441>
+##contig=<ID=18,length=80373285>
+##contig=<ID=19,length=58617616>
+##contig=<ID=2,length=242193529>
+##contig=<ID=20,length=64444167>
+##contig=<ID=21,length=46709983>
+##contig=<ID=22,length=50818468>
+##contig=<ID=3,length=198295559>
+##contig=<ID=4,length=190214555>
+##contig=<ID=5,length=181538259>
+##contig=<ID=6,length=170805979>
+##contig=<ID=7,length=159345973>
+##contig=<ID=8,length=145138636>
+##contig=<ID=9,length=138394717>
+##contig=<ID=MT,length=16569>
+##contig=<ID=X,length=156040895>
+##contig=<ID=Y,length=57227415>
+##contig=<ID=KI270728.1,length=1872759>
+##contig=<ID=KI270727.1,length=448248>
+##contig=<ID=KI270442.1,length=392061>
+##contig=<ID=KI270729.1,length=280839>
+##contig=<ID=GL000225.1,length=211173>
+##contig=<ID=KI270743.1,length=210658>
+##contig=<ID=GL000008.2,length=209709>
+##contig=<ID=GL000009.2,length=201709>
+##contig=<ID=KI270747.1,length=198735>
+##contig=<ID=KI270722.1,length=194050>
+##contig=<ID=GL000194.1,length=191469>
+##contig=<ID=KI270742.1,length=186739>
+##contig=<ID=GL000205.2,length=185591>
+##contig=<ID=GL000195.1,length=182896>
+##contig=<ID=KI270736.1,length=181920>
+##contig=<ID=KI270733.1,length=179772>
+##contig=<ID=GL000224.1,length=179693>
+##contig=<ID=GL000219.1,length=179198>
+##contig=<ID=KI270719.1,length=176845>
+##contig=<ID=GL000216.2,length=176608>
+##contig=<ID=KI270712.1,length=176043>
+##contig=<ID=KI270706.1,length=175055>
+##contig=<ID=KI270725.1,length=172810>
+##contig=<ID=KI270744.1,length=168472>
+##contig=<ID=KI270734.1,length=165050>
+##contig=<ID=GL000213.1,length=164239>
+##contig=<ID=GL000220.1,length=161802>
+##contig=<ID=KI270715.1,length=161471>
+##contig=<ID=GL000218.1,length=161147>
+##contig=<ID=KI270749.1,length=158759>
+##contig=<ID=KI270741.1,length=157432>
+##contig=<ID=GL000221.1,length=155397>
+##contig=<ID=KI270716.1,length=153799>
+##contig=<ID=KI270731.1,length=150754>
+##contig=<ID=KI270751.1,length=150742>
+##contig=<ID=KI270750.1,length=148850>
+##contig=<ID=KI270519.1,length=138126>
+##contig=<ID=GL000214.1,length=137718>
+##contig=<ID=KI270708.1,length=127682>
+##contig=<ID=KI270730.1,length=112551>
+##contig=<ID=KI270438.1,length=112505>
+##contig=<ID=KI270737.1,length=103838>
+##contig=<ID=KI270721.1,length=100316>
+##contig=<ID=KI270738.1,length=99375>
+##contig=<ID=KI270748.1,length=93321>
+##contig=<ID=KI270435.1,length=92983>
+##contig=<ID=GL000208.1,length=92689>
+##contig=<ID=KI270538.1,length=91309>
+##contig=<ID=KI270756.1,length=79590>
+##contig=<ID=KI270739.1,length=73985>
+##contig=<ID=KI270757.1,length=71251>
+##contig=<ID=KI270709.1,length=66860>
+##contig=<ID=KI270746.1,length=66486>
+##contig=<ID=KI270753.1,length=62944>
+##contig=<ID=KI270589.1,length=44474>
+##contig=<ID=KI270726.1,length=43739>
+##contig=<ID=KI270735.1,length=42811>
+##contig=<ID=KI270711.1,length=42210>
+##contig=<ID=KI270745.1,length=41891>
+##contig=<ID=KI270714.1,length=41717>
+##contig=<ID=KI270732.1,length=41543>
+##contig=<ID=KI270713.1,length=40745>
+##contig=<ID=KI270754.1,length=40191>
+##contig=<ID=KI270710.1,length=40176>
+##contig=<ID=KI270717.1,length=40062>
+##contig=<ID=KI270724.1,length=39555>
+##contig=<ID=KI270720.1,length=39050>
+##contig=<ID=KI270723.1,length=38115>
+##contig=<ID=KI270718.1,length=38054>
+##contig=<ID=KI270317.1,length=37690>
+##contig=<ID=KI270740.1,length=37240>
+##contig=<ID=KI270755.1,length=36723>
+##contig=<ID=KI270707.1,length=32032>
+##contig=<ID=KI270579.1,length=31033>
+##contig=<ID=KI270752.1,length=27745>
+##contig=<ID=KI270512.1,length=22689>
+##contig=<ID=KI270322.1,length=21476>
+##contig=<ID=GL000226.1,length=15008>
+##contig=<ID=KI270311.1,length=12399>
+##contig=<ID=KI270366.1,length=8320>
+##contig=<ID=KI270511.1,length=8127>
+##contig=<ID=KI270448.1,length=7992>
+##contig=<ID=KI270521.1,length=7642>
+##contig=<ID=KI270581.1,length=7046>
+##contig=<ID=KI270582.1,length=6504>
+##contig=<ID=KI270515.1,length=6361>
+##contig=<ID=KI270588.1,length=6158>
+##contig=<ID=KI270591.1,length=5796>
+##contig=<ID=KI270522.1,length=5674>
+##contig=<ID=KI270507.1,length=5353>
+##contig=<ID=KI270590.1,length=4685>
+##contig=<ID=KI270584.1,length=4513>
+##contig=<ID=KI270320.1,length=4416>
+##contig=<ID=KI270382.1,length=4215>
+##contig=<ID=KI270468.1,length=4055>
+##contig=<ID=KI270467.1,length=3920>
+##contig=<ID=KI270362.1,length=3530>
+##contig=<ID=KI270517.1,length=3253>
+##contig=<ID=KI270593.1,length=3041>
+##contig=<ID=KI270528.1,length=2983>
+##contig=<ID=KI270587.1,length=2969>
+##contig=<ID=KI270364.1,length=2855>
+##contig=<ID=KI270371.1,length=2805>
+##contig=<ID=KI270333.1,length=2699>
+##contig=<ID=KI270374.1,length=2656>
+##contig=<ID=KI270411.1,length=2646>
+##contig=<ID=KI270414.1,length=2489>
+##contig=<ID=KI270510.1,length=2415>
+##contig=<ID=KI270390.1,length=2387>
+##contig=<ID=KI270375.1,length=2378>
+##contig=<ID=KI270420.1,length=2321>
+##contig=<ID=KI270509.1,length=2318>
+##contig=<ID=KI270315.1,length=2276>
+##contig=<ID=KI270302.1,length=2274>
+##contig=<ID=KI270518.1,length=2186>
+##contig=<ID=KI270530.1,length=2168>
+##contig=<ID=KI270304.1,length=2165>
+##contig=<ID=KI270418.1,length=2145>
+##contig=<ID=KI270424.1,length=2140>
+##contig=<ID=KI270417.1,length=2043>
+##contig=<ID=KI270508.1,length=1951>
+##contig=<ID=KI270303.1,length=1942>
+##contig=<ID=KI270381.1,length=1930>
+##contig=<ID=KI270529.1,length=1899>
+##contig=<ID=KI270425.1,length=1884>
+##contig=<ID=KI270396.1,length=1880>
+##contig=<ID=KI270363.1,length=1803>
+##contig=<ID=KI270386.1,length=1788>
+##contig=<ID=KI270465.1,length=1774>
+##contig=<ID=KI270383.1,length=1750>
+##contig=<ID=KI270384.1,length=1658>
+##contig=<ID=KI270330.1,length=1652>
+##contig=<ID=KI270372.1,length=1650>
+##contig=<ID=KI270548.1,length=1599>
+##contig=<ID=KI270580.1,length=1553>
+##contig=<ID=KI270387.1,length=1537>
+##contig=<ID=KI270391.1,length=1484>
+##contig=<ID=KI270305.1,length=1472>
+##contig=<ID=KI270373.1,length=1451>
+##contig=<ID=KI270422.1,length=1445>
+##contig=<ID=KI270316.1,length=1444>
+##contig=<ID=KI270340.1,length=1428>
+##contig=<ID=KI270338.1,length=1428>
+##contig=<ID=KI270583.1,length=1400>
+##contig=<ID=KI270334.1,length=1368>
+##contig=<ID=KI270429.1,length=1361>
+##contig=<ID=KI270393.1,length=1308>
+##contig=<ID=KI270516.1,length=1300>
+##contig=<ID=KI270389.1,length=1298>
+##contig=<ID=KI270466.1,length=1233>
+##contig=<ID=KI270388.1,length=1216>
+##contig=<ID=KI270544.1,length=1202>
+##contig=<ID=KI270310.1,length=1201>
+##contig=<ID=KI270412.1,length=1179>
+##contig=<ID=KI270395.1,length=1143>
+##contig=<ID=KI270376.1,length=1136>
+##contig=<ID=KI270337.1,length=1121>
+##contig=<ID=KI270335.1,length=1048>
+##contig=<ID=KI270378.1,length=1048>
+##contig=<ID=KI270379.1,length=1045>
+##contig=<ID=KI270329.1,length=1040>
+##contig=<ID=KI270419.1,length=1029>
+##contig=<ID=KI270336.1,length=1026>
+##contig=<ID=KI270312.1,length=998>
+##contig=<ID=KI270539.1,length=993>
+##contig=<ID=KI270385.1,length=990>
+##contig=<ID=KI270423.1,length=981>
+##contig=<ID=KI270392.1,length=971>
+##contig=<ID=KI270394.1,length=970>
+##INFO=<ID=ALT_INDEL_OPERATIONS,Number=.,Type=Integer,Description="Varlociraptor observations (binary encoded, meant for internal use only).">
+##varlociraptor_preprocess_args={"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.dna.homo_sapiens.GRCh38.115.fasta","candidates":"results/candidate-calls/freebayes/filtered/normal_tumor/normal_tumor.1-of-16.bcf","bam":"results/recal/normal_wes.bam","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/normal_tumor/normal_wes.json","output":"results/observations/freebayes/normal_tumor/normal_wes.1-of-16.bcf","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null}}}}
+##varlociraptor_observation_format_version=15
+##INFO=<ID=PROB_GERMLINE,Number=A,Type=Float,Description="Posterior probability for event germline (PHRED)">
+##INFO=<ID=PROB_LOH,Number=A,Type=Float,Description="Posterior probability for event loh (PHRED)">
+##INFO=<ID=PROB_LOH_OR_AMPLIFICATION,Number=A,Type=Float,Description="Posterior probability for event loh_or_amplification (PHRED)">
+##INFO=<ID=PROB_SOMATIC_NORMAL_OR_CTC,Number=A,Type=Float,Description="Posterior probability for event somatic_normal_or_ctc (PHRED)">
+##INFO=<ID=PROB_SOMATIC_TUMOR_HIGH,Number=A,Type=Float,Description="Posterior probability for event somatic_tumor_high (PHRED)">
+##INFO=<ID=PROB_SOMATIC_TUMOR_LOW,Number=A,Type=Float,Description="Posterior probability for event somatic_tumor_low (PHRED)">
+##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,Description="Posterior probability for any artifact, indicated by strand, read position, read orientation, softclip bias, or divindel bias (PHRED). See the bias specific records below for an explanation for each type of bias.">
+##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,Description="Posterior probability for not having a variant (PHRED)">
+##INFO=<ID=HINTS,Number=.,Type=String,Description="Hints about applied heuristics and other events that occured during model evaluation. The following hints are possible: adjusted-singleton-evidence: in case of a single read supporting the variant across all samples, we assume that it is unclear whether that is a PCR error or not. Hence, the likelihood of the variant and ref allele is set to 0.5 each. This avoids calls caused by single supporting reads. filtered-non-standard-alignments: non-standard alignments (i.e. alignments with non-standard read orientation) have been removed from the pileup. missing-data: no alignments that properly cover the candidate variant in any considered sample.">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Expected sequencing depth, while considering mapping uncertainty">
+##FORMAT=<ID=AF,Number=A,Type=Float,Description="Maximum a posteriori probability estimate of the alteration fraction (also called VAF). Note that in case of contamination between samples, this is corrected for this contamination, thus only representing the fraction in the cells of the actual sample without the contaminating cells.">
+##FORMAT=<ID=SAOBS,Number=A,Type=String,Description="Summary of simplified observations favoring the ALT allele (has to be considered together with SROBS). Each entry is encoded as CB, with C being a count, B being the posterior odds for the alt allele. The provided letter denotes an extended Kass Raftery score: B=barely, P=positive, S=strong, V=very strong (lower case if probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with a term for equality between the evidence of the two alleles (E=equal). Further note that there is no N=none score, as such observations occur with an opposite direction score (odds for the reference or a third allele) in the SROBS field.">
+##FORMAT=<ID=SROBS,Number=A,Type=String,Description="Summary of simplified observations favoring the reference or a third allele (has to be considered together with SAOBS). Each entry is encoded as CB, with C being a count, B being the posterior odds for the reference or a third allele. The latter denotes an extended Kass Raftery score: E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if probability for correct mapping of fragment is <95%).">
+##FORMAT=<ID=OBS,Number=A,Type=String,Description="Summary of observations. Each entry is encoded as CBDTASOPXI, with C being a count, and B being the posterior odds for the alt or the reference allele. The latter are given as a two letter code. The first letter (`A` or `R`) defines whether the odds favor the alt allele (`A`) or any other allele including the reference allele `R`. The second letter denotes an extended Kass Raftery score: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with a term for equality between the evidence of the two alleles (E=equal). D denotes the edit distance to the ALT allele (if it is higher than expected from the sequencing error rates, Varlociraptor derives a third allele from the read sequence and considers that as an alternative to the alt allele, instead of the reference allele), T being the type of alignment, encoded as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus (# = most found alternative locus, * = other locus, . = no locus), S being the strand that supports the observation (+, -, or * for both), O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), P being the read position (^ = most found read position, * = any other position or position is irrelevant), X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and I denoting indel operations in the respective alignments against the alt allele (* = some indel, . = no indel or information irrelevant for variant type).">
+##FORMAT=<ID=OOBS,Number=A,Type=Integer,Description="Number of omitted observations. For SNVs and MNVs, read pairs are omitted if they have a non-standard read orientation (neither F1R2 nor F2R1) as those can frequently lead to alignment artifacts.">
+##FORMAT=<ID=SB,Number=A,Type=String,Description="Strand bias estimate: + indicates that ALT allele is associated with forward strand, - indicates that ALT allele is associated with reverse strand, . indicates no strand bias. Strand bias is indicative for systematic sequencing errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).">
+##FORMAT=<ID=ROB,Number=A,Type=String,Description="Read orientation bias estimate: > indicates that ALT allele is associated with F1R2 orientation, < indicates that ALT allele is associated with F2R1 orientation, . indicates no read orientation bias. Read orientation bias is indicative of Guanin oxidation artifacts. Probability for read orientation bias is captured by the ARTIFACT event (PROB_ARTIFACT).">
+##FORMAT=<ID=RPB,Number=A,Type=String,Description="Read position bias estimate: ^ indicates that ALT allele is associated with the most found read position, . indicates that there is no read position bias. Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. Probability for read position bias is captured by the ARTIFACT event (PROB_ARTIFACT).">
+##FORMAT=<ID=SCB,Number=A,Type=String,Description="Softclip bias estimate: $ indicates that ALT allele is associated with with softclips in the same alignment, . indicates that there is no softclip bias. Softclip bias is indicative of systematic alignment errors, cause by a part of the read that does not properly align to the reference (and is thus soft clipped). Note that softclips can also be caused by structural variants. However, structural variants on the same haplotype as e.g. an SNV should not cause a softclip bias, because there will usually still be reads that do not reach the SV, thereby providing evidence against a softclip bias. Probability for softclip bias is captured by the ARTIFACT event (PROB_ARTIFACT).">
+##FORMAT=<ID=HE,Number=A,Type=String,Description="Homopolymer error estimate: * indicates that ALT allele is associated with with homopolymer indel operations of varying length, . indicates that there is no homopolymer error. Homopolymer error is indicative of systematic PCR amplification errors. Probability for such homopolymer artifacts is captured by the ARTIFACT event (PROB_ARTIFACT).">
+##FORMAT=<ID=ALB,Number=A,Type=String,Description="Alt locus bias estimate: * indicates that ALT allele is systematically associated with either MAPQs smaller than the maximum MAPQ or a major alternative alignment (XA tag) reported by the used read mapper. This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, a homology, a distant variant allele, or a CNV). Probability for alt locus bias is captured by the ARTIFACT event (PROB_ARTIFACT).">
+##FORMAT=<ID=AFD,Number=.,Type=String,Description="Sampled posterior probability densities of alteration fractions in PHRED scale (the smaller the higher, with 0 being equal to an unscaled probability of 1). In the discrete case (no somatic mutation rate or continuous universe in the scenario), these can be seen as posterior probabilities. Note that densities can be greater than one. Note that the distribution is not necessarily unimodal since it aggregates the densities over all alteration fractions of all other samples. Furthermore, it might diverge from the maximum a posteriori estimate of the alteration fraction, because the latter is constrained to be consistent with the most probable event.">
+##bcftools_concatVersion=1.17+htslib-1.21
+##bcftools_concatCommand=concat --output results/calls/varlociraptor/normal_tumor/normal_tumor.variants.1-of-16.bcf --output-type b -a results/calls/varlociraptor/freebayes/normal_tumor/normal_tumor.1-of-16.bcf results/calls/varlociraptor/delly/normal_tumor/normal_tumor.1-of-16.bcf; Date=Tue Aug 18 12:19:48 2026
+##bcftools_viewVersion=1.21+htslib-1.21
+##bcftools_viewCommand=view results/calls/varlociraptor/normal_tumor/normal_tumor.variants.1-of-16.bcf; Date=Tue Aug 18 12:19:52 2026
+##VEP="v115.2" API="v115" time="2026-08-18 12:19:53" cache="resources/vep/cache/homo_sapiens/115_GRCh38" ensembl=115.266b84d ensembl-compara=115.ae48a7a ensembl-funcgen=115.57f7061 ensembl-io=115.25061d3 ensembl-variation=115.b7c2637 1000genomes="phase3" COSMIC="101" ClinVar="202502" HGMD-PUBLIC="20204" assembly="GRCh38.p14" dbSNP="156" gencode="GENCODE 49" genebuild="GENCODE49" gnomADe="v4.1" gnomADg="v4.1" polyphen="2.2.3" regbuild="1.0" sift="6.2.1"
+##INFO=<ID=ANN,Number=.,Type=String,Description="Consequence annotations from Ensembl VEP. Format: Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|Existing_variation|DISTANCE|STRAND|FLAGS|VARIANT_CLASS|SYMBOL_SOURCE|HGNC_ID|CANONICAL|MANE|MANE_SELECT|MANE_PLUS_CLINICAL|TSL|APPRIS|CCDS|ENSP|SWISSPROT|TREMBL|UNIPARC|UNIPROT_ISOFORM|GENE_PHENO|SIFT|PolyPhen|DOMAINS|miRNA|HGVS_OFFSET|HGVSg|AF|AFR_AF|AMR_AF|EAS_AF|EUR_AF|SAS_AF|gnomADe_AF|gnomADe_AFR_AF|gnomADe_AMR_AF|gnomADe_ASJ_AF|gnomADe_EAS_AF|gnomADe_FIN_AF|gnomADe_MID_AF|gnomADe_NFE_AF|gnomADe_REMAINING_AF|gnomADe_SAS_AF|gnomADg_AF|gnomADg_AFR_AF|gnomADg_AMI_AF|gnomADg_AMR_AF|gnomADg_ASJ_AF|gnomADg_EAS_AF|gnomADg_FIN_AF|gnomADg_MID_AF|gnomADg_NFE_AF|gnomADg_REMAINING_AF|gnomADg_SAS_AF|MAX_AF|MAX_AF_POPS|CLIN_SIG|SOMATIC|PHENO|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|TRANSCRIPTION_FACTORS|LoFtool|REVEL|am_class|am_pathogenicity|SpliceAI_pred_DP_AG|SpliceAI_pred_DP_AL|SpliceAI_pred_DP_DG|SpliceAI_pred_DP_DL|SpliceAI_pred_DS_AG|SpliceAI_pred_DS_AL|SpliceAI_pred_DS_DG|SpliceAI_pred_DS_DL|SpliceAI_pred_SYMBOL">
+##LoFtool=LoFtool score for gene
+##REVEL=Rare Exome Variant Ensemble Learner
+##am_class=The AlphaMissense thresholds are: 'Likely benign' if score < 0.34, 'Likely pathogenic' if score > 0.564, 'ambiguous' otherwise -- see doi.org/10.1126/science.adg7492 for details; column from /mnt/workspace/resources/alphamissense/AlphaMissense_hg38.tsv.gz
+##am_pathogenicity=Continuous AlphaMissense score between 0 and 1 which can be interpreted as the predicted probability of the variant being pathogenic; column from /mnt/workspace/resources/alphamissense/AlphaMissense_hg38.tsv.gz
+##SpliceAI_pred_DP_AG=SpliceAI (v1.3) predicted effect on splicing. Delta position for acceptor gain
+##SpliceAI_pred_DP_AL=SpliceAI (v1.3) predicted effect on splicing. Delta position for acceptor loss
+##SpliceAI_pred_DP_DG=SpliceAI (v1.3) predicted effect on splicing. Delta position for donor gain
+##SpliceAI_pred_DP_DL=SpliceAI (v1.3) predicted effect on splicing. Delta position for donor loss
+##SpliceAI_pred_DS_AG=SpliceAI (v1.3) predicted effect on splicing. Delta score for acceptor gain
+##SpliceAI_pred_DS_AL=SpliceAI (v1.3) predicted effect on splicing. Delta score for acceptor loss
+##SpliceAI_pred_DS_DG=SpliceAI (v1.3) predicted effect on splicing. Delta score for donor gain
+##SpliceAI_pred_DS_DL=SpliceAI (v1.3) predicted effect on splicing. Delta score for donor loss
+##SpliceAI_pred_SYMBOL=SpliceAI (v1.3) gene symbol
+##VEP-command-line='vep --assembly GRCh38 --cache --cache_version 115 --check_existing --database 0 --dir_cache [PATH]/cache --dir_plugins [PATH]/plugins --everything --fasta [PATH]/genome.dna.homo_sapiens.GRCh38.115.fasta --fork 4 --format vcf --hgvsg --offline --output_file STDOUT --plugin LoFtool,[PATH]/LoFtool_scores.txt --plugin REVEL,[PATH]/revel_scores.tsv.gz --plugin AlphaMissense,file=[PATH]/AlphaMissense_hg38.tsv.gz, --plugin SpliceAI,snv=[PATH]/spliceai_scores.raw.snv.hg38.vcf.gz,indel=[PATH]/spliceai_scores.raw.indel.hg38.vcf.gz, --vcf --vcf_info_field ANN'
+##bcftools_viewCommand=view -Ob; Date=Tue Aug 18 12:19:53 2026
+##bcftools_viewVersion=1.12+htslib-1.21
+##bcftools_viewCommand=view --threads 4 results/calls/vep_annotated/normal_tumor/normal_tumor.variants.1-of-16.bcf; Date=Tue Aug 18 12:42:55 2026
+##SnpSiftVersion="SnpSift 5.1d (build 2022-04-19 15:50), by Pablo Cingolani"
+##SnpSiftCmd="SnpSift Annotate -name known_ resources/variation.vcf.gz /dev/stdin"
+##INFO=<ID=known_E_gnomAD,Number=0,Type=Flag,Description="gnomAD.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_CLIN_protective,Number=0,Type=Flag,Description="protective.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_CLIN_drug_response,Number=0,Type=Flag,Description="drug response.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_AA,Number=1,Type=String,Description="Ancestral Allele">
+##INFO=<ID=known_CLIN_association,Number=0,Type=Flag,Description="association.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_CLIN_histocompatibility,Number=0,Type=Flag,Description="histocompatibility.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_dbSNP_156,Number=0,Type=Flag,Description="Variants (including SNPs and indels) imported from dbSNP">
+##INFO=<ID=known_MAC,Number=1,Type=Integer,Description="Minor Alelele Count">
+##INFO=<ID=known_MAF,Number=1,Type=Float,Description="Minor Allele Frequency">
+##INFO=<ID=known_E_Hapmap,Number=0,Type=Flag,Description="HapMap.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_ClinVar_202502,Number=0,Type=Flag,Description="Variants of clinical significance imported from ClinVar">
+##INFO=<ID=known_E_Freq,Number=0,Type=Flag,Description="Frequency.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_E_Cited,Number=0,Type=Flag,Description="Cited.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_CLIN_likely_benign,Number=0,Type=Flag,Description="likely benign.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_E_TOPMed,Number=0,Type=Flag,Description="TOPMed.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_CLIN_risk_factor,Number=0,Type=Flag,Description="risk factor.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_CLIN_benign,Number=0,Type=Flag,Description="benign.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_CLIN_other,Number=0,Type=Flag,Description="other.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_E_ESP,Number=0,Type=Flag,Description="ESP.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_MA,Number=1,Type=String,Description="Minor Allele">
+##INFO=<ID=known_COSMIC_101,Number=0,Type=Flag,Description="Somatic mutations found in human cancers from the COSMIC catalogue">
+##INFO=<ID=known_CLIN_likely_pathogenic,Number=0,Type=Flag,Description="likely pathogenic.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_TSA,Number=1,Type=String,Description="Type of sequence alteration. Child of term sequence_alteration as defined by the sequence ontology project.">
+##INFO=<ID=known_HGMD-PUBLIC_20204,Number=0,Type=Flag,Description="Variants from HGMD-PUBLIC dataset December 2020">
+##INFO=<ID=known_CLIN_uncertain_significance,Number=0,Type=Flag,Description="uncertain significance.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_E_1000G,Number=0,Type=Flag,Description="1000Genomes.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_E_Multiple_observations,Number=0,Type=Flag,Description="Multiple_observations.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_CLIN_pathogenic,Number=0,Type=Flag,Description="pathogenic.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_CLIN_confers_sensitivity,Number=0,Type=Flag,Description="confers sensitivity.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##INFO=<ID=known_E_Phenotype_or_Disease,Number=0,Type=Flag,Description="Phenotype_or_Disease.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_E_ExAC,Number=0,Type=Flag,Description="ExAC.https://www.ensembl.org/info/genome/variation/prediction/variant_quality.html#evidence_status">
+##INFO=<ID=known_CLIN_not_provided,Number=0,Type=Flag,Description="not provided.https://www.ensembl.org/info/genome/variation/phenotype/phenotype_annotation.html#clin_significance">
+##bcftools_viewCommand=view --threads 4 -Ob; Date=Tue Aug 18 12:42:56 2026
+##bcftools_concatCommand=concat --output results/final-calls/normal_tumor/normal_tumor.variants.annotated.bcf --output-type b -a results/calls/db_annotated/normal_tumor/normal_tumor.variants.1-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.2-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.3-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.4-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.5-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.6-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.7-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.8-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.9-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.10-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.11-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.12-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.13-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.14-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.15-of-16.bcf results/calls/db_annotated/normal_tumor/normal_tumor.variants.16-of-16.bcf; Date=Tue Aug 18 13:01:20 2026
+##bcftools_concatCommand=concat --output results/final-calls/normal_tumor/normal_tumor.all_somatic.variants.fdr-controlled.bcf --output-type b -a results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.SNV.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.INS.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.DEL.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.MNV.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.BND.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.INV.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.DUP.variants.bcf results/calls/fdr-controlled/normal_tumor/all_somatic/normal_tumor.REP.variants.bcf; Date=Tue Aug 18 13:02:39 2026
+##bcftools_viewVersion=1.17+htslib-1.17
+##bcftools_viewCommand=view -r 20:31472917 wes_normal_tumor.all_somatic.variants.fdr-controlled.bcf; Date=Tue Aug 25 13:59:07 2026
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	normal	tumor
+20	31472917	.	GCACACACACACACACACACAT	GCACACACACACACACACACACACAT	.	.	PROB_SOMATIC_TUMOR_HIGH=2.02376;PROB_SOMATIC_TUMOR_LOW=4.42786;PROB_SOMATIC_NORMAL_OR_CTC=19.3384;PROB_ABSENT=40.7829;PROB_LOH=inf;PROB_ARTIFACT=inf;PROB_LOH_OR_AMPLIFICATION=inf;PROB_GERMLINE=inf;ANN=CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000201979|protein_coding|||||||||||2350|1||insertion|HGNC|HGNC:15922|YES|MANE_Select|NM_014012.6||1|P3|CCDS13181.1|ENSP00000201979|O75628.189||UPI0000073CEB||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|intron_variant|MODIFIER|DEFB124|ENSG00000180383|Transcript|ENST00000317676|protein_coding||2/2|ENST00000317676.3:c.58+35_58+38dup|||||||||-1||insertion|HGNC|HGNC:18104|YES|MANE_Select|NM_001037500.2||1|P1|CCDS33457.1|ENSP00000326309|Q8NES8.125||UPI00005E4A77|||||||-20|20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.543||||||||||||,CACA|non_coding_transcript_exon_variant|MODIFIER|DEFB124|ENSG00000180383|Transcript|ENST00000481595|protein_coding_CDS_not_defined|2/2||ENST00000481595.1:n.249_252dup||232-233|||||||-1||insertion|HGNC|HGNC:18104|||||4|||||||||||||-20|20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.543||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000898142|protein_coding|||||||||||2041|1||insertion|HGNC|HGNC:15922||||||P3|CCDS13181.1|ENSP00000568201|||UPI0000073CEB||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000898143|protein_coding|||||||||||2301|1||insertion|HGNC|HGNC:15922||||||P3|CCDS13181.1|ENSP00000568202|||UPI0000073CEB||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000898144|protein_coding|||||||||||2298|1||insertion|HGNC|HGNC:15922||||||||ENSP00000568203|||UPI0005CFFBEF||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000898145|protein_coding|||||||||||2342|1||insertion|HGNC|HGNC:15922||||||P3|CCDS13181.1|ENSP00000568204|||UPI0000073CEB||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000898146|protein_coding|||||||||||2344|1||insertion|HGNC|HGNC:15922||||||P3|CCDS13181.1|ENSP00000568205|||UPI0000073CEB||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000954465|protein_coding|||||||||||2290|1||insertion|HGNC|HGNC:15922||||||||ENSP00000624524|||UPI000387B66D||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000954466|protein_coding|||||||||||2298|1||insertion|HGNC|HGNC:15922||||||A1||ENSP00000624525|||||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000954467|protein_coding|||||||||||2353|1||insertion|HGNC|HGNC:15922||||||||ENSP00000624526|||UPI0005CFFBEF||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000954468|protein_coding|||||||||||2367|1||insertion|HGNC|HGNC:15922||||||A1||ENSP00000624527|||||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||,CACA|upstream_gene_variant|MODIFIER|REM1|ENSG00000088320|Transcript|ENST00000954469|protein_coding|||||||||||2350|1||insertion|HGNC|HGNC:15922||||||||ENSP00000624528|||UPI000387B66D||||||||20:g.31472934_31472937dup|||||||||||||||||||||||||||||||||||||||0.588||||||||||||	DP:AF:SAOBS:SROBS:OBS:OOBS:SB:ROB:RPB:SCB:HE:ALB:AFD	44:0:.:43V1S:10RV.p.*<*..6RV.p.+>*..5RV.p.*>*..5RV.p.-<*..4RV.p.->*..4RV.p.***$.2RV0p.+<*..2RV.p.+<*..2RV.p.*!*$.1RV.p.*<*$.1RV15p.+**$.1RS.p.-**$.1RV0p.-<*$.:0:.:.:.:.:.:.:0.000=-12.59,0.023=-6.98,0.027=-6.06,0.030=-5.59,0.032=-5.12,0.037=-4.19,0.044=-2.78,0.047=-2.20,0.051=-1.35,0.057=-0.18,0.067=1.85,0.080=4.45,0.108=10.43,0.136=16.61,0.250=43.53,0.364=74.88,0.477=112.40,0.500=inf,1.000=inf	26:0.115385:2V:22V1S1E:5RV.p.-<*..5RV.p.*<*..4RV.p.*>*..2RV0p.-<*..2RV0p.->*..1RV0p.+>*..1RV.p.+<*..1RV.p.->*..1RS0p.-<*$.1RV0p.*<*..1AV0p.*>*..1AV0p.-<*..1E.p.-<*..:0:.:.:.:.:.:.:0.000=37.77,0.038=-11.37,0.045=-12.04,0.048=-12.31,0.051=-12.53,0.058=-12.88,0.064=-13.11,0.067=-13.19,0.071=-13.25,0.077=-13.32,0.115=-12.59,0.118=-12.50,0.119=-12.46,0.120=-12.41,0.122=-12.31,0.126=-12.16,0.129=-12.00,0.132=-11.85,0.142=-11.33,0.143=-11.29,0.152=-10.75,0.157=-10.47,0.171=-9.55,0.226=-5.11,0.281=0.39,0.337=6.81,0.500=35.98,0.558=42.87,0.779=109.02,1.000=1359.76
