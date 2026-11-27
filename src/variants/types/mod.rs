@@ -425,8 +425,11 @@ where
             .collect();
         // TODO: loci on several contigs (breakends) are left out, since the model keys bases and excluded
         // ranges by position alone; supporting them needs contig-aware keys and ranges.
-        let divergence_model = if !excluded.is_empty() && self.loci().contig().is_some() {
-            ReadDivergenceModel::new(&candidates, excluded, settings)
+        let divergence_model = if excluded.is_empty() {
+            None
+        } else if let Some(contig) = self.loci().contig() {
+            let ref_seq = buffer.reference().seq(contig)?;
+            ReadDivergenceModel::new(&candidates, ref_seq, excluded, settings)
         } else {
             None
         };

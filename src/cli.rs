@@ -405,7 +405,6 @@ pub enum PreprocessKind {
                     'auto' applies this to consensus reads, recognized by the tags ac, bc or cD as written by fgbio or fgumi, \
                     whose base errors are far below any divergence, \
                     'always' to all reads, 'never' to none. \
-                    Needs MD tags. \
                     Off for converted methylation reads."
         )]
         #[serde(default)]

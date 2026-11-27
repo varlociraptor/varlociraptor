@@ -246,6 +246,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 self.min_bam_refetch_distance,
                 methylation_prob_skipped_bases,
                 self.read_divergence_settings,
+                Arc::clone(&self.reference_buffer),
             )
             .build()
             .unwrap();

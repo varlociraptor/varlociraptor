@@ -34,7 +34,7 @@ use std::sync::Arc;
 
 type MethylationOfRead = HashMap<ByAddress<Arc<Record>>, Option<Rc<MethylationInfo>>>;
 
-#[derive(Getters, Debug)]
+#[derive(Getters)]
 pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
     #[getset(get = "pub")]
@@ -50,6 +50,18 @@ pub(crate) struct RecordBuffer {
     methylation_prob_skipped_bases: Option<LogProb>,
     #[getset(get = "pub")]
     read_divergence: ReadDivergenceSettings,
+    #[getset(get = "pub")]
+    reference: Arc<reference::Buffer>,
+}
+
+impl std::fmt::Debug for RecordBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RecordBuffer")
+            .field("single_read_window", &self.single_read_window)
+            .field("read_pair_window", &self.read_pair_window)
+            .field("read_divergence", &self.read_divergence)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RecordBuffer {
@@ -59,12 +71,14 @@ impl RecordBuffer {
         read_pair_window: u64,
         methylation_prob_skipped_bases: Option<LogProb>,
         read_divergence: ReadDivergenceSettings,
+        reference: Arc<reference::Buffer>,
     ) -> Self {
         RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
             read_divergence,
+            reference,
             methylation_probs: if methylation_prob_skipped_bases.is_some() {
                 Some(HashMap::new())
             } else {
@@ -263,6 +277,7 @@ impl SampleBuilder {
         min_refetch_distance: u64,
         methylation_prob_skipped_bases: Option<LogProb>,
         read_divergence: ReadDivergenceSettings,
+        reference: Arc<reference::Buffer>,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -286,6 +301,7 @@ impl SampleBuilder {
                 read_pair_window,
                 methylation_prob_skipped_bases,
                 read_divergence,
+                reference,
             ))
     }
 }
