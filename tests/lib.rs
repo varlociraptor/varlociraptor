@@ -157,6 +157,7 @@ testcase!(test_panel_overlap, exact);
 testcase!(test_panel_unknown_orientation_bias, exact);
 testcase!(issue_154, exact, fast);
 testcase!(test_low_cov_vaf, exact);
+testcase!(test_nested_event_negation, exact);
 testcase_should_panic!(test_overlapping_events, exact);
 
 testcase!(test_l2fc, exact, fast);
