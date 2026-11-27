@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::str;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 
 use anyhow::{Context, Result};
@@ -53,6 +54,9 @@ pub(crate) type Model<Pr> =
 
 use crate::variants::evidence::observations::read_observation::adjust_singleton_evidence;
 use crate::VERSION;
+
+/// Whether the warning about a depth beyond the resolution has been shown.
+static WARNED_RESOLUTION: AtomicBool = AtomicBool::new(false);
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -617,12 +621,26 @@ where
         // obtain pileups
         let mut filtered_alignments = false;
         let mut pileups = Vec::new();
-        for record in records.iter_mut() {
+        for (sample, record) in records.iter_mut().enumerate() {
             let pileup = if let Some(record) = record {
                 let Observations {
                     mut pileup,
                     is_homopolymer_indel,
                 } = read_observations(record)?;
+                // METHOD: the VAF integration cannot resolve VAFs below the sample's resolution.
+                // At a depth above 1 / resolution such VAFs become observable. Warn once, for any prior.
+                let n_obs = pileup.read_observations().len();
+                if n_obs > 0
+                    && 1.0 / (n_obs as f64) < **self.resolutions[sample]
+                    && !WARNED_RESOLUTION.swap(true, Ordering::Relaxed)
+                {
+                    warn!(
+                        "Sample {} has {} observations at a locus, more than 1 / resolution ({}). \
+                         VAFs below the resolution are observable there but not resolved. \
+                         Consider a resolution of at most 1 / depth in the scenario (shown once).",
+                        self.samplenames[sample], n_obs, **self.resolutions[sample]
+                    );
+                }
                 if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;
