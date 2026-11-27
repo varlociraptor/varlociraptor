@@ -187,10 +187,6 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
-fn default_sample_variation_min_frequency() -> f64 {
-    ReadDivergenceSettings::default().variation_min_frequency
-}
-
 fn default_methylation_prob_skipped_bases() -> f64 {
     0.05
 }
@@ -654,17 +650,6 @@ pub enum CallKind {
         #[serde(default)]
         read_divergence_model: ReadDivergenceReads,
         #[structopt(
-            long = "sample-variation-min-frequency",
-            default_value = "0.2",
-            help = "For the read divergence model: \
-                    a base shared by at least this fraction of the other reads covering the position is variation of the sample and explains a mismatch. \
-                    A rarer shared base counts as divergence, since a few reads from another source share their mismatches as well. \
-                    Set this below one over the ploidy of the sample; the default suits diploid samples with some allelic imbalance. \
-                    This is a stand-in for a model of the haplotypes at the locus."
-        )]
-        #[serde(default = "default_sample_variation_min_frequency")]
-        sample_variation_min_frequency: f64,
-        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS. Alternatively, for single variant VCFs, you can \
@@ -1127,18 +1112,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     full_prior,
                     no_absent,
                     read_divergence_model,
-                    sample_variation_min_frequency,
                 } => {
-                    if !(0.0..=1.0).contains(&sample_variation_min_frequency) {
-                        return Err(structopt::clap::Error::with_description(
-                            "Command-line option --sample-variation-min-frequency requires a value between 0 and 1.",
-                            structopt::clap::ErrorKind::ValueValidation,
-                        )
-                        .into());
-                    }
                     let read_divergence = ReadDivergenceSettings {
                         reads: read_divergence_model,
-                        variation_min_frequency: sample_variation_min_frequency,
                     };
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {

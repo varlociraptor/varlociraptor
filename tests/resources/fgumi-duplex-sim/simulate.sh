@@ -31,6 +31,13 @@ printf '##fileformat=VCFv4.2\n##contig=<ID=chr1,length=2000>\n#CHROM\tPOS\tID\tR
     --num-molecules 1500 --num-positions 500 --umis-per-position 3 \
     --error-rate 0.001 --truth truth.tsv --output grouped.bam
 
+# clean molecules of about 120 bp for the linked mismatches:
+# consensus errors far below the divergence and short fragments, as in real duplex data
+"$fgumi" simulate grouped-reads --duplex --reference ref.fa --seed 3 \
+    --num-molecules 1500 --num-positions 500 --umis-per-position 3 \
+    --error-rate 0.00001 --read-length 100 --insert-size-mean 120 --insert-size-stddev 10 \
+    --insert-size-min 100 --insert-size-max 150 --truth clean.truth.tsv --output clean.grouped.bam
+
 # standard (non-UMI) normal sample: independent molecules, one read pair each
 "$fgumi" simulate grouped-reads --reference ref.fa --seed 2 \
     --num-molecules 1500 --num-positions 500 --umis-per-position 3 \
@@ -49,10 +56,11 @@ install_testcase() {
 }
 
 # testcase NAME MIN_READS FILTER_ARGS CALL_ARGS INJECT_ARGS...
+# The molecules come from grouped.bam, or from $grouped if set; the scenario is scenario.yaml, or $scenario if set.
 testcase() {
     local name=$1 min_reads=$2 filter_args=$3 call_args=$4
     shift 4
-    python "$sim/inject.py" grouped.bam "$name.grouped.bam" --pos 1000 --alt T "$@"
+    python "$sim/inject.py" "${grouped:-grouped.bam}" "$name.grouped.bam" --pos 1000 --alt T "$@"
     "$fgumi" duplex --input "$name.grouped.bam" --output "$name.consensus.bam" \
         --min-reads "$min_reads"
     "$fgumi" fastq --input "$name.consensus.bam" \
@@ -66,7 +74,7 @@ testcase() {
     "$varlociraptor" preprocess variants ref.fa --candidates candidates.vcf \
         --bam "$name.bam" --output "$name.bcf"
     "$varlociraptor" call variants --testcase-locus chr1:1000 --testcase-prefix "$name.testcase" \
-        $call_args generic --scenario "$sim/scenario.yaml" --obs "duplex=$name.bcf" normal=normal.bcf
+        $call_args generic --scenario "${scenario:-$sim/scenario.yaml}" --obs "duplex=$name.bcf" normal=normal.bcf
     install_testcase "$name.testcase" "$testcases/$name"
 }
 
@@ -77,6 +85,12 @@ testcase test_fgumi_duplex_singleton 1,1,1 "" "" --op duplex:1:any
 # single-strand damage, masked by the consensus filter
 testcase test_fgumi_duplex_single_strand_damage 1,1,1 --require-single-strand-agreement "" \
     --op a:6:any
+# true variant in two of the clean short molecules, with the neutral prior
+grouped=clean.grouped.bam scenario=$sim/scenario_neutral.yaml \
+    testcase test_fgumi_duplex_pair 1,1,1 "" --full-prior --op duplex:2:any
+# the testcase writer leaves out the full prior
+grep -q '^full_prior:' "$testcases/test_fgumi_duplex_pair/testcase.yaml" \
+    || sed -i '/^no_absent:/i full_prior: true' "$testcases/test_fgumi_duplex_pair/testcase.yaml"
 # single-strand damage in F2R1 families, winning the strand disagreement in the consensus
 # (strand bias omitted, to test read orientation bias alone)
 testcase test_fgumi_duplex_strand_disagreement 1,1,1 "" --omit-strand-bias --other-qual 12 \
@@ -196,6 +210,52 @@ PY
     rm "$dst/unsorted.bam" "$dst/sorted.bam"
 }
 divergent_read
+
+# the pair with three more SNVs within 10 bp on the same two molecules: a somatic cluster, or a paralog of low divergence.
+# Without clustering in the scenario the alt reads look mismapped, with it they do not.
+linked_mismatches() {
+    local src=$testcases/test_fgumi_duplex_pair dst=$testcases/test_fgumi_duplex_linked_mismatches
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml} "$dst/"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
+    python - "$src" "$dst" <<'PY'
+import sys
+import pysam
+src, dst = sys.argv[1], sys.argv[2]
+with pysam.VariantFile(f"{src}/candidates.vcf") as vcf:
+    pos = next(vcf).pos - 1
+ref = pysam.FastaFile(f"{src}/ref.fa")
+with pysam.AlignmentFile(f"{src}/duplex.bam") as bam:
+    reads = list(bam)
+alt = {r.query_name for r in reads if any(rp == pos and r.query_sequence[q] == "T" for q, rp in r.get_aligned_pairs(matches_only=True))}
+with pysam.AlignmentFile(f"{dst}/unsorted.bam", "wb", template=pysam.AlignmentFile(f"{src}/duplex.bam")) as out:
+    for r in reads:
+        if r.query_name in alt:
+            seq = list(r.query_sequence)
+            quals = r.query_qualities
+            for q, rp in r.get_aligned_pairs(matches_only=True):
+                if rp in (pos - 4, pos + 2, pos + 5):
+                    seq[q] = {"A": "C", "C": "G", "G": "T", "T": "A"}[ref.fetch(r.reference_name, rp, rp + 1).upper()]
+            r.query_sequence = "".join(seq)
+            r.query_qualities = quals
+        out.write(r)
+PY
+    samtools sort -o "$dst/sorted.bam" "$dst/unsorted.bam"
+    samtools calmd -b "$dst/sorted.bam" "$dst/ref.fa" > "$dst/duplex.bam" 2> /dev/null
+    samtools index "$dst/duplex.bam"
+    rm "$dst/unsorted.bam" "$dst/sorted.bam"
+}
+linked_mismatches
+
+# the linked mismatches with clustered somatic mutations in the scenario
+linked_mismatches_clustering() {
+    local src=$testcases/test_fgumi_duplex_linked_mismatches dst=$testcases/test_fgumi_duplex_linked_mismatches_clustering
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,duplex.bam,normal.bam,ref.fa} "$dst/"
+    cp "$sim/scenario_neutral_clustering.yaml" "$dst/scenario.yaml"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
+}
+linked_mismatches_clustering
 
 # the strand disagreement without the normal: the duplex sample alone has to show the orientation artifact
 tumor_only() {

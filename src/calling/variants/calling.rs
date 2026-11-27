@@ -8,7 +8,7 @@ use std::str;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractLocus;
@@ -40,7 +40,7 @@ use crate::variants::model::modes::generic::{
 };
 use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::read_divergence::{
-    adjust_read_divergence, ReadDivergenceSettings, DEFAULT_DIVERGENCE,
+    adjust_read_divergence, ReadDivergenceSettings, SampleVariation, DEFAULT_DIVERGENCE,
 };
 use crate::variants::model::{self, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
@@ -348,6 +348,17 @@ where
             .unwrap()
     }
 
+    /// What the scenario knows about the variation the sample's reads may carry at the contig.
+    fn sample_variation(&self, sample: usize, contig: &str) -> Result<SampleVariation> {
+        let species = self.scenario.species();
+        let sample = &self.scenario.samples()[&self.samplenames[sample]];
+        Ok(SampleVariation {
+            ploidy: sample.contig_ploidy(contig, species)?,
+            somatic_rate: sample.somatic_effective_mutation_rate(species),
+            somatic_clustering: *sample.somatic_clustering(),
+        })
+    }
+
     /// Divergence of sources the reference lacks, from the scenario's species or the default.
     fn divergence(&self) -> f64 {
         self.scenario
@@ -647,7 +658,13 @@ where
                 // METHOD: duplex consensus observations take their read orientation from the strand families supporting them.
                 adjust_duplex_orientation(std::slice::from_mut(&mut pileup));
                 // METHOD: reads carry mapping evidence in their own mismatches, see model::read_divergence.
-                adjust_read_divergence(&mut pileup, self.divergence(), &self.read_divergence);
+                let contig = str::from_utf8(work_item.call.chrom()).unwrap();
+                adjust_read_divergence(
+                    &mut pileup,
+                    self.divergence(),
+                    &self.read_divergence,
+                    &self.sample_variation(sample, contig)?,
+                );
                 // METHOD: the VAF integration cannot resolve VAFs below the sample's resolution.
                 // At a depth above 1 / resolution such VAFs become observable. Warn once, for any prior.
                 let n_obs = pileup.read_observations().len();
@@ -1224,6 +1241,27 @@ where
         .variant_type_fractions(scenario.variant_type_fractions())
         .is_absent_only(!full_prior)
         .build();
+
+    for (name, sample) in scenario.samples() {
+        if let Some(clustering) = sample.somatic_clustering() {
+            let somatic_rate = sample
+                .somatic_effective_mutation_rate(scenario.species())
+                .ok_or_else(|| {
+                    anyhow!(
+                        "sample {}: somatic-clustering needs a somatic effective mutation rate",
+                        name
+                    )
+                })?;
+            if !(0.0..=1.0).contains(&clustering.fraction)
+                || !(clustering.rate < 1.0 && clustering.rate > clustering.fraction * somatic_rate)
+            {
+                return Err(anyhow!(
+                    "sample {}: somatic-clustering needs a fraction between 0 and 1 and a rate below 1 that exceeds the fraction times the somatic effective mutation rate",
+                    name
+                ));
+            }
+        }
+    }
 
     // setup caller
     let caller = CallerBuilder::default()

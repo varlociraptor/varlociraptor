@@ -496,6 +496,21 @@ pub(crate) struct Sample {
     #[serde(default, rename = "somatic-vaf-prior")]
     #[get = "pub(crate)"]
     somatic_vaf_prior: SomaticVafPrior,
+    /// clustering of somatic mutations, for the read divergence model
+    #[serde(default, rename = "somatic-clustering")]
+    #[get = "pub(crate)"]
+    somatic_clustering: Option<SomaticClustering>,
+}
+
+/// Clustering of somatic mutations, as caused by APOBEC (kataegis, omikli) or UV light.
+/// Without it, somatic mutations are taken as independent at the somatic effective mutation rate.
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SomaticClustering {
+    /// fraction of the somatic mutations that lie in a cluster
+    pub(crate) fraction: f64,
+    /// rate of mutations per base pair within a cluster
+    pub(crate) rate: f64,
 }
 
 /// Prior distribution of somatic VAFs above 0.

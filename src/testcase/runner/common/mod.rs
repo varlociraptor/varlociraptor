@@ -17,8 +17,6 @@ use std::process::Command;
 use std::str;
 
 use anyhow::Result;
-
-use crate::variants::model::read_divergence::ReadDivergenceSettings;
 use bio::io::fasta;
 use bio::stats::{PHREDProb, Prob};
 use eval::Expr;
@@ -312,8 +310,6 @@ pub trait Testcase {
                             .omit_homopolymer_artifact_detection(),
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         read_divergence_model: Default::default(),
-                        sample_variation_min_frequency: ReadDivergenceSettings::default()
-                            .variation_min_frequency,
                         output: Some(self.output()),
                         propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::Generic {
@@ -358,8 +354,6 @@ pub trait Testcase {
                         omit_alt_locus_bias: self.omit_alt_locus_bias(),
                         fragment_end_bias: self.fragment_end_bias(),
                         read_divergence_model: Default::default(),
-                        sample_variation_min_frequency: ReadDivergenceSettings::default()
-                            .variation_min_frequency,
                         output: Some(self.output()),
                         propagate_info_fields: Vec::new(),
                         mode: VariantCallMode::TumorNormal {

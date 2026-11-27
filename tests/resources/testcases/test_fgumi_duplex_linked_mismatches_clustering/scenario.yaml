@@ -1,0 +1,33 @@
+species:
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+  genome-size: 3.5e9
+samples:
+  normal:
+    sex: female
+    somatic-effective-mutation-rate: 1e-6
+  duplex:
+    sex: female
+    somatic-effective-mutation-rate: 1e-5
+    somatic-vaf-prior: neutral
+    somatic-clustering:
+      fraction: 0.05
+      rate: 0.2
+    resolution: 0.001
+    inheritance:
+      clonal:
+        from: normal
+        somatic: true
+events:
+  somatic: "normal:0.0 & duplex:]0.0,1.0]"
+  somatic_normal: "(normal:]0.0,0.5[ | normal:]0.5,1.0[) & duplex:[0.0,1.0]"
+  germline: "(normal:0.5 | normal:1.0) & duplex:[0.0,1.0]"
