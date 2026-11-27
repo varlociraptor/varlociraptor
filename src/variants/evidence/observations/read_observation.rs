@@ -167,12 +167,16 @@ impl DuplexStrands {
 
     /// Pair orientation of the supporting families.
     /// The record has the orientation of family A (duplex R1 = AB-R1 + BA-R2), family B the opposite one.
+    /// If both families agree, a standard orientation becomes None.
+    /// Other orientations stay, so that the filter for non-standard alignments still sees them.
     pub(crate) fn read_orientation(
         self,
         record_orientation: SequenceReadPairOrientation,
     ) -> SequenceReadPairOrientation {
         match (self, record_orientation) {
-            (Self::Both, _) => SequenceReadPairOrientation::None,
+            (Self::Both, SequenceReadPairOrientation::F1R2 | SequenceReadPairOrientation::F2R1) => {
+                SequenceReadPairOrientation::None
+            }
             (Self::B, SequenceReadPairOrientation::F1R2) => SequenceReadPairOrientation::F2R1,
             (Self::B, SequenceReadPairOrientation::F2R1) => SequenceReadPairOrientation::F1R2,
             (_, orientation) => orientation,
@@ -1153,6 +1157,11 @@ mod tests {
         assert_eq!(DuplexStrands::B.read_orientation(F1R2), F2R1);
         assert_eq!(DuplexStrands::B.read_orientation(F2R1), F1R2);
         assert_eq!(DuplexStrands::None.read_orientation(F2R1), F2R1);
+        // non-standard orientations stay, so that they can still be filtered
+        assert_eq!(
+            DuplexStrands::Both.read_orientation(SequenceReadPairOrientation::F1F2),
+            SequenceReadPairOrientation::F1F2
+        );
     }
 
     #[test]
