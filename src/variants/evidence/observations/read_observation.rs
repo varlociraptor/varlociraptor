@@ -38,6 +38,7 @@ use crate::variants::types::Variant;
 use crate::variants::evidence::realignment::Realignable;
 
 use super::fragment_id_factory::FragmentIdFactory;
+use super::mismatches::{is_consensus_read, MismatchCounts, Mismatches};
 
 const INVALID_XA_FORMAT_MSG: &str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
 
@@ -119,6 +120,67 @@ impl ops::BitOrAssign for Strand {
             // no new information
         } else if *self != rhs {
             *self = Strand::Both;
+        }
+    }
+}
+
+/// Strand families (A, B) of a duplex consensus read agreeing with an observation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum DuplexStrands {
+    A,
+    B,
+    Both,
+    #[default]
+    None,
+}
+
+impl DuplexStrands {
+    /// Families agreeing with all given non-N bases (tags `ac`, `bc`, see utils::aux_tag_duplex_bases).
+    pub(crate) fn from_record_and_positions(
+        record: &bam::Record,
+        positions: impl IntoIterator<Item = usize>,
+    ) -> Result<Self> {
+        let a_bases = utils::aux_tag_duplex_bases(record, b"ac")?;
+        let b_bases = utils::aux_tag_duplex_bases(record, b"bc")?;
+        if a_bases.is_none() && b_bases.is_none() {
+            return Ok(Self::None);
+        }
+
+        let seq = record.seq();
+        let agrees = |bases: Option<&[u8]>, pos: usize| {
+            bases.is_some_and(|bases| bases[pos].eq_ignore_ascii_case(&seq[pos]))
+        };
+        let (mut a, mut b, mut any) = (true, true, false);
+        for pos in positions.into_iter().filter(|pos| seq[*pos] != b'N') {
+            any = true;
+            a &= agrees(a_bases, pos);
+            b &= agrees(b_bases, pos);
+        }
+
+        Ok(match (any && a, any && b) {
+            (true, true) => Self::Both,
+            (true, false) => Self::A,
+            (false, true) => Self::B,
+            (false, false) => Self::None,
+        })
+    }
+
+    /// The families agreeing in both, for several variants read together.
+    pub(crate) fn and(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Both, other) | (other, Self::Both) => other,
+            (a, b) if a == b => a,
+            _ => Self::None,
+        }
+    }
+}
+
+impl ops::BitOrAssign for DuplexStrands {
+    fn bitor_assign(&mut self, rhs: Self) {
+        if *self == Self::None {
+            *self = rhs;
+        } else if rhs != Self::None && *self != rhs {
+            *self = Self::Both;
         }
     }
 }
@@ -279,6 +341,15 @@ where
     /// True if obervation contains s
     pub softclipped: bool,
     pub paired: bool,
+    /// Strand families of a duplex consensus read agreeing with the observation
+    #[builder(default)]
+    pub duplex_strands: DuplexStrands,
+    /// Mismatches of the read against the reference
+    #[builder(default)]
+    pub mismatches: Mismatches,
+    /// True if the read is a consensus read
+    #[builder(default)]
+    pub consensus: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub read_position: P,
     /// Tuple of the putative fragment end positions (start, end)
@@ -337,6 +408,9 @@ impl ReadObservation<Option<u32>, ExactAltLoci, FragmentEndPositions> {
             read_orientation: self.read_orientation,
             softclipped: self.softclipped,
             paired: self.paired,
+            duplex_strands: self.duplex_strands,
+            mismatches: self.mismatches.clone(),
+            consensus: self.consensus,
             read_position: self.read_position.map_or(ReadPosition::Some, |pos| {
                 if let Some(major_pos) = major_read_position {
                     if pos == major_pos {
@@ -697,6 +771,7 @@ pub(crate) trait Observable: Variant {
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
         observation_id_factory: &mut Option<&mut FragmentIdFactory>,
+        mismatch_counts: Option<&MismatchCounts>,
     ) -> Result<Option<ReadObservation>> {
         let id = observation_id_factory
             .as_mut()
@@ -732,6 +807,13 @@ pub(crate) trait Observable: Variant {
                         .read_position(allele_support.read_position())
                         .fragment_end(evidence.fragment_end_positions())
                         .paired(evidence.is_paired())
+                        .duplex_strands(allele_support.duplex_strands())
+                        .mismatches(
+                            mismatch_counts.map_or_else(Mismatches::default, |counts| {
+                                counts.summary(evidence)
+                            }),
+                        )
+                        .consensus(evidence.is_consensus())
                         .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
                         .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
                         .alt_locus(evidence.alt_loci())
@@ -808,6 +890,21 @@ pub(crate) enum Evidence {
 }
 
 impl Evidence {
+    /// The alignment records of the evidence.
+    pub(crate) fn records(&self) -> impl Iterator<Item = &bam::Record> {
+        match self {
+            Evidence::SingleEndSequencingRead(read) => vec![read.record().as_ref()].into_iter(),
+            Evidence::PairedEndSequencingRead { left, right } => {
+                vec![left.record().as_ref(), right.record().as_ref()].into_iter()
+            }
+        }
+    }
+
+    /// Whether the evidence consists of consensus reads, see mismatches::is_consensus_read.
+    pub(crate) fn is_consensus(&self) -> bool {
+        self.records().any(is_consensus_read)
+    }
+
     fn fragment_end_positions(&self) -> FragmentEndPositions {
         match self {
             Evidence::SingleEndSequencingRead(read) => {
@@ -966,5 +1063,91 @@ impl Hash for EvidenceIdentifier {
         match self {
             EvidenceIdentifier::Bytes(id) => id.hash(state),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(tags: &str) -> bam::Record {
+        record_with_cigar("4M", tags)
+    }
+
+    fn record_with_cigar(cigar: &str, tags: &str) -> bam::Record {
+        let mut header = bam::Header::new();
+        header.push_record(
+            bam::header::HeaderRecord::new(b"SQ")
+                .push_tag(b"SN", "chr1")
+                .push_tag(b"LN", 100),
+        );
+        let header = bam::HeaderView::from_header(&header);
+        let sam = format!("r1\t99\tchr1\t1\t60\t{cigar}\t=\t1\t4\tACGN\tIIII{tags}");
+        bam::Record::from_sam(&header, sam.as_bytes()).unwrap()
+    }
+
+    #[test]
+    fn test_duplex_strands_from_record() {
+        let rec = record("\tac:Z:ACAN\tbc:Z:ATGN");
+        let strands = |positions: &[usize]| {
+            DuplexStrands::from_record_and_positions(&rec, positions.iter().copied()).unwrap()
+        };
+        assert_eq!(strands(&[0]), DuplexStrands::Both);
+        assert_eq!(strands(&[1]), DuplexStrands::A);
+        assert_eq!(strands(&[2]), DuplexStrands::B);
+        assert_eq!(strands(&[0, 1]), DuplexStrands::A);
+        assert_eq!(strands(&[1, 2]), DuplexStrands::None);
+        // N bases are ignored
+        assert_eq!(strands(&[3]), DuplexStrands::None);
+        assert_eq!(strands(&[0, 3]), DuplexStrands::Both);
+
+        // missing bc
+        let rec = record("\tac:Z:ACGN");
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [0]).unwrap(),
+            DuplexStrands::A
+        );
+        // no duplex tags
+        let rec = record("");
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [0]).unwrap(),
+            DuplexStrands::None
+        );
+        // tags covering bases hard clipped by the aligner
+        let rec = record_with_cigar("2H4M1H", "\tac:Z:TTACANG\tbc:Z:GGATGNC");
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [0]).unwrap(),
+            DuplexStrands::Both
+        );
+        assert_eq!(
+            DuplexStrands::from_record_and_positions(&rec, [1]).unwrap(),
+            DuplexStrands::A
+        );
+        // length mismatch, e.g. hard clipped without trimming the tags
+        let rec = record("\tac:Z:AC");
+        assert!(DuplexStrands::from_record_and_positions(&rec, [0]).is_err());
+    }
+
+    #[test]
+    fn test_duplex_strands_merge() {
+        let mut strands = DuplexStrands::None;
+        strands |= DuplexStrands::A;
+        assert_eq!(strands, DuplexStrands::A);
+        strands |= DuplexStrands::None;
+        assert_eq!(strands, DuplexStrands::A);
+        strands |= DuplexStrands::B;
+        assert_eq!(strands, DuplexStrands::Both);
+    }
+
+    #[test]
+    fn test_duplex_strands_and() {
+        use DuplexStrands::{Both, None, A, B};
+        assert_eq!(Both.and(Both), Both);
+        assert_eq!(Both.and(A), A);
+        assert_eq!(A.and(Both), A);
+        assert_eq!(A.and(A), A);
+        assert_eq!(A.and(B), None);
+        assert_eq!(None.and(Both), None);
+        assert_eq!(A.and(None), None);
     }
 }

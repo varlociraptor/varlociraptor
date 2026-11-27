@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 type MethylationOfRead = HashMap<ByAddress<Arc<Record>>, Option<Rc<MethylationInfo>>>;
 
-#[derive(Getters, Debug)]
+#[derive(Getters, CopyGetters)]
 pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
     #[getset(get = "pub")]
@@ -47,6 +47,21 @@ pub(crate) struct RecordBuffer {
     failed_reads: Option<HashSet<ByAddress<Arc<Record>>>>,
     // Probability of methylation for cytosines skipped in the MM tag. None if reads are not annotated with MM/ML tags.
     methylation_prob_skipped_bases: Option<LogProb>,
+    #[getset(get = "pub")]
+    reference: Arc<reference::Buffer>,
+    /// Window around realigned candidates whose bases are left out of the mismatch summaries, see mismatches.
+    #[getset(get_copy = "pub")]
+    realignment_window: u64,
+}
+
+impl std::fmt::Debug for RecordBuffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RecordBuffer")
+            .field("single_read_window", &self.single_read_window)
+            .field("read_pair_window", &self.read_pair_window)
+            .field("realignment_window", &self.realignment_window)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RecordBuffer {
@@ -55,11 +70,15 @@ impl RecordBuffer {
         single_read_window: u64,
         read_pair_window: u64,
         methylation_prob_skipped_bases: Option<LogProb>,
+        reference: Arc<reference::Buffer>,
+        realignment_window: u64,
     ) -> Self {
         RecordBuffer {
             inner,
             single_read_window,
             read_pair_window,
+            reference,
+            realignment_window,
             methylation_probs: if methylation_prob_skipped_bases.is_some() {
                 Some(HashMap::new())
             } else {
@@ -257,6 +276,8 @@ impl SampleBuilder {
         alignment_properties: alignment_properties::AlignmentProperties,
         min_refetch_distance: u64,
         methylation_prob_skipped_bases: Option<LogProb>,
+        reference: Arc<reference::Buffer>,
+        realignment_window: u64,
     ) -> Self {
         // METHOD: add maximum deletion len as this can make the footprint of the read on the reference
         // effectively larger. Additionally add some 10 bases further to account for uncertainty in the
@@ -279,6 +300,8 @@ impl SampleBuilder {
                 single_read_window,
                 read_pair_window,
                 methylation_prob_skipped_bases,
+                reference,
+                realignment_window,
             ))
     }
 }

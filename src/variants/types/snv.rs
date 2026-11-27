@@ -20,7 +20,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::observations::read_observation::{DuplexStrands, Strand};
 use crate::variants::evidence::realignment::edit_distance::EditDistance;
 use crate::variants::evidence::realignment::pairhmm::RefBaseEmission;
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
@@ -114,12 +114,15 @@ impl<R: Realigner> Snv<R> {
             };
 
             let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
-            let strand = if prob_ref != prob_alt {
-                Strand::from_record_and_pos(read, qpos as usize)?
+            let (strand, duplex_strands) = if prob_ref != prob_alt {
+                (
+                    Strand::from_record_and_pos(read, qpos as usize)?,
+                    DuplexStrands::from_record_and_positions(read, [qpos as usize])?,
+                )
             } else {
                 // METHOD: if record is not informative, we don't want to
                 // retain its information (e.g. strand).
-                Strand::no_strand_info()
+                (Strand::no_strand_info(), DuplexStrands::None)
             };
 
             Ok(Some(
@@ -127,6 +130,7 @@ impl<R: Realigner> Snv<R> {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
+                    .duplex_strands(duplex_strands)
                     // METHOD: hardclips are not part of qpos, but they are part
                     // of the original read sequence. Hence, they have to be added
                     // here.
@@ -179,6 +183,10 @@ impl<R: Realigner> Realignable for Snv<R> {
 }
 
 impl<R: Realigner> Variant for Snv<R> {
+    fn mismatch_exclusion(&self, _realignment_window: u64) -> u64 {
+        0
+    }
+
     fn is_imprecise(&self) -> bool {
         false
     }

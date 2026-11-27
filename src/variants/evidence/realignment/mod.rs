@@ -23,7 +23,7 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::observations::read_observation::Strand;
+use crate::variants::evidence::observations::read_observation::{DuplexStrands, Strand};
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
@@ -233,6 +233,7 @@ pub(crate) trait Realigner {
 
         let aux_strand_info = utils::aux_tag_strand_info(record);
         let mut strand = Strand::None;
+        let mut informative_intervals = Vec::new();
         let mut homopolymer_indel_len = None;
 
         let mut is_third_allele_evidence = false;
@@ -379,6 +380,7 @@ pub(crate) trait Realigner {
             if prob_ref != prob_alt {
                 // METHOD: if record is not informative, we don't want to
                 // retain its information (e.g. strand).
+                informative_intervals.push(region.read_interval.clone());
                 if let Some(strand_info) = aux_strand_info {
                     if let Some(s) = strand_info.get(region.read_interval) {
                         strand |= Strand::from_aux(s)?;
@@ -424,8 +426,15 @@ pub(crate) trait Realigner {
             strand = Strand::from_record(record);
         }
 
+        // TODO: the strand families must agree at every informative base of the realignment window.
+        // One single-strand discrepancy away from the variant therefore removes the confirmation of a realigned read
+        // (e.g. with an indel). Judging only the bases next to the variant needs its read positions from the realignment.
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
+            .duplex_strands(DuplexStrands::from_record_and_positions(
+                record,
+                informative_intervals.into_iter().flatten(),
+            )?)
             .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)

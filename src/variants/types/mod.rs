@@ -5,6 +5,7 @@
 
 use std::cmp;
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -17,8 +18,9 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
+use crate::variants::evidence::observations::mismatches::MismatchCounts;
 use crate::variants::evidence::observations::read_observation::{
-    AlignmentRecord, Evidence, Observable, ReadObservation, Strand,
+    AlignmentRecord, DuplexStrands, Evidence, Observable, ReadObservation, Strand,
 };
 use crate::variants::sample;
 
@@ -65,6 +67,9 @@ pub(crate) struct AlleleSupport {
     homopolymer_indel_len: Option<i8>,
     #[getset(get_copy = "pub")]
     third_allele_evidence: Option<EditDistance>,
+    #[builder(default)]
+    #[getset(get_copy = "pub")]
+    duplex_strands: DuplexStrands,
 }
 
 impl AlleleSupport {
@@ -122,6 +127,16 @@ impl AlleleSupport {
             self.read_position = other.read_position;
         }
 
+        // METHOD: the strand families of a fragment are those of the mates supporting its allele,
+        // since agreement of both families on the reference base of one mate does not confirm the alt base of the other.
+        let self_alt = self.is_alt_support();
+        let other_alt = other.is_alt_support();
+        if self_alt == other_alt {
+            self.duplex_strands |= other.duplex_strands;
+        } else if other_alt {
+            self.duplex_strands = other.duplex_strands;
+        }
+
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
 
@@ -156,6 +171,13 @@ impl AlleleSupport {
 }
 
 pub(crate) trait Variant {
+    /// Bases this far around the variant are left out of the mismatch summary of each read (see mismatches):
+    /// by default the whole realignment window, since the aligner's placement of the variant decides where mismatches appear;
+    /// SNVs and MNVs return 0, their alt bases are excluded as such.
+    fn mismatch_exclusion(&self, realignment_window: u64) -> u64 {
+        realignment_window
+    }
+
     fn is_imprecise(&self) -> bool;
 
     /// Determine whether the evidence is suitable to assessing probabilities
@@ -388,6 +410,27 @@ where
         let subsample = locus_depth.values().all(|depth| *depth > max_depth);
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
+        // METHOD: each observation records the mismatches of its read against the reference for the models of calling,
+        // except around candidates that are realigned, where the aligner's placement of the candidate decides
+        // where mismatches appear, so the realignment window is left out there.
+        // TODO: loci on several contigs (breakends) are left out, since the counts key bases and excluded ranges
+        // by position alone; supporting them needs contig-aware keys and ranges.
+        let padding = self.mismatch_exclusion(buffer.realignment_window());
+        let excluded: Vec<Range<u64>> = self
+            .loci()
+            .ranges()
+            .into_iter()
+            .map(|range| range.start.saturating_sub(padding)..range.end + padding)
+            .collect();
+        let mismatch_counts = if excluded.is_empty() {
+            None
+        } else if let Some(contig) = self.loci().contig() {
+            let ref_seq = buffer.reference().seq(contig)?;
+            Some(MismatchCounts::new(&candidates, ref_seq, excluded))
+        } else {
+            None
+        };
+
         let mut observations = Vec::new();
         for evidence in &candidates {
             if !subsample || subsampler.keep() {
@@ -397,6 +440,7 @@ where
                     &homopolymer_error_model,
                     alt_variants,
                     observation_id_factory,
+                    mismatch_counts.as_ref(),
                 )? {
                     observations.push(obs);
                 }
@@ -410,6 +454,8 @@ where
 pub(crate) trait Loci {
     fn contig(&self) -> Option<&str>;
     fn first_pos(&self) -> u64;
+    /// Reference ranges of the loci.
+    fn ranges(&self) -> Vec<Range<u64>>;
 }
 
 #[derive(Debug, Derefable, Builder, new, Clone)]
@@ -480,6 +526,9 @@ impl Loci for SingleLocus {
     fn contig(&self) -> Option<&str> {
         Some(self.interval.contig())
     }
+    fn ranges(&self) -> Vec<Range<u64>> {
+        vec![self.range().clone()]
+    }
 }
 
 #[derive(new, Default, Debug, Derefable, Clone)]
@@ -497,6 +546,13 @@ impl MultiLocus {
 impl Loci for MultiLocus {
     fn first_pos(&self) -> u64 {
         self[0].first_pos()
+    }
+
+    fn ranges(&self) -> Vec<Range<u64>> {
+        self.loci
+            .iter()
+            .map(|locus| locus.range().clone())
+            .collect()
     }
 
     fn contig(&self) -> Option<&str> {
