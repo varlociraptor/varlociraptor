@@ -426,6 +426,9 @@ pub(crate) trait Realigner {
             strand = Strand::from_record(record);
         }
 
+        // TODO: the strand families must agree at every informative base of the realignment window.
+        // One single-strand discrepancy away from the variant therefore removes the confirmation of a realigned read
+        // (e.g. with an indel). Judging only the bases next to the variant needs its read positions from the realignment.
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
             .duplex_strands(DuplexStrands::from_record_and_positions(

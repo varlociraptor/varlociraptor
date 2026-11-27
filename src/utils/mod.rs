@@ -62,6 +62,8 @@ pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
 
 /// Per-base single-strand consensus bases of a duplex read, aligned to SEQ.
 /// They are expected in the tags `ac` and `bc`, as written by fgbio or fgumi.
+/// They must be in the orientation of SEQ; the zipper step of both tools ensures that for reverse-strand records.
+/// The orientation is not checked.
 /// The tags may still cover bases hard clipped by the aligner (e.g. supplementary alignments after fgumi realign).
 pub(crate) fn aux_tag_duplex_bases<'a>(
     record: &'a bam::Record,

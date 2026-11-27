@@ -421,11 +421,10 @@ pub enum PreprocessKind {
             long = "sample-variation-min-frequency",
             default_value = "0.2",
             help = "For the read divergence model: \
-                    a base shared by at least this fraction of the other reads of the locus is variation of the sample and explains a mismatch; \
-                    a rarer shared base counts as divergence, \
-                    since a rare haplotype with several linked differences is far less likely than reads from another source, \
-                    while germline variation sits at one over the ploidy and above \
-                    (0.2 leaves room for allelic imbalance)."
+                    a base shared by at least this fraction of the other reads of the locus is variation of the sample and explains a mismatch. \
+                    A rarer shared base counts as divergence, since a few reads from another source share their mismatches as well. \
+                    Set this below one over the ploidy of the sample; the default suits diploid samples with some allelic imbalance. \
+                    This is a stand-in for a model of the haplotypes at the locus."
         )]
         #[serde(default = "default_sample_variation_min_frequency")]
         sample_variation_min_frequency: f64,

@@ -58,10 +58,10 @@ pub struct ReadDivergenceSettings {
     /// Divergence of the source a mismapped read would come from.
     pub divergence: f64,
 
-    /// A base shared by at least this fraction of the other fragments of the locus is variation of the sample;
-    /// a rarer shared base is divergence,
-    /// since a rare haplotype with several linked differences is far less likely than reads from another source,
-    /// while germline variation sits at one over the ploidy and above.
+    /// A base shared by at least this fraction of the other fragments of the locus is variation of the sample.
+    /// A rarer shared base is divergence, since a few reads from another source share their mismatches as well.
+    /// Set below one over the ploidy of the sample; the default suits diploid samples with some allelic imbalance.
+    /// This is a stand-in, see ReadDivergenceModel::variation().
     pub variation_min_frequency: f64,
 
     /// Bases this far around a candidate that is realigned (anything but SNVs and MNVs) are left out,
@@ -220,6 +220,13 @@ impl ReadDivergenceModel {
 
     /// Fraction of the other fragments of the locus that show this base at the position.
     /// Returns 0.0 below the minimum frequency of sample variation.
+    /// The minimum frequency separates sample variation from a few reads of another source that share their mismatches.
+    /// The price: true variants below the minimum that sit on the same reads, such as clustered somatic mutations at low VAF,
+    /// count as divergence (nearby candidates are not excluded yet).
+    /// TODO: replace the threshold by a mixture of haplotypes per locus, those of the sample against those of another source.
+    /// The scenario's heterozygosity, somatic mutation rate and ploidy together with the read length give the prior of
+    /// a haplotype of the sample with that many linked differences (a long read may well carry several somatic ones),
+    /// the divergence that of another source; this needs the scenario, which preprocessing does not see yet.
     /// With `observed`, the asking fragment shows the base itself and is left out of the count.
     fn variation(&self, rpos: u64, base: usize, observed: bool) -> f64 {
         let counts = &self.counts[&rpos];
