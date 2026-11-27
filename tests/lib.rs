@@ -223,6 +223,7 @@ testcase!(test_fgumi_duplex_orientation_skew, exact);
 testcase!(test_fgumi_duplex_singleton, exact);
 testcase!(test_fgumi_duplex_singleton_neutral_prior, exact);
 testcase!(test_fgumi_duplex_singleton_neutral_prior_half_depth, exact);
+testcase!(test_fgumi_duplex_singleton_neutral_prior_deep, exact);
 testcase!(test_fgumi_duplex_divergent_read, exact);
 testcase!(test_fgumi_duplex_single_strand_damage, exact);
 testcase!(test_fgumi_duplex_strand_disagreement, exact);

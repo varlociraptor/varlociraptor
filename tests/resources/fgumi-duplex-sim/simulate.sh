@@ -128,6 +128,39 @@ print("\n".join(name for i, name in enumerate(sorted(names)) if name in alt or i
 }
 half_depth
 
+# the singleton with the per-molecule prior at eight times the depth: every reference molecule eight times, at a finer resolution
+deep() {
+    local src=$testcases/test_fgumi_duplex_singleton_neutral_prior dst=$testcases/test_fgumi_duplex_singleton_neutral_prior_deep
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa} "$dst/"
+    sed 's/resolution: 0.001$/resolution: 0.0001/' "$src/scenario.yaml" > "$dst/scenario.yaml"
+    [ -e "$dst/testcase.yaml" ] || sed 's/"max_depth":200/"max_depth":100000/g' "$src/testcase.yaml" > "$dst/testcase.yaml"
+    python - "$src" "$dst" <<'PY'
+import os, sys
+import pysam
+src, dst = sys.argv[1], sys.argv[2]
+with pysam.VariantFile(f"{src}/candidates.vcf") as vcf:
+    pos = next(vcf).pos - 1
+with pysam.AlignmentFile(f"{src}/duplex.bam") as bam:
+    reads = list(bam)
+    header = bam.header
+alt = {r.query_name for r in reads if any(rp == pos and r.query_sequence[q] == "T" for q, rp in r.get_aligned_pairs(matches_only=True))}
+with pysam.AlignmentFile(f"{dst}/unsorted.bam", "wb", header=header) as out:
+    for r in reads:
+        if r.query_name in alt:
+            out.write(r)
+        else:
+            name = r.query_name
+            for k in range(8):
+                r.query_name = f"{name}.{k}"
+                out.write(r)
+pysam.sort("-o", f"{dst}/duplex.bam", f"{dst}/unsorted.bam")
+pysam.index(f"{dst}/duplex.bam")
+os.remove(f"{dst}/unsorted.bam")
+PY
+}
+deep
+
 # a read from a divergent source: the singleton's alt molecule with four more mismatches per mate
 divergent_read() {
     local src=$testcases/test_fgumi_duplex_singleton dst=$testcases/test_fgumi_duplex_divergent_read

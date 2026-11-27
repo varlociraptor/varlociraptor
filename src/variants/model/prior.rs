@@ -395,7 +395,14 @@ impl Prior {
                 })
                 .sum(); // product in log space
 
-            assert!(*prob <= 0.0);
+            // METHOD: the neutral somatic VAF prior is a density that can exceed 1.0, see prob_somatic_mutation().
+            if !self
+                .somatic_vaf_prior
+                .iter()
+                .any(|prior| *prior == grammar::SomaticVafPrior::Neutral)
+            {
+                assert!(*prob <= 0.0);
+            }
 
             prob
         } else {
@@ -481,14 +488,15 @@ impl Prior {
             // METHOD: under the neutral model of Williams et al., the density of somatic VAFs is rate / VAF²,
             // where the rate is the effective mutation rate per base pair and sequenced molecule (the mutation burden).
             // Below the sample's resolution the density stays at its value at the resolution.
-            // The somatic VAF ranges from -germline VAF (loss of the germline allele) to 1 - germline VAF,
-            // and the density is symmetric in it, like the constant density of the flat prior.
-            // The prior mass of nonzero somatic VAFs is the integral of the capped density over both sides, see neutral_prior_mass(),
-            // and the probability of a somatic mutation at a locus grows with the VAF range that the depth makes observable:
-            // every molecule carries a mutation with the given rate, hence more molecules mean more chances to observe one.
+            // The somatic VAF runs from -germline VAF (loss of the germline allele) to 1 - germline VAF.
+            // The density is symmetric in it, like the constant density of the flat prior.
+            // The mass of nonzero somatic VAFs is the integral over both sides, see neutral_prior_mass().
+            // The probability of a somatic mutation at a locus thus grows with the VAF range that the depth makes observable:
+            // every molecule carries a mutation with the given rate, so more molecules mean more chances to see one.
             // This is what favors single molecules in deep duplex sequencing.
-            // The density is capped at 1.0, since it is multiplied with probabilities below;
-            // the cap only affects VAFs below sqrt(rate).
+            // The density is not capped. It exceeds 1.0 below sqrt(rate), which is fine for a density that is integrated over the VAF.
+            // The resolution bounds it, since the integration does not resolve smaller VAFs anyway.
+            // So a single molecule keeps the same weight at any depth, as long as 1 / depth is at least the resolution.
             grammar::SomaticVafPrior::Neutral => {
                 let min_vaf = **self.resolution[sample];
                 if relative_eq!(*somatic_vaf, 0.0) {
@@ -505,9 +513,8 @@ impl Prior {
                     mass.ln_one_minus_exp()
                 } else {
                     LogProb(
-                        (*somatic_effective_mutation_rate
-                            - 2.0 * (*somatic_vaf).abs().max(min_vaf).ln())
-                        .min(0.0),
+                        *somatic_effective_mutation_rate
+                            - 2.0 * (*somatic_vaf).abs().max(min_vaf).ln(),
                     )
                 }
             }
@@ -515,27 +522,19 @@ impl Prior {
     }
 
     /// Prior mass of somatic VAFs between 0.0 and the given VAF under the neutral prior:
-    /// the integral of min(1, rate / max(VAF, resolution)²) over (0.0, vaf].
-    /// The cap is active below sqrt(rate) once the rate exceeds resolution², see prob_somatic_mutation().
+    /// the integral of rate / max(VAF, resolution)² over (0.0, vaf].
     fn neutral_prior_mass(
         somatic_effective_mutation_rate: LogProb,
         resolution: f64,
         vaf: f64,
     ) -> LogProb {
-        let rate = *Prob::from(somatic_effective_mutation_rate);
-        let mass = if rate > resolution * resolution {
-            let cap = rate.sqrt();
-            if vaf <= cap {
-                vaf
-            } else {
-                2.0 * cap - rate / vaf
-            }
-        } else if vaf <= resolution {
+        let rate = (*somatic_effective_mutation_rate).exp();
+        let mass = if vaf <= resolution {
             rate * vaf / (resolution * resolution)
         } else {
             rate * (2.0 / resolution - 1.0 / vaf)
         };
-        LogProb::from(Prob(mass))
+        LogProb(mass.ln())
     }
 
     fn prob_clonal_inheritance(
@@ -917,16 +916,62 @@ impl CheckablePrior for Prior {
                 }
             }
             if self.somatic_vaf_prior[sample] == grammar::SomaticVafPrior::Neutral {
-                if let Some(rate) = self.somatic_effective_mutation_rate[sample] {
+                // METHOD: the rate may be set per variant, so this check runs again each time that happens.
+                // The variant type is unknown at startup; its fraction only scales the sample's rate down,
+                // so the check uses the rate as is.
+                let rate = self.variant_somatic_effective_mutation_rate.or_else(|| {
+                    self.somatic_effective_mutation_rate[sample]
+                        .map(|rate| LogProb::from(Prob(rate)))
+                });
+                if let Some(rate) = rate {
                     let resolution = **self.resolution[sample];
                     // METHOD: the mass of nonzero somatic VAFs is largest at a germline VAF of 0.5, where the range extends 0.5 to both sides.
-                    let mass = Self::neutral_prior_mass(LogProb::from(Prob(rate)), resolution, 0.5);
+                    let mass = Self::neutral_prior_mass(rate, resolution, 0.5);
                     if LogProb(*mass + 2f64.ln()) >= LogProb::ln_one() {
-                        return err("neutral somatic VAF prior with a somatic effective mutation rate whose prior mass of nonzero somatic VAFs reaches 1.0: the rate is per base pair and molecule (e.g. 1e-6)");
+                        return err("the somatic effective mutation rate is too large for the neutral somatic VAF prior: it is a rate per base pair and molecule (e.g. 1e-6) and has to stay below about a quarter of the resolution");
                     }
                 }
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_neutral_prior_mass() {
+        let mass = |rate: f64, resolution: f64, vaf: f64| {
+            (*Prior::neutral_prior_mass(LogProb::from(Prob(rate)), resolution, vaf)).exp()
+        };
+        let (rate, resolution) = (1e-5, 1e-3);
+        // the integral of rate / max(VAF, resolution)² over (0, 1]
+        assert_relative_eq!(
+            mass(rate, resolution, 1.0),
+            rate * (2.0 / resolution - 1.0),
+            max_relative = 1e-6
+        );
+        // linear below the resolution, continuous at it
+        assert_relative_eq!(
+            mass(rate, resolution, resolution / 2.0),
+            rate / resolution / 2.0,
+            max_relative = 1e-6
+        );
+        assert_relative_eq!(
+            mass(rate, resolution, resolution),
+            rate / resolution,
+            max_relative = 1e-6
+        );
+        assert_relative_eq!(
+            mass(rate, resolution, resolution * 1.000001),
+            rate / resolution,
+            max_relative = 1e-5
+        );
+        // nothing below a VAF of 0
+        assert_eq!(mass(rate, resolution, 0.0), 0.0);
+        // the mass over both sides of a heterozygous germline VAF stays below 1 for a rate per molecule
+        assert!(2.0 * mass(rate, resolution, 0.5) < 1.0);
     }
 }
