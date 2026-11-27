@@ -398,8 +398,7 @@ impl Prior {
             // METHOD: the neutral somatic VAF prior is a density that can exceed 1.0, see prob_somatic_mutation().
             if !self
                 .somatic_vaf_prior
-                .iter()
-                .any(|prior| *prior == grammar::SomaticVafPrior::Neutral)
+                .contains(&grammar::SomaticVafPrior::Neutral)
             {
                 assert!(*prob <= 0.0);
             }

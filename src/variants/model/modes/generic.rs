@@ -238,12 +238,7 @@ pub(crate) fn ln_integrate_vafs<F: FnMut(AlleleFreq) -> LogProb>(
         } else if n_obs < 5 {
             LogProb::ln_simpsons_integrate_exp(|_, vaf| density(AlleleFreq(vaf)), *min, *max, 11)
         } else {
-            adaptive_integration::ln_integrate_exp(
-                |vaf| density(vaf),
-                min,
-                max,
-                AlleleFreq(resolution),
-            )
+            adaptive_integration::ln_integrate_exp(density, min, max, AlleleFreq(resolution))
         }
     };
     if neutral_prior && *max_vaf > resolution {
