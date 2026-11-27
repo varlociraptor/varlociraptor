@@ -351,6 +351,10 @@ pub(crate) struct Species {
     #[allow(dead_code)]
     // genome size is deprecated but we keep allowing it to not break old scenarios
     genome_size: Option<f64>,
+    /// divergence of sources the reference lacks (paralogs, pseudogenes, contaminants) from the reference,
+    /// for the read divergence model (default 0.03: human paralogs and pseudogenes differ by about 1 to 5%)
+    #[serde(default)]
+    divergence: Option<f64>,
 }
 
 impl Species {

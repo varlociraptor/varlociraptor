@@ -530,6 +530,14 @@ impl<P: Clone, A: Clone, E: Clone> ReadObservation<P, A, E> {
         self.prob_mapping_adj.unwrap_or(self.prob_mapping)
     }
 
+    /// Replace the mapping probability and the probability of the observed allele at the true locus of a mismapped read,
+    /// see model::read_divergence.
+    pub(crate) fn set_mapping(&mut self, prob_mapping: LogProb, prob_missed_allele: LogProb) {
+        self.prob_mapping_adj = Some(prob_mapping);
+        self.prob_mismapping_adj = Some(prob_mapping.ln_one_minus_exp());
+        self.prob_missed_allele = prob_missed_allele;
+    }
+
     pub fn prob_mismapping(&self) -> LogProb {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
     }

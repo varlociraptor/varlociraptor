@@ -82,6 +82,42 @@ testcase test_fgumi_duplex_single_strand_damage 1,1,1 --require-single-strand-ag
 testcase test_fgumi_duplex_strand_disagreement 1,1,1 "" --omit-strand-bias --other-qual 12 \
     --op a:5:F2R1 --op b:5:F2R1
 
+# a read from a divergent source: the singleton's alt molecule with four more mismatches per mate
+divergent_read() {
+    local src=$testcases/test_fgumi_duplex_singleton dst=$testcases/test_fgumi_duplex_divergent_read
+    mkdir -p "$dst"
+    cp "$src"/{candidates.vcf,normal.bam,ref.fa,scenario.yaml} "$dst/"
+    [ -e "$dst/testcase.yaml" ] || cp "$src/testcase.yaml" "$dst/"
+    python - "$src" "$dst" <<'PY'
+import sys
+import pysam
+src, dst = sys.argv[1], sys.argv[2]
+with pysam.VariantFile(f"{src}/candidates.vcf") as vcf:
+    pos = next(vcf).pos - 1
+ref = pysam.FastaFile(f"{src}/ref.fa")
+with pysam.AlignmentFile(f"{src}/duplex.bam") as bam:
+    reads = list(bam)
+alt = {r.query_name for r in reads if any(rp == pos and r.query_sequence[q] == "T" for q, rp in r.get_aligned_pairs(matches_only=True))}
+with pysam.AlignmentFile(f"{dst}/unsorted.bam", "wb", template=pysam.AlignmentFile(f"{src}/duplex.bam")) as out:
+    for r in reads:
+        if r.query_name in alt:
+            pairs = [(q, rp) for q, rp in r.get_aligned_pairs(matches_only=True) if rp != pos]
+            seq = list(r.query_sequence)
+            quals = r.query_qualities
+            for i in (len(pairs) // 6, len(pairs) // 3, len(pairs) // 2, 2 * len(pairs) // 3):
+                q, rp = pairs[i]
+                seq[q] = {"A": "C", "C": "G", "G": "T", "T": "A"}[ref.fetch(r.reference_name, rp, rp + 1).upper()]
+            r.query_sequence = "".join(seq)
+            r.query_qualities = quals
+        out.write(r)
+PY
+    samtools sort -o "$dst/sorted.bam" "$dst/unsorted.bam"
+    samtools calmd -b "$dst/sorted.bam" "$dst/ref.fa" > "$dst/duplex.bam" 2> /dev/null
+    samtools index "$dst/duplex.bam"
+    rm "$dst/unsorted.bam" "$dst/sorted.bam"
+}
+divergent_read
+
 # the strand disagreement without the normal: the duplex sample alone has to show the orientation artifact
 tumor_only() {
     local src=$testcases/test_fgumi_duplex_strand_disagreement dst=$testcases/test_fgumi_duplex_strand_disagreement_tumor_only

@@ -15,6 +15,7 @@ use rgsl::randist::binomial::binomial_pdf;
 use serde_json;
 use serde_json::json;
 
+use crate::variants::model::read_divergence::ReadDivergenceSettings;
 use crate::{
     calling::variants::{
         calling::{call_generic, CallProcessor, Caller, CandidateFilter, WorkItem},
@@ -470,5 +471,6 @@ pub(crate) fn estimate_contamination(
         Vec::new(),
         false,
         false,
+        ReadDivergenceSettings::default(),
     )
 }

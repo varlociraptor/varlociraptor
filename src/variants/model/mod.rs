@@ -24,6 +24,7 @@ pub(crate) mod bias;
 pub(crate) mod likelihood;
 pub(crate) mod modes;
 pub(crate) mod prior;
+pub(crate) mod read_divergence;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Contamination {

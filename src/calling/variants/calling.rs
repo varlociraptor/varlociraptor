@@ -38,6 +38,9 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::prior::{Inheritance, Prior};
+use crate::variants::model::read_divergence::{
+    adjust_read_divergence, ReadDivergenceSettings, DEFAULT_DIVERGENCE,
+};
 use crate::variants::model::{self, Event, VariantPrecision};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::model::{Contamination, HaplotypeIdentifier};
@@ -72,6 +75,7 @@ where
     omit_softclip_bias: bool,
     omit_homopolymer_artifact_detection: bool,
     omit_alt_locus_bias: bool,
+    read_divergence: ReadDivergenceSettings,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     aux_info_fields: Vec<Vec<u8>>,
@@ -336,6 +340,15 @@ where
             .fragment_end_bias(self.fragment_end_bias.clone())
             .build()
             .unwrap()
+    }
+
+    /// Divergence of sources the reference lacks, from the scenario's species or the default.
+    fn divergence(&self) -> f64 {
+        self.scenario
+            .species()
+            .as_ref()
+            .and_then(|species| *species.divergence())
+            .unwrap_or(DEFAULT_DIVERGENCE)
     }
 
     fn observations(&self) -> Result<grammar::SampleInfo<Option<bcf::Reader>>> {
@@ -627,6 +640,8 @@ where
                 } = read_observations(record)?;
                 // METHOD: duplex consensus observations take their read orientation from the strand families supporting them.
                 adjust_duplex_orientation(std::slice::from_mut(&mut pileup));
+                // METHOD: reads carry mapping evidence in their own mismatches, see model::read_divergence.
+                adjust_read_divergence(&mut pileup, self.divergence(), &self.read_divergence);
                 if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;
@@ -1128,6 +1143,7 @@ pub(crate) fn call_generic<CP, CF>(
     propagate_info_fields: Vec<String>,
     full_prior: bool,
     no_absent: bool,
+    read_divergence: ReadDivergenceSettings,
 ) -> Result<()>
 where
     CP: CallProcessor,
@@ -1202,6 +1218,7 @@ where
         .contaminations(sample_infos.contaminations)
         .resolutions(sample_infos.resolutions)
         .fragment_end_bias(fragment_end_bias)
+        .read_divergence(read_divergence)
         .haplotype_feature_index(haplotype_feature_index)
         .outbcf(output)
         .aux_info_fields(propagate_info_fields)
