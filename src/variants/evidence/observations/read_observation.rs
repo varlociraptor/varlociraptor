@@ -165,6 +165,24 @@ impl DuplexStrands {
         })
     }
 
+    /// Pair orientation of the supporting families.
+    /// The record has the orientation of family A (duplex R1 = AB-R1 + BA-R2), family B the opposite one.
+    /// If both families agree, a standard orientation becomes None.
+    /// Other orientations stay, so that the filter for non-standard alignments still sees them.
+    pub(crate) fn read_orientation(
+        self,
+        record_orientation: SequenceReadPairOrientation,
+    ) -> SequenceReadPairOrientation {
+        match (self, record_orientation) {
+            (Self::Both, SequenceReadPairOrientation::F1R2 | SequenceReadPairOrientation::F2R1) => {
+                SequenceReadPairOrientation::None
+            }
+            (Self::B, SequenceReadPairOrientation::F1R2) => SequenceReadPairOrientation::F2R1,
+            (Self::B, SequenceReadPairOrientation::F2R1) => SequenceReadPairOrientation::F1R2,
+            (_, orientation) => orientation,
+        }
+    }
+
     /// The families agreeing in both, for several variants read together.
     pub(crate) fn and(self, other: Self) -> Self {
         match (self, other) {
@@ -476,6 +494,12 @@ impl std::fmt::Display for MaxBayesFactor {
 }
 
 impl<P: Clone, A: Clone, E: Clone> ReadObservation<P, A, E> {
+    /// True if both strand families of a duplex consensus read agree with the observation,
+    /// which rules out errors after strand separation and single-strand artifacts.
+    pub(crate) fn duplex_confirmed(&self) -> bool {
+        self.duplex_strands == DuplexStrands::Both
+    }
+
     // Represent evidence as bayes factor, returning either the one for ref against alt
     // or alt against ref, depending on which is higher
     pub(crate) fn max_bayes_factor(&self) -> MaxBayesFactor {
@@ -649,6 +673,7 @@ where
 /// When singleton evidence is found, both `prob_alt_adj` and `prob_ref_adj` of the observation
 /// are set to 0.5 (PROB_05) to reflect the increased uncertainty that the variant could be
 /// an artifact like a PCR error.
+/// Duplex-confirmed observations are left unchanged.
 pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
     let mut alt_observations: Vec<&mut ReadObservation<_, _, _>> = pileups
         .iter_mut()
@@ -657,11 +682,25 @@ pub(crate) fn adjust_singleton_evidence(pileups: &mut [Pileup]) -> bool {
         .collect();
     if alt_observations.len() == 1 {
         let obs = alt_observations.first_mut().unwrap();
+        // METHOD: agreement of both strand families of a duplex consensus read rules out PCR errors after strand separation.
+        if obs.duplex_confirmed() {
+            return false;
+        }
         obs.prob_alt_adj = Some(*PROB_05);
         obs.prob_ref_adj = Some(*PROB_05);
         true
     } else {
         false
+    }
+}
+
+/// Read orientation of duplex consensus observations from their strand families, see DuplexStrands::read_orientation.
+pub(crate) fn adjust_duplex_orientation(pileups: &mut [Pileup]) {
+    for obs in pileups
+        .iter_mut()
+        .flat_map(|pileup| pileup.read_observations_mut().iter_mut())
+    {
+        obs.read_orientation = obs.duplex_strands.read_orientation(obs.read_orientation);
     }
 }
 
@@ -1137,6 +1176,24 @@ mod tests {
         assert_eq!(strands, DuplexStrands::A);
         strands |= DuplexStrands::B;
         assert_eq!(strands, DuplexStrands::Both);
+    }
+
+    #[test]
+    fn test_duplex_strands_read_orientation() {
+        use SequenceReadPairOrientation::{F1R2, F2R1};
+        assert_eq!(
+            DuplexStrands::Both.read_orientation(F1R2),
+            SequenceReadPairOrientation::None
+        );
+        assert_eq!(DuplexStrands::A.read_orientation(F1R2), F1R2);
+        assert_eq!(DuplexStrands::B.read_orientation(F1R2), F2R1);
+        assert_eq!(DuplexStrands::B.read_orientation(F2R1), F1R2);
+        assert_eq!(DuplexStrands::None.read_orientation(F2R1), F2R1);
+        // non-standard orientations stay, so that they can still be filtered
+        assert_eq!(
+            DuplexStrands::Both.read_orientation(SequenceReadPairOrientation::F1F2),
+            SequenceReadPairOrientation::F1F2
+        );
     }
 
     #[test]

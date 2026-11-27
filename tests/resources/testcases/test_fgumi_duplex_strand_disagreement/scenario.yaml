@@ -1,0 +1,9 @@
+samples:
+  duplex:
+    resolution: 0.001
+    universe: "[0.0,1.0]"
+  normal:
+    universe: "[0.0,1.0]"
+events:
+  somatic: "duplex:]0.0,1.0] & normal:0.0"
+  germline: "normal:]0.0,1.0]"

@@ -51,7 +51,9 @@ pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
 
-use crate::variants::evidence::observations::read_observation::adjust_singleton_evidence;
+use crate::variants::evidence::observations::read_observation::{
+    adjust_duplex_orientation, adjust_singleton_evidence,
+};
 use crate::VERSION;
 
 #[derive(Builder)]
@@ -623,6 +625,8 @@ where
                     mut pileup,
                     is_homopolymer_indel,
                 } = read_observations(record)?;
+                // METHOD: duplex consensus observations take their read orientation from the strand families supporting them.
+                adjust_duplex_orientation(std::slice::from_mut(&mut pileup));
                 if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;

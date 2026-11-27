@@ -1,0 +1,45 @@
+# fgumi duplex consensus reads (simulated, see tests/resources/fgumi-duplex-sim).
+# Single-strand damage in F2R1 families of 10 molecules (5 in family A, 5 in family B),
+# winning the strand disagreement in the consensus.
+# The consensus records of damaged B families have the opposite (F1R2) orientation,
+# hence orientation has to be taken from the supporting family to detect the read orientation bias.
+expected:
+  posteriors:
+    - PLAIN_PROB_ARTIFACT > 0.6
+    - PLAIN_PROB_SOMATIC < 0.4
+
+# necessary bam files
+samples:
+  duplex:
+    path: 'duplex.bam'
+    properties: '{"insert_size":{"mean":297.8981308411215,"sd":38.99857156317264},"max_del_cigar_len":null,"max_ins_cigar_len":null,"frac_max_softclip":null,"max_read_len":150,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-12.785891140783116,"prob_deletion_artifact":-12.186270018233994,"prob_insertion_extend_artifact":null,"prob_deletion_extend_artifact":null},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"0":1.0},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":10000,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null,"methylation_prob_skipped_bases":0.05}}}}'
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":297.67036215816705,"sd":37.82946964094911},"max_del_cigar_len":null,"max_ins_cigar_len":null,"frac_max_softclip":null,"max_read_len":150,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-12.785891140783116,"prob_deletion_artifact":-12.186270018233994,"prob_insertion_extend_artifact":null,"prob_deletion_extend_artifact":null},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"0":1.0},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","variant_heterozygosity_field":null,"variant_somatic_effective_mutation_rate_field":null,"report_fragment_ids":false,"atomic_candidate_variants":false,"omit_mapq_adjustment":false,"reference_buffer_size":10,"min_bam_refetch_distance":10000,"alignment_properties":null,"output":"?","propagate_info_fields":[],"realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null,"methylation_readtype":null,"methylation_prob_skipped_bases":0.05}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+omit_strand_bias: true
+omit_read_orientation_bias: false
+omit_read_position_bias: false
+omit_softclip_bias: false
+omit_homopolymer_artifact_detection: false
+omit_alt_locus_bias: false
+fragment_end_bias: false
+
+version: '4'
