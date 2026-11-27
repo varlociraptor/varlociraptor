@@ -1,0 +1,32 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  sample:
+    path: 'sample.bam'
+    properties: '{"insert_size":{"mean":131.8901459448961,"sd":65.38456154049467},"max_del_cigar_len":42,"max_ins_cigar_len":40,"frac_max_softclip":0.9900990099009901,"max_read_len":101,"max_mapq":60,"gap_params":{"prob_insertion_artifact":-10.620240770986474,"prob_deletion_artifact":-10.25201252955411,"prob_insertion_extend_artifact":-2.6252415877176567,"prob_deletion_extend_artifact":-1.8873528148278442},"hop_params":{"prob_seq_homopolymer":[null,null,null,null],"prob_ref_homopolymer":[null,null,null,null],"prob_seq_extend_homopolymer":[null,null,null,null],"prob_ref_extend_homopolymer":[null,null,null,null]},"wildtype_homopolymer_error_model":{"7":9.775088588026526e-7,"18":5.1447834673823814e-8,"-3":1.0289566934764763e-7,"12":3.0868700804294287e-7,"0":0.9998889241249392,"16":4.115826773905905e-7,"2":0.000012244584652370067,"4":3.138317915103253e-6,"5":8.951923233245344e-6,"6":1.646330709562362e-6,"9":1.4919872055408906e-6,"-2":4.6303051206441436e-7,"-1":7.717175201073573e-7,"1":0.00009739075103754848,"10":7.202696854335334e-7,"3":2.8810787417341337e-6,"8":1.2861958668455954e-6,"11":1.0289566934764763e-6,"13":9.775088588026526e-7,"15":2.0579133869529525e-7,"17":5.1447834673823814e-8,"14":5.144783467382382e-7},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","report_fragment_ids":true,"omit_mapq_adjustment":true,"reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":"?","propagate_info_fields":[],"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
