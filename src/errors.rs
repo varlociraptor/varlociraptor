@@ -29,7 +29,7 @@ pub(crate) enum Error {
         pos: i64,
         msg: String,
     },
-    #[error("unable to estimate TMB because no valid records were found in the given BCF/VCF")]
+    #[error("unable to estimate mutational burden because no valid records were found in the given BCF/VCF")]
     NoRecordsFound,
     #[error("contig {contig} not found in universe definition and no 'all' defined")]
     UniverseContigNotFound { contig: String },
